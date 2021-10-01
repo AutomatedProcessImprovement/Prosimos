@@ -1,0 +1,8 @@
+/target/
+.idea/
+__pycache__/
+input_files/
+compressed_datasets/
+venv/
+output_files/
+Simod/
