@@ -18,22 +18,16 @@ def cli():
 @cli.command()
 @click.option('--bpmn_path', required=True,
               help='Path to the BPMN file with the process model')
-@click.option('--arrival_dist', required=True,
-              help='Path to the JSON file with the arrival time distributions, i.e., new case creation')
-@click.option('--gateway_prob', required=True,
-              help='Path to the JSON file with the branching probabilities in decision gateways')
-@click.option('--task_res_dist', required=True,
-              help='Path to the JSON file with the processing time distributions per pair task-resource')
-@click.option('--res_calendar', required=True,
-              help='Path to the JSON file with the calendars of each resource')
+@click.option('--json_path', required=True,
+              help='Path to the JSON file with the differentiated simulation parameters')
 @click.pass_context
-def load_simulation_info_cmd(bpmn_path, arrival_dist, gateway_prob, task_res_dist, res_calendar):
-    load_simulation_info(bpmn_path, arrival_dist, gateway_prob, task_res_dist, res_calendar)
+def load_simulation_info_cmd(bpmn_path, json_path):
+    load_simulation_info(bpmn_path, json_path)
 
 
-def load_simulation_info(bpmn_path, arrival_dist, gateway_prob, task_res_dist, res_calendar):
+def load_simulation_info(bpmn_path, json_path):
     global diffsim_info
-    diffsim_info = SimDiffSetup(bpmn_path, arrival_dist, gateway_prob, task_res_dist, res_calendar)
+    diffsim_info = SimDiffSetup(bpmn_path, json_path)
 
 
 @cli.command()

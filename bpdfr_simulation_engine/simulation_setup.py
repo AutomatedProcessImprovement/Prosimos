@@ -5,7 +5,7 @@ import ntpath
 from bpdfr_simulation_engine.control_flow_manager import ProcessState
 from bpdfr_simulation_engine.probability_distributions import generate_number_from
 from bpdfr_simulation_engine.simulation_properties_parser \
-    import parse_calendar_from_json, parse_simulation_parameters, parse_simulation_model
+    import parse_calendar_from_json, parse_simulation_parameters, parse_simulation_model, parse_json_sim_parameters
 
 
 class SimulationStep:
@@ -22,12 +22,13 @@ class SimulationStep:
 
 
 class SimDiffSetup:
-    def __init__(self, bpmn_path, arr_dist_path, branch_prob_path, task_res_dist_path, res_calend_path):
+    def __init__(self, bpmn_path, json_path):
         self.process_name = ntpath.basename(bpmn_path).split(".")[0]
         self.start_datetime = datetime.datetime.now(pytz.utc)
-        self.resources_map, self.calendars_map = parse_calendar_from_json(res_calend_path)
-        self.element_probability, self.task_resource = parse_simulation_parameters(arr_dist_path, branch_prob_path,
-                                                                                   task_res_dist_path)
+
+        self.resources_map, self.calendars_map, self.element_probability, self.task_resource = \
+            parse_json_sim_parameters(json_path)
+
         self.bpmn_graph = parse_simulation_model(bpmn_path)
         self.bpmn_graph.set_element_probabilities(self.element_probability, self.task_resource)
 

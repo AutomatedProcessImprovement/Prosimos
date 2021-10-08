@@ -79,11 +79,14 @@ def best_fit_distribution(data, bins=200):
 
 
 def generate_number_from(distribution_name, params):
-    dist = getattr(st, distribution_name)
     arg = params[:-2]
     loc = params[-2]
     scale = params[-1]
 
+    if distribution_name == "fix":
+        return arg[0]
+
+    dist = getattr(st, distribution_name)
     num_param = len(arg)
 
     if num_param == 0:
@@ -94,9 +97,6 @@ def generate_number_from(distribution_name, params):
         return dist.rvs(arg[0], arg[1], loc=loc, scale=scale, size=1)[0]
     elif num_param == 3:
         return dist.rvs(arg[0], arg[1], arg[2], loc=loc, scale=scale, size=1)[0]
-
-
-    # return (dist.rvs(loc=loc, scale=scale, size=1) if len(arg) == 0 else dist.rvs(arg, loc=loc, scale=scale, size=1))[0]
 
 
 class Choice:
