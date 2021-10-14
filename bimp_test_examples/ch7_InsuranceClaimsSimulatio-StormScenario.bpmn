@@ -523,7 +523,7 @@
          </bpmndi:BPMNEdge>
       </bpmndi:BPMNPlane>
    </bpmndi:BPMNDiagram>
-   <qbp:processSimulationInfo id="qbp_40dfb6d0-c591-594b-a68c-b1fe01e21626" processInstances="3588" startDateTime="2020-03-24T07:00:00.000Z" currency="EUR">
+   <qbp:processSimulationInfo id="qbp_40dfb6d0-c591-594b-a68c-b1fe01e21626" processInstances="500" startDateTime="2020-03-24T07:00:00.000Z" currency="EUR">
       <qbp:arrivalRateDistribution type="EXPONENTIAL" mean="NaN" arg1="8" arg2="NaN">
          <qbp:timeUnit>seconds</qbp:timeUnit>
       </qbp:arrivalRateDistribution>

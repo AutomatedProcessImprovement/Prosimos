@@ -200,9 +200,9 @@ def execute_full_process(bpm_env, total_cases):
         enabled_tasks = sim_setup.update_process_state(sim_setup.bpmn_graph.starting_event, p_state)
         # Starting a new process case ...
         # Executing all the tasks enabled by the starting event
+        trace_info = Trace(current_case, bpm_env.current_simulation_date())
+        bpm_env.log_info.trace_list.append(trace_info)
         for task_id in enabled_tasks:
-            trace_info = Trace(current_case, bpm_env.current_simulation_date())
-            bpm_env.log_info.trace_list.append(trace_info)
             e_step = bpm_env.enqueue_event(trace_info, task_id, p_state)
             # print_event_state('Enabled', e_step, bpm_env, 'New-Case')
         for r_id in sim_setup.resources_map:
@@ -225,11 +225,10 @@ def run_simulation(diffsim_info, total_cases, stat_fwriter, log_fwriter=None):
 
     env.process(execute_full_process(bpm_env, total_cases))
     env.run()
-    exec_time = (datetime.datetime.now() - started_at).total_seconds()
 
-    print("Simulation Duration: %s" % str(
+    print("Simulation Compeleted in: %s" % str(
         datetime.timedelta(seconds=(datetime.datetime.now() - started_at).total_seconds())))
-    print('-------------------------------------------')
+    print('---------------------------------------------------------')
     bpm_env.log_info.save_joint_statistics(bpm_env)
 
 

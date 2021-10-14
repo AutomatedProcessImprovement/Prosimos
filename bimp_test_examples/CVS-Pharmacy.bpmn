@@ -1340,7 +1340,7 @@
          <omgdc:Font isBold="false" isItalic="false" isStrikeThrough="false" isUnderline="false" name="Arial" size="12.0" />
       </bpmndi:BPMNLabelStyle>
    </bpmndi:BPMNDiagram>
-   <qbp:processSimulationInfo id="qbp_0b57e894-93af-0444-1081-fe12f621fd0d" processInstances="220" startDateTime="2019-03-25T06:00:00.000Z" currency="USD">
+   <qbp:processSimulationInfo id="qbp_0b57e894-93af-0444-1081-fe12f621fd0d" processInstances="500" startDateTime="2019-03-25T06:00:00.000Z" currency="USD">
       <qbp:arrivalRateDistribution type="EXPONENTIAL" mean="0" arg1="196.2" arg2="0">
          <qbp:timeUnit>minutes</qbp:timeUnit>
       </qbp:arrivalRateDistribution>

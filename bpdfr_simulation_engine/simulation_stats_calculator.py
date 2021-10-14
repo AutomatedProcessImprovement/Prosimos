@@ -1,6 +1,7 @@
 import sys
 import datetime
 from datetime import timedelta
+import pytz
 
 import simpy
 
@@ -8,63 +9,73 @@ from bpdfr_simulation_engine.execution_info import TaskEvent
 from bpdfr_simulation_engine.resource_profile import ResourceProfile
 
 
+class KPIInfo:
+    def __init__(self):
+        self.min = sys.float_info.max
+        self.max = 0
+        self.avg = 0
+        self.total = 0
+        self.count = 0
+
+    def set_values(self, min_val, max_val, avg_val, total=0, count=0):
+        self.min = min_val
+        self.max = max_val
+        self.avg = avg_val
+        self.total = total
+        self.count = count
+
+    def set_average(self):
+        self.avg = self.total / self.count if self.count > 0 else 0
+
+    def add_value(self, new_value):
+        self.min = min(self.min, new_value)
+        self.max = max(self.max, new_value)
+        self.total += new_value
+        self.count += 1
+        self.avg = self.total / self.count
+
+
+class KPIMap:
+    def __init__(self):
+        self.cycle_time = KPIInfo()
+        self.processing_time = KPIInfo()
+        self.waiting_time = KPIInfo()
+
+        self.idle_cycle_time = KPIInfo()
+        self.idle_processing_time = KPIInfo()
+        self.idle_time = KPIInfo()
+
+        self.duration = KPIInfo()
+        self.cost = KPIInfo()
+
+
 class LogInfo:
     def __init__(self):
+        self.started_at = pytz.UTC.localize(datetime.datetime.max)
+        self.ended_at = pytz.UTC.localize(datetime.datetime.min)
         self.trace_list = list()
         self.last_post_processed_trace = 0
         self.task_exec_info = dict()
 
     def register_completed_task(self, event_info: TaskEvent, res_prof: ResourceProfile):
+        self.started_at = min(self.started_at, event_info.started_at)
+        self.ended_at = max(self.ended_at, event_info.completed_at)
         task_duration = (event_info.completed_at - event_info.started_at).total_seconds()
         waiting_time, processing_time = event_info.waiting_time(), event_info.processing_time()
-        cycle_time, idle_time = event_info.cycle_time(), event_info.idle_time
         task_cost = res_prof.cost_per_hour * processing_time / 3600
-        t_id = event_info.task_id
-        if event_info.task_id not in self.task_exec_info:
-            self.task_exec_info[t_id] = {
-                'name': event_info.task_name,
-                'count': 1,
-                'total_duration': task_duration,
-                'min_duration': task_duration,
-                'max_duration': task_duration,
-                'total_wait_time': waiting_time,
-                'min_wait_time': waiting_time,
-                'max_wait_time': waiting_time,
-                'total_processing_time': processing_time,
-                'min_processing_time': processing_time,
-                'max_processing_time': processing_time,
-                'total_cycle_time': cycle_time,
-                'min_cycle_time': cycle_time,
-                'max_cycle_time': cycle_time,
-                'total_idle_time': idle_time,
-                'min_idle_time': idle_time,
-                'max_idle_time': idle_time,
-                'total_cost': task_cost,
-                'min_cost': task_cost,
-                'max_cost': task_cost
-            }
-        else:
-            self.task_exec_info[t_id]['count'] += 1
-            self.task_exec_info[t_id]['total_duration'] += task_duration
-            self.task_exec_info[t_id]['min_duration'] += min(task_duration, self.task_exec_info[t_id]['min_duration'])
-            self.task_exec_info[t_id]['max_duration'] += max(task_duration, self.task_exec_info[t_id]['max_duration'])
-            self.task_exec_info[t_id]['total_wait_time'] += waiting_time
-            self.task_exec_info[t_id]['min_wait_time'] += min(waiting_time, self.task_exec_info[t_id]['min_wait_time'])
-            self.task_exec_info[t_id]['max_wait_time'] += max(waiting_time, self.task_exec_info[t_id]['max_wait_time'])
-            self.task_exec_info[t_id]['total_processing_time'] += processing_time
-            self.task_exec_info[t_id]['min_processing_time'] += min(processing_time,
-                                                                    self.task_exec_info[t_id]['min_processing_time'])
-            self.task_exec_info[t_id]['max_processing_time'] += max(processing_time,
-                                                                    self.task_exec_info[t_id]['max_processing_time'])
-            self.task_exec_info[t_id]['total_cycle_time'] += cycle_time
-            self.task_exec_info[t_id]['min_cycle_time'] += min(cycle_time, self.task_exec_info[t_id]['min_cycle_time'])
-            self.task_exec_info[t_id]['max_cycle_time'] += max(cycle_time, self.task_exec_info[t_id]['max_cycle_time'])
-            self.task_exec_info[t_id]['total_idle_time'] += idle_time
-            self.task_exec_info[t_id]['min_idle_time'] += min(idle_time, self.task_exec_info[t_id]['min_idle_time'])
-            self.task_exec_info[t_id]['max_idle_time'] += max(idle_time, self.task_exec_info[t_id]['max_idle_time'])
-            self.task_exec_info[t_id]['total_cost'] += task_cost
-            self.task_exec_info[t_id]['min_cost'] += min(task_cost, self.task_exec_info[t_id]['min_cost'])
-            self.task_exec_info[t_id]['max_cost'] += max(task_cost, self.task_exec_info[t_id]['max_cost'])
+        t_name = event_info.task_name
+
+        if t_name not in self.task_exec_info:
+            self.task_exec_info[t_name] = KPIMap()
+
+        self.task_exec_info[t_name].duration.add_value(task_duration)
+        self.task_exec_info[t_name].waiting_time.add_value(event_info.waiting_time())
+        self.task_exec_info[t_name].processing_time.add_value(event_info.processing_time())
+        self.task_exec_info[t_name].idle_time.add_value(event_info.idle_time)
+        self.task_exec_info[t_name].cycle_time.add_value(event_info.cycle_time())
+        self.task_exec_info[t_name].idle_processing_time.add_value(event_info.idle_processing_time())
+        self.task_exec_info[t_name].idle_cycle_time.add_value(event_info.idle_processing_time())
+        self.task_exec_info[t_name].cost.add_value(task_cost)
 
     def post_process_completed_trace(self):
         if self.last_post_processed_trace < len(self.trace_list):
@@ -74,40 +85,43 @@ class LogInfo:
         return False
 
     def save_joint_statistics(self, bpm_env):
+        self.save_start_end_dates(bpm_env.stat_fwriter)
         compute_resource_utilization(bpm_env)
-        bpm_env.stat_fwriter.writerow([""])
         self.compute_individual_task_stats(bpm_env.stat_fwriter)
         bpm_env.stat_fwriter.writerow([""])
         self.compute_full_simulation_statistics(bpm_env.stat_fwriter)
 
+    def save_start_end_dates(self, stat_fwriter):
+        stat_fwriter.writerow(["started_at", str(self.started_at)])
+        stat_fwriter.writerow(["completed_at", str(self.ended_at)])
+        stat_fwriter.writerow([""])
+
     def compute_individual_task_stats(self, stat_fwriter):
         stat_fwriter.writerow(['Individual Task Statistics'])
-        stat_fwriter.writerow(['Name', 'Count', 'Avg Duration', 'Min Duration', 'Max Duration', 'Ave Waiting Time',
-                               'Min Waiting Time', 'Max Waiting Time', 'Ave Processing Time', 'Min Processing Time',
-                               'Max Processing Time', 'Ave Cycle Time', 'Min Cycle Time', 'Max Cycle Time',
-                               'Ave Idle Time', 'Min Idle Time', 'Max Idle Time', 'Ave Cost', 'Min Cost', 'Max Cost'])
-        for t_id in self.task_exec_info:
-            count = self.task_exec_info[t_id]['count']
-            stat_fwriter.writerow([self.task_exec_info[t_id]['name'],
-                                   count,
-                                   self.task_exec_info[t_id]['total_duration'] / count,
-                                   self.task_exec_info[t_id]['min_duration'],
-                                   self.task_exec_info[t_id]['max_duration'],
-                                   self.task_exec_info[t_id]['total_wait_time'] / count,
-                                   self.task_exec_info[t_id]['min_wait_time'],
-                                   self.task_exec_info[t_id]['max_wait_time'],
-                                   self.task_exec_info[t_id]['total_processing_time'] / count,
-                                   self.task_exec_info[t_id]['min_processing_time'],
-                                   self.task_exec_info[t_id]['max_processing_time'],
-                                   self.task_exec_info[t_id]['total_cycle_time'] / count,
-                                   self.task_exec_info[t_id]['min_cycle_time'],
-                                   self.task_exec_info[t_id]['max_cycle_time'],
-                                   self.task_exec_info[t_id]['total_idle_time'] / count,
-                                   self.task_exec_info[t_id]['min_idle_time'],
-                                   self.task_exec_info[t_id]['max_idle_time'],
-                                   self.task_exec_info[t_id]['total_cost'] / count,
-                                   self.task_exec_info[t_id]['min_cost'],
-                                   self.task_exec_info[t_id]['max_cost']])
+        stat_fwriter.writerow(['Name', 'Count', 'Min Duration', 'Max Duration', 'Avg Duration', 'Total Duration',
+                               'Min Waiting Time', 'Max Waiting Time', 'Ave Waiting Time', 'Total Waiting Time',
+                               'Min Processing Time', 'Max Processing Time', 'Ave Processing Time',
+                               'Total Processing Time', 'Min Cycle Time', 'Max Cycle Time', 'Ave Cycle Time',
+                               'Total Cycle Time', 'Min Idle Time', 'Max Idle Time', 'Ave Idle Time', 'Total Idle Time',
+                               'Min Idle Cycle Time', 'Max Idle Cycle Time', 'Ave Idle Cycle Time',
+                               'Total Idle Cycle Time', 'Min Idle Processing Time', 'Max Idle Processing Time',
+                               'Ave Idle Processing Time', 'Total Idle Processing Time', 'Min Cost', 'Max Cost',
+                               'Ave Cost', 'Total Cost'])
+        for t_name in self.task_exec_info:
+            t_info: KPIMap = self.task_exec_info[t_name]
+            stat_fwriter.writerow([t_name,
+                                   t_info.cycle_time.count, t_info.duration.min, t_info.duration.max,
+                                   t_info.duration.avg, t_info.duration.total, t_info.waiting_time.min,
+                                   t_info.waiting_time.max, t_info.waiting_time.avg, t_info.waiting_time.total,
+                                   t_info.processing_time.min, t_info.processing_time.max, t_info.processing_time.avg,
+                                   t_info.processing_time.total, t_info.cycle_time.min, t_info.cycle_time.max,
+                                   t_info.cycle_time.avg, t_info.cycle_time.total, t_info.idle_time.min,
+                                   t_info.idle_time.max, t_info.idle_time.avg, t_info.idle_time.total,
+                                   t_info.idle_cycle_time.min, t_info.idle_cycle_time.max, t_info.idle_cycle_time.avg,
+                                   t_info.idle_cycle_time.total, t_info.idle_processing_time.min,
+                                   t_info.idle_processing_time.max, t_info.idle_processing_time.avg,
+                                   t_info.idle_processing_time.total, t_info.cost.min, t_info.cost.max,
+                                   t_info.cost.avg, t_info.cost.total])
 
     def compute_full_simulation_statistics(self, stat_fwriter):
         while self.post_process_completed_trace():
@@ -131,10 +145,15 @@ class LogInfo:
         kpi_average = {kpi: val["total"] / len(self.trace_list) for kpi, val in kpi_map.items()}
 
         stat_fwriter.writerow(['Overall Scenario Statistics'])
-        stat_fwriter.writerow(['KPI', 'Average', 'Min', 'Max'])
+        stat_fwriter.writerow(['KPI', 'Min', 'Max', 'Average', 'Accumulated Value', 'Trace Ocurrences'])
         for kpi_name in kpi_map:
-            print("%s:      %s" % (kpi_name, str(timedelta(seconds=(kpi_average[kpi_name])))))
-            stat_fwriter.writerow([kpi_name, kpi_average[kpi_name], kpi_map[kpi_name]['min'], kpi_map[kpi_name]["max"]])
+            # print("%s:      %s" % (kpi_name, str(timedelta(seconds=(kpi_average[kpi_name])))))
+            stat_fwriter.writerow([kpi_name,
+                                   kpi_map[kpi_name]['min'],
+                                   kpi_map[kpi_name]["max"],
+                                   kpi_average[kpi_name],
+                                   kpi_map[kpi_name]['total'],
+                                   len(self.trace_list)])
 
 
 def add_time_duration(time_map, new_value):
@@ -169,6 +188,7 @@ def compute_resource_utilization(bpm_env):
         #     print("Full:  %s" % str(datetime.timedelta(seconds=bpm_env.sim_resources[r_id].available_time)))
         #     print("%s -> Utilization: %f" % (r_id, r_utilization))
         #     print('-------------------------------------------')
+    stat_fwriter.writerow([""])
 
 
 def update_min_max(trace_info, duration_array, case_duration):

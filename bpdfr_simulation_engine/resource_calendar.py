@@ -83,7 +83,7 @@ class RCalendar:
     def add_calendar_item(self, from_day, to_day, begin_time, end_time):
         if from_day.upper() in str_week_days and to_day.upper() in str_week_days:
             try:
-                t_interval = Interval(_parse_datetime(begin_time, False), _parse_datetime(end_time, False))
+                t_interval = Interval(parse_datetime(begin_time, False), parse_datetime(end_time, False))
                 if self.default_date is None:
                     self.default_date = t_interval.start.date()
                     self.new_day = datetime.datetime.combine(self.default_date, datetime.time())
@@ -246,10 +246,10 @@ class RCalendar:
             return (self.work_intervals[c_day][i].end - from_datetime).total_seconds()
 
 
-def _parse_datetime(time, has_date):
+def parse_datetime(time, has_date):
     time_formats = ['%H:%M:%S.%f', '%H:%M', '%I:%M%p', '%H:%M:%S', '%I:%M:%S%p'] if not has_date \
-        else ['%Y-%m-%dT%H:%M:%S.%f%z', '%b %d %Y %I:%M%p', '%b %d %Y at %I:%M%p', '%B %d, %Y, %H:%M:%S',
-              '%a,%d/%m/%y,%I:%M%p', '%a, %d %B, %Y', '%Y-%m-%dT%H:%M:%SZ']
+        else ['%Y-%m-%dT%H:%M:%S.%f%z', '%b %d %Y %I:%M%p', '%b %d %Y at %I:%M%p',
+              '%B %d, %Y, %H:%M:%S', '%a,%d/%m/%y,%I:%M%p', '%a, %d %B, %Y', '%Y-%m-%dT%H:%M:%SZ']
     for time_format in time_formats:
         try:
             return datetime.datetime.strptime(time, time_format)
