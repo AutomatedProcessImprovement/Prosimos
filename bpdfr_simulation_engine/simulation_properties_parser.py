@@ -91,8 +91,9 @@ def parse_qbp_simulation_process(qbp_bpmn_path, out_file):
                 if bpmn_element.attrib["gatewayDirection"] == "Diverging":
                     gateways_branching[bpmn_element.attrib["id"]] = dict()
                     for out_flow in bpmn_element.findall("xmlns:outgoing", bpmn_element_ns):
-                        gateways_branching[bpmn_element.attrib["id"]][out_flow.text] = 0
-                        reverse_map[out_flow.text] = bpmn_element.attrib["id"]
+                        arc_id = out_flow.text.strip()
+                        gateways_branching[bpmn_element.attrib["id"]][arc_id] = 0
+                        reverse_map[arc_id] = bpmn_element.attrib["id"]
     for flow_prob in simod_root.find("qbp:sequenceFlows", simod_ns).findall("qbp:sequenceFlow", simod_ns):
         flow_id = flow_prob.attrib["elementId"]
         gateways_branching[reverse_map[flow_id]][flow_id] = flow_prob.attrib["executionProbability"]
