@@ -7,8 +7,6 @@ import click
 from bpdfr_simulation_engine.simulation_engine import run_simulation
 from bpdfr_simulation_engine.simulation_setup import SimDiffSetup
 
-diffsim_info: SimDiffSetup
-
 
 @click.group()
 def cli():
@@ -20,18 +18,7 @@ def cli():
               help='Path to the BPMN file with the process model')
 @click.option('--json_path', required=True,
               help='Path to the JSON file with the differentiated simulation parameters')
-@click.pass_context
-def load_simulation_info_cmd(bpmn_path, json_path):
-    load_simulation_info(bpmn_path, json_path)
-
-
-def load_simulation_info(bpmn_path, json_path):
-    global diffsim_info
-    diffsim_info = SimDiffSetup(bpmn_path, json_path)
-
-
-@cli.command()
-@click.option('--total_cases', required=True,
+@click.option('--total_cases', required=True, type=click.INT,
               help='Number of process instances to simulate')
 @click.option('--stat_out_path', required=False,
               help='Path to the CSV file to produce with the statistics/metrics after running the simulations.'
@@ -42,31 +29,27 @@ def load_simulation_info(bpmn_path, json_path):
 @click.option('--starting_at', required=False,
               help='Date-time of the first process case in the simulation.'
                    'If this parameter is not provided, the current date-time is assigned.')
-def start_simulation_cmd(total_cases, stat_out_path=None, log_out_path=None, starting_at=None):
-    start_simulation(total_cases, stat_out_path, log_out_path, starting_at)
+@click.pass_context
+def start_simulation(ctx, bpmn_path, json_path, total_cases, stat_out_path=None, log_out_path=None, starting_at=None):
+    diffsim_info = SimDiffSetup(bpmn_path, json_path)
 
+    if not diffsim_info:
+        print('Simulation model NOT found.')
+        ctx.abort()
 
-def start_simulation(total_cases, stat_out_path=None, log_out_path=None, starting_at=None):
-    if diffsim_info:
-        if starting_at:
-            diffsim_info.set_starting_satetime(starting_at)
-        if not stat_out_path:
-            stat_out_path = os.path.join(os.path.dirname(__file__), Path("%s.csv" % diffsim_info.process_name))
-        with open(stat_out_path, mode='w', newline='') as stat_csv_file:
-            if log_out_path:
-                with open(log_out_path, mode='w', newline='') as log_csv_file:
-                    run_simulation(diffsim_info, total_cases,
-                                   csv.writer(stat_csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL),
-                                   csv.writer(log_csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL))
-            else:
+    if starting_at:
+        diffsim_info.set_starting_satetime(starting_at)
+    if not stat_out_path:
+        stat_out_path = os.path.join(os.path.dirname(__file__), Path("%s.csv" % diffsim_info.process_name))
+    with open(stat_out_path, mode='w', newline='') as stat_csv_file:
+        if log_out_path:
+            with open(log_out_path, mode='w', newline='') as log_csv_file:
                 run_simulation(diffsim_info, total_cases,
-                               csv.writer(stat_csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL))
-    else:
-        print('Simulation model NOT found. Run function load_simulation_info to fix it.')
-
-
-cli.add_command(load_simulation_info_cmd)
-cli.add_command(start_simulation_cmd)
+                               csv.writer(stat_csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL),
+                               csv.writer(log_csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL))
+        else:
+            run_simulation(diffsim_info, total_cases,
+                           csv.writer(stat_csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL))
 
 
 if __name__ == "__main__":
