@@ -168,10 +168,22 @@ def execute_task_case(bpm_env, e_step, r_id):
     request = bpm_env.request_resource(r_id)
     # Computing real duration (+idle time) and creating (starting) the new event
     event_index, real_duration = bpm_env.start_task(e_step, r_id, sim_setup)
-    # if real_duration < e_step.ideal_duration:
-    #     print('hola')
+    # This conditional is for testing purposes .. remove later
+    if real_duration < e_step.ideal_duration:
+        bpm_env.start_task(e_step, r_id, sim_setup)
+        print(real_duration)
+        print(e_step.ideal_duration)
+        print('--------------------------')
     # print_event_state('Started', e_step, bpm_env, r_id)
     # Waiting for the event (task) to be completed
+    # print(real_duration)
+    # if to_rest > 0:
+    #     sim_setup.next_resting_time(resource_id, bpm_env.current_simulation_date())
+    #     print(resource_id)
+    #     print(str(datetime.timedelta(seconds=to_rest)))
+    #     print(bpm_env.current_simulation_date())
+    #     print(bpm_env.current_simulation_date().weekday())
+    #     print('-------------')
     yield simpy_env.timeout(real_duration)
     # Completing the event after execution
     end_time = bpm_env.complete_task(e_step, event_index, real_duration)
@@ -213,8 +225,8 @@ def execute_full_process(bpm_env, total_cases):
         if current_case >= total_cases:
             break
         # Waiting for the next case to start according to the arrival time distribution
-
-        yield simpy_env.timeout(sim_setup.next_arrival_time())
+        next_arrival = sim_setup.next_arrival_time(bpm_env.current_simulation_date())
+        yield simpy_env.timeout(next_arrival)
         # print(current_case)
 
 

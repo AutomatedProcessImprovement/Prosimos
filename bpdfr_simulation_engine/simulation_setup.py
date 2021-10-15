@@ -4,8 +4,8 @@ import ntpath
 
 from bpdfr_simulation_engine.control_flow_manager import ProcessState
 from bpdfr_simulation_engine.probability_distributions import generate_number_from
-from bpdfr_simulation_engine.simulation_properties_parser \
-    import parse_calendar_from_json, parse_simulation_parameters, parse_simulation_model, parse_json_sim_parameters
+from bpdfr_simulation_engine.resource_calendar import RCalendar
+from bpdfr_simulation_engine.simulation_properties_parser import parse_simulation_model, parse_json_sim_parameters
 
 
 class SimulationStep:
@@ -31,6 +31,7 @@ class SimDiffSetup:
 
         self.bpmn_graph = parse_simulation_model(bpmn_path)
         self.bpmn_graph.set_element_probabilities(self.element_probability, self.task_resource)
+        self.arrival_calendar = self.find_arrival_calendar()
 
     def get_resource_calendar(self, resource_id):
         if resource_id in self.resources_map:
@@ -42,12 +43,12 @@ class SimDiffSetup:
             return self.calendars_map[self.resources_map[resource_id].calendar_id].next_available_time(starting_from)
         return 0
 
-    def next_arrival_time(self):
+    def next_arrival_time(self, starting_from):
         # All the times extracted from simulation properties are given in seconds
         # -> however, the timeout function of sympy expects times in minutes
         val = generate_number_from(self.element_probability['arrivalTime']['distribution_name'],
                                    self.element_probability['arrivalTime']['distribution_params'])
-        return val
+        return val + self.arrival_calendar.next_available_time(starting_from)
 
     def initial_state(self):
         return ProcessState(self.bpmn_graph)
@@ -57,6 +58,18 @@ class SimDiffSetup:
 
     def update_process_state(self, e_id, p_state):
         return self.bpmn_graph.update_process_state(e_id, p_state)
+
+    def find_arrival_calendar(self):
+        enabled_tasks = self.update_process_state(self.bpmn_graph.starting_event, self.initial_state())
+        starter_resources = set()
+        arrival_calendar = RCalendar("arrival_calendar")
+        for task_id in enabled_tasks:
+            for r_id in self.task_resource[task_id]:
+                if r_id in starter_resources:
+                    continue
+                arrival_calendar.combine_calendar(self.calendars_map[self.resources_map[r_id].calendar_id])
+                starter_resources.add(r_id)
+        return arrival_calendar
 
     def ideal_task_duration(self, task_id, resource_id):
         duration = -1

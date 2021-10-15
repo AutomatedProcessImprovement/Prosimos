@@ -80,6 +80,13 @@ class RCalendar:
                     })
         return items
 
+    def combine_calendar(self, new_calendar):
+        for i in range(0, 7):
+            if len(new_calendar.work_intervals[i]) > 0:
+                for interval in new_calendar.work_intervals[i]:
+                    self.add_calendar_item(int_week_days[i], int_week_days[i],
+                                           str(interval.start.time()), str(interval.end.time()))
+
     def add_calendar_item(self, from_day, to_day, begin_time, end_time):
         if from_day.upper() in str_week_days and to_day.upper() in str_week_days:
             try:
@@ -137,6 +144,8 @@ class RCalendar:
         c_date = datetime.datetime.combine(self.default_date, requested_date.time())
 
         worked_time, total_time = self._find_time_starting(pending_duration, c_day, c_date)
+        if worked_time > total_time and worked_time - total_time < 0.001:
+            total_time = worked_time
         pending_duration -= worked_time
         real_duration += total_time
         c_date = self.new_day
