@@ -1,6 +1,7 @@
 import sys
 import time
 
+import numpy.random
 from numpy import random
 
 import warnings
@@ -114,3 +115,6 @@ class Choice:
                 selected.append(self.candidates_list[i])
         return selected if len(selected) > 0 else [self.get_outgoing_flow()]
 
+
+def random_uniform(start, end):
+    return numpy.random.uniform(low=start, high=end)

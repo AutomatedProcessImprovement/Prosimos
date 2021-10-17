@@ -18,7 +18,19 @@ def parse_json_sim_parameters(json_path):
         task_resource_distribution = json_data["task_resource_distribution"]
         element_distribution = parse_simulation_parameters(json_data["arrival_time_distribution"],
                                                            json_data["gateway_branching_probabilities"])
-        return resources_map, calendars_map, element_distribution, task_resource_distribution
+        arrival_calendar = parse_arrival_calendar(json_data)
+
+        return resources_map, calendars_map, element_distribution, task_resource_distribution, arrival_calendar
+
+
+def parse_arrival_calendar(json_data):
+    arrival_calendar = None
+    if 'arrival_time_calendar' in json_data:
+        arrival_calendar = RCalendar('arrival_time_calendar')
+        for c_item in json_data['arrival_time_calendar']:
+            arrival_calendar.add_calendar_item(c_item['from'], c_item['to'], c_item['beginTime'], c_item['endTime'])
+    return arrival_calendar
+
 
 
 def parse_calendar_from_json(json_data):
@@ -145,6 +157,7 @@ def parse_qbp_simulation_process(qbp_bpmn_path, out_file):
 
     to_save = {
         "arrival_time_distribution": arrival_time_dist,
+        "arrival_time_calendar": calendars_map['QBP_DEFAULT_TIMETABLE'],
         "gateway_branching_probabilities": gateways_branching,
         "task_resource_distribution": task_resource_dist,
         "resource_calendars": resource_calendars,

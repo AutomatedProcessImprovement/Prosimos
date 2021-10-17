@@ -199,9 +199,10 @@ def update_min_max(trace_info, duration_array, case_duration):
 
 
 def print_event_state(state, e_step, bpm_env, resource_id):
-    print("(%d) - %s %s at - %s by %s" % (e_step.trace_info.p_case,
-                                          bpm_env.sim_setup.bpmn_graph.element_info[e_step.task_id].name, state,
-                                          str(bpm_env.current_simulation_date()), resource_id))
+    if bpm_env.sim_setup.bpmn_graph.element_info[e_step.task_id].name == 'Check credit history':
+        print("(%d) - %s %s at - %s by %s" % (e_step.trace_info.p_case,
+                                              bpm_env.sim_setup.bpmn_graph.element_info[e_step.task_id].name, state,
+                                              str(bpm_env.current_simulation_date()), resource_id))
 
 
 def compute_execution_times(trace_info):
