@@ -6,6 +6,14 @@
             1
         ]
     },
+    "arrival_time_calendar": [
+        {
+            "from": "MONDAY",
+            "to": "FRIDAY",
+            "beginTime": "08:00:00.000",
+            "endTime": "20:00:00.000"
+        }
+    ],
     "gateway_branching_probabilities": {
         "sid-7BC2AC26-117F-4F44-842E-D70A37254F7C": {
             "sid-C56D0112-5EB3-4D6B-8B56-28502BD6FB82": "0.95",

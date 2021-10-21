@@ -1,1 +1,161 @@
-{"arrival_time_distribution": {"distribution_name": "expon", "distribution_params": [1800.0, 1]}, "gateway_branching_probabilities": {"sid-64FC5B46-47E5-4940-A0AF-ECE87483967D": {"sid-8AE82A7B-75EE-401B-8ABE-279FB05A3946": "0.7", "sid-789335C6-205C-4A03-9AD6-9655893C1FFB": "0.3"}, "sid-FACFF0AE-6A1B-47AC-B289-F5E60CB12B2A": {"sid-AFEC7074-8C12-43E2-A1FE-87D5CEF395C8": "0.3", "sid-AE313010-5715-438C-AD61-1C02F03DCF77": "0.7"}}, "task_resource_distribution": {"sid-622A1118-4766-43B2-A004-7DADE521982D": {"sid-A6F8AB76-7589-4280-A833-B353A4238C38_1": {"distribution_name": "norm", "distribution_params": [600.0, 120.0]}, "sid-A6F8AB76-7589-4280-A833-B353A4238C38_2": {"distribution_name": "norm", "distribution_params": [600.0, 120.0]}}, "sid-503A048D-6344-446A-8D67-172B164CF8FA": {"sid-A6F8AB76-7589-4280-A833-B353A4238C38_1": {"distribution_name": "norm", "distribution_params": [600.0, 120.0]}, "sid-A6F8AB76-7589-4280-A833-B353A4238C38_2": {"distribution_name": "norm", "distribution_params": [600.0, 120.0]}}, "sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C": {"sid-A6F8AB76-7589-4280-A833-B353A4238C38_1": {"distribution_name": "expon", "distribution_params": [1200.0, 1]}, "sid-A6F8AB76-7589-4280-A833-B353A4238C38_2": {"distribution_name": "expon", "distribution_params": [1200.0, 1]}}, "sid-4B24111F-B305-4608-9E12-744B47C44D0D": {"sid-09FFCEBC-C60F-40D8-8AE7-2C4CB5DCF798_1": {"distribution_name": "norm", "distribution_params": [600.0, 120.0]}, "sid-09FFCEBC-C60F-40D8-8AE7-2C4CB5DCF798_2": {"distribution_name": "norm", "distribution_params": [600.0, 120.0]}}, "sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F": {"sid-09FFCEBC-C60F-40D8-8AE7-2C4CB5DCF798_1": {"distribution_name": "norm", "distribution_params": [1200.0, 240.0]}, "sid-09FFCEBC-C60F-40D8-8AE7-2C4CB5DCF798_2": {"distribution_name": "norm", "distribution_params": [1200.0, 240.0]}}, "sid-3744BAA1-9382-4FAB-B7FE-B6A333F10D25": {"sid-13AFF558-4B56-4722-A649-AE8CCAFC2EC7_1": {"distribution_name": "fix", "distribution_params": [0.0, 0, 1]}}}, "resource_calendars": {"sid-A6F8AB76-7589-4280-A833-B353A4238C38_1": [{"from": "MONDAY", "to": "FRIDAY", "beginTime": "09:00:00.000", "endTime": "17:00:00.000"}], "sid-A6F8AB76-7589-4280-A833-B353A4238C38_2": [{"from": "MONDAY", "to": "FRIDAY", "beginTime": "09:00:00.000", "endTime": "17:00:00.000"}], "sid-09FFCEBC-C60F-40D8-8AE7-2C4CB5DCF798_1": [{"from": "MONDAY", "to": "FRIDAY", "beginTime": "09:00:00.000", "endTime": "16:00:00.000"}], "sid-09FFCEBC-C60F-40D8-8AE7-2C4CB5DCF798_2": [{"from": "MONDAY", "to": "FRIDAY", "beginTime": "09:00:00.000", "endTime": "16:00:00.000"}], "sid-13AFF558-4B56-4722-A649-AE8CCAFC2EC7_1": [{"from": "MONDAY", "to": "SUNDAY", "beginTime": "00:00:00.000", "endTime": "23:59:00.000"}]}}
+{
+    "arrival_time_distribution": {
+        "distribution_name": "expon",
+        "distribution_params": [
+            1800.0,
+            1
+        ]
+    },
+    "arrival_time_calendar": [
+        {
+            "from": "MONDAY",
+            "to": "FRIDAY",
+            "beginTime": "09:00:00.000",
+            "endTime": "17:00:00.000"
+        }
+    ],
+    "gateway_branching_probabilities": {
+        "sid-64FC5B46-47E5-4940-A0AF-ECE87483967D": {
+            "sid-8AE82A7B-75EE-401B-8ABE-279FB05A3946": "0.7",
+            "sid-789335C6-205C-4A03-9AD6-9655893C1FFB": "0.3"
+        },
+        "sid-FACFF0AE-6A1B-47AC-B289-F5E60CB12B2A": {
+            "sid-AFEC7074-8C12-43E2-A1FE-87D5CEF395C8": "0.3",
+            "sid-AE313010-5715-438C-AD61-1C02F03DCF77": "0.7"
+        }
+    },
+    "task_resource_distribution": {
+        "sid-622A1118-4766-43B2-A004-7DADE521982D": {
+            "sid-A6F8AB76-7589-4280-A833-B353A4238C38_1": {
+                "distribution_name": "norm",
+                "distribution_params": [
+                    600.0,
+                    120.0
+                ]
+            },
+            "sid-A6F8AB76-7589-4280-A833-B353A4238C38_2": {
+                "distribution_name": "norm",
+                "distribution_params": [
+                    600.0,
+                    120.0
+                ]
+            }
+        },
+        "sid-503A048D-6344-446A-8D67-172B164CF8FA": {
+            "sid-A6F8AB76-7589-4280-A833-B353A4238C38_1": {
+                "distribution_name": "norm",
+                "distribution_params": [
+                    600.0,
+                    120.0
+                ]
+            },
+            "sid-A6F8AB76-7589-4280-A833-B353A4238C38_2": {
+                "distribution_name": "norm",
+                "distribution_params": [
+                    600.0,
+                    120.0
+                ]
+            }
+        },
+        "sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C": {
+            "sid-A6F8AB76-7589-4280-A833-B353A4238C38_1": {
+                "distribution_name": "expon",
+                "distribution_params": [
+                    1200.0,
+                    1
+                ]
+            },
+            "sid-A6F8AB76-7589-4280-A833-B353A4238C38_2": {
+                "distribution_name": "expon",
+                "distribution_params": [
+                    1200.0,
+                    1
+                ]
+            }
+        },
+        "sid-4B24111F-B305-4608-9E12-744B47C44D0D": {
+            "sid-09FFCEBC-C60F-40D8-8AE7-2C4CB5DCF798_1": {
+                "distribution_name": "norm",
+                "distribution_params": [
+                    600.0,
+                    120.0
+                ]
+            },
+            "sid-09FFCEBC-C60F-40D8-8AE7-2C4CB5DCF798_2": {
+                "distribution_name": "norm",
+                "distribution_params": [
+                    600.0,
+                    120.0
+                ]
+            }
+        },
+        "sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F": {
+            "sid-09FFCEBC-C60F-40D8-8AE7-2C4CB5DCF798_1": {
+                "distribution_name": "norm",
+                "distribution_params": [
+                    1200.0,
+                    240.0
+                ]
+            },
+            "sid-09FFCEBC-C60F-40D8-8AE7-2C4CB5DCF798_2": {
+                "distribution_name": "norm",
+                "distribution_params": [
+                    1200.0,
+                    240.0
+                ]
+            }
+        },
+        "sid-3744BAA1-9382-4FAB-B7FE-B6A333F10D25": {
+            "sid-13AFF558-4B56-4722-A649-AE8CCAFC2EC7_1": {
+                "distribution_name": "fix",
+                "distribution_params": [
+                    0.0,
+                    0,
+                    1
+                ]
+            }
+        }
+    },
+    "resource_calendars": {
+        "sid-A6F8AB76-7589-4280-A833-B353A4238C38_1": [
+            {
+                "from": "MONDAY",
+                "to": "FRIDAY",
+                "beginTime": "09:00:00.000",
+                "endTime": "17:00:00.000"
+            }
+        ],
+        "sid-A6F8AB76-7589-4280-A833-B353A4238C38_2": [
+            {
+                "from": "MONDAY",
+                "to": "FRIDAY",
+                "beginTime": "09:00:00.000",
+                "endTime": "17:00:00.000"
+            }
+        ],
+        "sid-09FFCEBC-C60F-40D8-8AE7-2C4CB5DCF798_1": [
+            {
+                "from": "MONDAY",
+                "to": "FRIDAY",
+                "beginTime": "09:00:00.000",
+                "endTime": "16:00:00.000"
+            }
+        ],
+        "sid-09FFCEBC-C60F-40D8-8AE7-2C4CB5DCF798_2": [
+            {
+                "from": "MONDAY",
+                "to": "FRIDAY",
+                "beginTime": "09:00:00.000",
+                "endTime": "16:00:00.000"
+            }
+        ],
+        "sid-13AFF558-4B56-4722-A649-AE8CCAFC2EC7_1": [
+            {
+                "from": "MONDAY",
+                "to": "SUNDAY",
+                "beginTime": "00:00:00.000",
+                "endTime": "23:59:00.000"
+            }
+        ]
+    }
+}

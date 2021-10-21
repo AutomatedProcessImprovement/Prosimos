@@ -1,9 +1,10 @@
 import pytz
 import datetime
+from datetime import timedelta
 import ntpath
 
 from bpdfr_simulation_engine.control_flow_manager import ProcessState
-from bpdfr_simulation_engine.probability_distributions import generate_number_from
+from bpdfr_simulation_engine.probability_distributions import generate_number_from, random_uniform
 from bpdfr_simulation_engine.resource_calendar import RCalendar
 from bpdfr_simulation_engine.simulation_properties_parser import parse_simulation_model, parse_json_sim_parameters
 
@@ -26,12 +27,13 @@ class SimDiffSetup:
         self.process_name = ntpath.basename(bpmn_path).split(".")[0]
         self.start_datetime = datetime.datetime.now(pytz.utc)
 
-        self.resources_map, self.calendars_map, self.element_probability, self.task_resource = \
+        self.resources_map, self.calendars_map, self.element_probability, self.task_resource, self.arrival_calendar = \
             parse_json_sim_parameters(json_path)
 
         self.bpmn_graph = parse_simulation_model(bpmn_path)
         self.bpmn_graph.set_element_probabilities(self.element_probability, self.task_resource)
-        self.arrival_calendar = self.find_arrival_calendar()
+        if not self.arrival_calendar:
+            self.arrival_calendar = self.find_arrival_calendar()
 
     def get_resource_calendar(self, resource_id):
         if resource_id in self.resources_map:
@@ -44,11 +46,9 @@ class SimDiffSetup:
         return 0
 
     def next_arrival_time(self, starting_from):
-        # All the times extracted from simulation properties are given in seconds
-        # -> however, the timeout function of sympy expects times in minutes
         val = generate_number_from(self.element_probability['arrivalTime']['distribution_name'],
                                    self.element_probability['arrivalTime']['distribution_params'])
-        return val + self.arrival_calendar.next_available_time(starting_from)
+        return val + self.arrival_calendar.next_available_time(starting_from + timedelta(seconds=val))
 
     def initial_state(self):
         return ProcessState(self.bpmn_graph)
