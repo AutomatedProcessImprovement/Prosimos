@@ -40,6 +40,57 @@ class Interval:
     def is_after(self, c_date):
         return c_date <= self.start
 
+    def intersection(self, interval):
+        if interval is None:
+            return None
+        [first_i, second_i] = [self, interval] if self.start <= interval.start else [interval, self]
+        if second_i.start < first_i.end:
+            return Interval(max(first_i.start, second_i.start), min(first_i.end, second_i.end))
+        return None
+
+
+class CalendarIterator:
+    def __init__(self, start_date: datetime, calendar_info):
+        self.start_date = start_date
+
+        self.calendar = calendar_info
+
+        self.c_day = start_date.date().weekday()
+        self.c_index = 0
+
+        c_date = datetime.datetime.combine(calendar_info.default_date, start_date.time())
+        c_interval = calendar_info.work_intervals[self.c_day][0]
+        self.c_index = 0
+        while c_interval.is_before(c_date) and self.c_index < len(calendar_info.work_intervals[self.c_day]):
+            c_interval = calendar_info.work_intervals[self.c_day][self.c_index]
+            self.c_index += 1
+
+        self.c_interval = Interval(self.start_date,
+                                   self.start_date + timedelta(seconds=(c_interval.end - c_date).total_seconds()))
+
+    def next_working_interval(self):
+        res_interval = self.c_interval
+        day_intervals = self.calendar.work_intervals[self.c_day]
+        p_duration = 0
+
+        self.c_index += 1
+        if self.c_index >= len(day_intervals):
+            p_duration += 86400 - (day_intervals[self.c_index - 1].end - self.calendar.new_day).total_seconds()
+            while True:
+                self.c_day = (self.c_day + 1) % 7
+                day_intervals = self.calendar.work_intervals[self.c_day]
+                if len(day_intervals) > 0:
+                    p_duration += (day_intervals[0].start - self.calendar.new_day).total_seconds()
+                    break
+                else:
+                    p_duration += 86400
+            self.c_index = 0
+        else:
+            p_duration += (day_intervals[self.c_index].start - day_intervals[self.c_index - 1].end).total_seconds()
+        self.c_interval = Interval(res_interval.start + timedelta(seconds=p_duration),
+                                   res_interval.end + timedelta(seconds=p_duration + res_interval.duration))
+        return res_interval
+
 
 class RCalendar:
     def __init__(self, calendar_id):
@@ -132,6 +183,17 @@ class RCalendar:
         self.work_rest_count[w_day][1] -= duration
         self.total_weekly_work += duration
         self.total_weekly_rest -= duration
+
+    def remove_idle_times(self, from_date, to_date, out_intervals: list):
+        calendar_it = CalendarIterator(from_date, self)
+        while True:
+            c_interval = calendar_it.next_working_interval()
+            if c_interval.is_before(to_date):
+                out_intervals.append(c_interval)
+            else:
+                if c_interval.contains(to_date):
+                    out_intervals.append(Interval(c_interval.start, to_date))
+                break
 
     def find_idle_time(self, requested_date, duration):
         real_duration = 0
@@ -295,11 +357,14 @@ def update_calendar_from_log(r_calendar, date_time, is_start, min_eps=15):
     to_day = int_week_days[to_date.weekday()]
 
     if from_day != to_day:
-        r_calendar.add_calendar_item(from_day, from_day, "%d:%d:%d" % (from_date.hour, from_date.minute, from_date.second), "23:59:59.999")
+        r_calendar.add_calendar_item(from_day, from_day,
+                                     "%d:%d:%d" % (from_date.hour, from_date.minute, from_date.second), "23:59:59.999")
         if to_date.hour != 0 or to_date.minute != 0 or to_date.second != 0:
-            r_calendar.add_calendar_item(to_day, to_day, "00:00:00", "%d:%d:%d" % (to_date.hour, to_date.minute, to_date.second))
+            r_calendar.add_calendar_item(to_day, to_day, "00:00:00",
+                                         "%d:%d:%d" % (to_date.hour, to_date.minute, to_date.second))
     else:
-        r_calendar.add_calendar_item(from_day, to_day, "%d:%d:%d" % (from_date.hour, from_date.minute, from_date.second),
+        r_calendar.add_calendar_item(from_day, to_day,
+                                     "%d:%d:%d" % (from_date.hour, from_date.minute, from_date.second),
                                      "%d:%d:%d" % (to_date.hour, to_date.minute, to_date.second))
 
 

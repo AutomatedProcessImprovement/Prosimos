@@ -49,6 +49,7 @@ def main():
         diff_sim_result.print_simulation_results()
         break
 
+
     os._exit(0)
 
 

@@ -29,13 +29,14 @@ class SimBPMEnv:
         self.real_duration = dict()
         self.stat_fwriter = stat_fwriter
         self.log_fwriter = log_fwriter
-        self.log_info = LogInfo()
+        self.log_info = LogInfo(sim_setup)
 
         for r_id in sim_setup.resources_map:
             self.sim_resources[r_id] = SimResource(simpy.Resource(env, sim_setup.resources_map[r_id].resource_amount))
             self.real_duration[r_id] = 0
         self._is_event_completed = list()
         self._pending_events = list()
+        self.testing_map = dict()
 
     def enqueue_event(self, trace_info, task_id, p_state, enabled_by=None, available_resources=PriorityQueue()):
         s_step = SimulationStep(trace_info, task_id, None, p_state, self.simpy_env.now, enabled_by)
@@ -82,12 +83,20 @@ class SimBPMEnv:
                                     self.sim_setup.bpmn_graph.element_info[e_step.task_id].name,
                                     e_step.performed_by_resource, 'completed', completed_at)
         e_step.trace_info.complete_event(event_index, completed_at, real_duration - e_step.ideal_duration)
-        if self.sim_setup.bpmn_graph.element_info[e_step.task_id].name == 'Check credit history':
-            if (e_step.trace_info.event_list[event_index].started_at - e_step.trace_info.event_list[event_index].enabled_at).total_seconds() > 0:
-                print(e_step.trace_info.event_list[event_index].enabled_at)
-                print(e_step.trace_info.event_list[event_index].started_at)
-                print(str(e_step.trace_info.p_case) + '-----' + str(e_step.trace_info.event_list[event_index].started_at - e_step.trace_info.event_list[event_index].enabled_at))
-                print('----------------------------------------')
+        # if self.sim_setup.bpmn_graph.element_info[e_step.task_id].name in ['Check credit history', 'Check income sources']:
+        #     t_name = self.sim_setup.bpmn_graph.element_info[e_step.task_id].name
+        #     r_id = e_step.trace_info.event_list[event_index].resource_id
+        #     if t_name not in self.testing_map:
+        #         self.testing_map[t_name] = dict()
+        #     if r_id not in self.testing_map[t_name]:
+        #         self.testing_map[t_name][r_id] = 0
+        #     self.testing_map[t_name][r_id] += 1
+        #     print(e_step.trace_info.event_list[event_index].resource_id)
+        #     if (e_step.trace_info.event_list[event_index].started_at - e_step.trace_info.event_list[event_index].enabled_at).total_seconds() > 0:
+        #         print(e_step.trace_info.event_list[event_index].enabled_at)
+        #         print(e_step.trace_info.event_list[event_index].started_at)
+        #         print(str(e_step.trace_info.p_case) + '-----' + str(e_step.trace_info.event_list[event_index].started_at - e_step.trace_info.event_list[event_index].enabled_at))
+        #         print('----------------------------------------')
         self.register_event(e_step.trace_info.event_list[event_index])
         return self.simpy_env.now
 

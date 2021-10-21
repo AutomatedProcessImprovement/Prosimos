@@ -28,10 +28,10 @@ class SimulationResult:
         print('AVERAGE KIP VALUES -- FULL PROCESS')
         print('Waiting Time .......... %s' % format_duration(self.process_kpi_map.waiting_time.avg, 25))
         print('Idle Cycle Time ....... %s' % format_duration(self.process_kpi_map.idle_cycle_time.avg, 25))
-        print('Idle Processing Time .. %s' % format_duration(self.process_kpi_map.idle_processing_time.avg, 25))
-        print('Idle Time  ............ %s' % format_duration(self.process_kpi_map.idle_time.avg, 25))
         print('Cycle Time ............ %s' % format_duration(self.process_kpi_map.cycle_time.avg, 25))
+        print('Idle Processing Time .. %s' % format_duration(self.process_kpi_map.idle_processing_time.avg, 25))
         print('Processing Time ....... %s' % format_duration(self.process_kpi_map.processing_time.avg, 25))
+        print('Idle Time  ............ %s' % format_duration(self.process_kpi_map.idle_time.avg, 25))
         print('------------------------------------------------------------')
         print('RESOURCE UTILIZATION')
         for res_name in self.resource_utilization:
@@ -48,21 +48,21 @@ class SimulationResult:
                                                              'Count'.ljust(c_s),
                                                              'Waiting Time'.ljust(d_s),
                                                              'Idle Cycle Time'.ljust(d_s),
-                                                             'Idle Processing Time'.ljust(d_s),
-                                                             'Idle Time'.ljust(d_s),
                                                              'Cycle Time'.ljust(d_s),
-                                                             'Processing Time'.ljust(d_s)))
+                                                             'Idle Processing Time'.ljust(d_s),
+                                                             'Processing Time'.ljust(d_s),
+                                                             'Idle Time'.ljust(d_s),))
         for task_name in self.tasks_kpi_map:
             kpi_info: KPIMap = self.tasks_kpi_map[task_name]
             print('| %s | %s | %s | %s | %s | %s | %s | %s |' % (task_name.ljust(max_t),
                                                                  str(kpi_info.cycle_time.count).ljust(c_s),
                                                                  format_duration(kpi_info.waiting_time.avg, d_s),
                                                                  format_duration(kpi_info.idle_cycle_time.avg, d_s),
+                                                                 format_duration(kpi_info.cycle_time.avg, d_s),
                                                                  format_duration(kpi_info.idle_processing_time.avg,
                                                                                  d_s),
-                                                                 format_duration(kpi_info.idle_time.avg, d_s),
-                                                                 format_duration(kpi_info.cycle_time.avg, d_s),
-                                                                 format_duration(kpi_info.processing_time.avg, d_s)))
+                                                                 format_duration(kpi_info.processing_time.avg, d_s),
+                                                                 format_duration(kpi_info.idle_time.avg, d_s)))
 
         print('------------------------------------------------------------')
 
