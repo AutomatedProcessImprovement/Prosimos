@@ -60,8 +60,6 @@ class LogInfo:
         self.sim_setup = sim_setup
 
     def compute_execution_times(self, trace_info, process_kpi):
-        idle_cycle_time = (trace_info.completed_at - trace_info.started_at).total_seconds()  ## merge with next
-        process_kpi.idle_cycle_time.add_value(idle_cycle_time)
         processing_intervals = list()
         waiting_intervals = list()
         real_work_intervals = list()
@@ -69,17 +67,30 @@ class LogInfo:
             r_calendar = self.sim_setup.calendars_map[self.sim_setup.resources_map[event_info.resource_id].calendar_id]
             r_calendar.remove_idle_times(event_info.started_at, event_info.completed_at, real_work_intervals)
             processing_intervals.append(Interval(event_info.started_at, event_info.completed_at))
-            if event_info.enabled_at != event_info.started_at:
-                waiting_intervals.append(Interval(event_info.enabled_at, event_info.started_at))
-        idle_processing_time = sum_interval_union(processing_intervals) ##
+            waiting_intervals.append(Interval(event_info.enabled_at, event_info.started_at))
+
+        idle_cycle_time = (trace_info.completed_at - trace_info.started_at).total_seconds()
+        idle_processing_time = sum_interval_union(processing_intervals)
+        processing_time = sum_interval_union(real_work_intervals)
+        waiting_time = sum_interval_union(waiting_intervals)
+        idle_time = round(idle_processing_time - processing_time, 6)
+
+        process_kpi.idle_cycle_time.add_value(idle_cycle_time)
         process_kpi.idle_processing_time.add_value(idle_processing_time)
-        waiting_time = sum_interval_union(waiting_intervals) ##
-        process_kpi.waiting_time.add_value(waiting_time)
-        processing_time = sum_interval_union(real_work_intervals) ##
         process_kpi.processing_time.add_value(processing_time)
-        idle_time = idle_processing_time - processing_time
+        process_kpi.waiting_time.add_value(waiting_time)
         process_kpi.idle_time.add_value(idle_time)
         process_kpi.cycle_time.add_value(idle_cycle_time - idle_time)
+
+        # These conditional are for debugging, remove after testing all the models
+        if idle_time < 0:
+            print('===========================================================')
+            for xx in processing_intervals:
+                print("%s -> %s (%f)" % (str(xx.start), str(xx.end), xx.duration))
+            print('===========================================================')
+        if idle_cycle_time != round(idle_processing_time + waiting_time, 6):
+            calc = idle_processing_time + waiting_time
+            print('trace_duration %s - %s idle_cycle_time (calculated)' % (idle_cycle_time, calc))
 
     def register_completed_task(self, event_info: TaskEvent, res_prof: ResourceProfile):
         self.started_at = min(self.started_at, event_info.started_at)
@@ -229,7 +240,7 @@ def sum_interval_union(interval_list):
                 break
             i_interval = intersection
         t_duration += interval_list[i].duration - i_interval.duration if i_interval else interval_list[i].duration
-    return t_duration
+    return round(t_duration, 6)
 
 
 def compute_execution_times_by_simulation(trace_info):

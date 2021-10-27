@@ -31,25 +31,9 @@ def cli():
                    'If this parameter is not provided, the current date-time is assigned.')
 @click.pass_context
 def start_simulation(ctx, bpmn_path, json_path, total_cases, stat_out_path=None, log_out_path=None, starting_at=None):
-    diffsim_info = SimDiffSetup(bpmn_path, json_path)
-
-    if not diffsim_info:
+    if not run_simulation(bpmn_path, json_path, total_cases, stat_out_path, log_out_path, starting_at):
         print('Simulation model NOT found.')
         ctx.abort()
-
-    if starting_at:
-        diffsim_info.set_starting_satetime(starting_at)
-    if not stat_out_path:
-        stat_out_path = os.path.join(os.path.dirname(__file__), Path("%s.csv" % diffsim_info.process_name))
-    with open(stat_out_path, mode='w', newline='') as stat_csv_file:
-        if log_out_path:
-            with open(log_out_path, mode='w', newline='') as log_csv_file:
-                run_simulation(diffsim_info, total_cases,
-                               csv.writer(stat_csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL),
-                               csv.writer(log_csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL))
-        else:
-            run_simulation(diffsim_info, total_cases,
-                           csv.writer(stat_csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL))
 
 
 if __name__ == "__main__":

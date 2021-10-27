@@ -80,6 +80,13 @@ def best_fit_distribution(data, bins=200):
 
 
 def generate_number_from(distribution_name, params):
+    while True:
+        duration = evaluate_distribution_function(distribution_name, params)
+        if duration >= 0:
+            return duration
+
+
+def evaluate_distribution_function(distribution_name, params):
     arg = params[:-2]
     loc = params[-2]
     scale = params[-1]

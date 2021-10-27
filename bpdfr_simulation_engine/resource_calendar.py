@@ -56,14 +56,13 @@ class CalendarIterator:
         self.calendar = calendar_info
 
         self.c_day = start_date.date().weekday()
-        self.c_index = 0
 
         c_date = datetime.datetime.combine(calendar_info.default_date, start_date.time())
         c_interval = calendar_info.work_intervals[self.c_day][0]
-        self.c_index = 0
-        while c_interval.is_before(c_date) and self.c_index < len(calendar_info.work_intervals[self.c_day]):
-            c_interval = calendar_info.work_intervals[self.c_day][self.c_index]
+        self.c_index = -1
+        while c_interval.end < c_date and self.c_index < len(calendar_info.work_intervals[self.c_day]):
             self.c_index += 1
+            c_interval = calendar_info.work_intervals[self.c_day][self.c_index]
 
         self.c_interval = Interval(self.start_date,
                                    self.start_date + timedelta(seconds=(c_interval.end - c_date).total_seconds()))
@@ -85,10 +84,10 @@ class CalendarIterator:
                 else:
                     p_duration += 86400
             self.c_index = 0
-        else:
+        elif self.c_index > 0:
             p_duration += (day_intervals[self.c_index].start - day_intervals[self.c_index - 1].end).total_seconds()
-        self.c_interval = Interval(res_interval.start + timedelta(seconds=p_duration),
-                                   res_interval.end + timedelta(seconds=p_duration + res_interval.duration))
+        self.c_interval = Interval(res_interval.end + timedelta(seconds=p_duration),
+                                   res_interval.end + timedelta(seconds=p_duration + day_intervals[self.c_index].duration))
         return res_interval
 
 
@@ -188,14 +187,16 @@ class RCalendar:
         calendar_it = CalendarIterator(from_date, self)
         while True:
             c_interval = calendar_it.next_working_interval()
-            if c_interval.is_before(to_date):
+            if c_interval.end < to_date:
                 out_intervals.append(c_interval)
             else:
-                if c_interval.contains(to_date):
+                if c_interval.start <= to_date <= c_interval.end:
                     out_intervals.append(Interval(c_interval.start, to_date))
                 break
 
     def find_idle_time(self, requested_date, duration):
+        if duration == 0:
+            return 0
         real_duration = 0
         pending_duration = duration
         if duration > self.total_weekly_work:

@@ -72,13 +72,9 @@ class SimDiffSetup:
         return arrival_calendar
 
     def ideal_task_duration(self, task_id, resource_id):
-        duration = -1
-        for i in range(0, 5):
-            duration = generate_number_from(self.task_resource[task_id][resource_id]['distribution_name'],
-                                            self.task_resource[task_id][resource_id]['distribution_params'])
-            if duration >= 0:
-                return duration
-        return duration
+        val = generate_number_from(self.task_resource[task_id][resource_id]['distribution_name'],
+                                   self.task_resource[task_id][resource_id]['distribution_params'])
+        return val
 
     def real_task_duration(self, task_duration, resource_id, enabled_at):
         return self.calendars_map[self.resources_map[resource_id].calendar_id].find_idle_time(enabled_at, task_duration)

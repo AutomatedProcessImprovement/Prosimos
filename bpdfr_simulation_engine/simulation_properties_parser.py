@@ -32,7 +32,6 @@ def parse_arrival_calendar(json_data):
     return arrival_calendar
 
 
-
 def parse_calendar_from_json(json_data):
     resources_map = dict()
     calendars_map = dict()
@@ -114,16 +113,21 @@ def parse_qbp_simulation_process(qbp_bpmn_path, out_file):
     resource_pools = dict()
     calendars_map = dict()
     bpmn_calendars = simod_root.find("qbp:timetables", simod_ns)
+    arrival_calendar_id = None
+
     for calendar_info in bpmn_calendars:
         calendar_id = calendar_info.attrib["id"]
         if calendar_id not in calendars_map:
             calendars_map[calendar_id] = list()
 
-        time_table = calendar_info.find("qbp:rules", simod_ns).find("qbp:rule", simod_ns)
-        calendars_map[calendar_id].append({"from": time_table.attrib["fromWeekDay"],
-                                           "to": time_table.attrib["toWeekDay"],
-                                           "beginTime": format_date(time_table.attrib["fromTime"]),
-                                           "endTime": format_date(time_table.attrib["toTime"])})
+        time_tables = calendar_info.find("qbp:rules", simod_ns).findall("qbp:rule", simod_ns)
+        if 'ARRIVAL_CALENDAR' in calendar_id or (arrival_calendar_id is None and 'DEFAULT_TIMETABLE' in calendar_id):
+            arrival_calendar_id = calendar_id
+        for time_table in time_tables:
+            calendars_map[calendar_id].append({"from": time_table.attrib["fromWeekDay"],
+                                               "to": time_table.attrib["toWeekDay"],
+                                               "beginTime": format_date(time_table.attrib["fromTime"]),
+                                               "endTime": format_date(time_table.attrib["toTime"])})
 
     # 3. Extracting Arrival time distribution
     arrival_time_dist = extract_dist_params(simod_root.find("qbp:arrivalRateDistribution", simod_ns))
@@ -157,7 +161,7 @@ def parse_qbp_simulation_process(qbp_bpmn_path, out_file):
 
     to_save = {
         "arrival_time_distribution": arrival_time_dist,
-        "arrival_time_calendar": calendars_map['QBP_DEFAULT_TIMETABLE'],
+        "arrival_time_calendar": calendars_map[arrival_calendar_id],
         "gateway_branching_probabilities": gateways_branching,
         "task_resource_distribution": task_resource_dist,
         "resource_calendars": resource_calendars,
@@ -175,20 +179,29 @@ def extract_dist_params(dist_info):
                    "arg2": float(dist_info.attrib["arg2"])}
     dist_name = dist_info.attrib["type"].upper()
     if dist_name == "EXPONENTIAL":
-        return {"distribution_name": "expon", "distribution_params": [dist_params["arg1"], 1]}
+        # input: loc = 0, scale = mean
+        return {"distribution_name": "expon", "distribution_params": [0, dist_params["arg1"]]}
     if dist_name == "NORMAL":
+        # input: loc = mean, scale = standard deviation
         return {"distribution_name": "norm", "distribution_params": [dist_params["mean"], dist_params["arg1"]]}
     if dist_name == "FIXED":
         return {"distribution_name": "fix", "distribution_params": [dist_params["mean"], 0, 1]}
-    if dist_name == "LOGNORMAL":
-        return {"distribution_name": "lognorm", "distribution_params": [dist_params["mean"], dist_params["arg1"], 0, 1]}
+    # if dist_name == "LOGNORMAL":
+    #     # input: shape = standard deviation, loc = 0, scale exp(mean)
+    #     return {"distribution_name": "lognorm", "distribution_params": [dist_params["mean"],
+    #                                                                     dist_params["arg1"], 0, 1]}
     if dist_name == "UNIFORM":
-        return {"distribution_name": "uniform", "distribution_params": [dist_params["arg1"], dist_params["arg2"], 0, 1]}
+        # input: loc = from, scale = to - from
+        return {"distribution_name": "uniform", "distribution_params": [dist_params["arg1"],
+                                                                        dist_params["arg2"] - dist_params["arg2"]]}
     if dist_name == "GAMMA":
-        return {"distribution_name": "gamma", "distribution_params": [dist_params["mean"], dist_params["arg1"], 0, 1]}
+        # input: shape, loc=0, scale
+        mean, variance = dist_params["mean"], dist_params["arg1"]
+        return {"distribution_name": "gamma", "distribution_params": [pow(mean, 2) / variance, 0, variance / mean]}
     if dist_name == "TRIANGULAR":
+        # input: c = mode, loc = min, scale = max - min
         return {"distribution_name": "triang", "distribution_params": [dist_params["mean"], dist_params["arg1"],
-                                                                       dist_params["arg2"], 0, 1]}
+                                                                       dist_params["arg2"] - dist_params["arg1"]]}
     return None
 
 

@@ -7,4 +7,5 @@ venv/
 output_files/
 Simod/
 bimp_test_examples/sim_output/
+bimp_test_examples/
 *.egg-info

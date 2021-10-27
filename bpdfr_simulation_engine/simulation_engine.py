@@ -1,3 +1,7 @@
+import csv
+import os
+from pathlib import Path
+
 import simpy
 import datetime
 from datetime import timedelta
@@ -5,7 +9,7 @@ from collections import deque
 
 from bpdfr_simulation_engine.execution_info import Trace, TaskEvent
 from bpdfr_simulation_engine.priority_queue import PriorityQueue
-from bpdfr_simulation_engine.simulation_setup import SimulationStep
+from bpdfr_simulation_engine.simulation_setup import SimulationStep, SimDiffSetup
 from bpdfr_simulation_engine.simulation_stats_calculator import LogInfo, print_event_state
 
 
@@ -191,11 +195,7 @@ def execute_task_case(bpm_env, e_step, r_id):
     # This conditional is for testing purposes .. remove later
     if real_duration < e_step.ideal_duration:
         bpm_env.start_task(e_step, r_id, sim_setup)
-        print(real_duration)
-        print(e_step.ideal_duration)
-        print('--------------------------')
     # print_event_state('Started', e_step, bpm_env, r_id)
-
 
     # Waiting for the event (task) to be completed
     # print(real_duration)
@@ -256,7 +256,28 @@ def execute_full_process(bpm_env, total_cases):
         # print(current_case)
 
 
-def run_simulation(diffsim_info, total_cases, stat_fwriter, log_fwriter=None):
+def run_simulation(bpmn_path, json_path, total_cases, stat_out_path=None, log_out_path=None, starting_at=None):
+    diffsim_info = SimDiffSetup(bpmn_path, json_path)
+
+    if not diffsim_info:
+        return None
+
+    diffsim_info.set_starting_satetime(starting_at if starting_at else datetime.datetime.now())
+
+    if not stat_out_path:
+        stat_out_path = os.path.join(os.path.dirname(__file__), Path("%s.csv" % diffsim_info.process_name))
+    with open(stat_out_path, mode='w', newline='') as stat_csv_file:
+        if log_out_path:
+            with open(log_out_path, mode='w', newline='') as log_csv_file:
+                run_simpy_simulation(diffsim_info, total_cases,
+                                     csv.writer(stat_csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL),
+                                     csv.writer(log_csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL))
+        else:
+            run_simpy_simulation(diffsim_info, total_cases,
+                                 csv.writer(stat_csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL))
+
+
+def run_simpy_simulation(diffsim_info, total_cases, stat_fwriter, log_fwriter=None):
     started_at = datetime.datetime.now()
     env = simpy.Environment()
     bpm_env = SimBPMEnv(env, diffsim_info, stat_fwriter, log_fwriter)

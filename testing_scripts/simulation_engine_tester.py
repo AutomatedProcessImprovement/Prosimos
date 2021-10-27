@@ -1,11 +1,6 @@
 
 import os
 
-import click
-
-from bpdfr_simulation_engine.simulation_engine import run_simulation
-from diff_res_bpsim import load_simulation_info, start_simulation
-
 
 experiment_logs = {0: 'production',
                    1: 'purchasing_example',
@@ -39,12 +34,6 @@ def main():
     for i in range(0, 8):
         log_name = experiment_logs[i]
 
-        load_simulation_info('./../input_files/bpmn_simod_models/%s.bpmn' % log_name,
-                             './../input_files/probability_distributions/%s_arrival_times_distribution.json' % log_name,
-                             './../input_files/probability_distributions/%s_gateways_branching.json' % log_name,
-                             './../input_files/probability_distributions/%s_task_distribution.json' % log_name,
-                             './../input_files/resource_calendars/%s_calendars.json' % log_name)
-
         # Extracting the simulation parameters from event-log (it saves them results to JSON files)
         # xes_path = xes_simodbpmn_file_paths[log_name][0]
         # bpmn_graph = parse_simulation_model(log_name)
@@ -55,9 +44,6 @@ def main():
 
         total_cases = 100
 
-        start_simulation(total_cases,
-                         './../output_files/diffsim_logs/%s_%d_stats.csv' % (log_name, total_cases),
-                         './../output_files/diffsim_logs/%s_%d_log.csv' % (log_name, total_cases))
         break
 
     os._exit(0)
