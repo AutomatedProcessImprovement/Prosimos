@@ -2,10 +2,20 @@ import csv
 
 import pytz
 
-from bpdfr_simulation_engine.simulation_stats_calculator import KPIMap
+from bpdfr_simulation_engine.resource_profile import PoolInfo
+from bpdfr_simulation_engine.simulation_stats_calculator import KPIMap, KPIInfo
 
 import datetime
 import re
+
+
+class AggregatedPoolInfo:
+    def __init__(self, pool_id, pool_name):
+        self.pool_info = PoolInfo(pool_id, pool_name)
+        self.kpi_allocated_tasks = KPIInfo()
+        self.kpi_worked_time = KPIInfo()
+        self.kpi_available_time = KPIInfo()
+        self.kpi_utilization = KPIInfo()
 
 
 class SimulationResult:
@@ -17,6 +27,8 @@ class SimulationResult:
         self.tasks_kpi_map = dict()
 
         self.resource_utilization = dict()
+        self.resource_info = dict()
+        self.aggregated_pool_info = dict()
         self._max_res_s = 0
 
     def print_simulation_results(self):
@@ -33,9 +45,36 @@ class SimulationResult:
         print('Processing Time ....... %s' % format_duration(self.process_kpi_map.processing_time.avg, 25))
         print('Idle Time  ............ %s' % format_duration(self.process_kpi_map.idle_time.avg, 25))
         print('------------------------------------------------------------')
-        print('RESOURCE UTILIZATION')
+        print('AGGREGATED RESOURCE POOL UTILIZATION')
+        print('| %s | %s | %s | %s | %s | %s |' % ('Pool Name'.ljust(15),
+                                                   'Avg Resource Utilization'.ljust(25),
+                                                   'Avg Tasks Allocated'.ljust(20),
+                                                   'Total Tasks Allocated'.ljust(21),
+                                                   'Avg Time Worked'.ljust(25),
+                                                   'Avg Time Available'.ljust(25)))
+        for pool_id in self.aggregated_pool_info:
+            pool_kpi: AggregatedPoolInfo = self.aggregated_pool_info[pool_id]
+            print('| %s | %s | %s | %s | %s | %s |' % (pool_kpi.pool_info.pool_name.ljust(15),
+                                                       str(round(pool_kpi.kpi_utilization.avg, 3)).ljust(25),
+                                                       str(round(pool_kpi.kpi_allocated_tasks.avg)).ljust(20),
+                                                       str(pool_kpi.kpi_allocated_tasks.total).ljust(21),
+                                                       format_duration(pool_kpi.kpi_worked_time.avg, 25),
+                                                       format_duration(pool_kpi.kpi_available_time.avg, 25)))
+        print('------------------------------------------------------------')
+        print('INDIVIDUAL RESOURCE UTILIZATION')
+        print('| %s | %s | %s | %s | %s | %s |' % ('Resource Name'.ljust(15),
+                                                   'Utilization'.ljust(11),
+                                                   'Tasks Allocated'.ljust(16),
+                                                   'Time Worked'.ljust(25),
+                                                   'Time Available'.ljust(25),
+                                                   'Pool Name'.ljust(15)))
         for res_name in self.resource_utilization:
-            print('%s: %f' % (res_name.ljust(self._max_res_s, '.'), round(self.resource_utilization[res_name], 3)))
+            print('| %s | %s | %s | %s | %s | %s |' % (res_name.ljust(15),
+                                                       str(round(self.resource_utilization[res_name], 3)).ljust(11),
+                                                       str(self.resource_info[res_name][0]).ljust(16),
+                                                       format_duration(self.resource_info[res_name][1], 25),
+                                                       format_duration(self.resource_info[res_name][2], 25),
+                                                       self.resource_info[res_name][3].ljust(15)))
         print('------------------------------------------------------------')
         print('INDIVIDUAL TASK KPI')
         max_t = 0
@@ -71,9 +110,18 @@ class SimulationResult:
                 self.process_kpi_map.idle_cycle_time, self.process_kpi_map.idle_processing_time,
                 self.process_kpi_map.waiting_time, self.process_kpi_map.idle_time]
 
-    def update_resource_utilization(self, pool_name, utilization_ratio):
-        self._max_res_s = max(self._max_res_s, len(pool_name))
-        self.resource_utilization[pool_name] = utilization_ratio
+    def update_resource_utilization(self, r_name, r_utilization, alloc_tasks=None, work_time=None, available_time=None,
+                                    p_id=None, p_name=None):
+        self._max_res_s = max(self._max_res_s, len(r_name))
+        self.resource_utilization[r_name] = r_utilization
+        if alloc_tasks:
+            self.resource_info[r_name] = [alloc_tasks, work_time, available_time, p_name]
+            if p_id not in self.aggregated_pool_info:
+                self.aggregated_pool_info[p_id] = AggregatedPoolInfo(p_id, p_name)
+            self.aggregated_pool_info[p_id].kpi_allocated_tasks.add_value(alloc_tasks)
+            self.aggregated_pool_info[p_id].kpi_worked_time.add_value(work_time)
+            self.aggregated_pool_info[p_id].kpi_available_time.add_value(available_time)
+            self.aggregated_pool_info[p_id].kpi_utilization.add_value(r_utilization)
 
     def simulation_duration(self):
         return (self.ended_at - self.started_at).total_seconds()
@@ -99,7 +147,6 @@ def load_bimp_simulation_results(results_file_path, simulation_log):
                 elif row[0] == "KPI":
                     output_section = 3
                     continue
-
                 if output_section == 1:
                     bimp_sim_info.update_resource_utilization(row[0], float(row[1]) / 100)
                 elif output_section == 2:
@@ -142,7 +189,7 @@ def load_diff_simulation_results(csv_stats_path):
                     sim_info = SimulationResult(started_at, parse_date(row[1]))
                     kpi_array = sim_info.get_kpi_ref_list()
                     continue
-                if row[0] == "Resource":
+                if row[0] == "Resource ID":
                     output_section = 1
                     continue
                 elif row[0] == "Name":
@@ -152,7 +199,8 @@ def load_diff_simulation_results(csv_stats_path):
                     output_section = 3
                     continue
                 if output_section == 1:
-                    sim_info.update_resource_utilization(row[0], float(row[1]))
+                    sim_info.update_resource_utilization(row[1], float(row[2]), int(row[3]), float(row[4]),
+                                                         float(row[5]), row[6], row[7])
                 elif output_section == 2:
                     task_name = row[0]
                     task_kpi = KPIMap()

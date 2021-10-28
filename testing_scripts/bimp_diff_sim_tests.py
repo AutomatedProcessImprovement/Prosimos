@@ -41,9 +41,10 @@ def run_diff_res_simulation(start_date, total_cases, bpmn_model, json_sim_params
 def main():
     p_cases = 500
     for model_name in experiment_models:
+        # parse_qbp_simulation_process(experiment_models[model_name]['bpmn'], experiment_models[model_name]['json'])
+
         print("Starting Simulation of process %s" % model_name)
         print('--------------------------------------------------------------------------')
-        # parse_qbp_simulation_process(experiment_models[model_name]['bpmn'], experiment_models[model_name]['json'])
         bimp_result = run_bimp_simulation(experiment_models[model_name]["bpmn"],
                                           '%sbimp_%s_%d_stats.csv' % (output_dir_path, model_name, p_cases),
                                           '%sbimp_%s_%d_log.csv' % (output_dir_path, model_name, p_cases))
@@ -54,7 +55,6 @@ def main():
                                                   '%sdiff_%s_%d_stats.csv' % (output_dir_path, model_name, p_cases),
                                                   '%sdiff_%s_%d_log.csv' % (output_dir_path, model_name, p_cases))
         diff_sim_result.print_simulation_results()
-
 
     os._exit(0)
 

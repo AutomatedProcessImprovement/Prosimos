@@ -27,8 +27,8 @@ class SimDiffSetup:
         self.process_name = ntpath.basename(bpmn_path).split(".")[0]
         self.start_datetime = datetime.datetime.now(pytz.utc)
 
-        self.resources_map, self.calendars_map, self.element_probability, self.task_resource, self.arrival_calendar = \
-            parse_json_sim_parameters(json_path)
+        self.resources_map, self.calendars_map, self.element_probability, self.task_resource, self.arrival_calendar \
+            = parse_json_sim_parameters(json_path)
 
         self.bpmn_graph = parse_simulation_model(bpmn_path)
         self.bpmn_graph.set_element_probabilities(self.element_probability, self.task_resource)

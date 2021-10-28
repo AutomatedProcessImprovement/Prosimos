@@ -1,9 +1,56 @@
 {
+    "resource_profiles": {
+        "sid-A6F8AB76-7589-4280-A833-B353A4238C38": {
+            "name": "Credit Officer",
+            "resource_list": [
+                {
+                    "id": "sid-A6F8AB76-7589-4280-A833-B353A4238C38_1",
+                    "name": "Credit Officer_1",
+                    "cost_per_hour": "35",
+                    "amount": 1
+                },
+                {
+                    "id": "sid-A6F8AB76-7589-4280-A833-B353A4238C38_2",
+                    "name": "Credit Officer_2",
+                    "cost_per_hour": "35",
+                    "amount": 1
+                }
+            ]
+        },
+        "sid-09FFCEBC-C60F-40D8-8AE7-2C4CB5DCF798": {
+            "name": "Clerk",
+            "resource_list": [
+                {
+                    "id": "sid-09FFCEBC-C60F-40D8-8AE7-2C4CB5DCF798_1",
+                    "name": "Clerk_1",
+                    "cost_per_hour": "25",
+                    "amount": 1
+                },
+                {
+                    "id": "sid-09FFCEBC-C60F-40D8-8AE7-2C4CB5DCF798_2",
+                    "name": "Clerk_2",
+                    "cost_per_hour": "25",
+                    "amount": 1
+                }
+            ]
+        },
+        "sid-13AFF558-4B56-4722-A649-AE8CCAFC2EC7": {
+            "name": "System",
+            "resource_list": [
+                {
+                    "id": "sid-13AFF558-4B56-4722-A649-AE8CCAFC2EC7_1",
+                    "name": "System_1",
+                    "cost_per_hour": "25",
+                    "amount": 1
+                }
+            ]
+        }
+    },
     "arrival_time_distribution": {
         "distribution_name": "expon",
         "distribution_params": [
-            1800.0,
-            1
+            0,
+            1800.0
         ]
     },
     "arrival_time_calendar": [
@@ -61,15 +108,15 @@
             "sid-A6F8AB76-7589-4280-A833-B353A4238C38_1": {
                 "distribution_name": "expon",
                 "distribution_params": [
-                    1200.0,
-                    1
+                    0,
+                    1200.0
                 ]
             },
             "sid-A6F8AB76-7589-4280-A833-B353A4238C38_2": {
                 "distribution_name": "expon",
                 "distribution_params": [
-                    1200.0,
-                    1
+                    0,
+                    1200.0
                 ]
             }
         },

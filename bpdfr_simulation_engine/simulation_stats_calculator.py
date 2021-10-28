@@ -120,10 +120,6 @@ class LogInfo:
         return False
 
     def save_joint_statistics(self, bpm_env):
-        for t_name in bpm_env.testing_map:
-            print(t_name)
-            for r_id in bpm_env.testing_map[t_name]:
-                print("%s: %d" % (r_id, bpm_env.testing_map[t_name][r_id]))
         self.save_start_end_dates(bpm_env.stat_fwriter)
         compute_resource_utilization(bpm_env)
         self.compute_individual_task_stats(bpm_env.stat_fwriter)
@@ -189,7 +185,8 @@ class LogInfo:
 def compute_resource_utilization(bpm_env):
     stat_fwriter = bpm_env.stat_fwriter
     stat_fwriter.writerow(['Resource Utilization'])
-    stat_fwriter.writerow(['Resource', 'Utilization Ratio'])
+    stat_fwriter.writerow(['Resource ID', 'Resource name', 'Utilization Ratio', 'Tasks Allocated',
+                           'Worked Time (seconds)', 'Available Time (seconds)', 'Pool ID', 'Pool name'])
 
     available_time = dict()
     started_at = bpm_env.simulation_started_at()
@@ -202,7 +199,15 @@ def compute_resource_utilization(bpm_env):
 
     for r_id in bpm_env.sim_resources:
         r_utilization = bpm_env.get_utilization_for(r_id)
-        stat_fwriter.writerow([r_id, str(r_utilization)])
+        r_info = bpm_env.sim_setup.resources_map[r_id]
+        stat_fwriter.writerow([r_id,
+                               r_info.resource_name,
+                               str(r_utilization),
+                               bpm_env.resource_total_allocated_tasks[r_id],
+                               bpm_env.sim_resources[r_id].worked_time,
+                               bpm_env.sim_resources[r_id].available_time,
+                               r_info.pool_info.pool_id,
+                               r_info.pool_info.pool_name])
 
         # if r_utilization > 0:
         #     print("Ideal: %s" % str(datetime.timedelta(seconds=bpm_env.real_duration[r_id])))

@@ -3,7 +3,7 @@ import xml.etree.ElementTree as ET
 
 from bpdfr_simulation_engine.control_flow_manager import BPMNGraph, ElementInfo, BPMN
 from bpdfr_simulation_engine.resource_calendar import RCalendar, convert_time_unit_from_to, convertion_table, to_seconds
-from bpdfr_simulation_engine.resource_profile import ResourceProfile
+from bpdfr_simulation_engine.resource_profile import ResourceProfile, PoolInfo
 from bpdfr_simulation_engine.probability_distributions import *
 
 bpmn_schema_url = 'http://www.omg.org/spec/BPMN/20100524/MODEL'
@@ -19,8 +19,20 @@ def parse_json_sim_parameters(json_path):
         element_distribution = parse_simulation_parameters(json_data["arrival_time_distribution"],
                                                            json_data["gateway_branching_probabilities"])
         arrival_calendar = parse_arrival_calendar(json_data)
+        parse_pool_info(json_data["resource_profiles"], resources_map)
 
         return resources_map, calendars_map, element_distribution, task_resource_distribution, arrival_calendar
+
+
+def parse_pool_info(json_data, resources_map):
+    for pool_id in json_data:
+        pool_name = json_data[pool_id]["name"]
+        for res_info in json_data[pool_id]["resource_list"]:
+            r_id = res_info["id"]
+            resources_map[r_id].pool_info = PoolInfo(pool_id, pool_name)
+            resources_map[r_id].resource_name = res_info["name"]
+            resources_map[r_id].cost_per_hour = float(res_info["cost_per_hour"])
+            resources_map[r_id].resource_amount = int(res_info["amount"])
 
 
 def parse_arrival_calendar(json_data):
@@ -135,13 +147,21 @@ def parse_qbp_simulation_process(qbp_bpmn_path, out_file):
     # 4. Extracting task-resource duration distributions
     bpmn_resources = simod_root.find("qbp:resources", simod_ns)
     simod_elements = simod_root.find("qbp:elements", simod_ns)
+    pools_json = dict()
 
     resource_calendars = dict()
     for resource in bpmn_resources:
+        pools_json[resource.attrib["id"]] = {"name": resource.attrib["name"], "resource_list": list()}
         resource_pools[resource.attrib["id"]] = list()
         calendar_id = resource.attrib["timetableId"]
         for i in range(1, int(resource.attrib["totalAmount"]) + 1):
             nr_id = "%s_%d" % (resource.attrib["id"], i)
+            pools_json[resource.attrib["id"]]["resource_list"].append({
+                "id": nr_id,
+                "name": "%s_%d" % (resource.attrib["name"], i),
+                "cost_per_hour": resource.attrib["costPerHour"],
+                "amount": 1
+            })
             resource_pools[resource.attrib["id"]].append(nr_id)
             resource_calendars[nr_id] = calendars_map[calendar_id]
 
@@ -160,6 +180,7 @@ def parse_qbp_simulation_process(qbp_bpmn_path, out_file):
     # 5.Saving all in a single JSON file
 
     to_save = {
+        "resource_profiles": pools_json,
         "arrival_time_distribution": arrival_time_dist,
         "arrival_time_calendar": calendars_map[arrival_calendar_id],
         "gateway_branching_probabilities": gateways_branching,
