@@ -2,6 +2,7 @@ import csv
 import os
 from pathlib import Path
 
+import pytz
 import simpy
 import datetime
 from datetime import timedelta
@@ -250,7 +251,7 @@ def run_simulation(bpmn_path, json_path, total_cases, stat_out_path=None, log_ou
     if not diffsim_info:
         return None
 
-    diffsim_info.set_starting_satetime(starting_at if starting_at else datetime.datetime.now())
+    diffsim_info.set_starting_satetime(starting_at if starting_at else pytz.utc.localize(datetime.datetime.now()))
 
     if not stat_out_path:
         stat_out_path = os.path.join(os.path.dirname(__file__), Path("%s.csv" % diffsim_info.process_name))
