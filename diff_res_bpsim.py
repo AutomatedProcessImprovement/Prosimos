@@ -29,9 +29,23 @@ def cli():
 @click.option('--starting_at', required=False,
               help='Date-time of the first process case in the simulation.'
                    'If this parameter is not provided, the current date-time is assigned.')
+@click.option('--with_enabled_state', required=False,
+              help='Boolean variable indicating if the state "enabled" should be added to the resulting event log.'
+                   'For example, if the variable is set to True, the resulting event log will store, for every task,'
+                   'the events with the states, "enabled", "started", "completed". If not only the states "started" '
+                   'and "completed" will be registered in the resulting event log.')
+@click.option('--with_csv_state_column', required=False,
+              help='Boolean variable indicating if the resulting event log should contain the event states.'
+                   'If the variable is set to True, each row of the final CSV will have the structure:'
+                   '[case_id, task, resource, state, timestamp] or [case_id, task, resource, timestamp]'
+                   'If the variable is set to True, each row of the final CSV will have the structure:'
+                   '[case_id, task, enabled_timestamp, start_timestamp, end_timestamp, resource] or '
+                   '[case_id, task, start_timestamp, end_timestamp, resource]')
 @click.pass_context
-def start_simulation(ctx, bpmn_path, json_path, total_cases, stat_out_path=None, log_out_path=None, starting_at=None):
-    if not run_simulation(bpmn_path, json_path, total_cases, stat_out_path, log_out_path, starting_at):
+def start_simulation(ctx, bpmn_path, json_path, total_cases, stat_out_path=None, log_out_path=None, starting_at=None,
+                     with_enabled_state=False, with_csv_state_column=False):
+    if not run_simulation(bpmn_path, json_path, total_cases, stat_out_path, log_out_path, starting_at,
+                          with_enabled_state, with_csv_state_column):
         print('Simulation model NOT found.')
         ctx.abort()
 

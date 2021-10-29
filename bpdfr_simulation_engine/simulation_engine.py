@@ -48,10 +48,10 @@ class SimBPMEnv:
         s_step = SimulationStep(trace_info, task_id, None, p_state, self.simpy_env.now, enabled_by)
         self._pending_events.append(s_step)
         self._is_event_completed.append(False)
-        add_event_to_simulation_log(self.log_fwriter, trace_info.p_case,
-                                    self.sim_setup.bpmn_graph.element_info[task_id].name,
-                                    None, 'enabled',
-                                    self.simulation_datetime_from(s_step.enabled_at))
+        if self.log_fwriter and self.sim_setup.with_enabled_state:
+            self.log_fwriter.writerow([trace_info.p_case,
+                                       self.sim_setup.bpmn_graph.element_info[task_id].name,
+                                       None, 'enabled', self.simulation_datetime_from(s_step.enabled_at)])
         for r_id in self.sim_setup.task_resource[task_id]:
             self.sim_resources[r_id].events_queue.append(len(self._pending_events) - 1)
             if self.sim_resources[r_id].is_available:
@@ -69,10 +69,13 @@ class SimBPMEnv:
         return None
 
     def start_task(self, e_step, resource_id, sim_setup):
-        started_at = self.simulation_datetime_from(self.simpy_env.now)
-        add_event_to_simulation_log(self.log_fwriter, e_step.trace_info.p_case,
-                                    self.sim_setup.bpmn_graph.element_info[e_step.task_id].name,
-                                    resource_id, 'started', started_at)
+        e_step.started_at = self.simpy_env.now
+        e_step.performed_by_resource = sim_setup.name_from_id(resource_id)
+        started_at = self.simulation_datetime_from(e_step.started_at)
+        if self.log_fwriter and self.sim_setup.with_enabled_state:
+            self.log_fwriter.writerow([e_step.trace_info.p_case,
+                                       self.sim_setup.bpmn_graph.element_info[e_step.task_id].name,
+                                       resource_id, 'started', started_at])
         e_step.ideal_duration = sim_setup.ideal_task_duration(e_step.task_id, resource_id)
         real_duration = self.sim_setup.real_task_duration(e_step.ideal_duration, resource_id, started_at)
         event_index = e_step.trace_info.start_event(e_step.task_id,
@@ -84,13 +87,30 @@ class SimBPMEnv:
         return event_index, real_duration
 
     def complete_task(self, e_step, event_index, real_duration):
-        completed_at = self.simulation_datetime_from(self.simpy_env.now)
-        add_event_to_simulation_log(self.log_fwriter, e_step.trace_info.p_case,
-                                    self.sim_setup.bpmn_graph.element_info[e_step.task_id].name,
-                                    e_step.performed_by_resource, 'completed', completed_at)
-        e_step.trace_info.complete_event(event_index, completed_at, real_duration - e_step.ideal_duration)
+        e_step.completed_at = self.simpy_env.now
+        e_step.trace_info.complete_event(event_index, self.simulation_datetime_from(self.simpy_env.now),
+                                         real_duration - e_step.ideal_duration)
         self.register_event(e_step.trace_info.event_list[event_index])
+        self.log_fwriter.writerow(self._extract_event_data_from_step(e_step))
         return self.simpy_env.now
+
+    def _extract_event_data_from_step(self, e_step: SimulationStep):
+        case_id = e_step.trace_info.p_case
+        activity = self.sim_setup.bpmn_graph.element_info[e_step.task_id].name
+        resource = e_step.performed_by_resource
+        completed_at = self._datetime_from(e_step.completed_at)
+
+        if self.sim_setup.with_csv_state_column:
+            return [case_id, activity, resource, 'completed', completed_at]
+        else:
+            started_at = self._datetime_from(e_step.started_at)
+            if self.sim_setup.with_enabled_state:
+                return [case_id, activity, self._datetime_from(e_step.enabled_at), started_at, completed_at, resource]
+            else:
+                return [case_id, activity, started_at, completed_at, resource]
+
+    def _datetime_from(self, in_seconds):
+        return self.simulation_datetime_from(in_seconds) if in_seconds is not None else None
 
     def current_simulation_date(self):
         return self.sim_setup.start_datetime + timedelta(seconds=self.simpy_env.now)
@@ -245,8 +265,9 @@ def execute_full_process(bpm_env, total_cases):
         # print(current_case)
 
 
-def run_simulation(bpmn_path, json_path, total_cases, stat_out_path=None, log_out_path=None, starting_at=None):
-    diffsim_info = SimDiffSetup(bpmn_path, json_path)
+def run_simulation(bpmn_path, json_path, total_cases, stat_out_path=None, log_out_path=None, starting_at=None,
+                   with_enabled_state=False, with_csv_state_column=False):
+    diffsim_info = SimDiffSetup(bpmn_path, json_path, with_enabled_state, with_csv_state_column)
 
     if not diffsim_info:
         return None
@@ -267,22 +288,26 @@ def run_simulation(bpmn_path, json_path, total_cases, stat_out_path=None, log_ou
 
 
 def run_simpy_simulation(diffsim_info, total_cases, stat_fwriter, log_fwriter=None):
-    started_at = datetime.datetime.now()
     env = simpy.Environment()
     bpm_env = SimBPMEnv(env, diffsim_info, stat_fwriter, log_fwriter)
+    add_simulation_event_log_header(log_fwriter, diffsim_info.with_enabled_state, diffsim_info.with_csv_state_column)
 
     env.process(execute_full_process(bpm_env, total_cases))
     env.run()
 
-    print("Simulation Compeleted in: %s" % str(
-        datetime.timedelta(seconds=(datetime.datetime.now() - started_at).total_seconds())))
-    print('---------------------------------------------------------')
+    # print("Simulation Compeleted in: %s" % str(
+    #     datetime.timedelta(seconds=(datetime.datetime.now() - started_at).total_seconds())))
+    # print('---------------------------------------------------------')
     bpm_env.log_info.save_joint_statistics(bpm_env)
 
 
-def add_simulation_event_log_header(log_fwriter):
-    log_fwriter.writerow(['Case ID', 'Activity', 'Resource', 'Lifecycle', 'Timestamp'])
-
-
-def add_event_to_simulation_log(log_fwriter, case_id, activity, resource, lifecycle, timestamp):
-    log_fwriter.writerow([str(case_id), str(activity), str(resource), str(lifecycle), str(timestamp)])
+def add_simulation_event_log_header(log_fwriter, with_enabled_state, with_csv_state_column):
+    if log_fwriter:
+        if with_csv_state_column:
+            log_fwriter.writerow(['CaseID', 'Activity', 'org:resource', 'lifecycle:transition', 'time:timestamp'])
+        else:
+            if with_enabled_state:
+                log_fwriter.writerow([
+                    'CaseID', 'Activity', 'EnableTimestamp', 'StartTimestamp', 'EndTimestamp', 'Resource', ])
+            else:
+                log_fwriter.writerow(['CaseID', 'Activity', 'StartTimestamp', 'EndTimestamp', 'Resource'])

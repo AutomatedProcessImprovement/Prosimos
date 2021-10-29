@@ -1,13 +1,18 @@
+import datetime
 import os
+from datetime import time
 
 from bpdfr_simulation_engine.simulation_engine import run_simulation
 from bpdfr_simulation_engine.simulation_properties_parser import parse_qbp_simulation_process
 from bpdfr_simulation_engine.simulation_stats import load_bimp_simulation_results, load_diff_simulation_results
 
 experiment_models = {'production': {'bpmn': './../bimp_test_examples/ihar/production.bpmn',
-                                    'json': './../bimp_test_examples/ihar/production.json'},
+                                    'json': './../bimp_test_examples/ihar/production.json',
+                                    'total_cases': 45},
+
                      'purchasing_example': {'bpmn': './../bimp_test_examples/ihar/purchasing_example.bpmn',
-                                            'json': './../bimp_test_examples/ihar/purchasing_example.json'},
+                                            'json': './../bimp_test_examples/ihar/purchasing_example.json',
+                                            'total_cases': 98},
                      }
 
 experiment_models_1 = {'bimp_example': {'bpmn': './../bimp_test_examples/bimp_example.bpmn',
@@ -23,27 +28,38 @@ output_dir_path = './../bimp_test_examples/sim_output/'
 
 def run_bimp_simulation(model_file_path, results_file_path, simulation_log,
                         bimp_engine_path="./../bimp_simulation_engine/qbp-simulator-engine.jar"):
+    s_t = datetime.datetime.now()
     if os.system(
             "java -jar {bimp_engine_path} {model_file_path} -csv {results_file_path} > {simulation_log}".format(
                 bimp_engine_path=bimp_engine_path,
                 model_file_path=model_file_path,
-                results_file_path=results_file_path,
-                simulation_log=simulation_log)):
+                results_file_path=simulation_log,
+                simulation_log=results_file_path)):
         raise RuntimeError('program {} failed!')
+    print("BimpSim Execution Times: %s" %
+          str(datetime.timedelta(seconds=(datetime.datetime.now() - s_t).total_seconds())))
     return load_bimp_simulation_results(results_file_path, simulation_log)
 
 
 def run_diff_res_simulation(start_date, total_cases, bpmn_model, json_sim_params, out_stats_csv_path, out_log_csv_path):
+    s_t = datetime.datetime.now()
     run_simulation(bpmn_model, json_sim_params, total_cases, out_stats_csv_path, out_log_csv_path, start_date)
+    print("DiffSim Execution Times: %s" %
+          str(datetime.timedelta(seconds=(datetime.datetime.now() - s_t).total_seconds())))
     return load_diff_simulation_results(out_stats_csv_path)
 
 
 def main():
-    p_cases = 500
+
     for model_name in experiment_models:
         # parse_qbp_simulation_process(experiment_models[model_name]['bpmn'], experiment_models[model_name]['json'])
 
-        print("Starting Simulation of process %s" % model_name)
+        p_cases = 500
+        if "total_cases" in experiment_models[model_name]:
+            p_cases = experiment_models[model_name]["total_cases"]
+
+        print('--------------------------------------------------------------------------')
+        print("Starting Simulation of process %s (%d instances)" % (model_name, p_cases))
         print('--------------------------------------------------------------------------')
         bimp_result = run_bimp_simulation(experiment_models[model_name]["bpmn"],
                                           '%sbimp_%s_%d_stats.csv' % (output_dir_path, model_name, p_cases),
@@ -54,7 +70,7 @@ def main():
                                                   experiment_models[model_name]["json"],
                                                   '%sdiff_%s_%d_stats.csv' % (output_dir_path, model_name, p_cases),
                                                   '%sdiff_%s_%d_log.csv' % (output_dir_path, model_name, p_cases))
-        diff_sim_result.print_simulation_results()
+        # diff_sim_result.print_simulation_results()
 
     os._exit(0)
 

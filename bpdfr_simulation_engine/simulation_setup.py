@@ -23,7 +23,9 @@ class SimulationStep:
 
 
 class SimDiffSetup:
-    def __init__(self, bpmn_path, json_path):
+    def __init__(self, bpmn_path, json_path, with_enabled_state=False, with_csv_state_column=False):
+        self.with_enabled_state = with_enabled_state
+        self.with_csv_state_column = with_csv_state_column
         self.process_name = ntpath.basename(bpmn_path).split(".")[0]
         self.start_datetime = datetime.datetime.now(pytz.utc)
 
@@ -34,6 +36,9 @@ class SimDiffSetup:
         self.bpmn_graph.set_element_probabilities(self.element_probability, self.task_resource)
         if not self.arrival_calendar:
             self.arrival_calendar = self.find_arrival_calendar()
+
+    def name_from_id(self, resource_id):
+        return self.resources_map[resource_id].resource_name
 
     def get_resource_calendar(self, resource_id):
         if resource_id in self.resources_map:
