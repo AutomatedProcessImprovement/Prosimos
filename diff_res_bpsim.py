@@ -47,7 +47,6 @@ def start_simulation(ctx, bpmn_path, json_path, total_cases, stat_out_path=None,
     if not run_simulation(bpmn_path, json_path, total_cases, stat_out_path, log_out_path, starting_at,
                           with_enabled_state, with_csv_state_column):
         print('Simulation model NOT found.')
-        ctx.abort()
 
 
 if __name__ == "__main__":
