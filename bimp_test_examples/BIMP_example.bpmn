@@ -328,7 +328,7 @@
          </bpmndi:BPMNEdge>
       </bpmndi:BPMNPlane>
    </bpmndi:BPMNDiagram>
-   <qbp:processSimulationInfo id="qbp_7fcc0f8d-21d1-44bd-6fcc-29ac8a9787ca" processInstances="500" startDateTime="2016-12-04T16:40:51.000Z" currency="EUR">
+   <qbp:processSimulationInfo id="qbp_7fcc0f8d-21d1-44bd-6fcc-29ac8a9787ca" processInstances="1000" startDateTime="2016-12-04T16:40:51.000Z" currency="EUR">
       <qbp:arrivalRateDistribution type="EXPONENTIAL" mean="0" arg1="1800" arg2="0">
          <qbp:timeUnit>minutes</qbp:timeUnit>
       </qbp:arrivalRateDistribution>

@@ -10,16 +10,20 @@ from bpdfr_simulation_engine.simulation_properties_parser import parse_simulatio
 
 
 class SimulationStep:
-    def __init__(self, trace_info, task_id, ideal_duration, p_state, enabled_at, enabled_by=None):
+    def __init__(self, trace_info, task_id, ideal_duration, p_state, enabled_at, enabled_datetime, enabled_by=None):
         self.trace_info = trace_info
         self.task_id = task_id
         self.ideal_duration = ideal_duration
+        self.real_duration = ideal_duration
         self.p_state = p_state
         self.enabled_at = enabled_at
         self.enabled_by = enabled_by
         self.started_at = None
         self.completed_at = None
-        self.performed_by_resource = None
+        self.resource_id = None
+        self.enabled_datetime = enabled_datetime
+        self.started_datetime = None
+        self.completed_datetime = None
 
 
 class SimDiffSetup:

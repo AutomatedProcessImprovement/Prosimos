@@ -59,8 +59,13 @@ class CalendarIterator:
         c_date = datetime.datetime.combine(calendar_info.default_date, start_date.time())
         c_interval = calendar_info.work_intervals[self.c_day][0]
         self.c_index = -1
-        while c_interval.end < c_date and self.c_index < len(calendar_info.work_intervals[self.c_day]):
+        while c_interval.end < c_date and self.c_index < len(calendar_info.work_intervals[self.c_day]) - 1:
             self.c_index += 1
+            if self.c_day < 0 or self.c_day >= len(calendar_info.work_intervals):
+                print('hola')
+            if self.c_index < 0 or self.c_index >= len(calendar_info.work_intervals[self.c_day]):
+                print('hola')
+
             c_interval = calendar_info.work_intervals[self.c_day][self.c_index]
 
         self.c_interval = Interval(self.start_date,

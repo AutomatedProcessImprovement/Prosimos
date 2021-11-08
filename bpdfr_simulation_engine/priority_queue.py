@@ -16,25 +16,33 @@ class PriorityQueue:
     def size(self):
         return len(self.entry_finder)
 
-    def add_task(self, task, priority=0):
+    def contains(self, element):
+        return element in self.entry_finder
+
+    def get_priority(self, element):
+        if element in self.entry_finder:
+            return self.entry_finder[element][0]
+        return None
+
+    def insert(self, element, priority=0):
         """ Add a new task or update the priority of an existing task """
-        if task in self.entry_finder:
-            self.remove_task(task)
+        if element in self.entry_finder:
+            self.remove_element(element)
         count = next(self.counter)
-        entry = [priority, count, task]
-        self.entry_finder[task] = entry
+        entry = [priority, count, element]
+        self.entry_finder[element] = entry
         heappush(self.pq, entry)
 
-    def remove_task(self, task):
-        """ Mark an existing task as REMOVED.  Raise KeyError if not found. """
-        entry = self.entry_finder.pop(task)
-        entry[-1] = self.REMOVED
-
-    def pop_task(self):
+    def pop_min(self):
         """ Remove and return the lowest priority task. Raise KeyError if empty. """
         while self.pq:
             priority, count, task = heappop(self.pq)
             if task is not self.REMOVED:
                 del self.entry_finder[task]
-                return task
-        return None
+                return task, priority
+        return None, None
+
+    def remove_element(self, element):
+        """ Mark an existing task as REMOVED.  Raise KeyError if not found. """
+        entry = self.entry_finder.pop(element)
+        entry[-1] = self.REMOVED

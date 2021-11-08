@@ -1,5 +1,6 @@
 import csv
 import os
+from enum import Enum
 from pathlib import Path
 
 import pytz
@@ -8,16 +9,24 @@ import datetime
 from datetime import timedelta
 from collections import deque
 
+from bpdfr_simulation_engine.file_manager import FileManager
 from bpdfr_simulation_engine.execution_info import Trace, TaskEvent
 from bpdfr_simulation_engine.priority_queue import PriorityQueue
 from bpdfr_simulation_engine.simulation_setup import SimulationStep, SimDiffSetup
 from bpdfr_simulation_engine.simulation_stats_calculator import LogInfo, print_event_state
 
 
+class ResourceState(Enum):
+    AVAILABLE = 0
+    ALLOCATED = 1
+    RESERVED = 2
+
+
 class SimResource:
     def __init__(self, simpy_resource):
         self.simpy_resource = simpy_resource
-        self.is_available = True
+        self.state = ResourceState.AVAILABLE
+        self.allocated_to = None
         self.worked_time = 0
         self.available_time = 0
         self.completed_events = list()
@@ -25,8 +34,58 @@ class SimResource:
         self.last_released = 0
 
 
+class DiffSimQueue:
+    # Two tasks share a resource queue iff the share all the resources. If the two tasks share only a set of resources,
+    # then they will point to different resource queues. Therefore, a resource may be repeated in many queues.
+    def __init__(self, task_resource_map, r_initial_availability):
+        self._resource_queues = list()  # List of (shared) resource queues, i.e., many tasks may share a resource queue
+        self._resource_queue_map = dict()  # Map relating the indexes of the queues where a resource r_id is contained
+        self._task_queue_map = dict()  # Map with the index of the resource queue that can perform a task r_id
+
+        self._init_simulation_queues(task_resource_map, r_initial_availability)
+
+    def pop_resource_for(self, task_id):
+        return self._resource_queues[self._task_queue_map[task_id]].pop_min()
+
+    def upddate_resource_availability(self, resource_id, released_at):
+        for q_index in self._resource_queue_map[resource_id]:
+            self._resource_queues[q_index].insert(resource_id, released_at)
+
+    def _init_simulation_queues(self, task_resource_map, r_initial_availability):
+        joint_sets = list()
+        taken = set()
+        # Grouping the tasks that share all the resources
+        for task_id_1 in task_resource_map:
+            if task_id_1 not in taken:
+                joint_tasks = set()
+                for task_id_2 in task_resource_map:
+                    is_joint = True
+                    for r_id in task_resource_map[task_id_2]:
+                        if r_id not in task_resource_map[task_id_1]:
+                            is_joint = False
+                            break
+                    if is_joint:
+                        taken.add(task_id_2)
+                        joint_tasks.add(task_id_2)
+                joint_sets.append(joint_tasks)
+
+        index = 0
+        for j_set in joint_sets:
+            resource_queue = PriorityQueue()
+            for task_id in j_set:
+                self._task_queue_map[task_id] = index
+                if resource_queue.is_empty():
+                    for r_id in task_resource_map[task_id]:
+                        if r_id not in self._resource_queue_map:
+                            self._resource_queue_map[r_id] = list()
+                        resource_queue.insert(r_id, r_initial_availability[r_id])
+                        self._resource_queue_map[r_id].append(index)
+            self._resource_queues.append(resource_queue)
+            index += 1
+
+
 class SimBPMEnv:
-    def __init__(self, env, sim_setup, stat_fwriter, log_fwriter):
+    def __init__(self, env, sim_setup: SimDiffSetup, stat_fwriter, log_fwriter):
         self.simpy_env = env
         self.sim_setup = sim_setup
         self.sim_resources = dict()
@@ -34,70 +93,79 @@ class SimBPMEnv:
         self.real_duration = dict()
         self.stat_fwriter = stat_fwriter
         self.log_fwriter = log_fwriter
+        self.log_writer = FileManager(1000, self.log_fwriter)
         self.log_info = LogInfo(sim_setup)
 
         self.resource_total_allocated_tasks = dict()
+
+        r_first_available = dict()
         for r_id in sim_setup.resources_map:
             self.resource_total_allocated_tasks[r_id] = 0
             self.sim_resources[r_id] = SimResource(simpy.Resource(env, sim_setup.resources_map[r_id].resource_amount))
             self.real_duration[r_id] = 0
-        self._is_event_completed = list()
-        self._pending_events = list()
+            r_first_available[r_id] = self.sim_setup.next_resting_time(r_id, self.current_simulation_date())
 
-    def enqueue_event(self, trace_info, task_id, p_state, enabled_by=None, available_resources=PriorityQueue()):
-        s_step = SimulationStep(trace_info, task_id, None, p_state, self.simpy_env.now, enabled_by)
-        self._pending_events.append(s_step)
-        self._is_event_completed.append(False)
-        if self.log_fwriter and self.sim_setup.with_enabled_state:
-            self.log_fwriter.writerow([trace_info.p_case,
-                                       self.sim_setup.bpmn_graph.element_info[task_id].name,
-                                       None, 'enabled', self.simulation_datetime_from(s_step.enabled_at)])
-        for r_id in self.sim_setup.task_resource[task_id]:
-            self.sim_resources[r_id].events_queue.append(len(self._pending_events) - 1)
-            if self.sim_resources[r_id].is_available:
-                available_resources.add_task(r_id, self.sim_resources[r_id].last_released)
-        return s_step
+        self.sim_queue = DiffSimQueue(self.sim_setup.task_resource, r_first_available)
 
-    def pop_event_for(self, resource_id):
-        if resource_id not in self.sim_resources or not self.sim_resources[resource_id].is_available:
-            return None
-        while len(self.sim_resources[resource_id].events_queue) > 0:
-            event_index = self.sim_resources[resource_id].events_queue.popleft()
-            if not self._is_event_completed[event_index]:
-                self._is_event_completed[event_index] = True
-                return self._pending_events[event_index]
-        return None
+    def current_simulation_date(self):
+        return self.sim_setup.start_datetime + timedelta(seconds=self.simpy_env.now)
 
-    def start_task(self, e_step, resource_id, sim_setup):
-        e_step.started_at = self.simpy_env.now
-        e_step.performed_by_resource = sim_setup.name_from_id(resource_id)
-        started_at = self.simulation_datetime_from(e_step.started_at)
-        if self.log_fwriter and self.sim_setup.with_enabled_state:
-            self.log_fwriter.writerow([e_step.trace_info.p_case,
-                                       self.sim_setup.bpmn_graph.element_info[e_step.task_id].name,
-                                       resource_id, 'started', started_at])
-        e_step.ideal_duration = sim_setup.ideal_task_duration(e_step.task_id, resource_id)
-        real_duration = self.sim_setup.real_task_duration(e_step.ideal_duration, resource_id, started_at)
+    def enqueue_event(self, trace_info, task_id, p_state, enabled_by=None, prev_step: SimulationStep = None):
+        resource_id, resource_available_at = self.sim_queue.pop_resource_for(task_id)
+
+        started_at = max(resource_available_at, prev_step.completed_at) if prev_step else max(resource_available_at,
+                                                                                              self.simpy_env.now)
+
+        self.resource_total_allocated_tasks[resource_id] += 1
+
+        e_step = SimulationStep(trace_info, task_id, self.sim_setup.ideal_task_duration(task_id, resource_id), p_state,
+                                self.simpy_env.now, self.simulation_datetime_from(self.simpy_env.now), enabled_by)
+        e_step.started_at = started_at
+        e_step.started_datetime = self.simulation_datetime_from(started_at)
+
+        e_step.resource_id = resource_id
+
+        e_step.real_duration = self.sim_setup.real_task_duration(e_step.ideal_duration, resource_id,
+                                                                 e_step.started_datetime)
+        self.log_writer.add_csv_row([trace_info.p_case, self.sim_setup.bpmn_graph.element_info[task_id].name,
+                                     None, 'enabled', e_step.enabled_datetime])
+
+        e_step.completed_at = started_at + e_step.real_duration
+        e_step.completed_datetime = self.simulation_datetime_from(e_step.completed_at)
+        n_t = e_step.completed_at + self.sim_setup.next_resting_time(resource_id, e_step.completed_datetime)
+        self.sim_queue.upddate_resource_availability(resource_id, n_t)
+        return e_step
+
+    def start_task(self, e_step):
+        current = self.simpy_env.now
+        if e_step.started_at != current:
+            print('hola started')
+        self.log_writer.add_csv_row([e_step.trace_info.p_case,
+                                     self.sim_setup.bpmn_graph.element_info[e_step.task_id].name,
+                                     e_step.resource_id, 'started', e_step.started_datetime])
         event_index = e_step.trace_info.start_event(e_step.task_id,
                                                     self.sim_setup.bpmn_graph.element_info[e_step.task_id].name,
-                                                    started_at, resource_id,
-                                                    self.simulation_datetime_from(e_step.enabled_at),
+                                                    e_step.started_datetime, e_step.resource_id,
+                                                    e_step.enabled_datetime,
                                                     e_step.enabled_by)
-        self.real_duration[resource_id] += e_step.ideal_duration
-        return event_index, real_duration
+        self.real_duration[e_step.resource_id] += e_step.ideal_duration
+        return event_index
 
-    def complete_task(self, e_step, event_index, real_duration):
-        e_step.completed_at = self.simpy_env.now
-        e_step.trace_info.complete_event(event_index, self.simulation_datetime_from(self.simpy_env.now),
-                                         real_duration - e_step.ideal_duration)
+    def complete_task(self, e_step, event_index):
+        current = self.simpy_env.now
+        if e_step.completed_at != current:
+            print('hola completed')
+        e_step.trace_info.complete_event(event_index, e_step.completed_datetime,
+                                         e_step.real_duration - e_step.ideal_duration)
         self.register_event(e_step.trace_info.event_list[event_index])
-        self.log_fwriter.writerow(self._extract_event_data_from_step(e_step))
+        self.log_writer.add_csv_row(self._extract_event_data_from_step(e_step))
+
         return self.simpy_env.now
 
     def _extract_event_data_from_step(self, e_step: SimulationStep):
         case_id = e_step.trace_info.p_case
         activity = self.sim_setup.bpmn_graph.element_info[e_step.task_id].name
-        resource = e_step.performed_by_resource
+        resource = e_step.resource_id
         completed_at = self._datetime_from(e_step.completed_at)
 
         if self.sim_setup.with_csv_state_column:
@@ -111,9 +179,6 @@ class SimBPMEnv:
 
     def _datetime_from(self, in_seconds):
         return self.simulation_datetime_from(in_seconds) if in_seconds is not None else None
-
-    def current_simulation_date(self):
-        return self.sim_setup.start_datetime + timedelta(seconds=self.simpy_env.now)
 
     def simulation_datetime_from(self, simpy_time):
         return self.sim_setup.start_datetime + timedelta(seconds=simpy_time)
@@ -137,14 +202,14 @@ class SimBPMEnv:
             return self.completed_events[len(self.completed_events) - 1].completed_at
         return None
 
-    def request_resource(self, r_id):
+    def request_resource(self, r_id, task_id):
         request = self.sim_resources[r_id].simpy_resource.request()
-        self.sim_resources[r_id].is_available = False
+        self.sim_resources[r_id].allocated_to = task_id
         return request
 
-    def release_resource(self, r_id, request):
+    def release_allocated_resource(self, r_id, task_id, request):
         self.sim_resources[r_id].simpy_resource.release(request)
-        self.sim_resources[r_id].is_available = True
+        self.sim_resources[r_id].allocated_to = None
         self.resource_total_allocated_tasks[r_id] += 1
 
     def register_event(self, event_info: TaskEvent):
@@ -177,61 +242,43 @@ class SimBPMEnv:
         return duration + resource_calendar.find_working_time(event_info.started_at, current_end)
 
 
-def schedule_resource(bpm_env, resource_id):
-    if resource_id in bpm_env.sim_resources and bpm_env.sim_resources[resource_id].is_available:
-        simpy_env = bpm_env.simpy_env
-        sim_setup = bpm_env.sim_setup
+# def schedule_resource(bpm_env: SimBPMEnv, task_id):
+#     # if resource_id in bpm_env.sim_resources and bpm_env.sim_resources[resource_id].is_available:
+#     simpy_env = bpm_env.simpy_env
+#     sim_setup = bpm_env.sim_setup
+#
+#     r_id, request = bpm_env.allocate_available_resource(task_id)
+#     if r_id is not None:
+#         to_rest = sim_setup.next_resting_time(r_id, bpm_env.current_simulation_date())
+#         if to_rest > 0:
+#             yield simpy_env.timeout(to_rest)
+#             bpm_env.release_allocated_resource(r_id, request)
+#             simpy_env.process(execute_task_case(bpm_env, task_id, r_id))
+#     else:
+#         # This case occurrs if the resource is available, but there are not tasks available that he/she can execute
+#         # Add the resource to the queue of all the possible tasks that he/she can execute
+#         return 1
 
-        to_rest = sim_setup.next_resting_time(resource_id, bpm_env.current_simulation_date())
-        if to_rest > 0:
-            request = bpm_env.request_resource(resource_id)
-            yield simpy_env.timeout(to_rest)
-            # print(simpy_env.now)
-            bpm_env.release_resource(resource_id, request)
-            bpm_env.sim_resources[resource_id].last_released = simpy_env.now
 
-        to_execute = bpm_env.pop_event_for(resource_id)
-        if to_execute is not None:
-            simpy_env.process(execute_task_case(bpm_env, to_execute, resource_id))
-
-
-def execute_task_case(bpm_env, e_step, r_id):
+def schedule_enqueued_event(bpm_env: SimBPMEnv, e_step: SimulationStep):
+    # print_event_state('Enabled', e_step, bpm_env, e_step.resource_id, e_step.enabled_at)
     simpy_env, sim_setup = bpm_env.simpy_env, bpm_env.sim_setup
-    # Locking the resource performing the task
-    request = bpm_env.request_resource(r_id)
-    # Computing real duration (+idle time) and creating (starting) the new event
-    event_index, real_duration = bpm_env.start_task(e_step, r_id, sim_setup)
-    # This conditional is for testing purposes .. remove later
-    if real_duration < e_step.ideal_duration:
-        bpm_env.start_task(e_step, r_id, sim_setup)
-    # print_event_state('Started', e_step, bpm_env, r_id)
-
-    # Waiting for the event (task) to be completed
-    # print(real_duration)
-    # if to_rest > 0:
-    #     sim_setup.next_resting_time(resource_id, bpm_env.current_simulation_date())
-    #     print(resource_id)
-    #     print(str(datetime.timedelta(seconds=to_rest)))
-    #     print(bpm_env.current_simulation_date())
-    #     print(bpm_env.current_simulation_date().weekday())
-    #     print('-------------')
-    yield simpy_env.timeout(real_duration)
-    # Completing the event after execution
-    end_time = bpm_env.complete_task(e_step, event_index, real_duration)
-    # Unlocking the resource that performed the task
-    bpm_env.release_resource(r_id, request)
-    # print_event_state('Completed', e_step, bpm_env, r_id)
-    # Updating process case state, and retrieving the tasks enabled after completion of the current event (task)
+    # Enabled events must wait until the allocated resource is available to perform it.
+    if simpy_env.now < e_step.started_at:
+        yield simpy_env.timeout(e_step.started_at - simpy_env.now)
+    # Starting the activity, this will add an event in the event log with state started
+    event_index = bpm_env.start_task(e_step)
+    # Waiting for the event to complete the execution, i.e., including the idle times of the allocated resource
+    # print_event_state('Started', e_step, bpm_env, e_step.resource_id, e_step.started_at)
+    yield simpy_env.timeout(e_step.real_duration)
+    # Registering the completion of an activity
+    # print_event_state('Ended  ', e_step, bpm_env, e_step.resource_id, e_step.completed_at)
+    bpm_env.complete_task(e_step, event_index)
+    # Updating the process state. Retrieving/enqueuing enabled tasks, it also schedules the corresponding event
     enabled_tasks = sim_setup.update_process_state(e_step.task_id, e_step.p_state)
-    available_resources = PriorityQueue()
-    available_resources.add_task(r_id, bpm_env.sim_resources[r_id].last_released)
-    # Enqueuing the new enabled tasks (for execution), and retrieving the resource candidates
     for next_task in enabled_tasks:
-        bpm_env.enqueue_event(e_step.trace_info, next_task, e_step.p_state, event_index, available_resources)
-        # print_event_state('Enabled', e_step, bpm_env, r_id)
-    # Select among the resource candidates, who will perform each of the enabled tasks (FIFO allocation)
-    while not available_resources.is_empty():
-        simpy_env.process(schedule_resource(bpm_env, available_resources.pop_task()))
+        next_step = bpm_env.enqueue_event(e_step.trace_info, next_task, e_step.p_state, event_index, e_step)
+        simpy_env.process(schedule_enqueued_event(bpm_env, next_step))
 
 
 def execute_full_process(bpm_env, total_cases):
@@ -247,11 +294,9 @@ def execute_full_process(bpm_env, total_cases):
         trace_info = Trace(current_case, bpm_env.current_simulation_date())
         bpm_env.log_info.trace_list.append(trace_info)
         for task_id in enabled_tasks:
-            e_step = bpm_env.enqueue_event(trace_info, task_id, p_state)
-            # print_event_state('Enabled', e_step, bpm_env, 'New-Case')
-        # print('Started:' + str(bpm_env.current_simulation_date()))
-        for r_id in sim_setup.resources_map:
-            simpy_env.process(schedule_resource(bpm_env, r_id))
+            simpy_env.process(schedule_enqueued_event(bpm_env,
+                                                      bpm_env.enqueue_event(trace_info, task_id, p_state)))
+        # print_event_state('Enabled', e_step, bpm_env, 'New-Case')
         # Verifying if there are more cases to execute
         current_case += 1
         # bpm_env.log_info.post_process_completed_trace()
@@ -276,9 +321,9 @@ def run_simulation(bpmn_path, json_path, total_cases, stat_out_path=None, log_ou
 
     if not stat_out_path:
         stat_out_path = os.path.join(os.path.dirname(__file__), Path("%s.csv" % diffsim_info.process_name))
-    with open(stat_out_path, mode='w', newline='') as stat_csv_file:
+    with open(stat_out_path, mode='w', newline='', encoding='utf-8') as stat_csv_file:
         if log_out_path:
-            with open(log_out_path, mode='w', newline='') as log_csv_file:
+            with open(log_out_path, mode='w', newline='', encoding='utf-8') as log_csv_file:
                 run_simpy_simulation(diffsim_info, total_cases,
                                      csv.writer(stat_csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL),
                                      csv.writer(log_csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL))

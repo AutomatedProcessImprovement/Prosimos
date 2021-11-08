@@ -114,7 +114,7 @@ class SimulationResult:
                                     p_id=None, p_name=None):
         self._max_res_s = max(self._max_res_s, len(r_name))
         self.resource_utilization[r_name] = r_utilization
-        if alloc_tasks:
+        if alloc_tasks is not None:
             self.resource_info[r_name] = [alloc_tasks, work_time, available_time, p_name]
             if p_id not in self.aggregated_pool_info:
                 self.aggregated_pool_info[p_id] = AggregatedPoolInfo(p_id, p_name)

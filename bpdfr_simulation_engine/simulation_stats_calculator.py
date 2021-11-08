@@ -83,14 +83,14 @@ class LogInfo:
         process_kpi.cycle_time.add_value(idle_cycle_time - idle_time)
 
         # These conditional are for debugging, remove after testing all the models
-        if idle_time < 0:
-            print('===========================================================')
-            for xx in processing_intervals:
-                print("%s -> %s (%f)" % (str(xx.start), str(xx.end), xx.duration))
-            print('===========================================================')
-        if idle_cycle_time != round(idle_processing_time + waiting_time, 6):
-            calc = idle_processing_time + waiting_time
-            print('trace_duration %s - %s idle_cycle_time (calculated)' % (idle_cycle_time, calc))
+        # if idle_time < 0:
+        #     print('===========================================================')
+        #     for xx in processing_intervals:
+        #         print("%s -> %s (%f)" % (str(xx.start), str(xx.end), xx.duration))
+        #     print('===========================================================')
+        # if idle_cycle_time != round(idle_processing_time + waiting_time, 6):
+        #     calc = idle_processing_time + waiting_time
+        #     print('trace_duration %s - %s idle_cycle_time (calculated)' % (idle_cycle_time, calc))
 
     def register_completed_task(self, event_info: TaskEvent, res_prof: ResourceProfile):
         self.started_at = min(self.started_at, event_info.started_at)
@@ -120,6 +120,7 @@ class LogInfo:
         return False
 
     def save_joint_statistics(self, bpm_env):
+        bpm_env.log_writer.force_write()
         self.save_start_end_dates(bpm_env.stat_fwriter)
         compute_resource_utilization(bpm_env)
         self.compute_individual_task_stats(bpm_env.stat_fwriter)
@@ -173,7 +174,6 @@ class LogInfo:
         stat_fwriter.writerow(['Overall Scenario Statistics'])
         stat_fwriter.writerow(['KPI', 'Min', 'Max', 'Average', 'Accumulated Value', 'Trace Ocurrences'])
         for kpi_name in kpi_map:
-            # print("%s:      %s" % (kpi_name, str(timedelta(seconds=(kpi_average[kpi_name])))))
             stat_fwriter.writerow([kpi_name,
                                    kpi_map[kpi_name].min,
                                    kpi_map[kpi_name].max,
@@ -225,11 +225,11 @@ def update_min_max(trace_info, duration_array, case_duration):
     duration_array[3] = "Case %d:" % trace_info.p_case
 
 
-def print_event_state(state, e_step, bpm_env, resource_id):
-    if bpm_env.sim_setup.bpmn_graph.element_info[e_step.task_id].name == 'Check credit history':
-        print("(%d) - %s %s at - %s by %s" % (e_step.trace_info.p_case,
-                                              bpm_env.sim_setup.bpmn_graph.element_info[e_step.task_id].name, state,
-                                              str(bpm_env.current_simulation_date()), resource_id))
+def print_event_state(state, e_step, bpm_env, resource_id, to_print):
+    print("(%d) - %s %s at - %s by %s --- %d %d" % (e_step.trace_info.p_case,
+                                          bpm_env.sim_setup.bpmn_graph.element_info[e_step.task_id].name, state,
+                                          str(bpm_env.current_simulation_date()), bpm_env.sim_setup.name_from_id(resource_id),
+                                          to_print, bpm_env.simpy_env.now))
 
 
 def sum_interval_union(interval_list):
