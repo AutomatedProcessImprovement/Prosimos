@@ -1,13 +1,12 @@
 import sys
 import datetime
-from datetime import timedelta
 import pytz
 
 import simpy
 from bpdfr_simulation_engine.resource_calendar import Interval
 
 from bpdfr_simulation_engine.execution_info import TaskEvent, Trace
-from bpdfr_simulation_engine.resource_profile import ResourceProfile
+from bpdfr_simulation_engine.simulation_setup import SimDiffSetup
 
 
 class KPIInfo:
@@ -51,23 +50,34 @@ class KPIMap:
 
 
 class LogInfo:
-    def __init__(self, sim_setup):
+    def __init__(self, sim_setup: SimDiffSetup):
         self.started_at = pytz.UTC.localize(datetime.datetime.max)
         self.ended_at = pytz.UTC.localize(datetime.datetime.min)
         self.trace_list = list()
-        self.last_post_processed_trace = 0
         self.task_exec_info = dict()
         self.sim_setup = sim_setup
 
-    def compute_execution_times(self, trace_info, process_kpi):
+    def trace_info(self, p_case: int):
+        return self.trace_list[p_case]
+
+    def event_info(self, p_case: int, event_index: int):
+        return self.trace_list[p_case].event_list[event_index]
+
+    def add_event_info(self, p_case: int, event_info: TaskEvent, task_cost: float):
+        trace_info = self.trace_list[p_case]
+        trace_info.completed_at = max(trace_info.completed_at, event_info.completed_datetime)
+        trace_info.event_list.append(event_info)
+        self._update_global_task_stats(event_info, task_cost)
+
+    def compute_execution_times(self, trace_info: Trace, process_kpi: KPIMap):
         processing_intervals = list()
         waiting_intervals = list()
         real_work_intervals = list()
         for event_info in trace_info.event_list:
             r_calendar = self.sim_setup.calendars_map[self.sim_setup.resources_map[event_info.resource_id].calendar_id]
-            r_calendar.remove_idle_times(event_info.started_at, event_info.completed_at, real_work_intervals)
-            processing_intervals.append(Interval(event_info.started_at, event_info.completed_at))
-            waiting_intervals.append(Interval(event_info.enabled_at, event_info.started_at))
+            r_calendar.remove_idle_times(event_info.started_datetime, event_info.completed_datetime, real_work_intervals)
+            processing_intervals.append(Interval(event_info.started_datetime, event_info.completed_datetime))
+            waiting_intervals.append(Interval(event_info.enabled_datetime, event_info.started_datetime))
 
         idle_cycle_time = (trace_info.completed_at - trace_info.started_at).total_seconds()
         idle_processing_time = sum_interval_union(processing_intervals)
@@ -92,32 +102,22 @@ class LogInfo:
         #     calc = idle_processing_time + waiting_time
         #     print('trace_duration %s - %s idle_cycle_time (calculated)' % (idle_cycle_time, calc))
 
-    def register_completed_task(self, event_info: TaskEvent, res_prof: ResourceProfile):
-        self.started_at = min(self.started_at, event_info.started_at)
-        self.ended_at = max(self.ended_at, event_info.completed_at)
-        task_duration = (event_info.completed_at - event_info.started_at).total_seconds()
-        waiting_time, processing_time = event_info.waiting_time(), event_info.processing_time()
-        task_cost = res_prof.cost_per_hour * processing_time / 3600
-        t_name = event_info.task_name
+    def _update_global_task_stats(self, event_info: TaskEvent, cost_per_hour: float):
+        self.started_at = min(self.started_at, event_info.started_datetime)
+        self.ended_at = max(self.ended_at, event_info.completed_datetime)
+        task_cost = cost_per_hour * event_info.processing_time / 3600
+        t_id = event_info.task_id
 
-        if t_name not in self.task_exec_info:
-            self.task_exec_info[t_name] = KPIMap()
+        if t_id not in self.task_exec_info:
+            self.task_exec_info[t_id] = KPIMap()
 
-        self.task_exec_info[t_name].duration.add_value(task_duration)
-        self.task_exec_info[t_name].waiting_time.add_value(event_info.waiting_time())
-        self.task_exec_info[t_name].processing_time.add_value(event_info.processing_time())
-        self.task_exec_info[t_name].idle_time.add_value(event_info.idle_time)
-        self.task_exec_info[t_name].cycle_time.add_value(event_info.cycle_time())
-        self.task_exec_info[t_name].idle_processing_time.add_value(event_info.idle_processing_time())
-        self.task_exec_info[t_name].idle_cycle_time.add_value(event_info.idle_cycle_time())
-        self.task_exec_info[t_name].cost.add_value(task_cost)
-
-    def post_process_completed_trace(self, process_kpi):
-        if self.last_post_processed_trace < len(self.trace_list):
-            self.compute_execution_times(self.trace_list[self.last_post_processed_trace], process_kpi)
-            self.last_post_processed_trace += 1
-            return True
-        return False
+        self.task_exec_info[t_id].waiting_time.add_value(event_info.waiting_time)
+        self.task_exec_info[t_id].processing_time.add_value(event_info.processing_time)
+        self.task_exec_info[t_id].idle_time.add_value(event_info.idle_time)
+        self.task_exec_info[t_id].cycle_time.add_value(event_info.cycle_time)
+        self.task_exec_info[t_id].idle_processing_time.add_value(event_info.idle_processing_time)
+        self.task_exec_info[t_id].idle_cycle_time.add_value(event_info.idle_cycle_time)
+        self.task_exec_info[t_id].cost.add_value(task_cost)
 
     def save_joint_statistics(self, bpm_env):
         bpm_env.log_writer.force_write()
@@ -145,7 +145,7 @@ class LogInfo:
                                'Ave Cost', 'Total Cost'])
         for t_name in self.task_exec_info:
             t_info: KPIMap = self.task_exec_info[t_name]
-            stat_fwriter.writerow([t_name,
+            stat_fwriter.writerow([self.sim_setup.bpmn_graph.element_info[t_name].name,
                                    t_info.cycle_time.count, t_info.duration.min, t_info.duration.max,
                                    t_info.duration.avg, t_info.duration.total, t_info.waiting_time.min,
                                    t_info.waiting_time.max, t_info.waiting_time.avg, t_info.waiting_time.total,
@@ -161,8 +161,8 @@ class LogInfo:
 
     def compute_full_simulation_statistics(self, stat_fwriter):
         process_kpi = KPIMap()
-        while self.post_process_completed_trace(process_kpi):
-            continue
+        for trace_info in self.trace_list:
+            self.compute_execution_times(trace_info, process_kpi)
 
         kpi_map = {"cycle_time": process_kpi.cycle_time,
                    "processing_time": process_kpi.processing_time,
@@ -189,8 +189,8 @@ def compute_resource_utilization(bpm_env):
                            'Worked Time (seconds)', 'Available Time (seconds)', 'Pool ID', 'Pool name'])
 
     available_time = dict()
-    started_at = bpm_env.simulation_started_at()
-    completed_at = bpm_env.simulation_completed_at()
+    started_at = bpm_env.log_info.started_at
+    completed_at = bpm_env.log_info.ended_at
     for r_id in bpm_env.sim_setup.resources_map:
         calendar_info = bpm_env.sim_setup.get_resource_calendar(r_id)
         if calendar_info.calendar_id not in available_time:
@@ -203,7 +203,7 @@ def compute_resource_utilization(bpm_env):
         stat_fwriter.writerow([r_id,
                                r_info.resource_name,
                                str(r_utilization),
-                               bpm_env.resource_total_allocated_tasks[r_id],
+                               bpm_env.sim_resources[r_id].allocated_tasks,
                                bpm_env.sim_resources[r_id].worked_time,
                                bpm_env.sim_resources[r_id].available_time,
                                r_info.pool_info.pool_id,

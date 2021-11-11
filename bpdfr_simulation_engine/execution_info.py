@@ -3,42 +3,43 @@ import pytz
 
 
 class TaskEvent:
-    def __init__(self, p_case, task_id, task_name, enabled_at, enabled_by):
-        self.p_case = p_case
-        self.task_id = task_id
-        self.task_name = task_name
-        self.enabled_at = enabled_at
+    def __init__(self, p_case, task_id, resource_id, resource_available_at, enabled_by, bpm_env):
+        self.p_case = p_case  # ID of the current trace, i.e., index of the trace in log_info list
+        self.task_id = task_id  # Name of the task related to the current event
+        self.resource_id = resource_id  # ID of the resource performing to the event
+
+        # Time moment in seconds from beginning, i.e., first event has time = 0
+        self.enabled_at = bpm_env.simpy_env.now
+        # Datetime of the time-moment calculated from the starting simulation datetime
+        self.enabled_datetime = bpm_env.simulation_datetime_from(self.enabled_at)
+        # Reference to the TaskEven object enabling the current event in the trace
         self.enabled_by = enabled_by
-        self.started_at = None
-        self.completed_at = None
-        self.idle_time = None
-        self.resource_id = None
 
-    def print_event_info(self):
-        print("Task: %s(%s)" % (self.task_name, str(self.p_case)))
+        # Time moment in seconds from beginning, i.e., first event has time = 0
+        self.started_at = max(resource_available_at, enabled_by.completed_at) if enabled_by is not None \
+            else max(resource_available_at, self.enabled_at)
+        # Datetime of the time-moment calculated from the starting simulation datetime
+        self.started_datetime = bpm_env.simulation_datetime_from(self.started_at)
 
-    def start_event(self, started_at, resource_id):
-        self.started_at = started_at
-        self.resource_id = resource_id
+        # Ideal duration from the distribution-function if allocate resource doesn't rest
+        self.ideal_duration = bpm_env.sim_setup.ideal_task_duration(task_id, resource_id)
+        # Actual duration adding the resource resting-time according to their calendar
+        self.real_duration = bpm_env.sim_setup.real_task_duration(self.ideal_duration, self.resource_id,
+                                                                  self.started_datetime)
 
-    def complete_event(self, ended_at, idle_time):
-        self.completed_at = ended_at
-        self.idle_time = idle_time
+        # Time moment in seconds from beginning, i.e., first event has time = 0
+        self.completed_at = self.started_at + self.real_duration
+        # Datetime of the time-moment calculated from the starting simulation datetime
+        self.completed_datetime = bpm_env.simulation_datetime_from(self.completed_at)
 
-    def waiting_time(self):
-        return (self.started_at - self.enabled_at).total_seconds()
-
-    def idle_processing_time(self):
-        return (self.completed_at - self.started_at).total_seconds()
-
-    def processing_time(self):
-        return self.idle_processing_time() - self.idle_time
-
-    def idle_cycle_time(self):
-        return (self.completed_at - self.enabled_at).total_seconds()
-
-    def cycle_time(self):
-        return self.idle_cycle_time() - self.idle_time
+        # Time of a resource was resting while performing a task (in seconds)
+        self.idle_time = self.real_duration - self.ideal_duration
+        # Time from an event is enabled until it is started by any resource
+        self.waiting_time = self.started_at - self.enabled_at
+        self.idle_cycle_time = self.completed_at - self.enabled_at
+        self.idle_processing_time = self.completed_at - self.started_at
+        self.cycle_time = self.idle_cycle_time - self.idle_time
+        self.processing_time = self.idle_processing_time - self.idle_time
 
 
 class Trace:
@@ -56,28 +57,8 @@ class Trace:
         self.waiting_time = None
         self.idle_time = None
 
-    def start_event(self, task_id, task_name, started_at, started_by, enabled_at, enabled_by):
-        event_info = TaskEvent(self.p_case, task_id, task_name, enabled_at, enabled_by)
-        event_index = len(self.event_list)
-        self.event_list.append(event_info)
-        self.started_at = min(self.started_at, enabled_at)
-        self.next_parallel_tasks.append(list())
-        if enabled_by is not None:
-            self.next_parallel_tasks[enabled_by].append(event_index)
-        self.event_list[event_index].start_event(started_at, started_by)
-        return event_index
-
-    def complete_event(self, event_index, completed_at, idle_time=0):
-        self.event_list[event_index].complete_event(completed_at, idle_time)
-        self.completed_at = max(self.completed_at, self.event_list[event_index].completed_at)
-        return self.event_list[event_index]
-
 
 class ProcessInfo:
     def __init__(self):
         self.traces = dict()
         self.resource_profiles = dict()
-
-
-
-

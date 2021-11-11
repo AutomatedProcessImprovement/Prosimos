@@ -4,26 +4,9 @@ from datetime import timedelta
 import ntpath
 
 from bpdfr_simulation_engine.control_flow_manager import ProcessState
-from bpdfr_simulation_engine.probability_distributions import generate_number_from, random_uniform
+from bpdfr_simulation_engine.probability_distributions import generate_number_from
 from bpdfr_simulation_engine.resource_calendar import RCalendar
 from bpdfr_simulation_engine.simulation_properties_parser import parse_simulation_model, parse_json_sim_parameters
-
-
-class SimulationStep:
-    def __init__(self, trace_info, task_id, ideal_duration, p_state, enabled_at, enabled_datetime, enabled_by=None):
-        self.trace_info = trace_info
-        self.task_id = task_id
-        self.ideal_duration = ideal_duration
-        self.real_duration = ideal_duration
-        self.p_state = p_state
-        self.enabled_at = enabled_at
-        self.enabled_by = enabled_by
-        self.started_at = None
-        self.completed_at = None
-        self.resource_id = None
-        self.enabled_datetime = enabled_datetime
-        self.started_datetime = None
-        self.completed_datetime = None
 
 
 class SimDiffSetup:

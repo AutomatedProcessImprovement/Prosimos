@@ -7,18 +7,7 @@ from bpdfr_simulation_engine.simulation_engine import run_simulation
 from bpdfr_simulation_engine.simulation_properties_parser import parse_qbp_simulation_process
 from bpdfr_simulation_engine.simulation_stats import load_bimp_simulation_results, load_diff_simulation_results
 
-experiment_models = {'production': {'bpmn': './../bimp_test_examples/ihar/production.bpmn',
-                                      'json': './../bimp_test_examples/ihar/production.json',
-                                      'total_cases': 1000,
-                                      'start_datetime': '2012-03-12T23:59:59.999999+00:00'},
-
-                       'purchasing_example': {'bpmn': './../bimp_test_examples/ihar/purchasing_example.bpmn',
-                                              'json': './../bimp_test_examples/ihar/purchasing_example.json',
-                                              'total_cases': 1000,
-                                              'start_datetime': '2011-06-20T18:43:59.999999+00:00'},
-                       }
-
-experiment_models_1 = {'bimp_example': {'bpmn': './../bimp_test_examples/bimp_example.bpmn',
+experiment_models = {'bimp_example': {'bpmn': './../bimp_test_examples/bimp_example.bpmn',
                                       'json': './../bimp_test_examples/bimp_example.json',
                                       'total_cases': 1000,
                                       'start_datetime': '2016-12-04T16:40:51.000Z'},
@@ -30,7 +19,17 @@ experiment_models_1 = {'bimp_example': {'bpmn': './../bimp_test_examples/bimp_ex
                      'csv_pharmacy': {'bpmn': './../bimp_test_examples/CVS-Pharmacy.bpmn',
                                       'json': './../bimp_test_examples/CVS-Pharmacy.json',
                                       'total_cases': 1000,
-                                      'start_datetime': '2019-03-25T06:00:00.000Z'}}
+                                      'start_datetime': '2019-03-25T06:00:00.000Z'},
+                     'production': {'bpmn': './../bimp_test_examples/ihar/production.bpmn',
+                                    'json': './../bimp_test_examples/ihar/production.json',
+                                    'total_cases': 1000,
+                                    'start_datetime': '2012-03-12T23:59:59.999999+00:00'},
+
+                     'purchasing_example': {'bpmn': './../bimp_test_examples/ihar/purchasing_example.bpmn',
+                                            'json': './../bimp_test_examples/ihar/purchasing_example.json',
+                                            'total_cases': 1000,
+                                            'start_datetime': '2011-06-20T18:43:59.999999+00:00'},
+                     }
 
 output_dir_path = './../bimp_test_examples/sim_output/'
 
@@ -79,8 +78,8 @@ def main():
                                                   experiment_models[model_name]["json"],
                                                   '%sdiff_%s_%d_stats.csv' % (output_dir_path, model_name, p_cases),
                                                   '%sdiff_%s_%d_log.csv' % (output_dir_path, model_name, p_cases))
-        # diff_sim_result.print_simulation_results()
-        # break
+        diff_sim_result.print_simulation_results()
+        break
 
     os._exit(0)
 
