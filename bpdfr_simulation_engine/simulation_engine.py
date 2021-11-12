@@ -71,7 +71,7 @@ class SimBPMEnv:
                                      full_evt.enabled_datetime,
                                      full_evt.started_datetime,
                                      full_evt.completed_datetime,
-                                     full_evt.resource_id])
+                                     self.sim_setup.resources_map[full_evt.resource_id].resource_name])
 
         # Updating the process state. Retrieving/enqueuing enabled tasks, it also schedules the corresponding event
         enabled_tasks = self.sim_setup.update_process_state(c_event.task_id, c_event.p_state)
