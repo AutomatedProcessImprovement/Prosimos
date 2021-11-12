@@ -1,5 +1,4 @@
 import sys
-import time
 
 import numpy.random
 from numpy import random

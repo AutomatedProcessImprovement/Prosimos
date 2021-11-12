@@ -2,7 +2,6 @@ import sys
 import datetime
 import pytz
 
-import simpy
 from bpdfr_simulation_engine.resource_calendar import Interval
 
 from bpdfr_simulation_engine.execution_info import TaskEvent, Trace
@@ -75,7 +74,8 @@ class LogInfo:
         real_work_intervals = list()
         for event_info in trace_info.event_list:
             r_calendar = self.sim_setup.calendars_map[self.sim_setup.resources_map[event_info.resource_id].calendar_id]
-            r_calendar.remove_idle_times(event_info.started_datetime, event_info.completed_datetime, real_work_intervals)
+            r_calendar.remove_idle_times(event_info.started_datetime, event_info.completed_datetime,
+                                         real_work_intervals)
             processing_intervals.append(Interval(event_info.started_datetime, event_info.completed_datetime))
             waiting_intervals.append(Interval(event_info.enabled_datetime, event_info.started_datetime))
 
@@ -227,9 +227,11 @@ def update_min_max(trace_info, duration_array, case_duration):
 
 def print_event_state(state, e_step, bpm_env, resource_id, to_print):
     print("(%d) - %s %s at - %s by %s --- %d %d" % (e_step.trace_info.p_case,
-                                          bpm_env.sim_setup.bpmn_graph.element_info[e_step.task_id].name, state,
-                                          str(bpm_env.current_simulation_date()), bpm_env.sim_setup.name_from_id(resource_id),
-                                          to_print, bpm_env.simpy_env.now))
+                                                    bpm_env.sim_setup.bpmn_graph.element_info[e_step.task_id].name,
+                                                    state,
+                                                    str(bpm_env.current_simulation_date()),
+                                                    bpm_env.sim_setup.name_from_id(resource_id),
+                                                    to_print, bpm_env.simpy_env.now))
 
 
 def sum_interval_union(interval_list):
@@ -246,21 +248,6 @@ def sum_interval_union(interval_list):
             i_interval = intersection
         t_duration += interval_list[i].duration - i_interval.duration if i_interval else interval_list[i].duration
     return round(t_duration, 6)
-
-
-def compute_execution_times_by_simulation(trace_info):
-    trace_info.idle_cycle_time = (trace_info.completed_at - trace_info.started_at).total_seconds()
-    for with_idle in [True, False]:
-        env = simpy.Environment()
-        env.process(_compute_times(trace_info, env, 0, with_idle))
-        env.run()
-        if with_idle:
-            trace_info.idle_processing_time = env.now
-        else:
-            trace_info.processing_time = env.now
-    trace_info.idle_time = trace_info.idle_processing_time - trace_info.processing_time
-    trace_info.cycle_time = trace_info.idle_cycle_time - trace_info.idle_time
-    trace_info.waiting_time = trace_info.cycle_time - trace_info.processing_time
 
 
 def _compute_times(trace_info, env, event_index, with_idle):

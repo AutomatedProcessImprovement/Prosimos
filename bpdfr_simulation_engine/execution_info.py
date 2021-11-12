@@ -3,21 +3,18 @@ import pytz
 
 
 class TaskEvent:
-    def __init__(self, p_case, task_id, resource_id, resource_available_at, enabled_by, bpm_env):
+    def __init__(self, p_case, task_id, resource_id, resource_available_at, enabled_at, enabled_datetime, bpm_env):
         self.p_case = p_case  # ID of the current trace, i.e., index of the trace in log_info list
         self.task_id = task_id  # Name of the task related to the current event
         self.resource_id = resource_id  # ID of the resource performing to the event
 
         # Time moment in seconds from beginning, i.e., first event has time = 0
-        self.enabled_at = bpm_env.simpy_env.now
+        self.enabled_at = enabled_at
         # Datetime of the time-moment calculated from the starting simulation datetime
-        self.enabled_datetime = bpm_env.simulation_datetime_from(self.enabled_at)
-        # Reference to the TaskEven object enabling the current event in the trace
-        self.enabled_by = enabled_by
+        self.enabled_datetime = enabled_datetime
 
         # Time moment in seconds from beginning, i.e., first event has time = 0
-        self.started_at = max(resource_available_at, enabled_by.completed_at) if enabled_by is not None \
-            else max(resource_available_at, self.enabled_at)
+        self.started_at = max(resource_available_at, enabled_at)
         # Datetime of the time-moment calculated from the starting simulation datetime
         self.started_datetime = bpm_env.simulation_datetime_from(self.started_at)
 
@@ -58,7 +55,9 @@ class Trace:
         self.idle_time = None
 
 
-class ProcessInfo:
-    def __init__(self):
-        self.traces = dict()
-        self.resource_profiles = dict()
+class EnabledEvent:
+    def __init__(self, p_case, p_state, task_id, enabled_datetime):
+        self.p_case = p_case
+        self.p_state = p_state
+        self.task_id = task_id
+        self.enabled_datetime = enabled_datetime

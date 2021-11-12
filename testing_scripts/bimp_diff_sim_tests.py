@@ -1,10 +1,8 @@
 import datetime
 import os
-from datetime import time
 
 from bpdfr_simulation_engine.resource_calendar import parse_datetime
 from bpdfr_simulation_engine.simulation_engine import run_simulation
-from bpdfr_simulation_engine.simulation_properties_parser import parse_qbp_simulation_process
 from bpdfr_simulation_engine.simulation_stats import load_bimp_simulation_results, load_diff_simulation_results
 
 experiment_models = {'bimp_example': {'bpmn': './../bimp_test_examples/bimp_example.bpmn',
@@ -46,7 +44,7 @@ def run_bimp_simulation(model_file_path, results_file_path, simulation_log,
         raise RuntimeError('program {} failed!')
     print("BimpSim Execution Times: %s" %
           str(datetime.timedelta(seconds=(datetime.datetime.now() - s_t).total_seconds())))
-    return load_bimp_simulation_results(results_file_path, simulation_log)
+    # return load_bimp_simulation_results(results_file_path, simulation_log)
 
 
 def run_diff_res_simulation(start_date, total_cases, bpmn_model, json_sim_params, out_stats_csv_path, out_log_csv_path):
@@ -78,8 +76,8 @@ def main():
                                                   experiment_models[model_name]["json"],
                                                   '%sdiff_%s_%d_stats.csv' % (output_dir_path, model_name, p_cases),
                                                   '%sdiff_%s_%d_log.csv' % (output_dir_path, model_name, p_cases))
-        diff_sim_result.print_simulation_results()
-        break
+        # diff_sim_result.print_simulation_results()
+        # break
 
     os._exit(0)
 

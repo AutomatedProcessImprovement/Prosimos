@@ -46,7 +46,8 @@ class SimulationResult:
         print('Idle Time  ............ %s' % format_duration(self.process_kpi_map.idle_time.avg, 25))
         print('------------------------------------------------------------')
         print('AGGREGATED RESOURCE POOL UTILIZATION')
-        print('| %s | %s | %s | %s | %s | %s |' % ('Pool Name'.ljust(15),
+        r_s = max(self._max_res_s, 13)
+        print('| %s | %s | %s | %s | %s | %s |' % ('Pool Name'.ljust(r_s),
                                                    'Avg Resource Utilization'.ljust(25),
                                                    'Avg Tasks Allocated'.ljust(20),
                                                    'Total Tasks Allocated'.ljust(21),
@@ -54,7 +55,7 @@ class SimulationResult:
                                                    'Avg Time Available'.ljust(25)))
         for pool_id in self.aggregated_pool_info:
             pool_kpi: AggregatedPoolInfo = self.aggregated_pool_info[pool_id]
-            print('| %s | %s | %s | %s | %s | %s |' % (pool_kpi.pool_info.pool_name.ljust(15),
+            print('| %s | %s | %s | %s | %s | %s |' % (pool_kpi.pool_info.pool_name.ljust(r_s),
                                                        str(round(pool_kpi.kpi_utilization.avg, 3)).ljust(25),
                                                        str(round(pool_kpi.kpi_allocated_tasks.avg)).ljust(20),
                                                        str(pool_kpi.kpi_allocated_tasks.total).ljust(21),
@@ -62,14 +63,14 @@ class SimulationResult:
                                                        format_duration(pool_kpi.kpi_available_time.avg, 25)))
         print('------------------------------------------------------------')
         print('INDIVIDUAL RESOURCE UTILIZATION')
-        print('| %s | %s | %s | %s | %s | %s |' % ('Resource Name'.ljust(15),
+        print('| %s | %s | %s | %s | %s | %s |' % ('Resource Name'.ljust(r_s),
                                                    'Utilization'.ljust(11),
                                                    'Tasks Allocated'.ljust(16),
                                                    'Time Worked'.ljust(25),
                                                    'Time Available'.ljust(25),
                                                    'Pool Name'.ljust(15)))
         for res_name in self.resource_utilization:
-            print('| %s | %s | %s | %s | %s | %s |' % (res_name.ljust(15),
+            print('| %s | %s | %s | %s | %s | %s |' % (res_name.ljust(r_s),
                                                        str(round(self.resource_utilization[res_name], 3)).ljust(11),
                                                        str(self.resource_info[res_name][0]).ljust(16),
                                                        format_duration(self.resource_info[res_name][1], 25),

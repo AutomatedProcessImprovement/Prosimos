@@ -10,9 +10,7 @@ from bpdfr_simulation_engine.simulation_properties_parser import parse_simulatio
 
 
 class SimDiffSetup:
-    def __init__(self, bpmn_path, json_path, with_enabled_state=False, with_csv_state_column=False):
-        self.with_enabled_state = with_enabled_state
-        self.with_csv_state_column = with_csv_state_column
+    def __init__(self, bpmn_path, json_path):
         self.process_name = ntpath.basename(bpmn_path).split(".")[0]
         self.start_datetime = datetime.datetime.now(pytz.utc)
 
