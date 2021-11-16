@@ -8,7 +8,7 @@ from datetime import timedelta
 
 from bpdfr_simulation_engine.file_manager import FileManager
 from bpdfr_simulation_engine.execution_info import Trace, TaskEvent, EnabledEvent
-from bpdfr_simulation_engine.simulation_queues_ds import PriorityQueue, DiffResourceQueue
+from bpdfr_simulation_engine.simulation_queues_ds import PriorityQueue, DiffResourceQueue, EventQueue
 from bpdfr_simulation_engine.simulation_setup import SimDiffSetup
 from bpdfr_simulation_engine.simulation_stats_calculator import LogInfo, print_event_state
 
@@ -37,7 +37,7 @@ class SimBPMEnv:
             r_first_available[r_id] = self.sim_setup.next_resting_time(r_id, self.sim_setup.start_datetime)
 
         self.resource_queue = DiffResourceQueue(self.sim_setup.task_resource, r_first_available)
-        self.events_queue = PriorityQueue()
+        self.events_queue = EventQueue()
 
     def generate_all_arrival_events(self, total_cases):
         sim_setup = self.sim_setup
@@ -48,15 +48,16 @@ class SimBPMEnv:
             enabled_datetime = self.simulation_datetime_from(arrival_time)
             self.log_info.trace_list.append(Trace(p_case, enabled_datetime))
             for task_id in enabled_tasks:
-                self.events_queue.insert(EnabledEvent(p_case, p_state, task_id, enabled_datetime), arrival_time)
+                self.events_queue.append_arrival_event(EnabledEvent(p_case, p_state, task_id, arrival_time,
+                                                                    enabled_datetime))
             arrival_time += sim_setup.next_arrival_time(enabled_datetime)
 
-    def execute_enabled_event(self, c_event: EnabledEvent, enabled_at):
+    def execute_enabled_event(self, c_event: EnabledEvent):
         self.executed_events += 1
         resource_id, r_available_at = self.resource_queue.pop_resource_for(c_event.task_id)
         self.sim_resources[resource_id].allocated_tasks += 1
         full_evt = TaskEvent(c_event.p_case, c_event.task_id, resource_id, r_available_at,
-                             enabled_at, c_event.enabled_datetime, self)
+                             c_event.enabled_at, c_event.enabled_datetime, self)
         self.log_info.add_event_info(c_event.p_case, full_evt, self.sim_setup.resources_map[resource_id].cost_per_hour)
 
         r_next_available = full_evt.completed_at
@@ -76,10 +77,9 @@ class SimBPMEnv:
         # Updating the process state. Retrieving/enqueuing enabled tasks, it also schedules the corresponding event
         enabled_tasks = self.sim_setup.update_process_state(c_event.task_id, c_event.p_state)
         for next_task in enabled_tasks:
-            self.events_queue.insert(
-                EnabledEvent(c_event.p_case, c_event.p_state, next_task, full_evt.completed_datetime),
-                full_evt.completed_at
-            )
+            self.events_queue.append_enabled_event(
+                EnabledEvent(c_event.p_case, c_event.p_state, next_task, full_evt.completed_at,
+                             full_evt.completed_datetime))
 
     def _datetime_from(self, in_seconds):
         return self.simulation_datetime_from(in_seconds) if in_seconds is not None else None
@@ -117,10 +117,10 @@ def execute_full_process(bpm_env: SimBPMEnv, total_cases):
     # i.e., all the initial events are enqueued and sorted by their arrival times
     bpm_env.generate_all_arrival_events(total_cases)
 
-    execution_queue = bpm_env.events_queue
-    while not execution_queue.is_empty():
-        enabled_event, enabled_at = execution_queue.pop_min()
-        bpm_env.execute_enabled_event(enabled_event, enabled_at)
+    current_event = bpm_env.events_queue.pop_next_event()
+    while current_event is not None:
+        bpm_env.execute_enabled_event(current_event)
+        current_event = bpm_env.events_queue.pop_next_event()
 
 
 def run_simulation(bpmn_path, json_path, total_cases, stat_out_path=None, log_out_path=None, starting_at=None):
@@ -131,24 +131,34 @@ def run_simulation(bpmn_path, json_path, total_cases, stat_out_path=None, log_ou
 
     diffsim_info.set_starting_satetime(starting_at if starting_at else pytz.utc.localize(datetime.datetime.now()))
 
-    if not stat_out_path:
+    if not stat_out_path and not log_out_path:
         stat_out_path = os.path.join(os.path.dirname(__file__), Path("%s.csv" % diffsim_info.process_name))
-    with open(stat_out_path, mode='w', newline='', encoding='utf-8') as stat_csv_file:
-        if log_out_path:
-            with open(log_out_path, mode='w', newline='', encoding='utf-8') as log_csv_file:
+    if stat_out_path:
+        with open(stat_out_path, mode='w', newline='', encoding='utf-8') as stat_csv_file:
+            if log_out_path:
+                with open(log_out_path, mode='w', newline='', encoding='utf-8') as log_csv_file:
+                    run_simpy_simulation(diffsim_info, total_cases,
+                                         csv.writer(stat_csv_file, delimiter=',', quotechar='"',
+                                                    quoting=csv.QUOTE_MINIMAL),
+                                         csv.writer(log_csv_file, delimiter=',', quotechar='"',
+                                                    quoting=csv.QUOTE_MINIMAL))
+            else:
                 run_simpy_simulation(diffsim_info, total_cases,
                                      csv.writer(stat_csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL),
-                                     csv.writer(log_csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL))
-        else:
+                                     None)
+    else:
+        with open(log_out_path, mode='w', newline='', encoding='utf-8') as log_csv_file:
             run_simpy_simulation(diffsim_info, total_cases,
-                                 csv.writer(stat_csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL))
+                                 None,
+                                 csv.writer(log_csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL))
 
 
-def run_simpy_simulation(diffsim_info, total_cases, stat_fwriter, log_fwriter=None):
+def run_simpy_simulation(diffsim_info, total_cases, stat_fwriter, log_fwriter):
     bpm_env = SimBPMEnv(diffsim_info, stat_fwriter, log_fwriter)
     add_simulation_event_log_header(log_fwriter)
     execute_full_process(bpm_env, total_cases)
-    bpm_env.log_info.save_joint_statistics(bpm_env)
+    if stat_fwriter:
+        bpm_env.log_info.save_joint_statistics(bpm_env)
     # print("Total Task Instances: %d" % bpm_env.executed_events)
 
 

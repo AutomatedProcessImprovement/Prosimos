@@ -1,4 +1,5 @@
 import itertools
+from collections import deque
 from heapq import heappush
 from heapq import heappop
 
@@ -98,3 +99,26 @@ class DiffResourceQueue:
             index += 1
 
 
+class EventQueue:
+    def __init__(self):
+        self.arrival_events = deque()
+        self.enabled_events = deque()
+
+    def append_arrival_event(self, event_info):
+        self.arrival_events.append(event_info)
+
+    def append_enabled_event(self, event_info):
+        self.enabled_events.append(event_info)
+
+    def pop_next_event(self):
+        if self.arrival_events and self.enabled_events:
+            if self.arrival_events[0].enabled_at < self.enabled_events[0].enabled_at:
+                return self.arrival_events.popleft()
+            else:
+                return self.enabled_events.popleft()
+        elif self.enabled_events:
+            return self.enabled_events.popleft()
+        elif self.arrival_events:
+            return self.arrival_events.popleft()
+        else:
+            return None

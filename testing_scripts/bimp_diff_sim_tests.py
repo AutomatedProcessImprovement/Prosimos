@@ -52,7 +52,7 @@ def run_diff_res_simulation(start_date, total_cases, bpmn_model, json_sim_params
     run_simulation(bpmn_model, json_sim_params, total_cases, out_stats_csv_path, out_log_csv_path, start_date)
     print("DiffSim Execution Times: %s" %
           str(datetime.timedelta(seconds=(datetime.datetime.now() - s_t).total_seconds())))
-    return load_diff_simulation_results(out_stats_csv_path)
+    return load_diff_simulation_results(out_stats_csv_path) if out_stats_csv_path else None
 
 
 def main():
@@ -74,10 +74,11 @@ def main():
                                                   p_cases,
                                                   experiment_models[model_name]["bpmn"],
                                                   experiment_models[model_name]["json"],
+                                                  # None,
                                                   '%sdiff_%s_%d_stats.csv' % (output_dir_path, model_name, p_cases),
                                                   '%sdiff_%s_%d_log.csv' % (output_dir_path, model_name, p_cases))
-        # diff_sim_result.print_simulation_results()
-        # break
+        diff_sim_result.print_simulation_results()
+        break
 
     os._exit(0)
 

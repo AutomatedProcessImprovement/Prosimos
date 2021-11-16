@@ -30,7 +30,7 @@ date_format = "%Y-%m-%dT%H:%M:%S.%f%z"
 #     return _extract_log_info(bpmn_graph, traces, tags, ns)
 
 
-def parse_xes_log(log_path, bpmn_graph):
+def parse_xes_log(log_path, bpmn_graph, output_path):
     f_name = ntpath.basename(log_path).split('.')[0]
     print('Parsing Event Log %s ...' % f_name)
     process_info = ProcessInfo()

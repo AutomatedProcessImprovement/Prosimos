@@ -1,6 +1,8 @@
 
 import os
 
+from bpdfr_discovery.support_modules.log_parser import parse_xes_log
+from bpdfr_simulation_engine.simulation_properties_parser import parse_simulation_model
 
 experiment_logs = {0: 'production',
                    1: 'purchasing_example',
@@ -30,14 +32,17 @@ xes_simodbpmn_file_paths = {
                              './input_files/bpmn_simod_models/ConsultaDataMining201618.bpmn']
 }
 
+output_dir_path = './../output_files/discovery/'
+
 def main():
     for i in range(0, 8):
         log_name = experiment_logs[i]
 
         # Extracting the simulation parameters from event-log (it saves them results to JSON files)
-        # xes_path = xes_simodbpmn_file_paths[log_name][0]
-        # bpmn_graph = parse_simulation_model(log_name)
-        # parse_xes_log(xes_path, bpmn_graph)
+        xes_path = xes_simodbpmn_file_paths[log_name][0]
+
+        bpmn_graph = parse_simulation_model(log_name)
+        parse_xes_log(xes_path, bpmn_graph, output_dir_path)
 
         # Loading the simulation parameters from file, the following method loads all the parameters from files,
         # see the constructor of the class 'SimDiffSetup'

@@ -39,6 +39,14 @@ class TaskEvent:
         self.processing_time = self.idle_processing_time - self.idle_time
 
 
+class LogEvent:
+    def __int__(self, task_id, started_datetime, resource_id):
+        self.task_id = task_id
+        self.started_datetime = started_datetime
+        self.resource_id = resource_id
+        self.completed_datetime = None
+
+
 class Trace:
     def __init__(self, p_case, started_at=datetime.datetime(9999, 12, 31, 23, 59, 59, 999999, pytz.utc)):
         self.p_case = p_case
@@ -56,8 +64,9 @@ class Trace:
 
 
 class EnabledEvent:
-    def __init__(self, p_case, p_state, task_id, enabled_datetime):
+    def __init__(self, p_case, p_state, task_id, enabled_at, enabled_datetime):
         self.p_case = p_case
         self.p_state = p_state
         self.task_id = task_id
         self.enabled_datetime = enabled_datetime
+        self.enabled_at = enabled_at
