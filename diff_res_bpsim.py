@@ -31,8 +31,7 @@ def cli():
                    'If this parameter is not provided, the current date-time is assigned.')
 @click.pass_context
 def start_simulation(ctx, bpmn_path, json_path, total_cases, stat_out_path=None, log_out_path=None, starting_at=None):
-    if not run_simulation(bpmn_path, json_path, total_cases, stat_out_path, log_out_path, starting_at):
-        print('Simulation model NOT found.')
+    run_simulation(bpmn_path, json_path, total_cases, stat_out_path, log_out_path, starting_at)
 
 
 if __name__ == "__main__":

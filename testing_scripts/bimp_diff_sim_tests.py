@@ -7,25 +7,25 @@ from bpdfr_simulation_engine.simulation_stats import load_bimp_simulation_result
 
 experiment_models = {'bimp_example': {'bpmn': './../bimp_test_examples/bimp_example.bpmn',
                                       'json': './../bimp_test_examples/bimp_example.json',
-                                      'total_cases': 1000,
+                                      'total_cases': 100,
                                       'start_datetime': '2016-12-04T16:40:51.000Z'},
                      'insurance_claim': {
                          'bpmn': './../bimp_test_examples/ch7_InsuranceClaimsSimulatio-StormScenario.bpmn',
                          'json': './../bimp_test_examples/ch7_InsuranceClaimsSimulatio-StormScenario.json',
-                         'total_cases': 1000,
+                         'total_cases': 10000,
                          'start_datetime': '2020-03-24T07:00:00.000Z'},
                      'csv_pharmacy': {'bpmn': './../bimp_test_examples/CVS-Pharmacy.bpmn',
                                       'json': './../bimp_test_examples/CVS-Pharmacy.json',
-                                      'total_cases': 1000,
+                                      'total_cases': 10000,
                                       'start_datetime': '2019-03-25T06:00:00.000Z'},
                      'production': {'bpmn': './../bimp_test_examples/ihar/production.bpmn',
                                     'json': './../bimp_test_examples/ihar/production.json',
-                                    'total_cases': 1000,
+                                    'total_cases': 10000,
                                     'start_datetime': '2012-03-12T23:59:59.999999+00:00'},
 
                      'purchasing_example': {'bpmn': './../bimp_test_examples/ihar/purchasing_example.bpmn',
                                             'json': './../bimp_test_examples/ihar/purchasing_example.json',
-                                            'total_cases': 1000,
+                                            'total_cases': 10000,
                                             'start_datetime': '2011-06-20T18:43:59.999999+00:00'},
                      }
 
@@ -76,8 +76,9 @@ def main():
                                                   experiment_models[model_name]["json"],
                                                   # None,
                                                   '%sdiff_%s_%d_stats.csv' % (output_dir_path, model_name, p_cases),
-                                                  '%sdiff_%s_%d_log.csv' % (output_dir_path, model_name, p_cases))
-        diff_sim_result.print_simulation_results()
+                                                  None)
+                                                  # '%sdiff_%s_%d_log.csv' % (output_dir_path, model_name, p_cases))
+        # diff_sim_result.print_simulation_results()
         break
 
     os._exit(0)

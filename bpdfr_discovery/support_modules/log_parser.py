@@ -83,8 +83,7 @@ def parse_xes_log(log_path, bpmn_graph, output_path):
                 resource_calendars[resource] = RCalendar("%s_Schedule" % resource)
             update_calendar_from_log(resource_calendars[resource], timestamp, state in ["start", "assign"])
             if state in ["start", "assign"]:
-                started_events[task_id] = trace_info.start_event(task_id, task_name, timestamp, resource, timestamp,
-                                                                 None)
+                started_events[task_id] = trace_info.start_event(task_id, task_name, timestamp, resource)
                 task_sequence.append(task_id)
             elif state == "complete":
                 if task_id in started_events:

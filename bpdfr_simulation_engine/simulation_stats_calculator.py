@@ -120,7 +120,6 @@ class LogInfo:
         self.task_exec_info[t_id].cost.add_value(task_cost)
 
     def save_joint_statistics(self, bpm_env):
-        bpm_env.log_writer.force_write()
         self.save_start_end_dates(bpm_env.stat_fwriter)
         compute_resource_utilization(bpm_env)
         self.compute_individual_task_stats(bpm_env.stat_fwriter)
