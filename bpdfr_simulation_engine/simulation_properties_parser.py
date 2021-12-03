@@ -1,6 +1,8 @@
 import json
 import xml.etree.ElementTree as ET
 
+from numpy import exp, sqrt, log
+
 from bpdfr_simulation_engine.control_flow_manager import BPMNGraph, ElementInfo, BPMN
 from bpdfr_simulation_engine.resource_calendar import RCalendar, convert_time_unit_from_to, convertion_table, to_seconds
 from bpdfr_simulation_engine.resource_profile import ResourceProfile, PoolInfo
@@ -104,6 +106,9 @@ def parse_qbp_simulation_process(qbp_bpmn_path, out_file):
     tree = ET.parse(qbp_bpmn_path)
     root = tree.getroot()
     simod_root = root.find("qbp:processSimulationInfo", simod_ns)
+    if simod_root is None:
+        print('PARSING ABORTED: Input BPMN model is not a simulation model, i.e., simulation parameters are missing.')
+        return
 
     # 1. Extracting gateway branching probabilities
     gateways_branching = dict()
@@ -207,10 +212,6 @@ def extract_dist_params(dist_info):
         return {"distribution_name": "norm", "distribution_params": [dist_params["mean"], dist_params["arg1"]]}
     if dist_name == "FIXED":
         return {"distribution_name": "fix", "distribution_params": [dist_params["mean"], 0, 1]}
-    # if dist_name == "LOGNORMAL":
-    #     # input: shape = standard deviation, loc = 0, scale exp(mean)
-    #     return {"distribution_name": "lognorm", "distribution_params": [dist_params["mean"],
-    #                                                                     dist_params["arg1"], 0, 1]}
     if dist_name == "UNIFORM":
         # input: loc = from, scale = to - from
         return {"distribution_name": "uniform", "distribution_params": [dist_params["arg1"],
@@ -223,6 +224,15 @@ def extract_dist_params(dist_info):
         # input: c = mode, loc = min, scale = max - min
         return {"distribution_name": "triang", "distribution_params": [dist_params["mean"], dist_params["arg1"],
                                                                        dist_params["arg2"] - dist_params["arg1"]]}
+    if dist_name == "LOGNORMAL":
+        mean_2 = dist_params["mean"] ** 2
+        variance = dist_params["arg1"]
+        phi = sqrt([variance + mean_2])[0]
+        mu = log(mean_2 / phi)
+        sigma = sqrt([log(phi ** 2 / mean_2)])[0]
+
+        # input: s = sigma = standard deviation, loc = 0, scale = exp(mu)
+        return {"distribution_name": "lognorm", "distribution_params": [sigma, 0, exp(mu)]}
     return None
 
 

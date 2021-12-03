@@ -61,48 +61,49 @@ class SimulationResult:
                                                        str(pool_kpi.kpi_allocated_tasks.total).ljust(21),
                                                        format_duration(pool_kpi.kpi_worked_time.avg, 25),
                                                        format_duration(pool_kpi.kpi_available_time.avg, 25)))
-        print('------------------------------------------------------------')
-        print('INDIVIDUAL RESOURCE UTILIZATION')
-        print('| %s | %s | %s | %s | %s | %s |' % ('Resource Name'.ljust(r_s),
-                                                   'Utilization'.ljust(11),
-                                                   'Tasks Allocated'.ljust(16),
-                                                   'Time Worked'.ljust(25),
-                                                   'Time Available'.ljust(25),
-                                                   'Pool Name'.ljust(15)))
-        for res_name in self.resource_utilization:
-            print('| %s | %s | %s | %s | %s | %s |' % (res_name.ljust(r_s),
-                                                       str(round(self.resource_utilization[res_name], 3)).ljust(11),
-                                                       str(self.resource_info[res_name][0]).ljust(16),
-                                                       format_duration(self.resource_info[res_name][1], 25),
-                                                       format_duration(self.resource_info[res_name][2], 25),
-                                                       self.resource_info[res_name][3].ljust(15)))
-        print('------------------------------------------------------------')
-        print('INDIVIDUAL TASK KPI')
-        max_t = 0
-        d_s = 23
-        c_s = 5
-        for task_name in self.tasks_kpi_map:
-            max_t = max(max_t, len(task_name))
-            c_s = max(c_s, len(str(self.tasks_kpi_map[task_name].cycle_time.count)))
-        print('| %s | %s | %s | %s | %s | %s | %s | %s |' % ('Task Name'.ljust(max_t),
-                                                             'Count'.ljust(c_s),
-                                                             'Waiting Time'.ljust(d_s),
-                                                             'Idle Cycle Time'.ljust(d_s),
-                                                             'Cycle Time'.ljust(d_s),
-                                                             'Idle Processing Time'.ljust(d_s),
-                                                             'Processing Time'.ljust(d_s),
-                                                             'Idle Time'.ljust(d_s),))
-        for task_name in self.tasks_kpi_map:
-            kpi_info: KPIMap = self.tasks_kpi_map[task_name]
-            print('| %s | %s | %s | %s | %s | %s | %s | %s |' % (task_name.ljust(max_t),
-                                                                 str(kpi_info.cycle_time.count).ljust(c_s),
-                                                                 format_duration(kpi_info.waiting_time.avg, d_s),
-                                                                 format_duration(kpi_info.idle_cycle_time.avg, d_s),
-                                                                 format_duration(kpi_info.cycle_time.avg, d_s),
-                                                                 format_duration(kpi_info.idle_processing_time.avg,
-                                                                                 d_s),
-                                                                 format_duration(kpi_info.processing_time.avg, d_s),
-                                                                 format_duration(kpi_info.idle_time.avg, d_s)))
+        print(len(self.resource_utilization))
+        # print('------------------------------------------------------------')
+        # print('INDIVIDUAL RESOURCE UTILIZATION')
+        # print('| %s | %s | %s | %s | %s | %s |' % ('Resource Name'.ljust(r_s),
+        #                                            'Utilization'.ljust(11),
+        #                                            'Tasks Allocated'.ljust(16),
+        #                                            'Time Worked'.ljust(25),
+        #                                            'Time Available'.ljust(25),
+        #                                            'Pool Name'.ljust(15)))
+        # for res_name in self.resource_utilization:
+        #     print('| %s | %s | %s | %s | %s | %s |' % (res_name.ljust(r_s),
+        #                                                str(round(self.resource_utilization[res_name], 3)).ljust(11),
+        #                                                str(self.resource_info[res_name][0]).ljust(16),
+        #                                                format_duration(self.resource_info[res_name][1], 25),
+        #                                                format_duration(self.resource_info[res_name][2], 25),
+        #                                                self.resource_info[res_name][3].ljust(15)))
+        # print('------------------------------------------------------------')
+        # print('INDIVIDUAL TASK KPI')
+        # max_t = 0
+        # d_s = 23
+        # c_s = 5
+        # for task_name in self.tasks_kpi_map:
+        #     max_t = max(max_t, len(task_name))
+        #     c_s = max(c_s, len(str(self.tasks_kpi_map[task_name].cycle_time.count)))
+        # print('| %s | %s | %s | %s | %s | %s | %s | %s |' % ('Task Name'.ljust(max_t),
+        #                                                      'Count'.ljust(c_s),
+        #                                                      'Waiting Time'.ljust(d_s),
+        #                                                      'Idle Cycle Time'.ljust(d_s),
+        #                                                      'Cycle Time'.ljust(d_s),
+        #                                                      'Idle Processing Time'.ljust(d_s),
+        #                                                      'Processing Time'.ljust(d_s),
+        #                                                      'Idle Time'.ljust(d_s),))
+        # for task_name in self.tasks_kpi_map:
+        #     kpi_info: KPIMap = self.tasks_kpi_map[task_name]
+        #     print('| %s | %s | %s | %s | %s | %s | %s | %s |' % (task_name.ljust(max_t),
+        #                                                          str(kpi_info.cycle_time.count).ljust(c_s),
+        #                                                          format_duration(kpi_info.waiting_time.avg, d_s),
+        #                                                          format_duration(kpi_info.idle_cycle_time.avg, d_s),
+        #                                                          format_duration(kpi_info.cycle_time.avg, d_s),
+        #                                                          format_duration(kpi_info.idle_processing_time.avg,
+        #                                                                          d_s),
+        #                                                          format_duration(kpi_info.processing_time.avg, d_s),
+        #                                                          format_duration(kpi_info.idle_time.avg, d_s)))
 
         print('------------------------------------------------------------')
 

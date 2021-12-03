@@ -10,7 +10,8 @@ from bpdfr_simulation_engine.probability_distributions import best_fit_distribut
 
 import ntpath
 
-from bpdfr_simulation_engine.resource_calendar import RCalendar, update_calendar_from_log
+from bpdfr_simulation_engine.resource_calendar import RCalendar, update_calendar_from_log, update_weekly_calendar, \
+    CalendarFactory
 
 date_format = "%Y-%m-%dT%H:%M:%S.%f%z"
 
@@ -28,6 +29,118 @@ date_format = "%Y-%m-%dT%H:%M:%S.%f%z"
 #     traces = root.findall(tags['trace'], ns)
 #
 #     return _extract_log_info(bpmn_graph, traces, tags, ns)
+
+
+def preprocess_xes_log(log_path, minutes_x_granule=15, confidence=0.5, support=0.5):
+    f_name = ntpath.basename(log_path).split('.')[0]
+    print('Parsing Event Log %s ...' % f_name)
+
+    log_traces = xes_importer.apply(log_path)
+
+    calendar_factory = CalendarFactory(minutes_x_granule)
+    completed_events = list()
+    total_traces = 0
+
+    resource_cases = dict()
+    resource_freq = dict()
+    max_resource_freq = 0
+    task_resource_freq = dict()
+
+    for trace in log_traces:
+        caseid = trace.attributes['concept:name']
+        total_traces += 1
+        started_events = dict()
+        trace_info = Trace(caseid)
+
+        for event in trace:
+            task_name = event['concept:name']
+            resource = event['org:resource']
+            state = event['lifecycle:transition'].lower()
+            timestamp = event['time:timestamp']
+
+            if resource not in resource_freq:
+                resource_cases[resource] = set()
+                resource_freq[resource] = 0
+            resource_cases[resource].add(caseid)
+            resource_freq[resource] += 1
+            max_resource_freq = max(max_resource_freq, resource_freq[resource])
+
+            if task_name not in task_resource_freq:
+                task_resource_freq[task_name] = [0, dict()]
+            if resource not in task_resource_freq[task_name][1]:
+                task_resource_freq[task_name][1][resource] = 0
+            task_resource_freq[task_name][1][resource] += 1
+            task_resource_freq[task_name][0] = max(task_resource_freq[task_name][0],
+                                                   task_resource_freq[task_name][1][resource])
+
+            calendar_factory.check_date_time(resource, timestamp)
+            if state in ["start", "assign"]:
+                started_events[task_name] = trace_info.start_event(task_name, task_name, timestamp, resource)
+            elif state == "complete":
+                if task_name in started_events:
+                    completed_events.append(trace_info.complete_event(started_events.pop(task_name), timestamp))
+
+    resource_calendars = calendar_factory.build_weekly_calendars(confidence, support)
+    cases_to_remove = set()
+    removed_resources = set()
+    print("Resources to Remove ...")
+    for r_name in resource_calendars:
+        if resource_calendars[r_name].total_weekly_work == 0:
+            removed_resources.add(r_name)
+            print("%s: %.3f (%d)" % (r_name, resource_freq[r_name] / max_resource_freq, resource_freq[r_name]))
+            for case_id in resource_cases[r_name]:
+                cases_to_remove.add(case_id)
+    print("Original Total Cases:      %d" % total_traces)
+    print("Postprocessed Total Cases: %d" % (total_traces - len(cases_to_remove)))
+    print("Cases to remove: %d" % len(cases_to_remove))
+    print('-------------------------------------------------------')
+
+    for t_name in task_resource_freq:
+        print("Task Name: %s" % t_name)
+        for r_name in task_resource_freq[t_name][1]:
+            in_trace = "+" if r_name not in removed_resources else "-"
+            print("(%s) %s: %.3f (%d)" % (in_trace, r_name,
+                                          task_resource_freq[t_name][1][r_name] / task_resource_freq[t_name][0],
+                                          task_resource_freq[t_name][1][r_name]
+                                          ))
+            # resource_calendars[r_name].print_calendar_info()
+        print("----------------------------------------------------------")
+
+    # new_calendar_factory = CalendarFactory(minutes_x_granule)
+    # resource_cases = dict()
+    # resource_freq = dict()
+    # max_resource_freq = 0
+    # for event_info in completed_events:
+    #     if event_info.p_case not in cases_to_remove:
+    #         if event_info.resource_id not in resource_freq:
+    #             resource_cases[event_info.resource_id] = set()
+    #             resource_freq[event_info.resource_id] = 0
+    #         resource_cases[event_info.resource_id].add(event_info.p_case)
+    #         resource_freq[event_info.resource_id] += 1
+    #         max_resource_freq = max(max_resource_freq, resource_freq[event_info.resource_id])
+    #         new_calendar_factory.check_date_time(event_info.resource_id, event_info.started_at)
+    #         new_calendar_factory.check_date_time(event_info.resource_id, event_info.completed_at)
+    #
+    # new_r_calendars = new_calendar_factory.build_weekly_calendars(confidence, support)
+    # new_to_remove = set()
+    # new_traces = total_traces - len(cases_to_remove)
+    # _cases_to_del(new_r_calendars, resource_freq, max_resource_freq, resource_cases, new_to_remove, new_traces)
+
+
+def _cases_to_del(resource_calendars, resource_freq, max_resource_freq, resource_cases, cases_to_remove, total_traces):
+    print("Resources to Remove ...")
+    for r_name in resource_calendars:
+        if resource_calendars[r_name].total_weekly_work == 0:
+            print("%s: %.3f (%d)" % (r_name, resource_freq[r_name] / max_resource_freq, resource_freq[r_name]))
+            for case_id in resource_cases[r_name]:
+                cases_to_remove.add(case_id)
+    print("Original Total Cases:      %d" % total_traces)
+    print("Postprocessed Total Cases: %d" % (total_traces - len(cases_to_remove)))
+    print("Cases to remove: %d" % len(cases_to_remove))
+    print('-------------------------------------------------------')
+
+
+# def combine_resources(task_resources, resource_tasks, resource_freq, task_resource_freq):
 
 
 def parse_xes_log(log_path, bpmn_graph, output_path):
@@ -55,6 +168,12 @@ def parse_xes_log(log_path, bpmn_graph, output_path):
     start_date = end_date = None
     resource_calendars = dict()
     arrival_dates = list()
+    month_dates = dict()
+    resource_freq = dict()
+    max_resource_freq = 0
+    task_resource_freq = dict()
+
+    calendar_factory = CalendarFactory(15)
 
     for trace in log_traces:
         arrival_dates.append(trace[0]['time:timestamp'])
@@ -67,21 +186,34 @@ def parse_xes_log(log_path, bpmn_graph, output_path):
         started_events = dict()
         trace_info = Trace(caseid)
         task_sequence = list()
-        previous_date = None
         for event in trace:
             task_name = event['concept:name']
             task_id = bpmn_graph.from_name[task_name]
             resource = event['org:resource']
             state = event['lifecycle:transition'].lower()
             timestamp = event['time:timestamp']
-            if previous_date is not None and previous_date > timestamp:
-                print("Unsorted event %s" % task_name)
+            # if previous_date is not None and previous_date > timestamp:
+            #     print("Unsorted event %s" % task_name)
             previous_date = timestamp
+
+            calendar_factory.check_date_time(resource, timestamp)
+
             start_date, end_date = _update_first_last(start_date, end_date, timestamp)
+            if task_name not in task_resource_freq:
+                task_resource_freq[task_name] = [0, dict()]
+            if resource not in task_resource_freq[task_name][1]:
+                task_resource_freq[task_name][1][resource] = 0
+            task_resource_freq[task_name][1][resource] += 1
+            task_resource_freq[task_name][0] = max(task_resource_freq[task_name][0],
+                                                   task_resource_freq[task_name][1][resource])
             if resource not in resource_list:
                 resource_list.add(resource)
                 resource_calendars[resource] = RCalendar("%s_Schedule" % resource)
-            update_calendar_from_log(resource_calendars[resource], timestamp, state in ["start", "assign"])
+                resource_freq[resource] = 0
+            resource_freq[resource] += 1
+            max_resource_freq = max(max_resource_freq, resource_freq[resource])
+            # update_weekly_calendar(resource_calendars[resource], timestamp, 15)
+            # update_calendar_from_log(resource_calendars[resource], timestamp, state in ["start", "assign"], month_dates)
             if state in ["start", "assign"]:
                 started_events[task_id] = trace_info.start_event(task_id, task_name, timestamp, resource)
                 task_sequence.append(task_id)
@@ -91,6 +223,7 @@ def parse_xes_log(log_path, bpmn_graph, output_path):
                     if task_id not in task_resource:
                         task_resource[task_id] = dict()
                         task_distribution[task_id] = dict()
+
                     if resource not in task_resource[task_id]:
                         task_resource[task_id][resource] = list()
                     task_resource[task_id][resource].append(event_info)
@@ -118,6 +251,7 @@ def parse_xes_log(log_path, bpmn_graph, output_path):
         i += 1
 
     t_r = 100 * correct_traces / total_traces
+    print(month_dates)
     a_r = 100 * correct_activities / total_activities
     print("Correct Traces Ratio %.2f (Pass: %d, Fail: %d, Total: %d)" % (
         t_r, correct_traces, total_traces - correct_traces, total_traces))
@@ -135,13 +269,27 @@ def parse_xes_log(log_path, bpmn_graph, output_path):
     #     print("%s: %d" % (task_name, missed_tokens[task_name]))
     min_dur = sys.float_info.max
     max_dur = 0
+
+    resource_calendars = calendar_factory.build_weekly_calendars(0.5, 0.5)
     for r_id in resource_calendars:
         min_dur = min(min_dur, resource_calendars[r_id].total_weekly_work)
         max_dur = max(max_dur, resource_calendars[r_id].total_weekly_work)
-        # resource_calendars[r_id].print_calendar_info()
+        # print("Resource frequence:       %d" % resource_freq[r_id])
+        # print("Resource frequency Ratio: %.3f" % (resource_freq[r_id] / max_resource_freq))
+        resource_calendars[r_id].print_calendar_info()
+
+    # for t_name in task_resource_freq:
+    #     print("Task Name: %s" % t_name)
+    #     for r_name in task_resource_freq[t_name][1]:
+    #         print("%d, %.3f, %.2f -> %s" % (task_resource_freq[t_name][1][r_name],
+    #                                         task_resource_freq[t_name][1][r_name] / task_resource_freq[t_name][0],
+    #                                         resource_calendars[r_name].total_weekly_work / 3600, r_name))
+    #         #resource_calendars[r_name].print_calendar_info()
+    #     print("----------------------------------------------------------")
+
     print('Min Resource Weekly Work: %.2f ' % (min_dur / 3600))
     print('Max Resource Weekly Work: %.2f ' % (max_dur / 3600))
-    return # Renmove this
+    return  # Renmove this
     print('Saving Resource Calendars ...')
     json_map = dict()
     for r_id in resource_calendars:

@@ -1,6 +1,8 @@
 import datetime
 from datetime import timedelta
 
+import pytz
+
 str_week_days = {"MONDAY": 0, "TUESDAY": 1, "WEDNESDAY": 2, "THURSDAY": 3, "FRIDAY": 4, "SATURDAY": 5, "SUNDAY": 6}
 int_week_days = {0: "MONDAY", 1: "TUESDAY", 2: "WEDNESDAY", 3: "THURSDAY", 4: "FRIDAY", 5: "SATURDAY", 6: "SUNDAY"}
 
@@ -91,7 +93,8 @@ class CalendarIterator:
         elif self.c_index > 0:
             p_duration += (day_intervals[self.c_index].start - day_intervals[self.c_index - 1].end).total_seconds()
         self.c_interval = Interval(res_interval.end + timedelta(seconds=p_duration),
-                                   res_interval.end + timedelta(seconds=p_duration + day_intervals[self.c_index].duration))
+                                   res_interval.end + timedelta(
+                                       seconds=p_duration + day_intervals[self.c_index].duration))
         return res_interval
 
 
@@ -167,16 +170,29 @@ class RCalendar:
 
     def _add_interval(self, w_day, interval):
         i = 0
-        for to_check in self.work_intervals[w_day]:
-            if to_check.end < interval.start:
+        for to_merge in self.work_intervals[w_day]:
+            if to_merge.end < interval.start:
                 i += 1
                 continue
-            if interval.end < to_check.start:
+            if interval.end < to_merge.start:
                 break
-            prev_dur = to_check.duration
-            to_check.merge_interval(interval)
-            if to_check.duration > prev_dur:
-                self._update_calendar_durations(w_day, to_check.duration - prev_dur)
+            merged_duration = to_merge.duration
+            to_merge.merge_interval(interval)
+            merged_duration = to_merge.duration - merged_duration
+            i += 1
+            while i < len(self.work_intervals[w_day]):
+                next_i = self.work_intervals[w_day][i]
+                if to_merge.end < next_i.start:
+                    break
+                if next_i.end < to_merge.end:
+                    merged_duration -= next_i.duration
+                elif next_i.start < to_merge.end:
+                    merged_duration -= (to_merge.end - next_i.start).total_seconds()
+                del self.work_intervals[w_day][i]
+            if merged_duration < 0:
+                print('HOOOOLA')
+            if merged_duration > 0:
+                self._update_calendar_durations(w_day, merged_duration)
             return
         self.work_intervals[w_day].insert(i, interval)
         self._update_calendar_durations(w_day, interval.duration)
@@ -350,7 +366,161 @@ def convert_time_unit_from_to(value, from_unit, to_unit):
         u_to] if u_from in convertion_table and u_to in convertion_table else value
 
 
-def update_calendar_from_log(r_calendar, date_time, is_start, min_eps=15):
+def update_montly_calendars(calendar_tree, date_time, minutes_in_granule):
+    month = date_time.month
+    week_day = date_time.weekday()
+    minute_granule = (date_time.hour * 60 + date_time.minute) / minutes_in_granule
+
+    if month not in calendar_tree:
+        calendar_tree[month] = dict()
+    if week_day not in calendar_tree[month]:
+        calendar_tree[month][week_day] = dict()
+    if minute_granule not in calendar_tree[month][week_day]:
+        calendar_tree[month][week_day][minute_granule] = 0
+    calendar_tree[month][week_day][minute_granule] += 1
+
+
+def update_weekly_calendar(r_calendar, date_time, minutes_x_granule=15):
+    week_day = int_week_days[date_time.weekday()]
+    from_minute = (date_time.minute // minutes_x_granule) * minutes_x_granule
+    to_minute = from_minute + minutes_x_granule
+    if to_minute >= 60:
+        if date_time.hour == 23:
+            r_calendar.add_calendar_item(week_day, week_day, "%d:%d:%d" % (date_time.hour, from_minute, 0),
+                                         "23:59:59.999")
+        else:
+            r_calendar.add_calendar_item(week_day, week_day, "%d:%d:%d" % (date_time.hour, from_minute, 0),
+                                         "%d:%d:%d" % (date_time.hour + 1, 0, 0))
+    else:
+        r_calendar.add_calendar_item(week_day, week_day, "%d:%d:%d" % (date_time.hour, from_minute, 0),
+                                     "%d:%d:%d" % (date_time.hour, to_minute, 0))
+
+
+class CalendarNode:
+    def __init__(self):
+        self.frequency = 0
+        self.children_nodes = dict()
+
+
+class CalendarTree:
+    def __init__(self):
+        self.value_to_children = dict()
+
+    def insert_date(self, date_prefix: list):
+        c_level = self.value_to_children
+        for c_value in date_prefix:
+            if c_value not in c_level:
+                c_level[c_value] = CalendarNode()
+            c_level[c_value].frequency += 1
+            c_level = c_level[c_value].children_nodes
+
+
+class CalendarFactory:
+    def __init__(self, minutes_x_granule=15):
+        if 1440 % minutes_x_granule != 0:
+            raise ValueError(
+                "The number of minutes per granule must be a divisor of the total minutes in one day (1440).")
+        self.minutes_x_granule = minutes_x_granule
+        self.resource_calendars = dict()
+        self.log_granules = self._init_calendar_tree()
+
+        self.resource_calendar_tree = dict()
+        self.r_weekdays_set = dict()
+        self.r_granules_set = dict()
+        self.total_weekdays = dict()
+
+        self.from_datetime = datetime.datetime(9999, 12, 31, tzinfo=pytz.UTC)
+        self.to_datetime = datetime.datetime(1, 1, 1, tzinfo=pytz.UTC)
+
+    def _init_calendar_tree(self):
+        granules_count = 1440 // self.minutes_x_granule
+        return [[0] * granules_count for _i in range(0, 7)]
+
+    def check_date_time(self, r_name, date_time):
+        str_date = str(date_time.date())
+        g_index = 0 if (date_time.hour + date_time.minute) % self.minutes_x_granule == 0 else 1
+        g_index += (date_time.hour + date_time.minute) // self.minutes_x_granule
+        week_day = date_time.weekday()
+        if r_name not in self.resource_calendar_tree:
+            self.r_weekdays_set[r_name] = dict()
+            self.r_granules_set[r_name] = dict()
+            self.resource_calendar_tree[r_name] = CalendarTree()
+        if week_day not in self.r_weekdays_set[r_name]:
+            self.r_weekdays_set[r_name][week_day] = set()
+        if g_index not in self.r_granules_set[r_name]:
+            self.r_granules_set[r_name][g_index] = set()
+        self.resource_calendar_tree[r_name].insert_date([date_time.year, date_time.month, date_time.weekday(), g_index])
+        self.r_weekdays_set[r_name][week_day].add(str_date)
+        self.r_granules_set[r_name][g_index].add(str_date)
+        self.from_datetime = min(self.from_datetime, date_time)
+        self.to_datetime = max(self.to_datetime, date_time)
+
+    def compute_total_weekdays(self):
+        total_days = (self.to_datetime.date() - self.from_datetime.date()).days + 2
+        same_days = total_days // 7
+        rem_days = total_days % 7
+        to_weekday = self.to_datetime.weekday()
+        self.total_weekdays = {key: same_days for key in range(0, 7)}
+        while rem_days > 0:
+            self.total_weekdays[to_weekday] += 1
+            to_weekday = to_weekday - 1 if to_weekday > 0 else 6
+            rem_days -= 1
+
+    def build_weekly_calendars(self, min_confidence, min_support):
+        r_count = dict()
+        self.compute_total_weekdays()
+        resource_calendars = dict()
+        for r_name in self.resource_calendar_tree:
+            r_count[r_name] = [0, 0]
+            resource_calendars[r_name] = self.build_resource_calendar(r_count, r_name, min_confidence, min_support)
+            # print('R Name : %s' % r_name)
+            # print("Added  : %d" % r_count[r_name][0])
+            # print("Removed: %d" % r_count[r_name][1])
+            # print('------------------------------------------')
+
+        return resource_calendars
+
+    def build_resource_calendar(self, r_count, r_name, min_confidence, min_support):
+        r_calendar = RCalendar("%s_Schedule" % r_name)
+        calendar_tree = self.resource_calendar_tree[r_name].value_to_children
+        for year in calendar_tree:
+            for month in calendar_tree[year].children_nodes:
+                week_days = calendar_tree[year].children_nodes
+                for weekday in week_days[month].children_nodes:
+                    granules = week_days[month].children_nodes
+                    for granule_index in granules[weekday].children_nodes:
+
+                        g_supp = len(self.r_granules_set[r_name][granule_index]) / len(self.r_weekdays_set[r_name][weekday])
+                        g_conf = len(self.r_granules_set[r_name][granule_index]) / self.total_weekdays[weekday]
+
+                        if g_conf >= min_confidence and g_supp >= min_support:
+                            r_count[r_name][0] += 1
+                            str_wday = int_week_days[weekday]
+                            hour = (granule_index * self.minutes_x_granule) // 60
+                            from_min = (granule_index * self.minutes_x_granule) % 60
+                            to_min = from_min + self.minutes_x_granule
+                            if to_min >= 60:
+                                if hour == 23:
+                                    r_calendar.add_calendar_item(str_wday, str_wday, "%d:%d:%d" % (hour, from_min, 0),
+                                                                 "23:59:59.999")
+                                else:
+                                    r_calendar.add_calendar_item(str_wday, str_wday, "%d:%d:%d" % (hour, from_min, 0),
+                                                                 "%d:%d:%d" % (hour + 1, 0, 0))
+                            else:
+                                r_calendar.add_calendar_item(str_wday, str_wday, "%d:%d:%d" % (hour, from_min, 0),
+                                                             "%d:%d:%d" % (hour, to_min, 0))
+                        else:
+                            r_count[r_name][1] += 1
+        return r_calendar
+
+
+
+def update_calendar_from_log(r_calendar, date_time, is_start, month_freq, min_eps=15):
+    if date_time.month not in month_freq:
+        month_freq[date_time.month] = [0, set()]
+    month_freq[date_time.month][0] += 1
+    month_freq[date_time.month][1].add(date_time.year)
+
     from_date = date_time
     to_date = date_time
     if is_start:
