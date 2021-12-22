@@ -422,6 +422,8 @@ class CalendarFactory:
                 "The number of minutes per granule must be a divisor of the total minutes in one day (1440).")
         self.minutes_x_granule = minutes_x_granule
         self.resource_calendars = dict()
+        self.resource_calendar_confidence = dict()
+        self.resource_calendar_support = dict()
         self.log_granules = self._init_calendar_tree()
 
         self.resource_calendar_tree = dict()
@@ -466,21 +468,17 @@ class CalendarFactory:
             to_weekday = to_weekday - 1 if to_weekday > 0 else 6
             rem_days -= 1
 
-    def build_weekly_calendars(self, min_confidence, min_support):
+    def build_weekly_calendars(self, res_freq_ratio, min_participation_ratio):
         r_count = dict()
         self.compute_total_weekdays()
-        resource_calendars = dict()
+        r_calendars = dict()
         for r_name in self.resource_calendar_tree:
             r_count[r_name] = [0, 0]
-            resource_calendars[r_name] = self.build_resource_calendar(r_count, r_name, min_confidence, min_support)
-            # print('R Name : %s' % r_name)
-            # print("Added  : %d" % r_count[r_name][0])
-            # print("Removed: %d" % r_count[r_name][1])
-            # print('------------------------------------------')
+            r_calendars[r_name] = self.build_resource_calendar(r_count, r_name, res_freq_ratio, min_participation_ratio)
 
-        return resource_calendars
+        return r_calendars
 
-    def build_resource_calendar(self, r_count, r_name, min_confidence, min_support):
+    def build_resource_calendar(self, r_count, r_name, res_freq_index, min_participation_ratio):
         r_calendar = RCalendar("%s_Schedule" % r_name)
         calendar_tree = self.resource_calendar_tree[r_name].value_to_children
         for year in calendar_tree:
@@ -493,7 +491,7 @@ class CalendarFactory:
                         g_supp = len(self.r_granules_set[r_name][granule_index]) / len(self.r_weekdays_set[r_name][weekday])
                         g_conf = len(self.r_granules_set[r_name][granule_index]) / self.total_weekdays[weekday]
 
-                        if g_conf >= min_confidence and g_supp >= min_support:
+                        if max(res_freq_index[r_name], (g_conf + g_supp) / 2) >= min_participation_ratio:
                             r_count[r_name][0] += 1
                             str_wday = int_week_days[weekday]
                             hour = (granule_index * self.minutes_x_granule) // 60

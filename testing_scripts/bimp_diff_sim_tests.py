@@ -6,14 +6,15 @@ from bpdfr_simulation_engine.simulation_engine import run_simulation
 from bpdfr_simulation_engine.simulation_properties_parser import parse_qbp_simulation_process
 from bpdfr_simulation_engine.simulation_stats import load_bimp_simulation_results, load_diff_simulation_results
 
-experiment_models = {'insurance': {'bpmn': './../bimp_test_examples/ihar/insurance.bpmn',
-                                   'json': './../bimp_test_examples/ihar/insurance.json',
-                                   'total_cases': 96,
-                                   'start_datetime': '2016-04-22T22:32:05.999999+00:00'},
-                     'consulta_data_mining': {'bpmn': './../bimp_test_examples/ihar/ConsultaDataMining201618.bpmn',
+experiment_models = {'consulta_data_mining': {'bpmn': './../bimp_test_examples/ihar/ConsultaDataMining201618.bpmn',
                                               'json': './../bimp_test_examples/ihar/ConsultaDataMining201618.json',
                                               'total_cases': 96,
                                               'start_datetime': '2016-04-22T22:32:05.999999+00:00'},
+                     'insurance': {'bpmn': './../bimp_test_examples/ihar/insurance.bpmn',
+                                   'json': './../bimp_test_examples/ihar/insurance.json',
+                                   'total_cases': 96,
+                                   'start_datetime': '2016-04-22T22:32:05.999999+00:00'},
+
                      'bpi_2012': {'bpmn': './../bimp_test_examples/ihar/BPI_Challenge_2012_W_Two_TS.bpmn',
                                   'json': './../bimp_test_examples/ihar/BPI_Challenge_2012_W_Two_TS.json',
                                   'total_cases': 98,
@@ -69,28 +70,28 @@ def run_diff_res_simulation(start_date, total_cases, bpmn_model, json_sim_params
 
 def main():
     for model_name in experiment_models:
-        parse_qbp_simulation_process(experiment_models[model_name]['bpmn'], experiment_models[model_name]['json'])
+        # parse_qbp_simulation_process(experiment_models[model_name]['bpmn'], experiment_models[model_name]['json'])
 
-        # p_cases = 1000
-        # if "total_cases" in experiment_models[model_name]:
-        #     p_cases = experiment_models[model_name]["total_cases"]
-        #
-        # print('--------------------------------------------------------------------------')
-        # print("Starting Simulation of process %s (%d instances)" % (model_name, p_cases))
-        # print('--------------------------------------------------------------------------')
-        # run_bimp_simulation(experiment_models[model_name]["bpmn"],
-        #                     '%sbimp_%s_%d_stats.csv' % (output_dir_path, model_name, p_cases),
-        #                     '%sbimp_%s_%d_log.csv' % (output_dir_path, model_name, p_cases))
-        #
-        # diff_sim_result = run_diff_res_simulation(parse_datetime(experiment_models[model_name]['start_datetime'], True),
-        #                                           p_cases,
-        #                                           experiment_models[model_name]["bpmn"],
-        #                                           experiment_models[model_name]["json"],
-        #                                           # None,
-        #                                           '%sdiff_%s_%d_stats.csv' % (output_dir_path, model_name, p_cases),
-        #                                           None)
-        # # '%sdiff_%s_%d_log.csv' % (output_dir_path, model_name, p_cases))
-        # diff_sim_result.print_simulation_results()
+        p_cases = 1000
+        if "total_cases" in experiment_models[model_name]:
+            p_cases = experiment_models[model_name]["total_cases"]
+
+        print('--------------------------------------------------------------------------')
+        print("Starting Simulation of process %s (%d instances)" % (model_name, p_cases))
+        print('--------------------------------------------------------------------------')
+        run_bimp_simulation(experiment_models[model_name]["bpmn"],
+                            '%sbimp_%s_%d_stats.csv' % (output_dir_path, model_name, p_cases),
+                            '%sbimp_%s_%d_log.csv' % (output_dir_path, model_name, p_cases))
+
+        diff_sim_result = run_diff_res_simulation(parse_datetime(experiment_models[model_name]['start_datetime'], True),
+                                                  p_cases,
+                                                  experiment_models[model_name]["bpmn"],
+                                                  experiment_models[model_name]["json"],
+                                                  # None,
+                                                  '%sdiff_%s_%d_stats.csv' % (output_dir_path, model_name, p_cases),
+                                                  None)
+        # '%sdiff_%s_%d_log.csv' % (output_dir_path, model_name, p_cases))
+        diff_sim_result.print_simulation_results()
         break
 
     os._exit(0)

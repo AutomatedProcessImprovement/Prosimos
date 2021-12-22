@@ -31,7 +31,7 @@ date_format = "%Y-%m-%dT%H:%M:%S.%f%z"
 #     return _extract_log_info(bpmn_graph, traces, tags, ns)
 
 
-def preprocess_xes_log(log_path, minutes_x_granule=15, confidence=0.5, support=0.5):
+def preprocess_xes_log(log_path, minutes_x_granule=15, min_participation_ratio=0.5):
     f_name = ntpath.basename(log_path).split('.')[0]
     print('Parsing Event Log %s ...' % f_name)
 
@@ -45,6 +45,7 @@ def preprocess_xes_log(log_path, minutes_x_granule=15, confidence=0.5, support=0
     resource_freq = dict()
     max_resource_freq = 0
     task_resource_freq = dict()
+    task_resource_events = dict()
 
     for trace in log_traces:
         caseid = trace.attributes['concept:name']
@@ -63,12 +64,15 @@ def preprocess_xes_log(log_path, minutes_x_granule=15, confidence=0.5, support=0
                 resource_freq[resource] = 0
             resource_cases[resource].add(caseid)
             resource_freq[resource] += 1
+
             max_resource_freq = max(max_resource_freq, resource_freq[resource])
 
             if task_name not in task_resource_freq:
+                task_resource_events[task_name] = dict()
                 task_resource_freq[task_name] = [0, dict()]
             if resource not in task_resource_freq[task_name][1]:
                 task_resource_freq[task_name][1][resource] = 0
+                task_resource_events[task_name][resource] = list()
             task_resource_freq[task_name][1][resource] += 1
             task_resource_freq[task_name][0] = max(task_resource_freq[task_name][0],
                                                    task_resource_freq[task_name][1][resource])
@@ -78,33 +82,60 @@ def preprocess_xes_log(log_path, minutes_x_granule=15, confidence=0.5, support=0
                 started_events[task_name] = trace_info.start_event(task_name, task_name, timestamp, resource)
             elif state == "complete":
                 if task_name in started_events:
-                    completed_events.append(trace_info.complete_event(started_events.pop(task_name), timestamp))
+                    c_event = trace_info.complete_event(started_events.pop(task_name), timestamp)
+                    task_resource_events[task_name][resource].append(c_event)
+                    completed_events.append(c_event)
 
-    resource_calendars = calendar_factory.build_weekly_calendars(confidence, support)
-    cases_to_remove = set()
+    resource_freq_ratio = dict()
+    for r_name in resource_freq:
+        resource_freq_ratio[r_name] = resource_freq[r_name] / max_resource_freq
+
+    resource_calendars = calendar_factory.build_weekly_calendars(resource_freq_ratio, min_participation_ratio)
+
     removed_resources = set()
     print("Resources to Remove ...")
     for r_name in resource_calendars:
         if resource_calendars[r_name].total_weekly_work == 0:
             removed_resources.add(r_name)
             print("%s: %.3f (%d)" % (r_name, resource_freq[r_name] / max_resource_freq, resource_freq[r_name]))
-            for case_id in resource_cases[r_name]:
-                cases_to_remove.add(case_id)
+
     print("Original Total Cases:      %d" % total_traces)
-    print("Postprocessed Total Cases: %d" % (total_traces - len(cases_to_remove)))
-    print("Cases to remove: %d" % len(cases_to_remove))
+
     print('-------------------------------------------------------')
 
-    for t_name in task_resource_freq:
+    resource_calendars, task_resources, joint_resource_events = find_joint_resources(calendar_factory,
+                                                                                     task_resource_events,
+                                                                                     resource_freq_ratio,
+                                                                                     min_participation_ratio)
+    # START TESTING CODE .........................................
+    for t_name in task_resources:
         print("Task Name: %s" % t_name)
+        for r_name in task_resources[t_name]:
+            if r_name in task_resource_freq[t_name][1]:
+                in_trace = "+" if r_name not in removed_resources else "-"
+                print("(%s) %s: %.3f (%d)" % (in_trace, r_name,
+                                              task_resource_freq[t_name][1][r_name] / task_resource_freq[t_name][0],
+                                              task_resource_freq[t_name][1][r_name]))
+            else:
+                print("(+) %s: JOINT EXTERNAL RESOURCE" % r_name)
         for r_name in task_resource_freq[t_name][1]:
-            in_trace = "+" if r_name not in removed_resources else "-"
-            print("(%s) %s: %.3f (%d)" % (in_trace, r_name,
-                                          task_resource_freq[t_name][1][r_name] / task_resource_freq[t_name][0],
-                                          task_resource_freq[t_name][1][r_name]
-                                          ))
-            # resource_calendars[r_name].print_calendar_info()
-        print("----------------------------------------------------------")
+            if r_name not in task_resources[t_name]:
+                print("(%s) %s: %.3f (%d)" % ('-', r_name,
+                                              task_resource_freq[t_name][1][r_name] / task_resource_freq[t_name][0],
+                                              task_resource_freq[t_name][1][r_name]))
+    # END TESTING CODE ............................................
+
+
+    # for t_name in task_resource_freq:
+    #     print("Task Name: %s" % t_name)
+    #     for r_name in task_resource_freq[t_name][1]:
+    #         in_trace = "+" if r_name not in removed_resources else "-"
+    #         print("(%s) %s: %.3f (%d)" % (in_trace, r_name,
+    #                                       task_resource_freq[t_name][1][r_name] / task_resource_freq[t_name][0],
+    #                                       task_resource_freq[t_name][1][r_name]
+    #                                       ))
+    #         # resource_calendars[r_name].print_calendar_info()
+    #     print("----------------------------------------------------------")
 
     # new_calendar_factory = CalendarFactory(minutes_x_granule)
     # resource_cases = dict()
@@ -127,6 +158,70 @@ def preprocess_xes_log(log_path, minutes_x_granule=15, confidence=0.5, support=0
     # _cases_to_del(new_r_calendars, resource_freq, max_resource_freq, resource_cases, new_to_remove, new_traces)
 
 
+def find_joint_resources(calendar_factory, task_resource_events, resource_freq_ratio, min_participation_ratio):
+    calendar_candidates = calendar_factory.build_weekly_calendars(resource_freq_ratio, min_participation_ratio)
+    joint_event_candidates = dict()
+    joint_task_resources = dict()
+
+    for task_name in task_resource_events:
+        unfit_resource_events = list()
+        joint_task_resources[task_name] = list()
+        max_res_freq = 0
+        for resource_name in task_resource_events[task_name]:
+            joint_task_resources[task_name].append(resource_name)
+            if calendar_candidates[resource_name].total_weekly_work == 0:
+                unfit_resource_events += task_resource_events[task_name][resource_name]
+            max_res_freq = max(max_res_freq, 2 * len(task_resource_events[task_name][resource_name]))
+        if len(unfit_resource_events) > 0:
+            joint_events = _max_disjoint_intervals(unfit_resource_events)
+            for i in range(0, len(joint_events)):
+                j_name = f'joint_{task_name}_{i}'
+                joint_event_candidates[j_name] = joint_events[i]
+                joint_task_resources[task_name].append(j_name)
+                for ev_info in joint_events[i]:
+                    calendar_factory.check_date_time(j_name, ev_info.started_at)
+                    calendar_factory.check_date_time(j_name, ev_info.completed_at)
+                resource_freq_ratio[j_name] = min(1, 2 * len(joint_events[i]) / max_res_freq)
+
+    calendar_candidates = calendar_factory.build_weekly_calendars(resource_freq_ratio, min_participation_ratio)
+    resource_calendars = dict()
+    task_resources = dict()
+    joint_resource_events = dict()
+    for task_name in joint_task_resources:
+        task_resources[task_name] = list()
+        for resource_name in joint_task_resources[task_name]:
+            if calendar_candidates[resource_name].total_weekly_work > 0:
+                resource_calendars[resource_name] = calendar_candidates[resource_name]
+                task_resources[task_name].append(resource_name)
+                if resource_name in joint_event_candidates:
+                    joint_resource_events[resource_name] = joint_event_candidates[resource_name]
+    return resource_calendars, task_resources, joint_resource_events
+
+
+def _max_disjoint_intervals(interval_list):
+    if len(interval_list) == 1:
+        return [interval_list]
+    interval_list.sort(key=lambda ev_info: ev_info.completed_at)
+    disjoint_intervals = list()
+    while True:
+        max_set = list()
+        discarded_list = list()
+        max_set.append(interval_list[0])
+        current_last = interval_list[0].completed_at
+        for i in range(1, len(interval_list)):
+            if interval_list[i].started_at >= current_last:
+                max_set.append(interval_list[i])
+                current_last = interval_list[i].completed_at
+            else:
+                discarded_list.append(interval_list[i])
+        if len(max_set) > 1:
+            disjoint_intervals.append(max_set)
+        if len(max_set) == 1 or len(discarded_list) == 0:
+            break
+        interval_list = discarded_list
+    return disjoint_intervals
+
+
 def _cases_to_del(resource_calendars, resource_freq, max_resource_freq, resource_cases, cases_to_remove, total_traces):
     print("Resources to Remove ...")
     for r_name in resource_calendars:
@@ -138,9 +233,6 @@ def _cases_to_del(resource_calendars, resource_freq, max_resource_freq, resource
     print("Postprocessed Total Cases: %d" % (total_traces - len(cases_to_remove)))
     print("Cases to remove: %d" % len(cases_to_remove))
     print('-------------------------------------------------------')
-
-
-# def combine_resources(task_resources, resource_tasks, resource_freq, task_resource_freq):
 
 
 def parse_xes_log(log_path, bpmn_graph, output_path):
