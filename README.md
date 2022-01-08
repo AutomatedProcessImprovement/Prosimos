@@ -70,7 +70,7 @@ Note that the order of the sections is not relevant, i.e., they can appear in an
    For each task, represented by its ID, the list of allowed resources and a probability distribution function 
    (per resource) that describes its duration are represented. Note that the distribution function of a task may vary 
    per resource. As for the arrival time distributions, **Prosimos** allows any of the functions supported by the Python 
-   library [Scipy Stats] https://docs.scipy.org/doc/scipy/reference/stats.html#module-scipy.stats).
+   library [Scipy Stats](https://docs.scipy.org/doc/scipy/reference/stats.html#module-scipy.stats).
 * "resource_calendars": List of time intervals in which is available to perform a task on a weekly calendar basis. 
    Each calendar interval is described starting from weekday (Monday, ..., Sunday) at some beginTime, 
    until another (not necessarily different) weekday to some endTime.
