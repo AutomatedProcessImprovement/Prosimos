@@ -31,7 +31,7 @@ date_format = "%Y-%m-%dT%H:%M:%S.%f%z"
 #     return _extract_log_info(bpmn_graph, traces, tags, ns)
 
 
-def preprocess_xes_log(log_path, minutes_x_granule=15, min_participation_ratio=0.5):
+def preprocess_xes_log(log_path, minutes_x_granule=15, min_confidence=1.0, min_support=1.0):
     f_name = ntpath.basename(log_path).split('.')[0]
     print('Parsing Event Log %s ...' % f_name)
 
@@ -46,18 +46,23 @@ def preprocess_xes_log(log_path, minutes_x_granule=15, min_participation_ratio=0
     max_resource_freq = 0
     task_resource_freq = dict()
     task_resource_events = dict()
+    initial_events = dict()
 
     for trace in log_traces:
+
         caseid = trace.attributes['concept:name']
         total_traces += 1
         started_events = dict()
         trace_info = Trace(caseid)
+        initial_events[caseid] = datetime(9999, 12, 31, tzinfo=pytz.UTC)
 
         for event in trace:
             task_name = event['concept:name']
             resource = event['org:resource']
             state = event['lifecycle:transition'].lower()
             timestamp = event['time:timestamp']
+
+            initial_events[caseid] = min(initial_events[caseid], timestamp)
 
             if resource not in resource_freq:
                 resource_cases[resource] = set()
@@ -90,41 +95,52 @@ def preprocess_xes_log(log_path, minutes_x_granule=15, min_participation_ratio=0
     for r_name in resource_freq:
         resource_freq_ratio[r_name] = resource_freq[r_name] / max_resource_freq
 
-    resource_calendars = calendar_factory.build_weekly_calendars(resource_freq_ratio, min_participation_ratio)
+    # # (1) Discovering Resource Calendars
+    # resource_calendars = calendar_factory.build_weekly_calendars(min_confidence, min_support)
+    #
+    # # START TESTING CODE .........................................
+    # removed_resources = set()
+    # print("Resources to Remove ...")
+    # for r_name in resource_calendars:
+    #     if resource_calendars[r_name].total_weekly_work == 0:
+    #         removed_resources.add(r_name)
+    #         print("%s: %.3f (%d)" % (r_name, resource_freq[r_name] / max_resource_freq, resource_freq[r_name]))
+    #
+    # print("Original Total Cases:      %d" % total_traces)
+    #
+    # print('-------------------------------------------------------')
+    # # END TESTING CODE ............................................
+    #
+    # resource_calendars, task_resources, joint_resource_events = find_joint_resources(calendar_factory,
+    #                                                                                  task_resource_events,
+    #                                                                                  resource_freq_ratio,
+    #                                                                                  min_confidence,
+    #                                                                                  min_support)
+    # # START TESTING CODE .........................................
+    # for t_name in task_resources:
+    #     print("Task Name: %s" % t_name)
+    #     for r_name in task_resources[t_name]:
+    #         if r_name in task_resource_freq[t_name][1]:
+    #             in_trace = "+" if r_name not in removed_resources else "-"
+    #             print("(%s) %s: %.3f (%d)" % (in_trace, r_name,
+    #                                           task_resource_freq[t_name][1][r_name] / task_resource_freq[t_name][0],
+    #                                           task_resource_freq[t_name][1][r_name]))
+    #         else:
+    #             print("(+) %s: JOINT EXTERNAL RESOURCE" % r_name)
+    #     for r_name in task_resource_freq[t_name][1]:
+    #         if r_name not in task_resources[t_name]:
+    #             print("(%s) %s: %.3f (%d)" % ('-', r_name,
+    #                                           task_resource_freq[t_name][1][r_name] / task_resource_freq[t_name][0],
+    #                                           task_resource_freq[t_name][1][r_name]))
+    # # END TESTING CODE ............................................
 
-    removed_resources = set()
-    print("Resources to Remove ...")
-    for r_name in resource_calendars:
-        if resource_calendars[r_name].total_weekly_work == 0:
-            removed_resources.add(r_name)
-            print("%s: %.3f (%d)" % (r_name, resource_freq[r_name] / max_resource_freq, resource_freq[r_name]))
-
-    print("Original Total Cases:      %d" % total_traces)
-
-    print('-------------------------------------------------------')
-
-    resource_calendars, task_resources, joint_resource_events = find_joint_resources(calendar_factory,
-                                                                                     task_resource_events,
-                                                                                     resource_freq_ratio,
-                                                                                     min_participation_ratio)
-    # START TESTING CODE .........................................
-    for t_name in task_resources:
-        print("Task Name: %s" % t_name)
-        for r_name in task_resources[t_name]:
-            if r_name in task_resource_freq[t_name][1]:
-                in_trace = "+" if r_name not in removed_resources else "-"
-                print("(%s) %s: %.3f (%d)" % (in_trace, r_name,
-                                              task_resource_freq[t_name][1][r_name] / task_resource_freq[t_name][0],
-                                              task_resource_freq[t_name][1][r_name]))
-            else:
-                print("(+) %s: JOINT EXTERNAL RESOURCE" % r_name)
-        for r_name in task_resource_freq[t_name][1]:
-            if r_name not in task_resources[t_name]:
-                print("(%s) %s: %.3f (%d)" % ('-', r_name,
-                                              task_resource_freq[t_name][1][r_name] / task_resource_freq[t_name][0],
-                                              task_resource_freq[t_name][1][r_name]))
-    # END TESTING CODE ............................................
-
+    # Discovering Arrival time calendar
+    arrival_calendar_factory = CalendarFactory(minutes_x_granule)
+    for case_id in initial_events:
+        arrival_calendar_factory.check_date_time('arrival', initial_events[case_id])
+    arrival_calendar = arrival_calendar_factory.build_weekly_calendars(min_confidence, min_support)
+    for c_id in arrival_calendar:
+        arrival_calendar[c_id].print_calendar_info()
 
     # for t_name in task_resource_freq:
     #     print("Task Name: %s" % t_name)
@@ -158,8 +174,8 @@ def preprocess_xes_log(log_path, minutes_x_granule=15, min_participation_ratio=0
     # _cases_to_del(new_r_calendars, resource_freq, max_resource_freq, resource_cases, new_to_remove, new_traces)
 
 
-def find_joint_resources(calendar_factory, task_resource_events, resource_freq_ratio, min_participation_ratio):
-    calendar_candidates = calendar_factory.build_weekly_calendars(resource_freq_ratio, min_participation_ratio)
+def find_joint_resources(calendar_factory, task_resource_events, resource_freq_ratio, min_confidence, min_support):
+    calendar_candidates = calendar_factory.build_weekly_calendars(min_confidence, min_support)
     joint_event_candidates = dict()
     joint_task_resources = dict()
 
@@ -183,7 +199,7 @@ def find_joint_resources(calendar_factory, task_resource_events, resource_freq_r
                     calendar_factory.check_date_time(j_name, ev_info.completed_at)
                 resource_freq_ratio[j_name] = min(1, 2 * len(joint_events[i]) / max_res_freq)
 
-    calendar_candidates = calendar_factory.build_weekly_calendars(resource_freq_ratio, min_participation_ratio)
+    calendar_candidates = calendar_factory.build_weekly_calendars(min_confidence, min_support)
     resource_calendars = dict()
     task_resources = dict()
     joint_resource_events = dict()
@@ -196,6 +212,12 @@ def find_joint_resources(calendar_factory, task_resource_events, resource_freq_r
                 if resource_name in joint_event_candidates:
                     joint_resource_events[resource_name] = joint_event_candidates[resource_name]
     return resource_calendars, task_resources, joint_resource_events
+
+
+def build_default_calendar(r_name):
+    r_calendar = RCalendar("%s_Default" % r_name)
+    r_calendar.add_calendar_item('MONDAY', 'SUNDAY', '00:00:00.000''', '23:59:59.999')
+    return r_calendar
 
 
 def _max_disjoint_intervals(interval_list):

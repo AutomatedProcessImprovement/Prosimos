@@ -1,4 +1,5 @@
 import datetime
+import math
 from datetime import timedelta
 
 import pytz
@@ -415,6 +416,67 @@ class CalendarTree:
             c_level = c_level[c_value].children_nodes
 
 
+class CalendarKPIInfoFactory:
+    def __init__(self, r_weekdays_set):
+        self.total_weekdays = dict()
+        self.r_weekdays_set = r_weekdays_set
+        self.g_discarded = dict()
+        self.count_accepted_datetimes = 0
+        self.count_discarded_datetimes = 0
+
+        self.in_calendar_week_days = set()
+        self.count_accepted_week_days = dict()
+
+    def check_accepted_granule(self, week_day, g_frequency):
+        if week_day not in self.in_calendar_week_days:
+            self.in_calendar_week_days.add(week_day)
+            self.count_accepted_week_days[week_day] = 0
+        self.count_accepted_week_days[week_day] += g_frequency
+        self.count_accepted_datetimes += g_frequency
+
+    def check_discarded_granule(self, week_day, g_index, g_frequency):
+        if week_day not in self.g_discarded:
+            self.g_discarded[week_day] = list()
+        self.g_discarded[week_day].append(g_index)
+        self.count_discarded_datetimes += g_frequency
+
+    def update_granule(self, week_day, g_index, g_frequency):
+        self.count_accepted_week_days[week_day] += g_frequency
+        self.count_accepted_datetimes += g_frequency
+        self.g_discarded[week_day].remove(g_index)
+        self.count_discarded_datetimes -= g_frequency
+
+    def compute_total_weekdays(self, from_datetime, to_datetime):
+        total_days = (to_datetime.date() - from_datetime.date()).days + 2
+        same_days = total_days // 7
+        rem_days = total_days % 7
+        to_weekday = to_datetime.weekday()
+        self.total_weekdays = {key: same_days for key in range(0, 7)}
+        while rem_days > 0:
+            self.total_weekdays[to_weekday] += 1
+            to_weekday = to_weekday - 1 if to_weekday > 0 else 6
+            rem_days -= 1
+
+    def total_datetimes(self):
+        return self.count_accepted_datetimes + self.count_discarded_datetimes
+
+    def compute_confidence_support(self):
+        observed_days, total_days = 0, 0
+        for week_day in self.in_calendar_week_days:
+            observed_days += len(self.r_weekdays_set[week_day])
+            total_days += self.total_weekdays[week_day]
+        confidence = observed_days / total_days if total_days > 0 else 0
+        support = self.count_accepted_datetimes / self.total_datetimes()
+        return confidence, support
+
+
+class GranuleInfo:
+    def __init__(self, week_day, g_index, frequency):
+        self.week_day = week_day
+        self.g_index = g_index
+        self.frequency = frequency
+
+
 class CalendarFactory:
     def __init__(self, minutes_x_granule=15):
         if 1440 % minutes_x_granule != 0:
@@ -429,7 +491,11 @@ class CalendarFactory:
         self.resource_calendar_tree = dict()
         self.r_weekdays_set = dict()
         self.r_granules_set = dict()
+        self.r_granule_frequency = dict()
+        self.r_week_days_freequency = dict()
+
         self.total_weekdays = dict()
+        self.total_datetimes = 0
 
         self.from_datetime = datetime.datetime(9999, 12, 31, tzinfo=pytz.UTC)
         self.to_datetime = datetime.datetime(1, 1, 1, tzinfo=pytz.UTC)
@@ -440,77 +506,104 @@ class CalendarFactory:
 
     def check_date_time(self, r_name, date_time):
         str_date = str(date_time.date())
-        g_index = 0 if (date_time.hour + date_time.minute) % self.minutes_x_granule == 0 else 1
-        g_index += (date_time.hour + date_time.minute) // self.minutes_x_granule
+        in_minutes = date_time.hour * 60 + date_time.minute + (1 if date_time.second > 0 else 0)
+
+        g_index = 0 if in_minutes % self.minutes_x_granule == 0 else 1
+        g_index += in_minutes // self.minutes_x_granule
         week_day = date_time.weekday()
         if r_name not in self.resource_calendar_tree:
             self.r_weekdays_set[r_name] = dict()
             self.r_granules_set[r_name] = dict()
+            self.r_granule_frequency[r_name] = dict()
+            self.r_week_days_freequency[r_name] = dict()
             self.resource_calendar_tree[r_name] = CalendarTree()
+        if g_index not in self.r_granules_set[r_name]:
+            self.r_granules_set[r_name][g_index] = dict()
+            self.r_granule_frequency[r_name][g_index] = dict()
         if week_day not in self.r_weekdays_set[r_name]:
             self.r_weekdays_set[r_name][week_day] = set()
-        if g_index not in self.r_granules_set[r_name]:
-            self.r_granules_set[r_name][g_index] = set()
-        self.resource_calendar_tree[r_name].insert_date([date_time.year, date_time.month, date_time.weekday(), g_index])
+            self.r_week_days_freequency[r_name][week_day] = 0
+        if week_day not in self.r_granules_set[r_name][g_index]:
+            self.r_granules_set[r_name][g_index][week_day] = set()
+            self.r_granule_frequency[r_name][g_index][week_day] = 0
+
+        # self.resource_calendar_tree[r_name].insert_date(
+        #     [date_time.year, date_time.month, date_time.weekday(), g_index])
         self.r_weekdays_set[r_name][week_day].add(str_date)
-        self.r_granules_set[r_name][g_index].add(str_date)
+        self.r_week_days_freequency[r_name][week_day] += 1
+        self.r_granules_set[r_name][g_index][week_day].add(str_date)
+        self.r_granule_frequency[r_name][g_index][week_day] += 1
+        self.total_datetimes += 1
+
         self.from_datetime = min(self.from_datetime, date_time)
         self.to_datetime = max(self.to_datetime, date_time)
 
-    def compute_total_weekdays(self):
-        total_days = (self.to_datetime.date() - self.from_datetime.date()).days + 2
-        same_days = total_days // 7
-        rem_days = total_days % 7
-        to_weekday = self.to_datetime.weekday()
-        self.total_weekdays = {key: same_days for key in range(0, 7)}
-        while rem_days > 0:
-            self.total_weekdays[to_weekday] += 1
-            to_weekday = to_weekday - 1 if to_weekday > 0 else 6
-            rem_days -= 1
-
-    def build_weekly_calendars(self, res_freq_ratio, min_participation_ratio):
-        r_count = dict()
-        self.compute_total_weekdays()
+    def build_weekly_calendars(self, min_confidence, min_support):
         r_calendars = dict()
-        for r_name in self.resource_calendar_tree:
-            r_count[r_name] = [0, 0]
-            r_calendars[r_name] = self.build_resource_calendar(r_count, r_name, res_freq_ratio, min_participation_ratio)
+        kpi_calendars = dict()
 
+        for r_name in self.r_granules_set:
+            kpi_calendars[r_name] = CalendarKPIInfoFactory(self.r_weekdays_set[r_name])
+            kpi_calendars[r_name].compute_total_weekdays(self.from_datetime, self.to_datetime)
+            r_calendars[r_name] = self.build_resource_calendar(r_name, kpi_calendars[r_name], min_confidence,
+                                                               min_support)
         return r_calendars
 
-    def build_resource_calendar(self, r_count, r_name, res_freq_index, min_participation_ratio):
+    def build_resource_calendar(self, r_name, kpi_calendar, min_confidence, min_support):
+        if r_name not in self.r_granules_set:
+            return None
+
         r_calendar = RCalendar("%s_Schedule" % r_name)
-        calendar_tree = self.resource_calendar_tree[r_name].value_to_children
-        for year in calendar_tree:
-            for month in calendar_tree[year].children_nodes:
-                week_days = calendar_tree[year].children_nodes
-                for weekday in week_days[month].children_nodes:
-                    granules = week_days[month].children_nodes
-                    for granule_index in granules[weekday].children_nodes:
+        # calendar_tree = self.resource_calendar_tree[r_name].value_to_children
 
-                        g_supp = len(self.r_granules_set[r_name][granule_index]) / len(self.r_weekdays_set[r_name][weekday])
-                        g_conf = len(self.r_granules_set[r_name][granule_index]) / self.total_weekdays[weekday]
+        for g_index in self.r_granules_set[r_name]:
+            for week_day in self.r_granules_set[r_name][g_index]:
+                g_conf = len(self.r_weekdays_set[r_name][week_day]) / kpi_calendar.total_weekdays[week_day]
+                if min_confidence <= g_conf:
+                    kpi_calendar.check_accepted_granule(week_day, self.r_granule_frequency[r_name][g_index][week_day])
+                    self._add_calendar_item(week_day, g_index, r_calendar)
+                else:
+                    kpi_calendar.check_discarded_granule(week_day, g_index,
+                                                         self.r_granule_frequency[r_name][g_index][week_day])
 
-                        if max(res_freq_index[r_name], (g_conf + g_supp) / 2) >= min_participation_ratio:
-                            r_count[r_name][0] += 1
-                            str_wday = int_week_days[weekday]
-                            hour = (granule_index * self.minutes_x_granule) // 60
-                            from_min = (granule_index * self.minutes_x_granule) % 60
-                            to_min = from_min + self.minutes_x_granule
-                            if to_min >= 60:
-                                if hour == 23:
-                                    r_calendar.add_calendar_item(str_wday, str_wday, "%d:%d:%d" % (hour, from_min, 0),
-                                                                 "23:59:59.999")
-                                else:
-                                    r_calendar.add_calendar_item(str_wday, str_wday, "%d:%d:%d" % (hour, from_min, 0),
-                                                                 "%d:%d:%d" % (hour + 1, 0, 0))
-                            else:
-                                r_calendar.add_calendar_item(str_wday, str_wday, "%d:%d:%d" % (hour, from_min, 0),
-                                                             "%d:%d:%d" % (hour, to_min, 0))
-                        else:
-                            r_count[r_name][1] += 1
+        confidence, support = kpi_calendar.compute_confidence_support()
+        if confidence > 0 and support < min_support:
+            print("Before: %s Calendar -> Confidence: %.2f, Support: %.2f" % (r_name, confidence, support))
+            needed = math.ceil(min_support * kpi_calendar.total_datetimes() - kpi_calendar.count_accepted_datetimes)
+            to_add = list()
+            count = 0
+            for week_day in kpi_calendar.in_calendar_week_days:
+                if week_day in kpi_calendar.g_discarded:
+                    for g_index in kpi_calendar.g_discarded[week_day]:
+                        count += self.r_granule_frequency[r_name][g_index][week_day]
+                        to_add.append(
+                            GranuleInfo(week_day, g_index, self.r_granule_frequency[r_name][g_index][week_day]))
+            if count >= needed:
+                to_add.sort(key=lambda x: x.frequency, reverse=True)
+                for g_info in to_add:
+                    self._add_calendar_item(g_info.week_day, g_info.g_index, r_calendar)
+                    kpi_calendar.update_granule(g_info.week_day, g_info.g_index, g_info.frequency)
+                    needed -= g_info.frequency
+                    if needed <= 0:
+                        break
+        confidence, support = kpi_calendar.compute_confidence_support()
+        print("After: %s Calendar -> Confidence: %.2f, Support: %.2f" % (r_name, confidence, support))
         return r_calendar
 
+    def _add_calendar_item(self, week_day, g_index, r_calendar):
+        str_wday = int_week_days[week_day]
+        hour = (g_index * self.minutes_x_granule) // 60
+        from_min = (g_index * self.minutes_x_granule) % 60
+        to_min = from_min + self.minutes_x_granule
+        if to_min >= 60:
+            if hour == 23:
+                r_calendar.add_calendar_item(str_wday, str_wday, "%d:%d:%d" % (hour, from_min, 0), "23:59:59.999")
+            else:
+                r_calendar.add_calendar_item(str_wday, str_wday, "%d:%d:%d" % (hour, from_min, 0),
+                                             "%d:%d:%d" % (hour + 1, 0, 0))
+        else:
+            r_calendar.add_calendar_item(str_wday, str_wday, "%d:%d:%d" % (hour, from_min, 0),
+                                         "%d:%d:%d" % (hour, to_min, 0))
 
 
 def update_calendar_from_log(r_calendar, date_time, is_start, month_freq, min_eps=15):

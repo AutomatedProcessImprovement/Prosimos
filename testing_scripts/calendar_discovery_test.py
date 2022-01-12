@@ -36,13 +36,13 @@ xes_simodbpmn_file_paths = {
 output_dir_path = './../output_files/discovery/'
 
 def main():
-    for i in range(7, 8):
+    for i in range(1, 8):
         log_name = experiment_logs[i]
 
         # Extracting the simulation parameters from event-log (it saves them results to JSON files)
         xes_path = xes_simodbpmn_file_paths[log_name][0]
         bpmn_path = xes_simodbpmn_file_paths[log_name][1]
-        preprocess_xes_log(xes_path, 15, 0.8)
+        preprocess_xes_log(xes_path, 15, 0.5, 0.5)
 
         # bpmn_graph = parse_simulation_model(bpmn_path)
         # parse_xes_log(xes_path, bpmn_graph, output_dir_path)
