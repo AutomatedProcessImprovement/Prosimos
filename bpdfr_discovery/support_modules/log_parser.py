@@ -82,7 +82,7 @@ def preprocess_xes_log(log_path, minutes_x_granule=15, min_confidence=1.0, min_s
             task_resource_freq[task_name][0] = max(task_resource_freq[task_name][0],
                                                    task_resource_freq[task_name][1][resource])
 
-            # calendar_factory.check_date_time(resource, timestamp)
+            calendar_factory.check_date_time(resource, timestamp)
             if state in ["start", "assign"]:
                 started_events[task_name] = trace_info.start_event(task_name, task_name, timestamp, resource)
             elif state == "complete":
@@ -98,11 +98,11 @@ def preprocess_xes_log(log_path, minutes_x_granule=15, min_confidence=1.0, min_s
     # # (1) Discovering Resource Calendars
     # # resource_calendars = calendar_factory.build_weekly_calendars(min_confidence, min_support)
     # # removed_resources = print_initial_resource_calendar_info(resource_calendars, resource_freq, max_resource_freq)
-    # resource_calendars, task_resources, joint_resource_events = discover_resource_calendars(calendar_factory,
-    #                                                                                         task_resource_events,
-    #                                                                                         resource_freq_ratio,
-    #                                                                                         min_confidence,
-    #                                                                                         min_support)
+    resource_calendars, task_resources, joint_resource_events = discover_resource_calendars(calendar_factory,
+                                                                                            task_resource_events,
+                                                                                            resource_freq_ratio,
+                                                                                            min_confidence,
+                                                                                            min_support)
     # # print_joint_resource_calendar_info(task_resources, task_resource_freq, removed_resources)
 
     # # (2) Discovering Arrival Time Calendar
@@ -110,7 +110,10 @@ def preprocess_xes_log(log_path, minutes_x_granule=15, min_confidence=1.0, min_s
 
     # # (3) Discovering Arrival Time Distribution
     arrival_distribution = discover_arrival_time_distribution(initial_events, arrival_calendar)
-    print(arrival_distribution)
+
+    # # (4) Discovering Task Duration Distributions per resource
+    discover_resource_task_duration_distribution(task_resource_events, resource_calendars, task_resources,
+                                                 joint_resource_events)
 
 
 def discover_resource_calendars(calendar_factory, task_resource_events, resource_freq_ratio, min_confidence,
@@ -209,6 +212,40 @@ def discover_arrival_time_distribution(initial_events, arrival_calendar):
             else arrival[i].to_end_dist + arrival[i - 1].to_start_dist)
     print("In Calendar Event Ratio: %.2f" % (len(arrival) / len(initial_events)))
     return best_fit_distribution(durations)
+
+
+def discover_resource_task_duration_distribution(task_resource_events, res_calendars, task_resources, joint_events):
+    task_resource_distribution = dict()
+
+    for t_id in task_resources:
+        print("Task ID: %s" % t_id)
+        if t_id not in task_resource_distribution:
+            task_resource_distribution[t_id] = dict()
+        full_task_durations = list()
+        pending_resources = list()
+        for r_id in task_resources[t_id]:
+            event_list = list()
+            if res_calendars[r_id].total_weekly_work > 0:
+                event_list = task_resource_events[t_id][r_id]
+            elif r_id in joint_events:
+                event_list = joint_events[r_id]
+            durations = list()
+            for ev_info in event_list:
+                durations.append((ev_info.completed_at - ev_info.started_at).total_seconds())
+            full_task_durations += durations
+            if len(durations) < 10:
+                pending_resources.append(r_id)
+            else:
+                task_resource_distribution[t_id][r_id] = best_fit_distribution(durations)
+                print("Resource: %s, Total Events: %d, Distribution: %s"
+                      % (r_id, len(durations), str(task_resource_distribution[t_id][r_id])))
+
+        agregated_distribution = best_fit_distribution(full_task_durations)
+        for r_id in pending_resources:
+            task_resource_distribution[t_id][r_id] = agregated_distribution
+            print("Resource: %s, Total Events: %d, Aggregated Distribution: %s"
+                  % (r_id, len(full_task_durations), str(task_resource_distribution[t_id][r_id])))
+        print('---------------------------------------------------')
 
 
 def print_initial_resource_calendar_info(resource_calendars, resource_freq, max_resource_freq):
