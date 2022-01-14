@@ -39,6 +39,9 @@ class Interval:
     def contains(self, c_date):
         return self.start < c_date < self.end
 
+    def contains_inclusive(self, c_date):
+        return self.start <= c_date <= self.end
+
     def is_after(self, c_date):
         return c_date <= self.start
 
@@ -64,11 +67,6 @@ class CalendarIterator:
         self.c_index = -1
         while c_interval.end < c_date and self.c_index < len(calendar_info.work_intervals[self.c_day]) - 1:
             self.c_index += 1
-            if self.c_day < 0 or self.c_day >= len(calendar_info.work_intervals):
-                print('hola')
-            if self.c_index < 0 or self.c_index >= len(calendar_info.work_intervals[self.c_day]):
-                print('hola')
-
             c_interval = calendar_info.work_intervals[self.c_day][self.c_index]
 
         self.c_interval = Interval(self.start_date,
@@ -97,6 +95,18 @@ class CalendarIterator:
                                    res_interval.end + timedelta(
                                        seconds=p_duration + day_intervals[self.c_index].duration))
         return res_interval
+
+
+class IntervalPoint:
+    def __init__(self, date_time, week_day, index, to_start_dist, to_end_dist):
+        self.date_time = date_time
+        self.week_day = week_day
+        self.index = index
+        self.to_start_dist = to_start_dist
+        self.to_end_dist = to_end_dist
+
+    def in_same_interval(self, another_point):
+        return self.week_day == another_point.week_day and self.index == another_point.index
 
 
 class RCalendar:
@@ -137,6 +147,17 @@ class RCalendar:
                         "endTime": str(interval.end.time())
                     })
         return items
+
+    def is_working_datetime(self, date_time):
+        c_day = date_time.date().weekday()
+        c_date = datetime.datetime.combine(self.default_date, date_time.time())
+        i_index = 0
+        for interval in self.work_intervals[c_day]:
+            if interval.contains_inclusive(c_date):
+                return True, IntervalPoint(date_time, i_index, c_day, (c_date - interval.start).total_seconds(),
+                                           (interval.end - c_date).total_seconds())
+            i_index += 1
+        return False, None
 
     def combine_calendar(self, new_calendar):
         for i in range(0, 7):
@@ -185,10 +206,11 @@ class RCalendar:
                 next_i = self.work_intervals[w_day][i]
                 if to_merge.end < next_i.start:
                     break
-                if next_i.end < to_merge.end:
+                if next_i.end <= to_merge.end:
                     merged_duration -= next_i.duration
-                elif next_i.start < to_merge.end:
+                elif next_i.start <= to_merge.end:
                     merged_duration -= (to_merge.end - next_i.start).total_seconds()
+                    to_merge.merge_interval(next_i)
                 del self.work_intervals[w_day][i]
             if merged_duration < 0:
                 print('HOOOOLA')
@@ -506,10 +528,10 @@ class CalendarFactory:
 
     def check_date_time(self, r_name, date_time):
         str_date = str(date_time.date())
-        in_minutes = date_time.hour * 60 + date_time.minute + (1 if date_time.second > 0 else 0)
+        in_minutes = date_time.hour * 60 + date_time.minute
 
-        g_index = 0 if in_minutes % self.minutes_x_granule == 0 else 1
-        g_index += in_minutes // self.minutes_x_granule
+        # g_index = 1 if (in_minutes != 0 and in_minutes % self.minutes_x_granule == 0) else 0
+        g_index = in_minutes // self.minutes_x_granule
         week_day = date_time.weekday()
         if r_name not in self.resource_calendar_tree:
             self.r_weekdays_set[r_name] = dict()
@@ -547,6 +569,9 @@ class CalendarFactory:
             kpi_calendars[r_name].compute_total_weekdays(self.from_datetime, self.to_datetime)
             r_calendars[r_name] = self.build_resource_calendar(r_name, kpi_calendars[r_name], min_confidence,
                                                                min_support)
+            confidence, support = kpi_calendars[r_name].compute_confidence_support()
+            print("%s Calendar -> (Confidence: %.2f, Support: %.2f)" % (r_name, confidence, support))
+
         return r_calendars
 
     def build_resource_calendar(self, r_name, kpi_calendar, min_confidence, min_support):
@@ -568,7 +593,7 @@ class CalendarFactory:
 
         confidence, support = kpi_calendar.compute_confidence_support()
         if confidence > 0 and support < min_support:
-            print("Before: %s Calendar -> Confidence: %.2f, Support: %.2f" % (r_name, confidence, support))
+            # print("Before: %s Calendar -> Confidence: %.2f, Support: %.2f" % (r_name, confidence, support))
             needed = math.ceil(min_support * kpi_calendar.total_datetimes() - kpi_calendar.count_accepted_datetimes)
             to_add = list()
             count = 0
@@ -587,7 +612,7 @@ class CalendarFactory:
                     if needed <= 0:
                         break
         confidence, support = kpi_calendar.compute_confidence_support()
-        print("After: %s Calendar -> Confidence: %.2f, Support: %.2f" % (r_name, confidence, support))
+        # print("After: %s Calendar -> Confidence: %.2f, Support: %.2f" % (r_name, confidence, support))
         return r_calendar
 
     def _add_calendar_item(self, week_day, g_index, r_calendar):

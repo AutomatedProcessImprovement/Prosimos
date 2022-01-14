@@ -36,7 +36,7 @@ xes_simodbpmn_file_paths = {
 output_dir_path = './../output_files/discovery/'
 
 def main():
-    for i in range(1, 8):
+    for i in range(0, 8):
         log_name = experiment_logs[i]
 
         # Extracting the simulation parameters from event-log (it saves them results to JSON files)

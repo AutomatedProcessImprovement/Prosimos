@@ -82,7 +82,7 @@ def preprocess_xes_log(log_path, minutes_x_granule=15, min_confidence=1.0, min_s
             task_resource_freq[task_name][0] = max(task_resource_freq[task_name][0],
                                                    task_resource_freq[task_name][1][resource])
 
-            calendar_factory.check_date_time(resource, timestamp)
+            # calendar_factory.check_date_time(resource, timestamp)
             if state in ["start", "assign"]:
                 started_events[task_name] = trace_info.start_event(task_name, task_name, timestamp, resource)
             elif state == "complete":
@@ -96,86 +96,27 @@ def preprocess_xes_log(log_path, minutes_x_granule=15, min_confidence=1.0, min_s
         resource_freq_ratio[r_name] = resource_freq[r_name] / max_resource_freq
 
     # # (1) Discovering Resource Calendars
-    # resource_calendars = calendar_factory.build_weekly_calendars(min_confidence, min_support)
-    #
-    # # START TESTING CODE .........................................
-    # removed_resources = set()
-    # print("Resources to Remove ...")
-    # for r_name in resource_calendars:
-    #     if resource_calendars[r_name].total_weekly_work == 0:
-    #         removed_resources.add(r_name)
-    #         print("%s: %.3f (%d)" % (r_name, resource_freq[r_name] / max_resource_freq, resource_freq[r_name]))
-    #
-    # print("Original Total Cases:      %d" % total_traces)
-    #
-    # print('-------------------------------------------------------')
-    # # END TESTING CODE ............................................
-    #
-    # resource_calendars, task_resources, joint_resource_events = find_joint_resources(calendar_factory,
-    #                                                                                  task_resource_events,
-    #                                                                                  resource_freq_ratio,
-    #                                                                                  min_confidence,
-    #                                                                                  min_support)
-    # # START TESTING CODE .........................................
-    # for t_name in task_resources:
-    #     print("Task Name: %s" % t_name)
-    #     for r_name in task_resources[t_name]:
-    #         if r_name in task_resource_freq[t_name][1]:
-    #             in_trace = "+" if r_name not in removed_resources else "-"
-    #             print("(%s) %s: %.3f (%d)" % (in_trace, r_name,
-    #                                           task_resource_freq[t_name][1][r_name] / task_resource_freq[t_name][0],
-    #                                           task_resource_freq[t_name][1][r_name]))
-    #         else:
-    #             print("(+) %s: JOINT EXTERNAL RESOURCE" % r_name)
-    #     for r_name in task_resource_freq[t_name][1]:
-    #         if r_name not in task_resources[t_name]:
-    #             print("(%s) %s: %.3f (%d)" % ('-', r_name,
-    #                                           task_resource_freq[t_name][1][r_name] / task_resource_freq[t_name][0],
-    #                                           task_resource_freq[t_name][1][r_name]))
-    # # END TESTING CODE ............................................
+    # # resource_calendars = calendar_factory.build_weekly_calendars(min_confidence, min_support)
+    # # removed_resources = print_initial_resource_calendar_info(resource_calendars, resource_freq, max_resource_freq)
+    # resource_calendars, task_resources, joint_resource_events = discover_resource_calendars(calendar_factory,
+    #                                                                                         task_resource_events,
+    #                                                                                         resource_freq_ratio,
+    #                                                                                         min_confidence,
+    #                                                                                         min_support)
+    # # print_joint_resource_calendar_info(task_resources, task_resource_freq, removed_resources)
 
-    # Discovering Arrival time calendar
-    arrival_calendar_factory = CalendarFactory(minutes_x_granule)
-    for case_id in initial_events:
-        arrival_calendar_factory.check_date_time('arrival', initial_events[case_id])
-    arrival_calendar = arrival_calendar_factory.build_weekly_calendars(min_confidence, min_support)
-    for c_id in arrival_calendar:
-        arrival_calendar[c_id].print_calendar_info()
+    # # (2) Discovering Arrival Time Calendar
+    arrival_calendar = discover_arrival_calendar(initial_events, minutes_x_granule, min_confidence, min_support)
 
-    # for t_name in task_resource_freq:
-    #     print("Task Name: %s" % t_name)
-    #     for r_name in task_resource_freq[t_name][1]:
-    #         in_trace = "+" if r_name not in removed_resources else "-"
-    #         print("(%s) %s: %.3f (%d)" % (in_trace, r_name,
-    #                                       task_resource_freq[t_name][1][r_name] / task_resource_freq[t_name][0],
-    #                                       task_resource_freq[t_name][1][r_name]
-    #                                       ))
-    #         # resource_calendars[r_name].print_calendar_info()
-    #     print("----------------------------------------------------------")
-
-    # new_calendar_factory = CalendarFactory(minutes_x_granule)
-    # resource_cases = dict()
-    # resource_freq = dict()
-    # max_resource_freq = 0
-    # for event_info in completed_events:
-    #     if event_info.p_case not in cases_to_remove:
-    #         if event_info.resource_id not in resource_freq:
-    #             resource_cases[event_info.resource_id] = set()
-    #             resource_freq[event_info.resource_id] = 0
-    #         resource_cases[event_info.resource_id].add(event_info.p_case)
-    #         resource_freq[event_info.resource_id] += 1
-    #         max_resource_freq = max(max_resource_freq, resource_freq[event_info.resource_id])
-    #         new_calendar_factory.check_date_time(event_info.resource_id, event_info.started_at)
-    #         new_calendar_factory.check_date_time(event_info.resource_id, event_info.completed_at)
-    #
-    # new_r_calendars = new_calendar_factory.build_weekly_calendars(confidence, support)
-    # new_to_remove = set()
-    # new_traces = total_traces - len(cases_to_remove)
-    # _cases_to_del(new_r_calendars, resource_freq, max_resource_freq, resource_cases, new_to_remove, new_traces)
+    # # (3) Discovering Arrival Time Distribution
+    arrival_distribution = discover_arrival_time_distribution(initial_events, arrival_calendar)
+    print(arrival_distribution)
 
 
-def find_joint_resources(calendar_factory, task_resource_events, resource_freq_ratio, min_confidence, min_support):
+def discover_resource_calendars(calendar_factory, task_resource_events, resource_freq_ratio, min_confidence,
+                                min_support):
     calendar_candidates = calendar_factory.build_weekly_calendars(min_confidence, min_support)
+
     joint_event_candidates = dict()
     joint_task_resources = dict()
 
@@ -242,6 +183,61 @@ def _max_disjoint_intervals(interval_list):
             break
         interval_list = discarded_list
     return disjoint_intervals
+
+
+def discover_arrival_calendar(initial_events, minutes_x_granule, min_confidence, min_support):
+    arrival_calendar_factory = CalendarFactory(minutes_x_granule)
+    for case_id in initial_events:
+        arrival_calendar_factory.check_date_time('arrival', initial_events[case_id])
+    arrival_calendar = arrival_calendar_factory.build_weekly_calendars(min_confidence, min_support)
+    # for c_id in arrival_calendar:
+    #     arrival_calendar[c_id].print_calendar_info()
+    return arrival_calendar['arrival']
+
+
+def discover_arrival_time_distribution(initial_events, arrival_calendar):
+    arrival = list()
+    for case_id in initial_events:
+        is_working, interval_info = arrival_calendar.is_working_datetime(initial_events[case_id])
+        if is_working:
+            arrival.append(interval_info)
+    arrival.sort(key=lambda x: x.date_time)
+    durations = list()
+    for i in range(1, len(arrival)):
+        durations.append(
+            arrival[i].to_start_dist - arrival[i - 1].to_start_dist if arrival[i].in_same_interval(arrival[i - 1])
+            else arrival[i].to_end_dist + arrival[i - 1].to_start_dist)
+    print("In Calendar Event Ratio: %.2f" % (len(arrival) / len(initial_events)))
+    return best_fit_distribution(durations)
+
+
+def print_initial_resource_calendar_info(resource_calendars, resource_freq, max_resource_freq):
+    removed_resources = set()
+    print("Resources to Remove ...")
+    for r_name in resource_calendars:
+        if resource_calendars[r_name].total_weekly_work == 0:
+            removed_resources.add(r_name)
+            print("%s: %.3f (%d)" % (r_name, resource_freq[r_name] / max_resource_freq, resource_freq[r_name]))
+    print('-------------------------------------------------------')
+    return removed_resources
+
+
+def print_joint_resource_calendar_info(task_resources, task_resource_freq, removed_resources):
+    for t_name in task_resources:
+        print("Task Name: %s" % t_name)
+        for r_name in task_resources[t_name]:
+            if r_name in task_resource_freq[t_name][1]:
+                in_trace = "+" if r_name not in removed_resources else "-"
+                print("(%s) %s: %.3f (%d)" % (in_trace, r_name,
+                                              task_resource_freq[t_name][1][r_name] / task_resource_freq[t_name][0],
+                                              task_resource_freq[t_name][1][r_name]))
+            else:
+                print("(+) %s: JOINT EXTERNAL RESOURCE" % r_name)
+        for r_name in task_resource_freq[t_name][1]:
+            if r_name not in task_resources[t_name]:
+                print("(%s) %s: %.3f (%d)" % ('-', r_name,
+                                              task_resource_freq[t_name][1][r_name] / task_resource_freq[t_name][0],
+                                              task_resource_freq[t_name][1][r_name]))
 
 
 def _cases_to_del(resource_calendars, resource_freq, max_resource_freq, resource_cases, cases_to_remove, total_traces):
