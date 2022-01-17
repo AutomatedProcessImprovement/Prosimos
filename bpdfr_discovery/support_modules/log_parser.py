@@ -12,6 +12,7 @@ import ntpath
 
 from bpdfr_simulation_engine.resource_calendar import RCalendar, update_calendar_from_log, update_weekly_calendar, \
     CalendarFactory
+from bpdfr_simulation_engine.simulation_properties_parser import parse_simulation_model
 
 date_format = "%Y-%m-%dT%H:%M:%S.%f%z"
 
@@ -31,7 +32,11 @@ date_format = "%Y-%m-%dT%H:%M:%S.%f%z"
 #     return _extract_log_info(bpmn_graph, traces, tags, ns)
 
 
-def preprocess_xes_log(log_path, minutes_x_granule=15, min_confidence=1.0, min_support=1.0):
+def preprocess_xes_log(log_path, bpmn_path, minutes_x_granule=15, min_confidence=1.0, min_support=1.0):
+    model_name = ntpath.basename(bpmn_path).split('.')[0]
+    print('Parsing Event Log %s ...' % model_name)
+    bpmn_graph = parse_simulation_model(bpmn_path)
+
     f_name = ntpath.basename(log_path).split('.')[0]
     print('Parsing Event Log %s ...' % f_name)
 
@@ -47,6 +52,7 @@ def preprocess_xes_log(log_path, minutes_x_granule=15, min_confidence=1.0, min_s
     task_resource_freq = dict()
     task_resource_events = dict()
     initial_events = dict()
+    flow_arcs_frequency = dict()
 
     for trace in log_traces:
 
@@ -55,7 +61,7 @@ def preprocess_xes_log(log_path, minutes_x_granule=15, min_confidence=1.0, min_s
         started_events = dict()
         trace_info = Trace(caseid)
         initial_events[caseid] = datetime(9999, 12, 31, tzinfo=pytz.UTC)
-
+        task_sequence = list()
         for event in trace:
             task_name = event['concept:name']
             resource = event['org:resource']
@@ -87,9 +93,11 @@ def preprocess_xes_log(log_path, minutes_x_granule=15, min_confidence=1.0, min_s
                 started_events[task_name] = trace_info.start_event(task_name, task_name, timestamp, resource)
             elif state == "complete":
                 if task_name in started_events:
+                    task_sequence.append(task_name)
                     c_event = trace_info.complete_event(started_events.pop(task_name), timestamp)
                     task_resource_events[task_name][resource].append(c_event)
                     completed_events.append(c_event)
+        is_correct, fired_tasks, pending_tokens = bpmn_graph.reply_trace(task_sequence, flow_arcs_frequency, True)
 
     resource_freq_ratio = dict()
     for r_name in resource_freq:
@@ -114,6 +122,10 @@ def preprocess_xes_log(log_path, minutes_x_granule=15, min_confidence=1.0, min_s
     # # (4) Discovering Task Duration Distributions per resource
     discover_resource_task_duration_distribution(task_resource_events, resource_calendars, task_resources,
                                                  joint_resource_events)
+
+    # # (5) Discovering Gateways Branching Probabilities
+    gateways_branching = bpmn_graph.compute_branching_probability(flow_arcs_frequency)
+    
 
 
 def discover_resource_calendars(calendar_factory, task_resource_events, resource_freq_ratio, min_confidence,

@@ -42,7 +42,7 @@ def main():
         # Extracting the simulation parameters from event-log (it saves them results to JSON files)
         xes_path = xes_simodbpmn_file_paths[log_name][0]
         bpmn_path = xes_simodbpmn_file_paths[log_name][1]
-        preprocess_xes_log(xes_path, 15, 0.5, 0.5)
+        preprocess_xes_log(xes_path, bpmn_path, 15, 0.5, 0.5)
 
         # bpmn_graph = parse_simulation_model(bpmn_path)
         # parse_xes_log(xes_path, bpmn_graph, output_dir_path)
