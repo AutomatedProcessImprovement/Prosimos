@@ -32,7 +32,7 @@ date_format = "%Y-%m-%dT%H:%M:%S.%f%z"
 #     return _extract_log_info(bpmn_graph, traces, tags, ns)
 
 
-def preprocess_xes_log(log_path, bpmn_path, minutes_x_granule=15, min_confidence=1.0, min_support=1.0):
+def preprocess_xes_log(log_path, bpmn_path, out_file_path, minutes_x_granule=15, min_confidence=1.0, min_support=1.0):
     model_name = ntpath.basename(bpmn_path).split('.')[0]
     print('Parsing Event Log %s ...' % model_name)
     bpmn_graph = parse_simulation_model(bpmn_path)
@@ -55,7 +55,6 @@ def preprocess_xes_log(log_path, bpmn_path, minutes_x_granule=15, min_confidence
     flow_arcs_frequency = dict()
 
     for trace in log_traces:
-
         caseid = trace.attributes['concept:name']
         total_traces += 1
         started_events = dict()
@@ -106,26 +105,40 @@ def preprocess_xes_log(log_path, bpmn_path, minutes_x_granule=15, min_confidence
     # # (1) Discovering Resource Calendars
     # # resource_calendars = calendar_factory.build_weekly_calendars(min_confidence, min_support)
     # # removed_resources = print_initial_resource_calendar_info(resource_calendars, resource_freq, max_resource_freq)
-    resource_calendars, task_resources, joint_resource_events = discover_resource_calendars(calendar_factory,
-                                                                                            task_resource_events,
-                                                                                            resource_freq_ratio,
-                                                                                            min_confidence,
-                                                                                            min_support)
+    res_calendars, task_resources, joint_resource_events, pools_json = discover_resource_calendars(calendar_factory,
+                                                                                                   task_resource_events,
+                                                                                                   resource_freq_ratio,
+                                                                                                   min_confidence,
+                                                                                                   min_support)
+    res_json_calendar = dict()
+    for r_id in res_calendars:
+        res_json_calendar[r_id] = res_calendars[r_id].to_json()
     # # print_joint_resource_calendar_info(task_resources, task_resource_freq, removed_resources)
 
     # # (2) Discovering Arrival Time Calendar
     arrival_calendar = discover_arrival_calendar(initial_events, minutes_x_granule, min_confidence, min_support)
+    json_arrival_calendar = arrival_calendar.to_json()
 
     # # (3) Discovering Arrival Time Distribution
-    arrival_distribution = discover_arrival_time_distribution(initial_events, arrival_calendar)
+    arrival_time_dist = discover_arrival_time_distribution(initial_events, arrival_calendar)
 
     # # (4) Discovering Task Duration Distributions per resource
-    discover_resource_task_duration_distribution(task_resource_events, resource_calendars, task_resources,
-                                                 joint_resource_events)
+    task_resource_dist = discover_resource_task_duration_distribution(task_resource_events, res_calendars,
+                                                                      task_resources, joint_resource_events)
 
     # # (5) Discovering Gateways Branching Probabilities
     gateways_branching = bpmn_graph.compute_branching_probability(flow_arcs_frequency)
-    
+
+    to_save = {
+        "resource_profiles": pools_json,
+        "arrival_time_distribution": arrival_time_dist,
+        "arrival_time_calendar": json_arrival_calendar,
+        "gateway_branching_probabilities": gateways_branching,
+        "task_resource_distribution": task_resource_dist,
+        "resource_calendars": res_json_calendar,
+    }
+    with open(out_file_path, 'w') as file_writter:
+        json.dump(to_save, file_writter)
 
 
 def discover_resource_calendars(calendar_factory, task_resource_events, resource_freq_ratio, min_confidence,
@@ -134,6 +147,7 @@ def discover_resource_calendars(calendar_factory, task_resource_events, resource
 
     joint_event_candidates = dict()
     joint_task_resources = dict()
+    pools_json = dict()
 
     for task_name in task_resource_events:
         unfit_resource_events = list()
@@ -160,14 +174,31 @@ def discover_resource_calendars(calendar_factory, task_resource_events, resource
     task_resources = dict()
     joint_resource_events = dict()
     for task_name in joint_task_resources:
+        pools_json[task_name] = {
+            "name": task_name,
+            "resource_list": list()
+        }
+        resource_list = list()
         task_resources[task_name] = list()
         for resource_name in joint_task_resources[task_name]:
             if calendar_candidates[resource_name].total_weekly_work > 0:
+                resource_list.append(_create_resource_profile_entry(resource_name, resource_name))
                 resource_calendars[resource_name] = calendar_candidates[resource_name]
                 task_resources[task_name].append(resource_name)
                 if resource_name in joint_event_candidates:
                     joint_resource_events[resource_name] = joint_event_candidates[resource_name]
-    return resource_calendars, task_resources, joint_resource_events
+        pools_json[task_name]["resource_list"] = resource_list
+
+    return resource_calendars, task_resources, joint_resource_events, pools_json
+
+
+def _create_resource_profile_entry(r_id, r_name, amount=1, cost_per_hour=1):
+    return {
+        "id": r_id,
+        "name": r_name,
+        "cost_per_hour": cost_per_hour,
+        "amount": amount
+    }
 
 
 def build_default_calendar(r_name):
@@ -258,6 +289,7 @@ def discover_resource_task_duration_distribution(task_resource_events, res_calen
             print("Resource: %s, Total Events: %d, Aggregated Distribution: %s"
                   % (r_id, len(full_task_durations), str(task_resource_distribution[t_id][r_id])))
         print('---------------------------------------------------')
+    return task_resource_distribution
 
 
 def print_initial_resource_calendar_info(resource_calendars, resource_freq, max_resource_freq):

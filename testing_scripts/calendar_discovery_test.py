@@ -38,11 +38,12 @@ output_dir_path = './../output_files/discovery/'
 def main():
     for i in range(0, 8):
         log_name = experiment_logs[i]
+        out_file_path = "%s%s.json" % (output_dir_path, log_name)
 
         # Extracting the simulation parameters from event-log (it saves them results to JSON files)
         xes_path = xes_simodbpmn_file_paths[log_name][0]
         bpmn_path = xes_simodbpmn_file_paths[log_name][1]
-        preprocess_xes_log(xes_path, bpmn_path, 15, 0.5, 0.5)
+        preprocess_xes_log(xes_path, bpmn_path, out_file_path, 15, 0.5, 0.5)
 
         # bpmn_graph = parse_simulation_model(bpmn_path)
         # parse_xes_log(xes_path, bpmn_graph, output_dir_path)
