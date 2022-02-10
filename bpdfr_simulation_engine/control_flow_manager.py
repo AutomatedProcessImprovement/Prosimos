@@ -40,6 +40,7 @@ class ProcessState:
     def __init__(self, bpmn_graph):
         self.arcs_bitset = bpmn_graph.arcs_bitset
         self.tokens = dict()
+        self.flow_date = dict()
         self.state_mask = 0
         for flow_arc in bpmn_graph.flow_arcs:
             self.tokens[flow_arc] = 0
@@ -82,6 +83,7 @@ class BPMNGraph:
         self.task_resource_probability = None
         self.closest_distance = None
         self.decision_flows_sortest_path = None
+        self._c_trace = None
 
     def set_element_probabilities(self, element_probability, task_resource_probability):
         self.element_probability = element_probability
@@ -241,20 +243,29 @@ class BPMNGraph:
             random.shuffle(enabled_tasks)
         return enabled_tasks
 
-    def reply_trace(self, task_sequence, f_arcs_frequency, post_p=True):
+    def reply_trace(self, task_sequence, f_arcs_frequency, post_p=True, trace=None):
+        self._c_trace = trace
+        task_enabling = list()
         p_state = ProcessState(self)
         fired_tasks = list()
         fired_or_splits = set()
         for flow_id in self.element_info[self.starting_event].outgoing_flows:
+            p_state.flow_date[flow_id] = self._c_trace[0].started_at if self._c_trace is not None else None
             p_state.add_token(flow_id)
         pending_tasks = dict()
         for current_index in range(len(task_sequence)):
+            el_id = self.from_name.get(task_sequence[current_index])
             fired_tasks.append(False)
-            # NOTE: changing self.try_firing to self.try_firing_alternative to avoid no such element
-            # in self.from_name error
+
+            in_flow = self.element_info[el_id].incoming_flows[0]
+            task_enabling.append(p_state.flow_date[in_flow] if in_flow in p_state.flow_date else None)
+            if self._c_trace:
+                self.update_flow_dates(self.element_info[el_id], p_state,
+                                       self._c_trace[current_index].completed_at if self._c_trace is not None else None)
+
             self.try_firing(current_index, current_index, task_sequence, fired_tasks, pending_tasks,
                             p_state, f_arcs_frequency, fired_or_splits)
-            el_id = self.from_name.get(task_sequence[current_index])
+
             if el_id is None:  # NOTE: skipping if no such element in self.from_name
                 continue
             p_state.add_token(self.element_info[el_id].outgoing_flows[0])
@@ -279,10 +290,12 @@ class BPMNGraph:
 
         self.check_unfired_or_splits(fired_or_splits, f_arcs_frequency, p_state)
         if post_p:
-            self.postprocess_unfired_tasks(task_sequence, fired_tasks, f_arcs_frequency)
-        return is_correct, fired_tasks, p_state.pending_tokens()
+            self.postprocess_unfired_tasks(task_sequence, fired_tasks, f_arcs_frequency, task_enabling)
+        self._c_trace = None
+        return is_correct, fired_tasks, p_state.pending_tokens(), task_enabling
 
-    def postprocess_unfired_tasks(self, task_sequence: list, fired_tasks: list, f_arcs_frequency: dict):
+    def postprocess_unfired_tasks(self, task_sequence: list, fired_tasks: list, f_arcs_frequency: dict,
+                                  task_enablement: list):
         if self.closest_distance is None:
             self._sort_by_closest_predecesors()
         task_sequence = [task_name for task_name in task_sequence if task_name in self.from_name]
@@ -300,6 +313,8 @@ class BPMNGraph:
                             break
                     j -= 1
                 if fix_from[0] is not None:
+                    if task_enablement[i] is None:
+                        task_enablement[i] = self._c_trace[j].completed_at if j >= 0 else self._c_trace[0].completed_at
                     for flow_id in self.decision_flows_sortest_path[e_info.id][fix_from[0]]:
                         if flow_id not in f_arcs_frequency:
                             f_arcs_frequency[flow_id] = 0
@@ -466,6 +481,19 @@ class BPMNGraph:
             for in_flow in e_info.incoming_flows:
                 p_state.remove_token(in_flow)
             self.try_firing_or_join(enabled_pred, p_state, or_firing, path_decisions, f_arcs_frequency)
+
+    def update_flow_dates(self, e_info: ElementInfo, p_state: ProcessState, last_date):
+        visited_elements = set()
+        suc_queue = deque([e_info])
+        visited_elements.add(e_info.id)
+        while suc_queue:
+            e_info = suc_queue.popleft()
+            for out_flow in e_info.outgoing_flows:
+                next_info = self._get_successor(out_flow)
+                p_state.flow_date[out_flow] = last_date
+                if next_info.is_gateway() and next_info.id not in visited_elements:
+                    suc_queue.append(next_info)
+                    visited_elements.add(next_info.id)
 
     def try_firing_or_join(self, enabled_pred, p_state, or_firing, path_decisions, f_arcs_frequency):
         fired = set()

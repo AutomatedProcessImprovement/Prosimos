@@ -439,64 +439,295 @@ class CalendarTree:
 
 
 class CalendarKPIInfoFactory:
-    def __init__(self, r_weekdays_set):
-        self.total_weekdays = dict()
-        self.r_weekdays_set = r_weekdays_set
+    def __init__(self, minutes_x_granule=15):
+        self.minutes_x_granule = minutes_x_granule
+        self.total_granules = 1440 % self.minutes_x_granule
+
         self.g_discarded = dict()
-        self.count_accepted_datetimes = 0
-        self.count_discarded_datetimes = 0
 
-        self.in_calendar_week_days = set()
-        self.count_accepted_week_days = dict()
+        # Fields to calculate Confidence and Support
+        self.res_active_weekdays = dict()
+        self.res_active_granules_weekdays = dict()
+        self.res_enabled_task_granules = None
+        self.res_granules_frequency = dict()
+        self.active_res_task_weekdays = dict()
+        self.active_res_task_weekdays_granules = dict()
+        self.res_task_weekdays_granules_freq = dict()
+        self.shared_task_granules = dict()
+        self.is_joint_resource = dict()
+        self.joint_to_task = dict()
+        self.observed_weekdays = dict()
 
-    def check_accepted_granule(self, week_day, g_frequency):
-        if week_day not in self.in_calendar_week_days:
-            self.in_calendar_week_days.add(week_day)
-            self.count_accepted_week_days[week_day] = 0
-        self.count_accepted_week_days[week_day] += g_frequency
-        self.count_accepted_datetimes += g_frequency
+        # Fields to compute resource frequencies (needed for participation ratio)
+        self.resource_freq = dict()
+        self.resource_task_freq = dict()
+        self.max_resource_freq = 0
+        self.max_resource_task_freq = dict()
 
-    def check_discarded_granule(self, week_day, g_index, g_frequency):
-        if week_day not in self.g_discarded:
-            self.g_discarded[week_day] = list()
-        self.g_discarded[week_day].append(g_index)
-        self.count_discarded_datetimes += g_frequency
+        self.task_events_count = dict()
+        self.task_events_in_calendar = dict()
+        self.total_events_in_log = 0
+        self.total_events_in_calendar = 0
 
-    def update_granule(self, week_day, g_index, g_frequency):
-        self.count_accepted_week_days[week_day] += g_frequency
-        self.count_accepted_datetimes += g_frequency
-        self.g_discarded[week_day].remove(g_index)
-        self.count_discarded_datetimes -= g_frequency
+        self.res_count_events_in_calendar = dict()
+        self.res_count_events_in_log = dict()
+        self.active_granules_in_calendar = dict()
+        self.active_weekdays_in_calendar = dict()
+        self.confidence_numerator_sum = dict()
+        self.confidence_denominator_sum = dict()
 
-    def compute_total_weekdays(self, from_datetime, to_datetime):
-        total_days = (to_datetime.date() - from_datetime.date()).days + 2
-        same_days = total_days // 7
-        rem_days = total_days % 7
-        to_weekday = to_datetime.weekday()
-        self.total_weekdays = {key: same_days for key in range(0, 7)}
-        while rem_days > 0:
-            self.total_weekdays[to_weekday] += 1
-            to_weekday = to_weekday - 1 if to_weekday > 0 else 6
-            rem_days -= 1
+        self.task_enabled_in_granule = dict()
 
-    def total_datetimes(self):
-        return self.count_accepted_datetimes + self.count_discarded_datetimes
+    def register_resource_timestamp(self, r_name, t_name, date_time, is_joint=False):
+        str_date, g_index, weekday = self.split_datetime(date_time)
 
-    def compute_confidence_support(self):
-        observed_days, total_days = 0, 0
-        for week_day in self.in_calendar_week_days:
-            observed_days += len(self.r_weekdays_set[week_day])
-            total_days += self.total_weekdays[week_day]
-        confidence = observed_days / total_days if total_days > 0 else 0
-        support = self.count_accepted_datetimes / self.total_datetimes()
-        return confidence, support
+        if r_name not in self.resource_freq:
+            self.resource_freq[r_name] = 0
+            self.resource_task_freq[r_name] = dict()
+            self.res_active_weekdays[r_name] = dict()
+            self.res_active_granules_weekdays[r_name] = dict()
+            self.res_granules_frequency[r_name] = dict()
+            self.active_res_task_weekdays[r_name] = dict()
+            self.active_res_task_weekdays_granules[r_name] = dict()
+            self.shared_task_granules[r_name] = dict()
+            self.res_task_weekdays_granules_freq[r_name] = dict()
+
+            if is_joint:
+                self.joint_to_task[r_name] = t_name
+
+            self.g_discarded[r_name] = list()
+
+            self.res_count_events_in_calendar[r_name] = 0
+            self.res_count_events_in_log[r_name] = 0
+            self.active_granules_in_calendar[r_name] = set()
+            self.active_weekdays_in_calendar[r_name] = set()
+            self.confidence_numerator_sum[r_name] = 0
+            self.confidence_denominator_sum[r_name] = 0
+            self.is_joint_resource[r_name] = is_joint
+
+        if t_name not in self.task_events_count:
+            self.task_events_count[t_name] = 0
+            self.task_events_in_calendar[t_name] = 0
+            self.max_resource_task_freq[t_name] = 0
+        if t_name not in self.resource_task_freq[r_name]:
+            self.resource_task_freq[r_name][t_name] = 0
+            self.active_res_task_weekdays[r_name][t_name] = dict()
+            self.active_res_task_weekdays_granules[r_name][t_name] = dict()
+            self.res_task_weekdays_granules_freq[r_name][t_name] = dict()
+        if weekday not in self.active_res_task_weekdays[r_name][t_name]:
+            self.active_res_task_weekdays[r_name][t_name][weekday] = set()
+            self.active_res_task_weekdays_granules[r_name][t_name][weekday] = dict()
+        if g_index not in self.active_res_task_weekdays_granules[r_name][t_name][weekday]:
+            self.active_res_task_weekdays_granules[r_name][t_name][weekday][g_index] = set()
+        if g_index not in self.res_task_weekdays_granules_freq[r_name][t_name]:
+            self.res_task_weekdays_granules_freq[r_name][t_name][g_index] = dict()
+        if weekday not in self.res_task_weekdays_granules_freq[r_name][t_name][g_index]:
+            self.res_task_weekdays_granules_freq[r_name][t_name][g_index][weekday] = 0
+        if weekday not in self.res_active_weekdays[r_name]:
+            self.res_active_weekdays[r_name][weekday] = set()
+        if g_index not in self.res_active_granules_weekdays[r_name]:
+            self.res_active_granules_weekdays[r_name][g_index] = dict()
+            self.res_granules_frequency[r_name][g_index] = dict()
+            self.shared_task_granules[r_name][g_index] = dict()
+        if weekday not in self.res_active_granules_weekdays[r_name][g_index]:
+            self.res_active_granules_weekdays[r_name][g_index][weekday] = set()
+            self.res_granules_frequency[r_name][g_index][weekday] = 0
+            self.shared_task_granules[r_name][g_index][weekday] = set()
+        if weekday not in self.observed_weekdays:
+            self.observed_weekdays[weekday] = set()
+
+        # Updating the weekdays and granules the resource was observed working
+        self.res_active_weekdays[r_name][weekday].add(str_date)
+        self.res_active_granules_weekdays[r_name][g_index][weekday].add(str_date)
+        self.res_granules_frequency[r_name][g_index][weekday] += 1
+
+        self.active_res_task_weekdays_granules[r_name][t_name][weekday][g_index].add(str_date)
+        self.active_res_task_weekdays[r_name][t_name][weekday].add(str_date)
+
+        self.resource_freq[r_name] += 1
+        self.resource_task_freq[r_name][t_name] += 1
+        self.res_count_events_in_log[r_name] += 1
+        self.shared_task_granules[r_name][g_index][weekday].add(t_name)
+        self.res_task_weekdays_granules_freq[r_name][t_name][g_index][weekday] += 1
+
+        if not is_joint:
+            self.max_resource_task_freq[t_name] = max(self.max_resource_task_freq[t_name],
+                                                      self.resource_task_freq[r_name][t_name])
+            self.observed_weekdays[weekday].add(str_date)
+            self.max_resource_freq = max(self.max_resource_freq, self.resource_freq[r_name])
+            self.task_events_count[t_name] += 1
+            self.total_events_in_log += 1
+
+    def register_task_enablement(self, trace_events):
+        self.res_enabled_task_granules = None
+        for e_info in trace_events:
+            t_name = e_info.task_name
+            if t_name not in self.task_enabled_in_granule:
+                self.task_enabled_in_granule[t_name] = dict()
+            current_date = e_info.enabled_at
+            str_date, g_index, weekday = self.split_datetime(current_date)
+            while current_date < e_info.completed_at:
+                if g_index not in self.task_enabled_in_granule[t_name]:
+                    self.task_enabled_in_granule[t_name][g_index] = dict()
+                if weekday not in self.task_enabled_in_granule[t_name][g_index]:
+                    self.task_enabled_in_granule[t_name][g_index][weekday] = set()
+                self.task_enabled_in_granule[t_name][g_index][weekday].add(str_date)
+                current_date += timedelta(minutes=self.minutes_x_granule)
+                if g_index >= self.total_granules - 1:
+                    str_date, g_index, weekday = self.split_datetime(current_date)
+                else:
+                    g_index += 1
+
+    def compute_resource_task_granule_enablement(self):
+        self.res_enabled_task_granules = dict()
+        for r_name in self.resource_task_freq:
+            self.res_enabled_task_granules[r_name] = dict()
+            joint_granules = dict()
+            for t_name in self.resource_task_freq[r_name]:
+                for g_index in self.task_enabled_in_granule[t_name]:
+                    if g_index not in self.res_enabled_task_granules[r_name]:
+                        joint_granules[g_index] = dict()
+                        self.res_enabled_task_granules[r_name][g_index] = dict()
+                    for weekday in self.task_enabled_in_granule[t_name][g_index]:
+                        if weekday not in self.res_enabled_task_granules[r_name][g_index]:
+                            self.res_enabled_task_granules[r_name][g_index][weekday] = set()
+                            joint_granules[g_index][weekday] = set()
+                        joint_granules[g_index][weekday] |= self.task_enabled_in_granule[t_name][g_index][weekday]
+            for g_index in joint_granules:
+                for weekday in joint_granules[g_index]:
+                    self.res_enabled_task_granules[r_name][g_index][weekday] = len(joint_granules[g_index][weekday])
+
+    def enablement_confidence(self, r_name, weekday, g_index):
+        if self.res_enabled_task_granules is None:
+            self.compute_resource_task_granule_enablement()
+        return len(self.res_active_granules_weekdays[r_name][g_index][weekday]) / \
+               self.res_enabled_task_granules[r_name][g_index][weekday]
+
+    def task_cond_confidence(self, r_name, weekday, g_index):
+        best_task = None
+        max_conf_val = 0
+        task_confidences = dict()
+        for t_name in self.shared_task_granules[r_name][g_index][weekday]:
+            task_confidences[t_name] = len(self.active_res_task_weekdays_granules[r_name][t_name][weekday][g_index]) \
+                                       / len(self.active_res_task_weekdays[r_name][t_name][weekday])
+            if max_conf_val < task_confidences[t_name]:
+                best_task = t_name
+                max_conf_val = task_confidences[t_name]
+        return best_task, task_confidences
+
+    def resource_participation_ratio(self, r_name):
+        total_res = 0
+        total_max = 0
+        for t_name in self.resource_task_freq[r_name]:
+            total_res += self.resource_task_freq[r_name][t_name]
+            total_max += self.max_resource_task_freq[t_name]
+        return total_res / total_max if total_max > 0 else 0
+
+    def resource_task_participation_ratio(self, r_name, t_name):
+        if self.max_resource_task_freq[t_name] > 0:
+            return self.resource_task_freq[r_name][t_name] / self.max_resource_task_freq[t_name]
+        return 0
+
+    # From all the WeekDays the resource was active, in which ration they were in the given granule
+    def confidence(self, r_name, weekday, g_index):
+        return len(self.res_active_granules_weekdays[r_name][g_index][weekday]) / len(
+            self.res_active_weekdays[r_name][weekday])
+
+    def support(self, r_name, weekday, g_index):
+        return len(self.res_active_granules_weekdays[r_name][g_index][weekday]) / len(self.observed_weekdays[weekday])
+
+    def weekday_support(self, r_name, weekday):
+        return len(self.res_active_weekdays[r_name][weekday]) / len(self.observed_weekdays[weekday])
+
+    def task_coverage(self, t_name):
+        return self.task_events_in_calendar[t_name] / self.task_events_count[t_name]
+
+    def can_improve_support(self, r_name, weekday, g_index, min_confidence):
+        best_task, confidence_values = self.task_cond_confidence(r_name, weekday, g_index)
+
+        # new_granules = 0
+        # new_weekdays = 0
+
+        # for str_date in self.active_res_task_weekdays_granules[r_name][best_task][weekday][g_index]:
+        #     if str_date not in self.active_granules_in_calendar[r_name]:
+        #         new_granules += 1
+        # for str_date in self.active_res_task_weekdays[r_name][best_task][weekday]:
+        #     if str_date not in self.active_weekdays_in_calendar[r_name]:
+        #         new_weekdays += 1
+
+        # if min_confidence <= (len(self.active_granules_in_calendar[r_name]) + new_granules) \
+        #         / (len(self.active_weekdays_in_calendar[r_name]) + new_weekdays):
+
+        new_granules = len(self.active_res_task_weekdays_granules[r_name][best_task][weekday][g_index])
+        new_weekdays = len(self.active_res_task_weekdays[r_name][best_task][weekday])
+        if min_confidence <= (self.confidence_numerator_sum[r_name] + new_granules) \
+                / (self.confidence_denominator_sum[r_name] + new_weekdays):
+            return best_task
+
+    def reset_calendar_info(self):
+        self.total_events_in_calendar = 0
+        for t_name in self.task_events_count:
+            self.task_events_in_calendar[t_name] = 0
+        for r_name in self.shared_task_granules:
+            self.res_count_events_in_calendar[r_name] = 0
+            self.active_granules_in_calendar[r_name] = set()
+            self.active_weekdays_in_calendar[r_name] = set()
+            self.g_discarded[r_name] = list()
+            self.confidence_numerator_sum[r_name] = 0
+            self.confidence_denominator_sum[r_name] = 0
+
+    def check_accepted_granule(self, r_name, weekday, g_index, best_task):
+        self.res_count_events_in_calendar[r_name] += self.res_granules_frequency[r_name][g_index][weekday]
+        self.total_events_in_calendar += self.res_granules_frequency[r_name][g_index][weekday]
+        self.confidence_numerator_sum[r_name] += len(
+            self.active_res_task_weekdays_granules[r_name][best_task][weekday][g_index])
+        self.confidence_denominator_sum[r_name] += len(self.active_res_task_weekdays[r_name][best_task][weekday])
+        self.active_granules_in_calendar[r_name] |= \
+            self.active_res_task_weekdays_granules[r_name][best_task][weekday][g_index]
+        self.active_weekdays_in_calendar[r_name] |= self.active_res_task_weekdays[r_name][best_task][weekday]
+        for t_name in self.shared_task_granules[r_name][g_index][weekday]:
+            self.task_events_in_calendar[t_name] += self.res_task_weekdays_granules_freq[r_name][t_name][g_index][
+                weekday]
+
+    def check_discarded_granule(self, r_name, weekday, g_index):
+        if r_name not in self.g_discarded:
+            self.g_discarded[r_name] = list()
+        self.g_discarded[r_name].append(GranuleInfo(weekday, g_index))
+
+    def update_discarded_granules_list(self, r_name, accepted_indexes):
+        if len(accepted_indexes) == 0:
+            return
+        new_discarded = list()
+        c_j = 0
+        for i in range(0, len(self.g_discarded[r_name])):
+            if c_j < len(accepted_indexes) and i == accepted_indexes[c_j]:
+                c_j += 1
+            else:
+                new_discarded.append(self.g_discarded[r_name][i])
+        self.g_discarded[r_name] = new_discarded
+
+    def split_datetime(self, date_time):
+        str_date = str(date_time.date())
+        in_minutes = date_time.hour * 60 + date_time.minute
+
+        g_index = in_minutes // self.minutes_x_granule
+        week_day = date_time.weekday()
+        return str_date, g_index, week_day
+
+    def compute_confidence_support(self, r_name):
+        if r_name not in self.active_weekdays_in_calendar \
+                or len(self.active_weekdays_in_calendar[r_name]) == 0 or self.res_count_events_in_log[r_name] == 0:
+            return 0, 0
+        return self.confidence_numerator_sum[r_name] / self.confidence_denominator_sum[r_name], \
+               self.res_count_events_in_calendar[r_name] / self.res_count_events_in_log[r_name]
+        # return len(self.active_granules_in_calendar[r_name]) / len(self.active_weekdays_in_calendar[r_name]), \
+        #        self.res_count_events_in_calendar[r_name] / self.res_count_events_in_log[r_name]
 
 
 class GranuleInfo:
-    def __init__(self, week_day, g_index, frequency):
+    def __init__(self, week_day, g_index):
         self.week_day = week_day
         self.g_index = g_index
-        self.frequency = frequency
 
 
 class CalendarFactory:
@@ -504,20 +735,10 @@ class CalendarFactory:
         if 1440 % minutes_x_granule != 0:
             raise ValueError(
                 "The number of minutes per granule must be a divisor of the total minutes in one day (1440).")
+
+        self.kpi_calendar = CalendarKPIInfoFactory(minutes_x_granule)
+
         self.minutes_x_granule = minutes_x_granule
-        self.resource_calendars = dict()
-        self.resource_calendar_confidence = dict()
-        self.resource_calendar_support = dict()
-        self.log_granules = self._init_calendar_tree()
-
-        self.resource_calendar_tree = dict()
-        self.r_weekdays_set = dict()
-        self.r_granules_set = dict()
-        self.r_granule_frequency = dict()
-        self.r_week_days_freequency = dict()
-
-        self.total_weekdays = dict()
-        self.total_datetimes = 0
 
         self.from_datetime = datetime.datetime(9999, 12, 31, tzinfo=pytz.UTC)
         self.to_datetime = datetime.datetime(1, 1, 1, tzinfo=pytz.UTC)
@@ -526,93 +747,87 @@ class CalendarFactory:
         granules_count = 1440 // self.minutes_x_granule
         return [[0] * granules_count for _i in range(0, 7)]
 
-    def check_date_time(self, r_name, date_time):
-        str_date = str(date_time.date())
-        in_minutes = date_time.hour * 60 + date_time.minute
+    def register_task_enablement(self, trace_events):
+        self.kpi_calendar.register_task_enablement(trace_events)
 
-        # g_index = 1 if (in_minutes != 0 and in_minutes % self.minutes_x_granule == 0) else 0
-        g_index = in_minutes // self.minutes_x_granule
-        week_day = date_time.weekday()
-        if r_name not in self.resource_calendar_tree:
-            self.r_weekdays_set[r_name] = dict()
-            self.r_granules_set[r_name] = dict()
-            self.r_granule_frequency[r_name] = dict()
-            self.r_week_days_freequency[r_name] = dict()
-            self.resource_calendar_tree[r_name] = CalendarTree()
-        if g_index not in self.r_granules_set[r_name]:
-            self.r_granules_set[r_name][g_index] = dict()
-            self.r_granule_frequency[r_name][g_index] = dict()
-        if week_day not in self.r_weekdays_set[r_name]:
-            self.r_weekdays_set[r_name][week_day] = set()
-            self.r_week_days_freequency[r_name][week_day] = 0
-        if week_day not in self.r_granules_set[r_name][g_index]:
-            self.r_granules_set[r_name][g_index][week_day] = set()
-            self.r_granule_frequency[r_name][g_index][week_day] = 0
-
-        # self.resource_calendar_tree[r_name].insert_date(
-        #     [date_time.year, date_time.month, date_time.weekday(), g_index])
-        self.r_weekdays_set[r_name][week_day].add(str_date)
-        self.r_week_days_freequency[r_name][week_day] += 1
-        self.r_granules_set[r_name][g_index][week_day].add(str_date)
-        self.r_granule_frequency[r_name][g_index][week_day] += 1
-        self.total_datetimes += 1
+    def check_date_time(self, r_name, t_name, date_time, is_joint=False):
+        self.kpi_calendar.register_resource_timestamp(r_name, t_name, date_time, is_joint)
 
         self.from_datetime = min(self.from_datetime, date_time)
         self.to_datetime = max(self.to_datetime, date_time)
 
-    def build_weekly_calendars(self, min_confidence, min_support):
+    def build_weekly_calendars(self, min_confidence, desired_support, min_participation):
         r_calendars = dict()
-        kpi_calendars = dict()
-
-        for r_name in self.r_granules_set:
-            kpi_calendars[r_name] = CalendarKPIInfoFactory(self.r_weekdays_set[r_name])
-            kpi_calendars[r_name].compute_total_weekdays(self.from_datetime, self.to_datetime)
-            r_calendars[r_name] = self.build_resource_calendar(r_name, kpi_calendars[r_name], min_confidence,
-                                                               min_support)
-            confidence, support = kpi_calendars[r_name].compute_confidence_support()
-            print("%s Calendar -> (Confidence: %.2f, Support: %.2f)" % (r_name, confidence, support))
-
+        self.kpi_calendar.reset_calendar_info()
+        for r_name in self.kpi_calendar.shared_task_granules:
+            if self.kpi_calendar.resource_participation_ratio(r_name) >= min_participation:
+                r_calendars[r_name] = self.build_resource_calendar(r_name, min_confidence, desired_support)
+            else:
+                r_calendars[r_name] = None
         return r_calendars
 
-    def build_resource_calendar(self, r_name, kpi_calendar, min_confidence, min_support):
-        if r_name not in self.r_granules_set:
-            return None
-
+    def build_resource_calendar(self, r_name, min_confidence, desired_support):
         r_calendar = RCalendar("%s_Schedule" % r_name)
-        # calendar_tree = self.resource_calendar_tree[r_name].value_to_children
+        kpi_c = self.kpi_calendar
+        to_print = dict()
 
-        for g_index in self.r_granules_set[r_name]:
-            for week_day in self.r_granules_set[r_name][g_index]:
-                g_conf = len(self.r_weekdays_set[r_name][week_day]) / kpi_calendar.total_weekdays[week_day]
-                if min_confidence <= g_conf:
-                    kpi_calendar.check_accepted_granule(week_day, self.r_granule_frequency[r_name][g_index][week_day])
-                    self._add_calendar_item(week_day, g_index, r_calendar)
+        count = 0
+        for g_index in kpi_c.shared_task_granules[r_name]:
+            for weekday in kpi_c.shared_task_granules[r_name][g_index]:
+                best_task, conf_values = kpi_c.task_cond_confidence(r_name, weekday, g_index)
+                if min_confidence <= conf_values[best_task]:
+                    kpi_c.check_accepted_granule(r_name, weekday, g_index, best_task)
+                    self._add_calendar_item(weekday, g_index, r_calendar)
                 else:
-                    kpi_calendar.check_discarded_granule(week_day, g_index,
-                                                         self.r_granule_frequency[r_name][g_index][week_day])
+                    count += 1
+                    if weekday not in to_print:
+                        to_print[weekday] = list()
+                    to_print[weekday].append(g_index)
+                    kpi_c.g_discarded[r_name].append(GranuleInfo(weekday, g_index))
 
-        confidence, support = kpi_calendar.compute_confidence_support()
-        if confidence > 0 and support < min_support:
-            # print("Before: %s Calendar -> Confidence: %.2f, Support: %.2f" % (r_name, confidence, support))
-            needed = math.ceil(min_support * kpi_calendar.total_datetimes() - kpi_calendar.count_accepted_datetimes)
-            to_add = list()
-            count = 0
-            for week_day in kpi_calendar.in_calendar_week_days:
-                if week_day in kpi_calendar.g_discarded:
-                    for g_index in kpi_calendar.g_discarded[week_day]:
-                        count += self.r_granule_frequency[r_name][g_index][week_day]
-                        to_add.append(
-                            GranuleInfo(week_day, g_index, self.r_granule_frequency[r_name][g_index][week_day]))
-            if count >= needed:
-                to_add.sort(key=lambda x: x.frequency, reverse=True)
-                for g_info in to_add:
+        # for i in range(0, len(kpi_c.g_discarded[r_name]) - 1):
+        #     for j in range(i + 1, len(kpi_c.g_discarded[r_name])):
+        #         if kpi_c.g_discarded[r_name][i].g_index == kpi_c.g_discarded[r_name][j].g_index and \
+        #                 kpi_c.g_discarded[r_name][i].week_day == kpi_c.g_discarded[r_name][j].week_day:
+        #             print('hola')
+        # for week_day in to_print:
+        #     print("WeekDay: %d" % week_day)
+        #     to_print[week_day].sort()
+        #     for g_index in to_print[week_day]:
+        #         print("Discarded G-Index: %d (%d / %d)"
+        #               % (g_index, len(kpi_c.res_active_granules_weekdays[r_name][g_index][week_day]),
+        #                  len(kpi_c.res_active_weekdays[r_name][week_day])))
+        #     print('================================')
+
+        confidence, support = kpi_c.compute_confidence_support(r_name)
+
+        if confidence > 0 and support < desired_support:
+            kpi_c.g_discarded[r_name].sort(key=lambda x: kpi_c.res_granules_frequency[r_name][x.g_index][x.week_day],
+                                           reverse=True)
+            accepted_indexes = list()
+            i = 0
+
+            for g_info in kpi_c.g_discarded[r_name]:
+                best_task = kpi_c.can_improve_support(r_name, g_info.week_day, g_info.g_index, min_confidence)
+                if best_task is not None:
                     self._add_calendar_item(g_info.week_day, g_info.g_index, r_calendar)
-                    kpi_calendar.update_granule(g_info.week_day, g_info.g_index, g_info.frequency)
-                    needed -= g_info.frequency
-                    if needed <= 0:
-                        break
-        confidence, support = kpi_calendar.compute_confidence_support()
-        # print("After: %s Calendar -> Confidence: %.2f, Support: %.2f" % (r_name, confidence, support))
+                    kpi_c.check_accepted_granule(r_name, g_info.week_day, g_info.g_index, best_task)
+                    accepted_indexes.append(i)
+                i += 1
+            kpi_c.update_discarded_granules_list(r_name, accepted_indexes)
+        return r_calendar
+
+    def task_coverage(self, t_name):
+        return self.kpi_calendar.task_coverage(t_name)
+
+    def build_unrestricted_resource_calendar(self, r_name, t_name):
+        r_calendar = RCalendar("%s_Schedule" % r_name)
+
+        r_kpi = self.kpi_calendar
+        for g_index in r_kpi.res_active_granules_weekdays[r_name]:
+            for week_day in r_kpi.res_active_granules_weekdays[r_name][g_index]:
+                r_kpi.check_accepted_granule(r_name, week_day, g_index, t_name)
+                self._add_calendar_item(week_day, g_index, r_calendar)
         return r_calendar
 
     def _add_calendar_item(self, week_day, g_index, r_calendar):
@@ -668,3 +883,16 @@ def _worked_days_count(from_date, to_date):
     for i in range(from_date.weekday(), from_date.weekday() + total_days):
         total_days_count[i % 7] += 1
     return total_days_count
+
+
+def compute_total_weekdays(from_datetime, to_datetime):
+    total_days = (to_datetime.date() - from_datetime.date()).days + 2
+    same_days = total_days // 7
+    rem_days = total_days % 7
+    to_weekday = to_datetime.weekday()
+    total_weekdays = {key: same_days for key in range(0, 7)}
+    while rem_days > 0:
+        total_weekdays[to_weekday] += 1
+        to_weekday = to_weekday - 1 if to_weekday > 0 else 6
+        rem_days -= 1
+    return total_weekdays

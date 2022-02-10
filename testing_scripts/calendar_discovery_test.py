@@ -2,7 +2,7 @@
 import os
 from pathlib import Path
 
-from bpdfr_discovery.support_modules.log_parser import parse_xes_log, preprocess_xes_log
+from bpdfr_discovery.support_modules.log_parser import preprocess_xes_log
 from bpdfr_simulation_engine.simulation_properties_parser import parse_simulation_model
 
 experiment_logs = {0: 'production',
@@ -43,7 +43,8 @@ def main():
         # Extracting the simulation parameters from event-log (it saves them results to JSON files)
         xes_path = xes_simodbpmn_file_paths[log_name][0]
         bpmn_path = xes_simodbpmn_file_paths[log_name][1]
-        preprocess_xes_log(xes_path, bpmn_path, out_file_path, 15, 0.5, 0.5)
+
+        preprocess_xes_log(xes_path, bpmn_path, out_file_path, 15, 0.1, 0.7, 0.4)
 
         # bpmn_graph = parse_simulation_model(bpmn_path)
         # parse_xes_log(xes_path, bpmn_graph, output_dir_path)
