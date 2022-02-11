@@ -1,7 +1,5 @@
 import json
-import math
-import sys
-import xml.etree.ElementTree as ET
+
 from datetime import datetime
 import pytz
 from pm4py.objects.log.importer.xes import importer as xes_importer
