@@ -4,7 +4,6 @@ import os
 from pm4py.objects.log.importer.xes import importer as xes_importer
 
 from bpdfr_simulation_engine.resource_calendar import CalendarFactory
-from bpdfr_simulation_engine.execution_info import  Trace
 
 
 def main():

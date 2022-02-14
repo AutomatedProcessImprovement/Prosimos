@@ -7,6 +7,10 @@ class TaskEvent:
         self.p_case = p_case  # ID of the current trace, i.e., index of the trace in log_info list
         self.task_id = task_id  # Name of the task related to the current event
         self.resource_id = resource_id  # ID of the resource performing to the event
+        self.waiting_time = None
+        self.processing_time = None
+        self.normalized_waiting = None
+        self.normalized_processing = None
 
         if resource_available_at is not None:
             # Time moment in seconds from beginning, i.e., first event has time = 0
@@ -46,6 +50,14 @@ class TaskEvent:
             self.completed_at = None
             self.idle_time = None
 
+    def update_enabling_times(self, enabled_at):
+        if self.started_at is None or enabled_at > self.started_at:
+            raise Exception("Task ENABLED after STARTED")
+        self.enabled_at = enabled_at
+        self.waiting_time = (self.started_at - self.enabled_at).total_seconds()
+        self.processing_time = (self.completed_at - self.started_at).total_seconds()
+
+
 
 class LogEvent:
     def __int__(self, task_id, started_datetime, resource_id):
@@ -83,6 +95,14 @@ class Trace:
         self.event_list[event_index].idle_time = idle_time
         self.completed_at = max(self.completed_at, self.event_list[event_index].completed_at)
         return self.event_list[event_index]
+
+    def sort_by_completion_date(self, completed_at=False):
+        if completed_at:
+            self.event_list.sort(key=lambda e_info: e_info.completed_at)
+        else:
+            self.event_list.sort(key=lambda e_info: e_info.started_at)
+        self.started_at = self.event_list[0].started_at
+        self.completed_at = self.event_list[len(self.event_list) - 1].completed_at
 
 
 class EnabledEvent:

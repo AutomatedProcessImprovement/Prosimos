@@ -1,34 +1,65 @@
+import csv
 import json
 
 from datetime import datetime
 import pytz
 from pm4py.objects.log.importer.xes import importer as xes_importer
 
-from bpdfr_simulation_engine.execution_info import ProcessInfo, Trace
+from bpdfr_simulation_engine.execution_info import ProcessInfo, Trace, TaskEvent
 from bpdfr_simulation_engine.probability_distributions import best_fit_distribution
 
 import ntpath
 
 from bpdfr_simulation_engine.resource_calendar import RCalendar, update_calendar_from_log, update_weekly_calendar, \
-    CalendarFactory
+    CalendarFactory, parse_datetime
 from bpdfr_simulation_engine.simulation_properties_parser import parse_simulation_model
 
-date_format = "%Y-%m-%dT%H:%M:%S.%f%z"
+
+def event_list_from_xes_log(log_path):
+    log_traces = xes_importer.apply(log_path)
+    trace_list = list()
+    for trace in log_traces:
+        started_events = dict()
+        trace_info = Trace(trace.attributes['concept:name'])
+        for event in trace:
+            task_name = event['concept:name']
+            state = event['lifecycle:transition'].lower()
+            if state in ["start", "assign"]:
+                started_events[task_name] = trace_info.start_event(task_name, task_name,
+                                                                   event['time:timestamp'],
+                                                                   event['org:resource'])
+            elif state == "complete":
+                if task_name in started_events:
+                    c_event = trace_info.complete_event(started_events.pop(task_name), event['time:timestamp'])
+                    trace_list.append(c_event)
+    return trace_list
 
 
-# def parse_xes_log_1(log_path, bpmn_graph):
-#
-#     print(1)
-#     tree = ET.parse(log_path)
-#     root = tree.getroot()
-#     ns = {'xes': root.tag.split('}')[0].strip('{')}
-#     tags = dict(trace='xes:trace',
-#                 string='xes:string',
-#                 event='xes:event',
-#                 date='xes:date')
-#     traces = root.findall(tags['trace'], ns)
-#
-#     return _extract_log_info(bpmn_graph, traces, tags, ns)
+def event_list_from_csv(log_path):
+    try:
+        with open(log_path, mode='r') as csv_file:
+            csv_reader = csv.reader(csv_file, delimiter=',')
+            trace_list = list()
+            trace_map = dict()
+            e_index = 2
+            row_count = 0
+            for row in csv_reader:
+                if row_count > 0:
+                    event_info = TaskEvent(row[0], row[1], row[e_index + 3])
+                    if e_index == 2:
+                        event_info.enabled_at = parse_datetime(row[e_index], True)
+                    event_info.started_at = parse_datetime(row[e_index + 1], True)
+                    event_info.completed_at = parse_datetime(row[e_index + 2], True)
+                    if row[0] not in trace_map:
+                        trace_map[row[0]] = len(trace_list)
+                        trace_list.append(Trace(row[0]))
+                    trace_list[trace_map[row[0]]].event_list.append(event_info)
+                elif row[2] == 'EnableTimestamp':
+                    e_index = 1
+                row_count += 1
+            return trace_list
+    except IOError:
+        return list()
 
 
 def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_confidence, min_support,
