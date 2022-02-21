@@ -21,12 +21,23 @@ def best_fit_distribution(data, bins=200):
     y, x = np.histogram(data, bins=bins, density=True)
     x = (x + np.roll(x, -1))[:-1] / 2.0
 
-    # Distributions to check
     distributions = [
+        st.norm, st.expon, st.exponnorm, st.gamma, st.triang, st.uniform
+    ]
+
+    # Discrete distributions
+    disc_distributions = [
+        st.bernoulli, st.betabinom, st.binom, st.boltzmann, st.planck, st.poisson, st.geom, st.nbinom, st.hypergeom,
+        st.nchypergeom_fisher, st.nchypergeom_wallenius, st.nhypergeom, st.zipf, st.zipfian, st.logser, st.randint,
+        st.dlaplace, st.yulesimon, st.norm, st.expon, st.exponnorm, st.gamma, st.triang, st.lognorm, st.uniform
+    ]
+
+    # Distributions to check
+    all_distributions = [
         st.alpha, st.anglit, st.arcsine, st.beta, st.betaprime, st.bradford, st.burr, st.cauchy, st.chi, st.chi2,
         st.cosine, st.dgamma, st.dweibull, st.erlang, st.expon, st.exponnorm, st.exponweib, st.exponpow, st.f,
         st.fatiguelife, st.fisk, st.foldcauchy, st.foldnorm, st.genlogistic, st.genpareto,
-        st.gennorm, st.genextreme, st.gausshyper, st.gamma, st.gengamma, st.genhalflogistic, st.gilbrat, st.gompertz,
+        st.gennorm, st.gausshyper, st.gamma, st.gengamma, st.genhalflogistic, st.gilbrat, st.gompertz,
         st.gumbel_r, st.gumbel_l, st.halfcauchy, st.halflogistic, st.halfnorm, st.halfgennorm, st.hypsecant,
         st.invgamma, st.invgauss, st.invweibull, st.johnsonsb, st.johnsonsu, st.ksone, st.kstwobign, st.laplace,
         st.levy, st.levy_l, st.logistic, st.loggamma, st.loglaplace, st.lognorm, st.lomax, st.maxwell, st.mielke,
@@ -78,14 +89,17 @@ def best_fit_distribution(data, bins=200):
     return {"distribution_name": best_distribution.name, "distribution_params": best_params}
 
 
-def generate_number_from(distribution_name, params):
+def generate_number_from(distribution_name, params, max_value=sys.float_info.max):
     while True:
         duration = evaluate_distribution_function(distribution_name, params)
-        if duration >= 0:
+        if 0 <= duration < max_value:
+            # if duration > 100000:
+            #     print('Name: %s, Value: %.f' % (distribution_name, duration))
             return duration
 
 
 def evaluate_distribution_function(distribution_name, params):
+
     arg = params[:-2]
     loc = params[-2]
     scale = params[-1]
@@ -104,6 +118,16 @@ def evaluate_distribution_function(distribution_name, params):
         return dist.rvs(arg[0], arg[1], loc=loc, scale=scale, size=1)[0]
     elif num_param == 3:
         return dist.rvs(arg[0], arg[1], arg[2], loc=loc, scale=scale, size=1)[0]
+    elif num_param == 4:
+        return dist.rvs(arg[0], arg[1], arg[2], arg[3], loc=loc, scale=scale, size=1)[0]
+    elif num_param == 5:
+        return dist.rvs(arg[0], arg[1], arg[2], arg[3], arg[4], loc=loc, scale=scale, size=1)[0]
+    elif num_param == 6:
+        return dist.rvs(arg[0], arg[1], arg[2], arg[3], arg[4], arg[5], loc=loc, scale=scale, size=1)[0]
+    elif num_param == 7:
+        return dist.rvs(arg[0], arg[1], arg[2], arg[3], arg[4], arg[5], arg[6], loc=loc, scale=scale, size=1)[0]
+    elif num_param == 8:
+        return dist.rvs(arg[0], arg[1], arg[2], arg[3], arg[4], arg[5], arg[6], arg[7], loc=loc, scale=scale, size=1)[0]
 
 
 class Choice:

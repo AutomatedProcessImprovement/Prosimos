@@ -3,6 +3,7 @@ import json
 
 from datetime import datetime
 import pytz
+from numpy.distutils.system_info import agg2_info
 from pm4py.objects.log.importer.xes import importer as xes_importer
 
 from bpdfr_simulation_engine.execution_info import ProcessInfo, Trace, TaskEvent
@@ -12,6 +13,7 @@ import ntpath
 
 from bpdfr_simulation_engine.resource_calendar import RCalendar, update_calendar_from_log, update_weekly_calendar, \
     CalendarFactory, parse_datetime
+from bpdfr_simulation_engine.simulation_engine import add_simulation_event_log_header
 from bpdfr_simulation_engine.simulation_properties_parser import parse_simulation_model
 
 
@@ -33,6 +35,33 @@ def event_list_from_xes_log(log_path):
                     c_event = trace_info.complete_event(started_events.pop(task_name), event['time:timestamp'])
                     trace_list.append(c_event)
     return trace_list
+
+
+def transform_xes_to_csv(log_path, csv_out_path):
+    with open(csv_out_path, mode='w', newline='', encoding='utf-8') as log_csv_file:
+        csv_writer = csv.writer(log_csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        add_simulation_event_log_header(csv_writer)
+        log_traces = xes_importer.apply(log_path)
+        print(len(log_traces))
+        for trace in log_traces:
+            started_events = dict()
+            trace_info = Trace(trace.attributes['concept:name'])
+            for event in trace:
+                task_name = event['concept:name']
+                state = event['lifecycle:transition'].lower()
+                if state in ["start", "assign"]:
+                    started_events[task_name] = trace_info.start_event(task_name, task_name,
+                                                                       event['time:timestamp'],
+                                                                       event['org:resource'])
+                elif state == "complete":
+                    if task_name in started_events:
+                        c_event = trace_info.complete_event(started_events.pop(task_name), event['time:timestamp'])
+                        csv_writer.writerow([trace_info.p_case,
+                                             task_name,
+                                             '',
+                                             str(c_event.started_at),
+                                             str(c_event.completed_at),
+                                             event['org:resource']])
 
 
 def event_list_from_csv(log_path):
@@ -84,6 +113,9 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
     task_resource_events = dict()
     initial_events = dict()
     flow_arcs_frequency = dict()
+    print('Total Traces in Log: %d' % len(log_traces))
+    min_date = None
+    task_events = dict()
 
     for trace in log_traces:
         caseid = trace.attributes['concept:name']
@@ -97,6 +129,9 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
             resource = event['org:resource']
             state = event['lifecycle:transition'].lower()
             timestamp = event['time:timestamp']
+            if min_date is None:
+                min_date = timestamp
+            min_date = min(min_date, timestamp)
 
             initial_events[caseid] = min(initial_events[caseid], timestamp)
 
@@ -111,6 +146,7 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
             if task_name not in task_resource_freq:
                 task_resource_events[task_name] = dict()
                 task_resource_freq[task_name] = [0, dict()]
+                task_events[task_name] = list()
             if resource not in task_resource_freq[task_name][1]:
                 task_resource_freq[task_name][1][resource] = 0
                 task_resource_events[task_name][resource] = list()
@@ -125,6 +161,7 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
                 if task_name in started_events:
                     task_sequence.append(task_name)
                     c_event = trace_info.complete_event(started_events.pop(task_name), timestamp)
+                    task_events[task_name].append(c_event)
                     task_resource_events[task_name][resource].append(c_event)
                     completed_events.append(c_event)
 
@@ -150,6 +187,8 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
     for r_name in resource_freq:
         resource_freq_ratio[r_name] = resource_freq[r_name] / max_resource_freq
 
+    print("First Case Started at: %s" % str(min_date))
+
     # # (1) Discovering Resource Calendars
     # # resource_calendars = calendar_factory.build_weekly_calendars(min_confidence, min_support)
     # # removed_resources = print_initial_resource_calendar_info(resource_calendars, resource_freq, max_resource_freq)
@@ -171,10 +210,8 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
     arrival_calendar = discover_arrival_calendar(initial_events, minutes_x_granule, min_confidence, min_support)
     json_arrival_calendar = arrival_calendar.to_json()
 
-
     # # (3) Discovering Arrival Time Distribution
     arrival_time_dist = discover_arrival_time_distribution(initial_events, arrival_calendar)
-
 
     # # (4) Discovering Task Duration Distributions per resource
     task_resource_dist = discover_resource_task_duration_distribution(task_resource_events, res_calendars,
@@ -184,15 +221,33 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
     gateways_branching = bpmn_graph.compute_branching_probability(flow_arcs_frequency)
 
     to_save = {
-        "resource_profiles": pools_json,
+        "resource_profiles": map_task_id_from_names(pools_json, bpmn_graph.from_name),
         "arrival_time_distribution": arrival_time_dist,
         "arrival_time_calendar": json_arrival_calendar,
         "gateway_branching_probabilities": gateways_branching,
-        "task_resource_distribution": task_resource_dist,
+        "task_resource_distribution": map_task_id_from_names(task_resource_dist, bpmn_graph.from_name),
         "resource_calendars": res_json_calendar,
     }
     with open(out_f_path, 'w') as file_writter:
         json.dump(to_save, file_writter)
+    return [map_task_id_from_names(pools_json, bpmn_graph.from_name),
+            arrival_time_dist,
+            json_arrival_calendar,
+            gateways_branching,
+            map_task_id_from_names(task_resource_dist, bpmn_graph.from_name),
+            res_json_calendar,
+            task_resources,
+            res_calendars,
+            task_events,
+            task_resource_events,
+            bpmn_graph.from_name]
+
+
+def map_task_id_from_names(task_resource_dist, from_name):
+    id_task_resource_dist = dict()
+    for t_name in task_resource_dist:
+        id_task_resource_dist[from_name[t_name]] = task_resource_dist[t_name]
+    return id_task_resource_dist
 
 
 def fix_enablement_from_incorrect_models(from_i: int, task_enablement: list, trace: list):
@@ -261,8 +316,8 @@ def discover_resource_calendars(calendar_factory, task_resource_events, min_conf
         resource_list = list()
         task_resources[task_name] = list()
         for resource_name in joint_task_resources[task_name]:
-            if calendar_candidates[resource_name] is not None and calendar_candidates[
-                resource_name].total_weekly_work > 0:
+            if calendar_candidates[resource_name] is not None \
+                    and calendar_candidates[resource_name].total_weekly_work > 0:
                 resource_list.append(_create_resource_profile_entry(resource_name, resource_name))
                 resource_calendars[resource_name] = calendar_candidates[resource_name]
                 task_resources[task_name].append(resource_name)
@@ -285,7 +340,6 @@ def discover_resource_calendars(calendar_factory, task_resource_events, min_conf
                     break
 
         coverage_map[task_name] = task_event_covered_freq[task_name] / task_event_freq[task_name]
-        # print("Coverage Task %s: %.2f" % (task_name, calendar_factory.task_coverage(task_name)))
         pools_json[task_name]["resource_list"] = resource_list
 
     return resource_calendars, task_resources, joint_resource_events, pools_json, coverage_map
@@ -372,6 +426,17 @@ def discover_arrival_time_distribution(initial_events, arrival_calendar):
     return best_fit_distribution(durations)
 
 
+def discover_aggregated_task_distributions(task_events):
+    durations = list()
+    for ev_info in task_events:
+        durations.append((ev_info.completed_at - ev_info.started_at).total_seconds())
+    aggregated_task_distribution = best_fit_distribution(durations)
+    print("Total Events: %d, Distribution: %s"
+          % (len(durations), str(aggregated_task_distribution)))
+    print('------------------------------------')
+    return aggregated_task_distribution
+
+
 def discover_resource_task_duration_distribution(task_resource_events, res_calendars, task_resources, joint_events):
     task_resource_distribution = dict()
 
@@ -391,7 +456,7 @@ def discover_resource_task_duration_distribution(task_resource_events, res_calen
             for ev_info in event_list:
                 durations.append((ev_info.completed_at - ev_info.started_at).total_seconds())
             full_task_durations += durations
-            if len(durations) < 10:
+            if len(durations) < 50:
                 pending_resources.append(r_id)
             else:
                 task_resource_distribution[t_id][r_id] = best_fit_distribution(durations)
@@ -466,193 +531,6 @@ def _cases_to_del(resource_calendars, resource_freq, max_resource_freq, resource
     print("Postprocessed Total Cases: %d" % (total_traces - len(cases_to_remove)))
     print("Cases to remove: %d" % len(cases_to_remove))
     print('-------------------------------------------------------')
-
-
-# def parse_xes_log(log_path, bpmn_graph, output_path):
-#     f_name = ntpath.basename(log_path).split('.')[0]
-#     print('Parsing Event Log %s ...' % f_name)
-#     process_info = ProcessInfo()
-#     i = 0
-#     total_traces = 0
-#     resource_list = set()
-#
-#     task_resource = dict()
-#     task_distribution = dict()
-#     flow_arcs_frequency = dict()
-#     correct_traces = 0
-#     correct_activities = 0
-#     total_activities = 0
-#     task_fired_ratio = dict()
-#     task_missed_tokens = 0
-#     missed_tokens = dict()
-#
-#     log_traces = xes_importer.apply(log_path)
-#
-#     arrival_times = list()
-#
-#     start_date = end_date = None
-#     resource_calendars = dict()
-#     arrival_dates = list()
-#     month_dates = dict()
-#     resource_freq = dict()
-#     max_resource_freq = 0
-#     task_resource_freq = dict()
-#
-#     calendar_factory = CalendarFactory(15)
-#
-#     for trace in log_traces:
-#         arrival_dates.append(trace[0]['time:timestamp'])
-#         # if previous_arrival_date is not None:
-#         #     arrival_times.append((trace[0]['time:timestamp'] - previous_arrival_date).total_seconds())
-#         # previous_arrival_date = trace[0]['time:timestamp']
-#
-#         caseid = trace.attributes['concept:name']
-#         total_traces += 1
-#         started_events = dict()
-#         trace_info = Trace(caseid)
-#         task_sequence = list()
-#         for event in trace:
-#             task_name = event['concept:name']
-#             task_id = bpmn_graph.from_name[task_name]
-#             resource = event['org:resource']
-#             state = event['lifecycle:transition'].lower()
-#             timestamp = event['time:timestamp']
-#             # if previous_date is not None and previous_date > timestamp:
-#             #     print("Unsorted event %s" % task_name)
-#             previous_date = timestamp
-#
-#             calendar_factory.check_date_time(resource, task_name, timestamp)
-#
-#             start_date, end_date = _update_first_last(start_date, end_date, timestamp)
-#             if task_name not in task_resource_freq:
-#                 task_resource_freq[task_name] = [0, dict()]
-#             if resource not in task_resource_freq[task_name][1]:
-#                 task_resource_freq[task_name][1][resource] = 0
-#             task_resource_freq[task_name][1][resource] += 1
-#             task_resource_freq[task_name][0] = max(task_resource_freq[task_name][0],
-#                                                    task_resource_freq[task_name][1][resource])
-#             if resource not in resource_list:
-#                 resource_list.add(resource)
-#                 resource_calendars[resource] = RCalendar("%s_Schedule" % resource)
-#                 resource_freq[resource] = 0
-#             resource_freq[resource] += 1
-#             max_resource_freq = max(max_resource_freq, resource_freq[resource])
-#             # update_weekly_calendar(resource_calendars[resource], timestamp, 15)
-#             # update_calendar_from_log(resource_calendars[resource], timestamp, state in ["start", "assign"], month_dates)
-#             if state in ["start", "assign"]:
-#                 started_events[task_id] = trace_info.start_event(task_id, task_name, timestamp, resource)
-#                 task_sequence.append(task_id)
-#             elif state == "complete":
-#                 if task_id in started_events:
-#                     event_info = trace_info.complete_event(started_events.pop(task_id), timestamp)
-#                     if task_id not in task_resource:
-#                         task_resource[task_id] = dict()
-#                         task_distribution[task_id] = dict()
-#
-#                     if resource not in task_resource[task_id]:
-#                         task_resource[task_id][resource] = list()
-#                     task_resource[task_id][resource].append(event_info)
-#         is_correct, fired_tasks, pending_tokens = bpmn_graph.reply_trace(task_sequence, flow_arcs_frequency)
-#         if len(pending_tokens) > 0:
-#             task_missed_tokens += 1
-#             for flow_id in pending_tokens:
-#                 if flow_id not in missed_tokens:
-#                     missed_tokens[flow_id] = 0
-#                 missed_tokens[flow_id] += 1
-#         # if not is_correct:
-#         #     print(caseid)
-#         #     print('------------------------------------------------------')
-#         if is_correct:
-#             correct_traces += 1
-#         for i in range(0, len(task_sequence)):
-#             if task_sequence[i] not in task_fired_ratio:
-#                 task_fired_ratio[task_sequence[i]] = [0, 0]
-#             if fired_tasks[i]:
-#                 correct_activities += 1
-#                 task_fired_ratio[task_sequence[i]][0] += 1
-#             task_fired_ratio[task_sequence[i]][1] += 1
-#         total_activities += len(fired_tasks)
-#         process_info.traces[caseid] = trace_info
-#         i += 1
-#
-#     t_r = 100 * correct_traces / total_traces
-#     print(month_dates)
-#     a_r = 100 * correct_activities / total_activities
-#     print("Correct Traces Ratio %.2f (Pass: %d, Fail: %d, Total: %d)" % (
-#         t_r, correct_traces, total_traces - correct_traces, total_traces))
-#     print("Correct Tasks  Ratio %.2f (Fire: %d, Fail: %d, Total: %d)" % (
-#         a_r, correct_activities, total_activities - correct_activities, total_activities))
-#     print("Missed Tokens Ratio  %.2f" % (100 * task_missed_tokens / total_traces))
-#     print('----------------------------------------------')
-#     # for task_id in task_fired_ratio:
-#     #     print("%s: %.2f (Fail: %d / %d)" % (
-#     #         task_id, 100 * task_fired_ratio[task_id][0] / task_fired_ratio[task_id][1],
-#     #         task_fired_ratio[task_id][1] - task_fired_ratio[task_id][0],
-#     #         task_fired_ratio[task_id][1]))
-#     # print('-----------------------------------------------')
-#     # for task_name in missed_tokens:
-#     #     print("%s: %d" % (task_name, missed_tokens[task_name]))
-#     min_dur = sys.float_info.max
-#     max_dur = 0
-#
-#     resource_calendars, kpi_calendars = calendar_factory.build_weekly_calendars(0.5, 0.5)
-#     for r_id in resource_calendars:
-#         min_dur = min(min_dur, resource_calendars[r_id].total_weekly_work)
-#         max_dur = max(max_dur, resource_calendars[r_id].total_weekly_work)
-#         # print("Resource frequence:       %d" % resource_freq[r_id])
-#         # print("Resource frequency Ratio: %.3f" % (resource_freq[r_id] / max_resource_freq))
-#         resource_calendars[r_id].print_calendar_info()
-#
-#     # for t_name in task_resource_freq:
-#     #     print("Task Name: %s" % t_name)
-#     #     for r_name in task_resource_freq[t_name][1]:
-#     #         print("%d, %.3f, %.2f -> %s" % (task_resource_freq[t_name][1][r_name],
-#     #                                         task_resource_freq[t_name][1][r_name] / task_resource_freq[t_name][0],
-#     #                                         resource_calendars[r_name].total_weekly_work / 3600, r_name))
-#     #         #resource_calendars[r_name].print_calendar_info()
-#     #     print("----------------------------------------------------------")
-#
-#     print('Min Resource Weekly Work: %.2f ' % (min_dur / 3600))
-#     print('Max Resource Weekly Work: %.2f ' % (max_dur / 3600))
-#     return  # Renmove this
-#     print('Saving Resource Calendars ...')
-#     json_map = dict()
-#     for r_id in resource_calendars:
-#         json_map[r_id] = resource_calendars[r_id].to_json()
-#     with open('./input_files/resource_calendars/%s_calendars.json' % f_name, 'w') as file_writter:
-#         json.dump(json_map, file_writter)
-#
-#     # create_calendar_from_rule_associations(resource_assoc_times, resource_days_freq, start_date, end_date)
-#
-#     print('Computing Branching Probability ...')
-#     gateways_branching = bpmn_graph.compute_branching_probability(flow_arcs_frequency)
-#     with open('./input_files/probability_distributions/%s_gateways_branching.json' % f_name, 'w') as file_writter:
-#         json.dump(gateways_branching, file_writter)
-#
-#     print('Computing Arrival Times Distribution ...')
-#     arrival_dates.sort()
-#     for i in range(1, len(arrival_dates)):
-#         arrival_times.append((arrival_dates[i] - arrival_dates[i - 1]).total_seconds())
-#     with open('./input_files/probability_distributions/%s_arrival_times_distribution.json' % f_name,
-#               'w') as file_writter:
-#         json.dump(best_fit_distribution(arrival_times), file_writter)
-#
-#     print('Computing Task-Resource Distributions ...')
-#     for task_id in task_resource:
-#         for resorce_id in task_resource[task_id]:
-#             real_durations = list()
-#             for e_info in task_resource[task_id][resorce_id]:
-#                 real_durations.append(resource_calendars[resorce_id].find_working_time(e_info.started_at,
-#                                                                                        e_info.completed_at))
-#
-#                 if real_durations[len(real_durations) - 1] <= 0 and e_info.started_at != e_info.completed_at:
-#                     x = resource_calendars[resorce_id].find_working_time(e_info.started_at, e_info.completed_at)
-#                     print(real_durations[len(real_durations) - 1])
-#             task_distribution[task_id][resorce_id] = best_fit_distribution(real_durations)
-#     with open('./input_files/probability_distributions/%s_task_distribution.json' % f_name, 'w') as file_writter:
-#         json.dump(task_distribution, file_writter)
-#     print('----------------------------------------------------------------------------------')
-#     return process_info
 
 
 def _update_first_last(start_date, end_date, current_date):

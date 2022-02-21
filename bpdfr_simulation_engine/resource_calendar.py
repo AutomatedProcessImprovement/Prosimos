@@ -785,20 +785,6 @@ class CalendarFactory:
                     to_print[weekday].append(g_index)
                     kpi_c.g_discarded[r_name].append(GranuleInfo(weekday, g_index))
 
-        # for i in range(0, len(kpi_c.g_discarded[r_name]) - 1):
-        #     for j in range(i + 1, len(kpi_c.g_discarded[r_name])):
-        #         if kpi_c.g_discarded[r_name][i].g_index == kpi_c.g_discarded[r_name][j].g_index and \
-        #                 kpi_c.g_discarded[r_name][i].week_day == kpi_c.g_discarded[r_name][j].week_day:
-        #             print('hola')
-        # for week_day in to_print:
-        #     print("WeekDay: %d" % week_day)
-        #     to_print[week_day].sort()
-        #     for g_index in to_print[week_day]:
-        #         print("Discarded G-Index: %d (%d / %d)"
-        #               % (g_index, len(kpi_c.res_active_granules_weekdays[r_name][g_index][week_day]),
-        #                  len(kpi_c.res_active_weekdays[r_name][week_day])))
-        #     print('================================')
-
         confidence, support = kpi_c.compute_confidence_support(r_name)
 
         if confidence > 0 and support < desired_support:
@@ -844,6 +830,14 @@ class CalendarFactory:
         else:
             r_calendar.add_calendar_item(str_wday, str_wday, "%d:%d:%d" % (hour, from_min, 0),
                                          "%d:%d:%d" % (hour, to_min, 0))
+
+
+def build_full_time_calendar(calendar_id):
+    r_calendar = RCalendar(calendar_id)
+    for i in range(0, 7):
+        str_weekday = int_week_days[i]
+        r_calendar.add_calendar_item(str_weekday, str_weekday, "00:00:00.000", "23:59:59.999")
+    return r_calendar
 
 
 def update_calendar_from_log(r_calendar, date_time, is_start, month_freq, min_eps=15):

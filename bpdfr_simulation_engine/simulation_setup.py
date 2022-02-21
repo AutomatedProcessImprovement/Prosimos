@@ -31,9 +31,6 @@ class SimDiffSetup:
                 if e_info.id not in self.element_probability:
                     print("WARNING: No probability assigned to gateway %s" % e_info.name)
 
-
-
-
     def name_from_id(self, resource_id):
         return self.resources_map[resource_id].resource_name
 
@@ -50,6 +47,9 @@ class SimDiffSetup:
     def next_arrival_time(self, starting_from):
         val = generate_number_from(self.element_probability['arrivalTime']['distribution_name'],
                                    self.element_probability['arrivalTime']['distribution_params'])
+        # if val > 100000:
+        #     print('arrival')
+        #     print('--------------------------------------')
         return val + self.arrival_calendar.next_available_time(starting_from + timedelta(seconds=val))
 
     def initial_state(self):
@@ -76,6 +76,10 @@ class SimDiffSetup:
     def ideal_task_duration(self, task_id, resource_id):
         val = generate_number_from(self.task_resource[task_id][resource_id]['distribution_name'],
                                    self.task_resource[task_id][resource_id]['distribution_params'])
+        # if val > 100000:
+        #     print(task_id)
+        #     print(resource_id)
+        #     print('------------------------------------------------')
         return val
 
     def real_task_duration(self, task_duration, resource_id, enabled_at):

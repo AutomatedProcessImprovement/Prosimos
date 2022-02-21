@@ -75,6 +75,8 @@ class DiffResourceQueue:
                 joint_tasks = set()
                 for task_id_2 in task_resource_map:
                     is_joint = True
+                    if len(task_resource_map[task_id_2]) != len(task_resource_map[task_id_1]):
+                        continue
                     for r_id in task_resource_map[task_id_2]:
                         if r_id not in task_resource_map[task_id_1]:
                             is_joint = False

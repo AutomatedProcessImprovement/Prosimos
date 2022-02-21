@@ -10,7 +10,7 @@ from bpdfr_simulation_engine.file_manager import FileManager
 from bpdfr_simulation_engine.execution_info import Trace, TaskEvent, EnabledEvent
 from bpdfr_simulation_engine.simulation_queues_ds import PriorityQueue, DiffResourceQueue, EventQueue
 from bpdfr_simulation_engine.simulation_setup import SimDiffSetup
-from bpdfr_simulation_engine.simulation_stats_calculator import LogInfo, print_event_state
+from bpdfr_simulation_engine.simulation_stats_calculator import LogInfo
 
 
 class SimResource:
