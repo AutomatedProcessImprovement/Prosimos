@@ -553,7 +553,7 @@ class BPMNGraph:
     def compute_branching_probability(self, flow_arcs_frequency):
         gateways_branching = dict()
         for e_id in self.element_info:
-            if self.element_info[e_id].type == BPMN.EXCLUSIVE_GATEWAY and len(
+            if self.element_info[e_id].type in [BPMN.EXCLUSIVE_GATEWAY, BPMN.INCLUSIVE_GATEWAY] and len(
                     self.element_info[e_id].outgoing_flows) > 1:
                 total_frequency = 0
                 for flow_id in self.element_info[e_id].outgoing_flows:

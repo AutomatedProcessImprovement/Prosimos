@@ -104,6 +104,14 @@ class Trace:
         self.started_at = self.event_list[0].started_at
         self.completed_at = self.event_list[len(self.event_list) - 1].completed_at
 
+    def filter_incomplete_events(self):
+        filtered_list = list()
+        for ev_info in self.event_list:
+            if ev_info.started_at is not None and ev_info.completed_at is not None:
+                filtered_list.append(ev_info)
+        self.event_list = filtered_list
+
+
 
 class EnabledEvent:
     def __init__(self, p_case, p_state, task_id, enabled_at, enabled_datetime):

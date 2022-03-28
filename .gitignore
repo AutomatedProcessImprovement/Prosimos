@@ -1,10 +1,10 @@
 /target/
 .idea/
 __pycache__/
-input_files/
+l_input_files/
 compressed_datasets/
 venv/
-output_files/
+l_output_files/
 Simod/
 bimp_test_examples/sim_output/
 bimp_test_examples/

@@ -29,11 +29,6 @@ The last three parameters are optional.
 If none of the output file paths **_stat_out_path_** and **_log_out_path_** are provided, then **_stat_out_path_** is used by default, and the statistics file generated in the current directory. 
 If parameter **_starting_at_** is not provided, the current date-time is assigned as starting point for the simulation.
 
-The folder **_bimp_test_examples_** contains three examples of simulation models (provided by the BIMP simulation engine) adapted to the input format required by **Prosimos**. 
-For example, to simulate 10 instances of the process labeled as _BIMP_example_ starting with at the current date-time, 
-and producing only the corresponding event log, run the following command in a terminal from the root folder: 
-
-    .\diff_res_bpsim.py start-simulation --bpmn_path "./bimp_test_examples/BIMP_example.bpmn" --json_path "./bimp_test_examples/bimp_example.json" --total_cases 10 --log_out_path "./bimp_test_examples/sim_output/bimp_example_log.csv"
 
 ## Simulation Input File Formats 
 
@@ -75,75 +70,128 @@ Note that the order of the sections is not relevant, i.e., they can appear in an
    Each calendar interval is described starting from weekday (Monday, ..., Sunday) at some beginTime, 
    until another (not necessarily different) weekday to some endTime.
 
-The following snippet outlines the general structure of the input JSON parameters with the simulation parameters. 
-For complete examples, please check the folder **_bimp_test_examples_**.
+The following snippet outlines an example of the general structure of the input JSON parameters with the simulation parameters.
 
-    {
-        "resource_profiles": { 
-            <resource_1_pool_id>: {
-                "name": <resource_1_pool_name>,
-                "resource_list": [
-                    {
-                        "id": <resource_1_id>,
-                        "name": "resource_1_name",
-                        "cost_per_hour": <resource_1_cost_per_hour>,
-                        "amount": <resource_1_amount>
-                    }
-                    ... # Resource 2..n info
-                ]
-            }
-            ... # Resource Pool 2..n info
-        },
-        "arrival_time_calendar": [
-            {
-                "from": <week_day>,
-                "to": <week_dday>,
-                "beginTime": "HH:MM:SS.MMM",
-                "endTime": "HH:MM:SS.MMM"
-            }
-            ... # Time intervals 2..n
-        ],
-        "arrival_time_distribution": {
-            "distribution_name": <distribution_name>,
-            "distribution_params": [
-                <param_1>,
-                ...
-            ]
-        },
-        "gateway_branching_probabilities": {
-                "gateway_1_id": {
-                    <outgoing_flow_arc_1_id>: <probability_ratio>,
-                    ... # Outgoing flow arcs 2..n probability ratios
-                },
-                ... # Gateways 2..n branching probability info
-        },
-        "task_resource_distribution": {
-            "task_1_id": {
-                "resource_1_id": {
-                    "distribution_name": <distribution_name>,
-                    "distribution_params": [
-                        <param_1>,
-                        ...
-                    ]
-                },
-                ... # Resources 2 .. n distribution info
-            },
-            ... # Tasks id 2..n distribution info 
-        },
-        "resource_calendars": {
-            "resource_1_id": [
-                {
-                    {
-                        "from": <week_day>,
-                        "to": <week_dday>,
-                        "beginTime": "HH:MM:SS.MMM",
-                        "endTime": "HH:MM:SS.MMM"
-                    }
-                    ... # Time intervals 2..n
-            ],
-            ... # Resources 2 .. n calendars info
-    }
+      {
+          "resource_profiles": [
+              {
+                  "id": "Profile ID_1",
+                  "name": "Credit Officer",
+                  "resource_list": [
+                      {
+                          "id": "resource_id_1",
+                          "name": "Credit Officer_1",
+                          "cost_per_hour": "35",
+                          "amount": 1,
+                          "calendar": "sid-222A1118-4766-43B2-A004-7DADE521982D",
+                          "assignedTasks": ["sid-622A1118-4766-43B2-A004-7DADE521982D"]
+                      },
+                      {
+                          "id": "resource_id_2",
+                          "name": "Credit Officer_2",
+                          "cost_per_hour": "35",
+                          "amount": 1,
+                          "calendar": "sid-222A1118-4766-43B2-A004-7DADE521982D",
+                          "assignedTasks": ["sid-622A1118-4766-43B2-A004-7DADE521982D"]
+                      }
+                  ]
+              }
+          ],
+          "arrival_time_distribution": {
+              "distribution_name": "expon",
+              "distribution_params": [
+                  { "value": 0 },
+                  { "value": 1800.0 },
+                  { "value": 90.0 }
+              ]
+          },
+          "arrival_time_calendar": [{
+              "from": "MONDAY",
+              "to": "FRIDAY",
+              "beginTime": "09:00:00.000",
+              "endTime": "17:00:00.000"
+          }],
+          "gateway_branching_probabilities": [
+              {
+                  "gateway_id": "sid-64FC5B46-47E5-4940-A0AF-ECE87483967D",
+                  "probabilities": [
+                      {
+                          "path_id": "sid-8AE82A7B-75EE-401B-8ABE-279FB05A3946",
+                          "value": "0.7"
+                      },
+                      {
+                          "path_id": "sid-789335C6-205C-4A03-9AD6-9655893C1FFB",
+                          "value": "0.3"
+                      }
+                  ]
+              },
+              {
+                  "gateway_id": "sid-FACFF0AE-6A1B-47AC-B289-F5E60CB12B2A",
+                  "probabilities": [
+                      {
+                          "path_id": "sid-AFEC7074-8C12-43E2-A1FE-87D5CEF395C8",
+                          "value": "0.3"
+                      },
+                      {
+                          "path_id": "sid-AE313010-5715-438C-AD61-1C02F03DCF77",
+                          "value": "0.7"
+                      }
+                  ]
+              }
+          ],
+          "task_resource_distribution": [
+              {
+                  "task_id": "sid-622A1118-4766-43B2-A004-7DADE521982D",
+                  "resources": [
+                      {
+                          "resource_id": "resource_id_1",
+                          "distribution_name": "norm",
+                          "distribution_params": [
+                              { "value": 600.0 },
+                              { "value": 120.0 }
+                          ]
+                      },
+                      {
+                          "resource_id": "resource_id_2",
+                          "distribution_name": "norm",
+                          "distribution_params": [
+                              { "value": 60.0 },
+                              { "value": 12.0 }
+                          ]             
+                      }
+                  ]
+              }
+          ],
+          "resource_calendars": [
+              {
+                  "id": "sid-222A1118-4766-43B2-A004-7DADE521982D",
+                  "name": "calendar1",
+                  "time_periods": [
+                      {
+                          "from": "MONDAY",
+                          "to": "FRIDAY",
+                          "beginTime": "09:00:00.000",
+                          "endTime": "17:00:00.000"
+                      },
+                      {
+                          "from": "SATURDAY",
+                          "to": "SATURDAY",
+                          "beginTime": "09:00:00.000",
+                          "endTime": "13:00:00.000"
+                      }
+                  ]
+              }
+          ]
+      }
 
+## Running Experiments BPM-2022
 
+      git clone https://github.com/AutomatedProcessImprovement/Prosimos.git
+
+* Set up Python environment using the built-in venv module from requirements.txt. 
+* Unzip the file input_output_files.zip, to add the folder **input_output_files** containing all the input files used in 
+the experimentation (excluding the log insurance which is private) in the root folder.
+* Once all the dependencies all installed, run the script **bpm22_experiments_script.py**, in the folder **testing_scripts**.
+Then check the information printed in the terminal. 
 
 

@@ -1,6 +1,7 @@
 import datetime
 import math
 from datetime import timedelta
+from dateutil import parser
 
 import pytz
 
@@ -365,11 +366,15 @@ def parse_datetime(time, has_date):
     time_formats = ['%H:%M:%S.%f', '%H:%M', '%I:%M%p', '%H:%M:%S', '%I:%M:%S%p'] if not has_date \
         else ['%Y-%m-%dT%H:%M:%S.%f%z', '%b %d %Y %I:%M%p', '%b %d %Y at %I:%M%p',
               '%B %d, %Y, %H:%M:%S', '%a,%d/%m/%y,%I:%M%p', '%a, %d %B, %Y', '%Y-%m-%dT%H:%M:%SZ']
-    for time_format in time_formats:
-        try:
-            return datetime.datetime.strptime(time, time_format)
-        except ValueError:
-            pass
+    try:
+        return parser.parse(time)
+    except:
+        print(time)
+        for time_format in time_formats:
+            try:
+                return datetime.datetime.strptime(time, time_format)
+            except ValueError:
+                pass
     raise ValueError
 
 
@@ -644,6 +649,8 @@ class CalendarKPIInfoFactory:
 
     def can_improve_support(self, r_name, weekday, g_index, min_confidence):
         best_task, confidence_values = self.task_cond_confidence(r_name, weekday, g_index)
+        if r_name == 'arrival':
+            return best_task
 
         # new_granules = 0
         # new_weekdays = 0
@@ -658,11 +665,11 @@ class CalendarKPIInfoFactory:
         # if min_confidence <= (len(self.active_granules_in_calendar[r_name]) + new_granules) \
         #         / (len(self.active_weekdays_in_calendar[r_name]) + new_weekdays):
 
-        new_granules = len(self.active_res_task_weekdays_granules[r_name][best_task][weekday][g_index])
-        new_weekdays = len(self.active_res_task_weekdays[r_name][best_task][weekday])
-        if min_confidence <= (self.confidence_numerator_sum[r_name] + new_granules) \
-                / (self.confidence_denominator_sum[r_name] + new_weekdays):
-            return best_task
+        # new_granules = len(self.active_res_task_weekdays_granules[r_name][best_task][weekday][g_index])
+        # new_weekdays = len(self.active_res_task_weekdays[r_name][best_task][weekday])
+        # if min_confidence <= (self.confidence_numerator_sum[r_name] + new_granules) \
+        #         / (self.confidence_denominator_sum[r_name] + new_weekdays):
+        return best_task
 
     def reset_calendar_info(self):
         self.total_events_in_calendar = 0
@@ -799,6 +806,9 @@ class CalendarFactory:
                     self._add_calendar_item(g_info.week_day, g_info.g_index, r_calendar)
                     kpi_c.check_accepted_granule(r_name, g_info.week_day, g_info.g_index, best_task)
                     accepted_indexes.append(i)
+                _, support = kpi_c.compute_confidence_support(r_name)
+                if support >= desired_support:
+                    break
                 i += 1
             kpi_c.update_discarded_granules_list(r_name, accepted_indexes)
         return r_calendar
