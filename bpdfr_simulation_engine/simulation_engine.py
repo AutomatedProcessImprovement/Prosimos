@@ -175,4 +175,4 @@ def run_simpy_simulation(diffsim_info, total_cases, stat_fwriter, log_fwriter):
 def add_simulation_event_log_header(log_fwriter):
     if log_fwriter:
         log_fwriter.writerow([
-            'CaseID', 'Activity', 'EnableTimestamp', 'StartTimestamp', 'EndTimestamp', 'Resource', ])
+            'case_id', 'activity', 'enable_time', 'start_time', 'end_time', 'resource', ])

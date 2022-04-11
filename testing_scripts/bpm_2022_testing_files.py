@@ -8,12 +8,14 @@ experiment_logs = {0: 'production',
                    7: 'loan_MC_LU',
                    8: 'loan_MC_HU',
                    9: 'insurance',
+                   10: 'government'
                    }
 
 process_files = {
     'purchasing_example':
         {
             'xes_log': './../input_output_files/discovery_input_files/xes_logs/PurchasingExample.xes',
+            'csv_log': './../input_output_files/discovery_input_files/csv_logs/purchasing_example.csv',
             'real_csv_log': './../input_output_files/discovery_output_files/real_csv_logs/purchasing_example.csv',
             'bpmn': './../input_output_files/discovery_input_files/bpmn_models/purchasing_example.bpmn',
             'json': './../input_output_files/discovery_output_files/json/purchasing_example.json',
@@ -25,6 +27,7 @@ process_files = {
     'production':
         {
             'xes_log': './../input_output_files/discovery_input_files/xes_logs/production.xes',
+            'csv_log': './../input_output_files/discovery_input_files/csv_logs/production.csv',
             'real_csv_log': './../input_output_files/discovery_output_files/real_csv_logs/production.csv',
             'bpmn': './../input_output_files/discovery_input_files/bpmn_models/Production.bpmn',
             'json': './../input_output_files/discovery_output_files/json/production.json',
@@ -36,6 +39,7 @@ process_files = {
     'consulta_data_mining':
         {
             'xes_log': './../input_output_files/discovery_input_files/xes_logs/ConsultaDataMining201618.xes',
+            'csv_log': './../input_output_files/discovery_input_files/csv_logs/consulta_data_mining.csv',
             'real_csv_log': './../input_output_files/discovery_output_files/real_csv_logs/consulta_data_mining.csv',
             'bpmn': './../input_output_files/discovery_input_files/bpmn_models/consulta_data_mining.bpmn',
             'json': './../input_output_files/discovery_output_files/json/consulta_data_mining.json',
@@ -47,6 +51,7 @@ process_files = {
     'bpi_2012':
         {
             'xes_log': './../input_output_files/discovery_input_files/xes_logs/BPI_Challenge_2012_W_Two_TS.xes',
+            'csv_log': './../input_output_files/discovery_input_files/csv_logs/bpi_2012.csv',
             'real_csv_log': './../input_output_files/discovery_output_files/real_csv_logs/BPI_Challenge_2012.csv',
             'bpmn': './../input_output_files/discovery_input_files/bpmn_models/BPI_Challenge_2012_W_Two_TS.bpmn',
             'json': './../input_output_files/discovery_output_files/json/bpi_2012.json',
@@ -58,6 +63,7 @@ process_files = {
     'bpi_2017':
         {
             'xes_log': './../input_output_files/discovery_input_files/xes_logs/BPI_Challenge_2017_W_Two_TS.xes',
+            'csv_log': './../input_output_files/discovery_input_files/csv_logs/bpi_2017.csv',
             'real_csv_log': './../input_output_files/discovery_output_files/real_csv_logs/BPI_Challenge_2017.csv',
             'bpmn': './../input_output_files/discovery_input_files/bpmn_models/BPI_Challenge_2017_W_Two_TS.bpmn',
             'json': './../input_output_files/discovery_output_files/json/bpi_2017.json',
@@ -69,6 +75,7 @@ process_files = {
     'loan_MC_HU':
         {
             'xes_log': './../input_output_files/discovery_input_files/xes_logs/LoanOrigination-MC-HU.xes',
+            'csv_log': './../input_output_files/discovery_input_files/csv_logs/loan_MC_HU.csv',
             'real_csv_log': './../input_output_files/discovery_output_files/real_csv_logs/LoanOrigination-MC-HU.csv',
             'bpmn': './../input_output_files/discovery_input_files/bpmn_models/LoanOriginationModel.bpmn',
             'json': './../input_output_files/discovery_output_files/json/loan_MC_HU.json',
@@ -80,6 +87,7 @@ process_files = {
     'loan_MC_LU':
         {
             'xes_log': './../input_output_files/discovery_input_files/xes_logs/LoanOrigination-MC-LU.xes',
+            'csv_log': './../input_output_files/discovery_input_files/csv_logs/loan_MC_LU.csv',
             'real_csv_log': './../input_output_files/discovery_output_files/real_csv_logs/LoanOrigination-MC-LU.csv',
             'bpmn': './../input_output_files/discovery_input_files/bpmn_models/LoanOriginationModel.bpmn',
             'json': './../input_output_files/discovery_output_files/json/loan_MC_LU.json',
@@ -91,6 +99,7 @@ process_files = {
     'loan_SC_HU':
         {
             'xes_log': './../input_output_files/discovery_input_files/xes_logs/LoanOrigination-SC-HU.xes',
+            'csv_log': './../input_output_files/discovery_input_files/csv_logs/loan_SC_HU.csv',
             'real_csv_log': './../input_output_files/discovery_output_files/real_csv_logs/LoanOrigination-SC-HU.csv',
             'bpmn': './../input_output_files/discovery_input_files/bpmn_models/LoanOriginationModel.bpmn',
             'json': './../input_output_files/discovery_output_files/json/loan_SC_HU.json',
@@ -102,6 +111,7 @@ process_files = {
     'loan_SC_LU':
         {
             'xes_log': './../input_output_files/discovery_input_files/xes_logs/LoanOrigination-SC-LU.xes',
+            'csv_log': './../input_output_files/discovery_input_files/csv_logs/loan_SC_LU.csv',
             'real_csv_log': './../input_output_files/discovery_output_files/real_csv_logs/LoanOrigination-SC-LU.csv',
             'bpmn': './../input_output_files/discovery_input_files/bpmn_models/LoanOriginationModel.bpmn',
             'json': './../input_output_files/discovery_output_files/json/loan_SC_LU.json',
@@ -113,6 +123,7 @@ process_files = {
     'insurance':
         {
             'xes_log': './../input_output_files/discovery_input_files/xes_logs/insurance.xes',
+            'csv_log': './../input_output_files/discovery_input_files/csv_logs/insurance.csv',
             'real_csv_log': './../input_output_files/discovery_output_files/real_csv_logs/insurance.csv',
             'bpmn': './../input_output_files/discovery_input_files/bpmn_models/insurance.bpmn',
             'json': './../input_output_files/discovery_output_files/json/insurance.json',
@@ -120,6 +131,18 @@ process_files = {
             'start_datetime': '1971-01-01 00:00:00+00:00',
             'total_cases': 1182,
             'disc_params': [60, 0.3, 1.0, 0.5, False]
+        },
+    'government':
+        {
+            'xes_log': './../input_output_files/discovery_input_files/xes_logs/AA_Government.xes',
+            'csv_log': './../input_output_files/discovery_input_files/csv_logs/AA_Government.csv',
+            'real_csv_log': './../input_output_files/discovery_output_files/real_csv_logs/AA_Government.csv',
+            'bpmn': './../input_output_files/discovery_input_files/bpmn_models/AA_Government.bpmn',
+            'json': './../input_output_files/discovery_output_files/json/AA_Government.json',
+            'sim_log': './../input_output_files/discovery_output_files/prosimos_logs/AA_Government.csv',
+            'start_datetime': '2016-03-16 20:48:00+00:00',
+            'total_cases': 46330,
+            'disc_params': [60, 0.3, 1.0, 0.5, True]
         }
 }
 

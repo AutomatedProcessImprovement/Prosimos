@@ -42,6 +42,8 @@ def event_list_from_xes_log(log_path):
 
 
 def transform_xes_to_csv(log_path, csv_out_path):
+    visited_events = dict()
+
     with open(csv_out_path, mode='w', newline='', encoding='utf-8') as log_csv_file:
         csv_writer = csv.writer(log_csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
         add_simulation_event_log_header(csv_writer)
@@ -49,22 +51,51 @@ def transform_xes_to_csv(log_path, csv_out_path):
         for trace in log_traces:
             started_events = dict()
             trace_info = Trace(trace.attributes['concept:name'])
+
             for event in trace:
                 task_name = event['concept:name']
+                resource = event['org:resource'] if 'org:resource' in event else 'D_SYSTEM'
                 state = event['lifecycle:transition'].lower()
+                timestamp = event['time:timestamp']
+
+                if is_duplicated(visited_events, trace_info.p_case, task_name, resource, timestamp, state):
+                    continue
+
                 if state in ["start", "assign"]:
-                    started_events[task_name] = trace_info.start_event(task_name, task_name,
-                                                                       event['time:timestamp'],
-                                                                       event['org:resource'])
+                    started_events[task_name] = trace_info.start_event(task_name, task_name, timestamp, resource)
                 elif state == "complete":
                     if task_name in started_events:
-                        c_event = trace_info.complete_event(started_events.pop(task_name), event['time:timestamp'])
-                        csv_writer.writerow([trace_info.p_case,
-                                             task_name,
-                                             '',
-                                             str(c_event.started_at),
-                                             str(c_event.completed_at),
-                                             event['org:resource']])
+                        c_event = trace_info.complete_event(started_events.pop(task_name), timestamp)
+                        csv_writer.writerow([trace_info.p_case, task_name, '', str(c_event.started_at),
+                                             str(c_event.completed_at), resource])
+
+
+def is_duplicated(visited_events, p_case, task_name, resource, timestamp, state):
+    if p_case not in visited_events:
+        visited_events[p_case] = []
+    for evt in visited_events[p_case]:
+        if task_name in evt and resource in evt and timestamp in evt and state in evt:
+            return True
+    visited_events[p_case].append({task_name, resource, timestamp, state})
+    return False
+
+
+def dataframe_from_csv(log_path, extended_out=False):
+    event_log = pd.read_csv(log_path)
+    event_log['start_time'] = pd.to_datetime(event_log['start_time'], utc=True)
+    event_log['end_time'] = pd.to_datetime(event_log['end_time'], utc=True)
+    event_log.sort_values(by=['case_id', 'end_time'], inplace=True, ascending=[True, True])
+
+    # act_freq = event_log['activity'].value_counts()
+    # res_freq = event_log['resource'].value_counts()
+
+
+
+
+
+
+
+
 
 
 def event_list_from_csv(log_path):
@@ -73,25 +104,33 @@ def event_list_from_csv(log_path):
             csv_reader = csv.reader(csv_file, delimiter=',')
             trace_list = list()
             trace_map = dict()
-            e_index = 1
+            i_map = dict()
             row_count = 0
             for row in csv_reader:
                 if row_count > 0:
-                    event_info = TaskEvent(row[0], row[1], row[e_index + 3])
-                    if e_index == 2:
-                        event_info.enabled_at = pd.to_datetime(row[e_index])  # parse_datetime(row[e_index], True)
-                    event_info.started_at = pd.to_datetime(row[e_index + 1])  # parse_datetime(row[e_index + 1], True)
-                    event_info.completed_at = pd.to_datetime(row[e_index + 2])  # parse_datetime(row[e_index + 2], True)
-                    if row[0] not in trace_map:
-                        trace_map[row[0]] = len(trace_list)
-                        trace_list.append(Trace(row[0]))
-                    trace_list[trace_map[row[0]]].event_list.append(event_info)
-                elif row[2] == 'EnableTimestamp':
-                    e_index = 2
+                    case_id = row[i_map['case_id']]
+                    event_info = TaskEvent(case_id, row[i_map['activity']], row[i_map['resource']])
+                    if 'enable_time' in i_map and len(row[i_map['enable_time']]) > 0:
+                        event_info.enabled_at = pd.to_datetime(row[i_map['enable_time']])
+                    event_info.started_at = pd.to_datetime(row[i_map['start_time']])
+                    event_info.completed_at = pd.to_datetime(row[i_map['end_time']])
+                    if case_id not in trace_map:
+                        trace_map[case_id] = len(trace_list)
+                        trace_list.append(Trace(case_id))
+                    trace_list[trace_map[case_id]].event_list.append(event_info)
+                else:
+                    i_map = find_index(row)
                 row_count += 1
             return trace_list
     except IOError:
         return list()
+
+
+def find_index(csv_row):
+    i_map = dict()
+    for i in range(0, len(csv_row)):
+        i_map[csv_row[i]] = i
+    return i_map
 
 
 def compute_kpi_times_from_csv_log(log_path, bpmn_graph):
@@ -127,15 +166,35 @@ def compute_kpi_times_from_csv_log(log_path, bpmn_graph):
     return cumul_task_stats
 
 
+def parse_and_validate_input(log_path, bpmn_path, minutes_x_granule, conf, supp, part):
+    if minutes_x_granule < 0 or 1440 % minutes_x_granule != 0:
+        raise Exception("Invalid granule_size. The time interval must be a divisor of 1400, e.g., 15, 30, 60 minutes")
+    if conf < 0 or conf > 1:
+        raise Exception("Invalid confidence. The confidence index must be a value between 0 and 1, both inclusive.")
+    if supp < 0 or supp > 1:
+        raise Exception("Invalid support. The support index must be a value between 0 and 1, both inclusive.")
+    if part < 0 or part > 1:
+        raise Exception("Invalid resource participation ratio. It must be a value between 0 and 1, both inclusive.")
+    try:
+        model_name = ntpath.basename(bpmn_path).split('.')[0]
+        bpmn_graph = parse_simulation_model(bpmn_path)
+    except:
+        raise Exception("Invalid BPMN model.")
+
+    try:
+        log_traces = xes_importer.apply(log_path)
+    except:
+        raise Exception("Invalid XES event-log.")
+
+    return bpmn_graph, log_traces
+
+
 def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_confidence, min_support,
                        min_participation, fit_calendar, min_bin=50):
-    model_name = ntpath.basename(bpmn_path).split('.')[0]
-    # print('Parsing Event Log %s ...' % model_name)
     print('Discovery Params: Conf: %.2f, Supp: %.2f, R. Part: %.2f, Adj. Cal: %s'
           % (min_confidence, min_support, min_participation, str(fit_calendar)))
-    bpmn_graph = parse_simulation_model(bpmn_path)
-
-    log_traces = xes_importer.apply(log_path)
+    bpmn_graph, log_traces = parse_and_validate_input(log_path, bpmn_path, minutes_x_granule, min_confidence,
+                                                      min_support, min_participation)
 
     calendar_factory = CalendarFactory(minutes_x_granule)
     completed_events = list()

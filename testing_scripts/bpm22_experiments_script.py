@@ -4,7 +4,7 @@ import math
 import os
 
 from bpdfr_discovery.log_parser import discover_aggregated_task_distributions, preprocess_xes_log, \
-    discover_resource_task_duration_distribution, save_prosimos_json
+    discover_resource_task_duration_distribution, save_prosimos_json, transform_xes_to_csv
 from bpdfr_simulation_engine.probability_distributions import create_default_distribution
 from bpdfr_simulation_engine.resource_calendar import parse_datetime, build_full_time_calendar, CalendarFactory
 from testing_scripts.best_parameters_extraction import compute_median_simulation_emd
@@ -129,7 +129,7 @@ def discover_from_xes_log(model_name):
     c = 1
     bpmn_path = process_files[model_name]['bpmn']
     sim_log_path = process_files[model_name]['sim_log']
-    real_log = read_and_preprocess_log(process_files[model_name]['real_csv_log'])
+    real_log = read_and_preprocess_log(process_files[model_name]['csv_log'])
     print('------------------------------------------------------------------------')
 
     for json_path in json_paths:

@@ -168,8 +168,8 @@ def compute_median_simulation_emd(model_name, p_cases, bpmn_path, json_path, rea
     emd_list = list()
     i = 0
     bin_size = max(
-        [events['EndTimestamp'].max() - events['StartTimestamp'].min()
-         for case, events in real_log.groupby(['CaseID'])]
+        [events['end_time'].max() - events['start_time'].min()
+         for case, events in real_log.groupby(['case_id'])]
     ) / 100
 
     sim_duration = 0

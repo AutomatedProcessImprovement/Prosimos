@@ -16,12 +16,12 @@ def read_and_preprocess_log(event_log_path: str) -> pd.DataFrame:
     event_log = pd.read_csv(event_log_path)
     # Transform to Timestamp bot start and end columns
 
-    event_log['StartTimestamp'] = pd.to_datetime(event_log['StartTimestamp'], utc=True)
-    event_log['EndTimestamp'] = pd.to_datetime(event_log['EndTimestamp'], utc=True)
+    event_log['start_time'] = pd.to_datetime(event_log['start_time'], utc=True)
+    event_log['end_time'] = pd.to_datetime(event_log['end_time'], utc=True)
 
     # Sort by end timestamp, then by start timestamp, and then by activity name
     event_log = event_log.sort_values(
-        ['EndTimestamp', 'StartTimestamp', 'Activity', 'CaseID', 'Resource']
+        ['end_time', 'start_time', 'activity', 'case_id', 'resource']
     )
     # Reset the index
     event_log.reset_index(drop=True, inplace=True)
@@ -39,25 +39,25 @@ def discretize_to_day(seconds: int):
 def absolute_hour_emd(event_log_1: pd.DataFrame, event_log_2: pd.DataFrame, discretize=discretize_to_hour) -> float:
     # Get the first and last dates of the log
 
-    interval_start = min(event_log_1['StartTimestamp'].min(), event_log_2['StartTimestamp'].min())
+    interval_start = min(event_log_1['start_time'].min(), event_log_2['start_time'].min())
     interval_start = interval_start.replace(minute=0, second=0, microsecond=0, nanosecond=0)
     # Discretize each instant to its corresponding "bin"
     discretized_instants_1 = []
 
     discretized_instants_1 += [
-        discretize(difference.total_seconds()) for difference in (event_log_1['StartTimestamp'] - interval_start)
+        discretize(difference.total_seconds()) for difference in (event_log_1['start_time'] - interval_start)
     ]
     discretized_instants_1 += [
-        discretize(difference.total_seconds()) for difference in (event_log_1['EndTimestamp'] - interval_start)
+        discretize(difference.total_seconds()) for difference in (event_log_1['end_time'] - interval_start)
     ]
     # Discretize each instant to its corresponding "bin"
     discretized_instants_2 = []
 
     discretized_instants_2 += [
-        discretize(difference.total_seconds()) for difference in (event_log_2['StartTimestamp'] - interval_start)
+        discretize(difference.total_seconds()) for difference in (event_log_2['start_time'] - interval_start)
     ]
     discretized_instants_2 += [
-        discretize(difference.total_seconds()) for difference in (event_log_2['EndTimestamp'] - interval_start)
+        discretize(difference.total_seconds()) for difference in (event_log_2['end_time'] - interval_start)
     ]
     # Return EMD metric
 
@@ -67,12 +67,12 @@ def absolute_hour_emd(event_log_1: pd.DataFrame, event_log_2: pd.DataFrame, disc
 def trace_duration_emd(event_log_1: pd.DataFrame, event_log_2: pd.DataFrame, bin_size) -> float:
     # Get trace durations of each trace for the first log
     trace_durations_1 = []
-    for case, events in event_log_1.groupby(['CaseID']):
-        trace_durations_1 += [events['EndTimestamp'].max() - events['StartTimestamp'].min()]
+    for case, events in event_log_1.groupby(['case_id']):
+        trace_durations_1 += [events['end_time'].max() - events['start_time'].min()]
     # Get trace durations of each trace for the second log
     trace_durations_2 = []
-    for case, events in event_log_2.groupby(['CaseID']):
-        trace_durations_2 += [events['EndTimestamp'].max() - events['StartTimestamp'].min()]
+    for case, events in event_log_2.groupby(['case_id']):
+        trace_durations_2 += [events['end_time'].max() - events['start_time'].min()]
     # Discretize each instant to its corresponding "bin"
     min_duration = min(trace_durations_1 + trace_durations_2)
     discretized_durations_1 = [math.floor((trace_duration - min_duration) / bin_size) for trace_duration in

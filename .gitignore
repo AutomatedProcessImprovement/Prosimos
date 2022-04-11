@@ -2,6 +2,7 @@
 .idea/
 __pycache__/
 l_input_files/
+input_output_files/
 compressed_datasets/
 venv/
 l_output_files/
