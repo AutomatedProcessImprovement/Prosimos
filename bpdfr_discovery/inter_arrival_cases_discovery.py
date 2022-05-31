@@ -1,5 +1,5 @@
 import pandas as pd
-from prophet import Prophet
+# from prophet import Prophet
 import matplotlib.pyplot as plt
 
 from bpdfr_discovery.log_parser import transform_xes_to_csv
@@ -79,26 +79,26 @@ def discover_inter_arrival(log_cases):
     # dataset['cap'] = max_value
     # dataset['floor'] = 0
 
+    print("Prophet is disabled ... ")
+    # pr_estimator = Prophet()
+    # pr_estimator.fit(dataset)
 
-    pr_estimator = Prophet()
-    pr_estimator.fit(dataset)
+    # future = pr_estimator.make_future_dataframe(periods=8760, freq='h')
+    # # future['cap'] = max_value
+    # # future['floor'] = 0
+    # forecast = pr_estimator.predict(future)
+    # pr_estimator.plot(forecast)
+    # plt.show()
+    # est_val = forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail()
+    # # with pd.option_context('display.max_rows', None, 'display.max_columns', None):
+    # #     print(forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail(580))
 
-    future = pr_estimator.make_future_dataframe(periods=8760, freq='h')
-    # future['cap'] = max_value
-    # future['floor'] = 0
-    forecast = pr_estimator.predict(future)
-    pr_estimator.plot(forecast)
-    plt.show()
-    est_val = forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail()
-    # with pd.option_context('display.max_rows', None, 'display.max_columns', None):
-    #     print(forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail(580))
-
-    # pr_estimator.plot_components(forecast)
-    pr_estimator = Prophet()
-    pr_estimator.fit(f_dataset)
-    forecast = pr_estimator.predict(future)
-    pr_estimator.plot(forecast)
-    plt.show()
+    # # pr_estimator.plot_components(forecast)
+    # pr_estimator = Prophet()
+    # pr_estimator.fit(f_dataset)
+    # forecast = pr_estimator.predict(future)
+    # pr_estimator.plot(forecast)
+    # plt.show()
 
 
 def dataframe_from_csv(log_path, extended_out=False):
