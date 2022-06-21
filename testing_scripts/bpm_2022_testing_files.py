@@ -8,10 +8,23 @@ experiment_logs = {0: 'production',
                    7: 'loan_MC_LU',
                    8: 'loan_MC_HU',
                    9: 'insurance',
-                   10: 'government'
+                   10: 'government',
+                   11: 'demo_example'
                    }
 
 process_files = {
+    'demo_example': {
+        'xes_log': './../input_output_files/discovery_input_files/xes_logs/log_demo_filtered.xes',
+        'csv_log': './../input_output_files/discovery_input_files/csv_logs/pending.csv',
+        'real_csv_log': './../input_output_files/discovery_output_files/real_csv_logs/pending.csv',
+        'bpmn': './../input_output_files/discovery_input_files/bpmn_models/Credit_Application_Simulation.bpmn',
+        'json': './../input_output_files/discovery_output_files/json/demo_example.json',
+        'sim_log': './../input_output_files/discovery_output_files/prosimos_logs/demo_example.csv',
+        'demo_stats': './../input_output_files/discovery_output_files/prosimos_logs/demo_stats.csv',
+        'start_datetime': '2022-06-06T09:00:00.000000-00:00',
+        'total_cases': 100,
+        'disc_params': [60, 0.1, 0.9, 0.6, True]
+    },
     'purchasing_example':
         {
             'xes_log': './../input_output_files/discovery_input_files/xes_logs/PurchasingExample.xes',

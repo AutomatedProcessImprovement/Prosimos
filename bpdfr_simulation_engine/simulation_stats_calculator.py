@@ -163,6 +163,11 @@ class LogInfo:
         for trace_info in self.trace_list:
             self.compute_execution_times(trace_info, process_kpi)
 
+        if process_kpi.cycle_time.avg < 0:
+            print("Negative Cycle Time: %s" % (str(process_kpi.cycle_time.avg)))
+        if process_kpi.processing_time.avg < 0:
+            print("Negative Processing Time: %s" % (str(process_kpi.processing_time.avg)))
+
         kpi_map = {"cycle_time": process_kpi.cycle_time,
                    "processing_time": process_kpi.processing_time,
                    "idle_cycle_time": process_kpi.idle_cycle_time,

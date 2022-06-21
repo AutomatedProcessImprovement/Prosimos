@@ -13,7 +13,7 @@ from pm4py.objects.log.importer.xes import importer as xes_importer
 
 from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 from testing_scripts.bpm_2022_testing_files import process_files
-from testing_scripts.david_metrics import read_and_preprocess_log, absolute_hour_emd, trace_duration_emd, \
+from bpdfr_discovery.emd_metric import read_and_preprocess_log, absolute_hour_emd, trace_duration_emd, \
     discretize_to_hour, SimStats, discretize_to_day
 
 
@@ -185,7 +185,7 @@ def compute_median_simulation_emd(model_name, p_cases, bpmn_path, json_path, rea
                                  absolute_hour_emd(real_log, simulated_log, discretize_to_day),
                                  trace_duration_emd(real_log, simulated_log, bin_size)))
         i += 1
-    print("Mean Simulation Time: %.2f" %(sim_duration / 5))
+    print("Mean Simulation Time: %.2f" % (sim_duration / 5))
     # except:
     #     print('Simulation Limit exceeded: %d' % i)
     #     continue

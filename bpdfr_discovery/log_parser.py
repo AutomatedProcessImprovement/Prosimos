@@ -90,14 +90,6 @@ def dataframe_from_csv(log_path, extended_out=False):
     # res_freq = event_log['resource'].value_counts()
 
 
-
-
-
-
-
-
-
-
 def event_list_from_csv(log_path):
     try:
         with open(log_path, mode='r') as csv_file:
@@ -617,7 +609,7 @@ def discover_arrival_time_distribution(initial_events, arrival_calendar):
     for i in range(1, len(arrival)):
         durations.append(
             arrival[i].to_start_dist - arrival[i - 1].to_start_dist if arrival[i].in_same_interval(arrival[i - 1])
-            else arrival[i].to_end_dist + arrival[i - 1].to_start_dist)
+            else arrival[i].to_start_dist + arrival[i - 1].to_end_dist)
     if print_info:
         print("In Calendar Event Ratio: %.2f" % (len(arrival) / len(initial_events)))
         print('---------------------------------------------------')

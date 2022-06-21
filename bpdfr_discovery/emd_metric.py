@@ -28,6 +28,10 @@ def read_and_preprocess_log(event_log_path: str) -> pd.DataFrame:
     return event_log
 
 
+def discretize_to_minutes(seconds: int):
+    return math.floor(seconds / 60)
+
+
 def discretize_to_hour(seconds: int):
     return math.floor(seconds / 3600)
 

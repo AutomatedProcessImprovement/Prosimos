@@ -43,15 +43,19 @@ class SimBPMEnv:
     def generate_all_arrival_events(self, total_cases):
         sim_setup = self.sim_setup
         arrival_time = 0
+        # prev = 0
         for p_case in range(0, total_cases):
             p_state = sim_setup.initial_state()
             enabled_tasks = sim_setup.update_process_state(sim_setup.bpmn_graph.starting_event, p_state)
             enabled_datetime = self.simulation_datetime_from(arrival_time)
+            # print(enabled_datetime)
             self.log_info.trace_list.append(Trace(p_case, enabled_datetime))
             for task_id in enabled_tasks:
                 self.events_queue.append_arrival_event(EnabledEvent(p_case, p_state, task_id, arrival_time,
                                                                     enabled_datetime))
+                # prev = arrival_time
             arrival_time += sim_setup.next_arrival_time(enabled_datetime)
+            # print((arrival_time - prev) / 60)
 
     def execute_enabled_event(self, c_event: EnabledEvent):
         self.executed_events += 1
