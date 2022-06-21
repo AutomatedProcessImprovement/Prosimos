@@ -134,14 +134,14 @@ class LogInfo:
     def compute_individual_task_stats(self, stat_fwriter):
         stat_fwriter.writerow(['Individual Task Statistics'])
         stat_fwriter.writerow(['Name', 'Count', 'Min Duration', 'Max Duration', 'Avg Duration', 'Total Duration',
-                               'Min Waiting Time', 'Max Waiting Time', 'Ave Waiting Time', 'Total Waiting Time',
-                               'Min Processing Time', 'Max Processing Time', 'Ave Processing Time',
-                               'Total Processing Time', 'Min Cycle Time', 'Max Cycle Time', 'Ave Cycle Time',
-                               'Total Cycle Time', 'Min Idle Time', 'Max Idle Time', 'Ave Idle Time', 'Total Idle Time',
-                               'Min Idle Cycle Time', 'Max Idle Cycle Time', 'Ave Idle Cycle Time',
+                               'Min Waiting Time', 'Max Waiting Time', 'Avg Waiting Time', 'Total Waiting Time',
+                               'Min Processing Time', 'Max Processing Time', 'Avg Processing Time',
+                               'Total Processing Time', 'Min Cycle Time', 'Max Cycle Time', 'Avg Cycle Time',
+                               'Total Cycle Time', 'Min Idle Time', 'Max Idle Time', 'Avg Idle Time', 'Total Idle Time',
+                               'Min Idle Cycle Time', 'Max Idle Cycle Time', 'Avg Idle Cycle Time',
                                'Total Idle Cycle Time', 'Min Idle Processing Time', 'Max Idle Processing Time',
-                               'Ave Idle Processing Time', 'Total Idle Processing Time', 'Min Cost', 'Max Cost',
-                               'Ave Cost', 'Total Cost'])
+                               'Avg Idle Processing Time', 'Total Idle Processing Time', 'Min Cost', 'Max Cost',
+                               'Avg Cost', 'Total Cost'])
         for t_name in self.task_exec_info:
             t_info: KPIMap = self.task_exec_info[t_name]
             stat_fwriter.writerow([self.sim_setup.bpmn_graph.element_info[t_name].name,
