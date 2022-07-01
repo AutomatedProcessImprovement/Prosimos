@@ -74,6 +74,7 @@ class LogInfo:
         real_work_intervals = list()
         for event_info in trace_info.event_list:
             r_calendar = self.sim_setup.calendars_map[self.sim_setup.resources_map[event_info.resource_id].calendar_id]
+
             r_calendar.remove_idle_times(event_info.started_datetime, event_info.completed_datetime,
                                          real_work_intervals)
             processing_intervals.append(Interval(event_info.started_datetime, event_info.completed_datetime))
@@ -213,8 +214,8 @@ def compute_resource_utilization(bpm_env):
                                r_info.pool_info.pool_id,
                                r_info.pool_info.pool_name])
 
-        # if r_utilization > 0:
-        #     print("Ideal: %s" % str(datetime.timedelta(seconds=bpm_env.real_duration[r_id])))
+        # if r_utilization > 1:
+        #     # print("Ideal: %s" % str(datetime.timedelta(seconds=bpm_env.real_duration[r_id])))
         #     print("Sum:   %s" % str(datetime.timedelta(seconds=bpm_env.sim_resources[r_id].worked_time)))
         #     print("Full:  %s" % str(datetime.timedelta(seconds=bpm_env.sim_resources[r_id].available_time)))
         #     print("%s -> Utilization: %f" % (r_id, r_utilization))

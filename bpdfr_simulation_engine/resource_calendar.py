@@ -26,7 +26,7 @@ class CalendarItem:
 class Interval:
     def __init__(self, start, end):
         self.start = start
-        if end < start and end.hour == 12 and end.minute == 0:
+        if end < start and end.hour == 0 and end.minute == 0:
             end.replace(hour=23, minute=59, second=59, microsecond=999)
         self.end = end
         self.duration = (end - start).total_seconds()

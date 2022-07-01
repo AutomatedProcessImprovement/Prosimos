@@ -21,7 +21,7 @@ process_files = {
         'json': './../input_output_files/discovery_output_files/json/demo_example.json',
         'sim_log': './../input_output_files/discovery_output_files/prosimos_logs/demo_example.csv',
         'demo_stats': './../input_output_files/discovery_output_files/prosimos_logs/demo_stats.csv',
-        'start_datetime': '2022-06-21T11:52:47.4747+03:00',
+        'start_datetime': '2022-06-21 13:22:30.035185+03:00',
         'total_cases': 100,
         'disc_params': [60, 0.1, 0.9, 0.6, True]
     },
