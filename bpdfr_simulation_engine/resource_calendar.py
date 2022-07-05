@@ -215,8 +215,6 @@ class RCalendar:
                     merged_duration -= (to_merge.end - next_i.start).total_seconds()
                     to_merge.merge_interval(next_i)
                 del self.work_intervals[w_day][i]
-            if merged_duration < 0:
-                print('HOOOOLA')
             if merged_duration > 0:
                 self._update_calendar_durations(w_day, merged_duration)
             return
@@ -289,7 +287,6 @@ class RCalendar:
         return duration
 
     def find_working_time(self, start_date, end_date):
-        # print("%s -- %s" % (str(start_date), str(end_date)))
         pending_duration = (end_date - start_date).total_seconds()
         worked_hours = 0
 
@@ -324,8 +321,6 @@ class RCalendar:
             if pending_duration <= 0:
                 break
             previous_date = interval.end
-        # print("Worked-hours: %s" % worked_hours)
-        # print('-----------------------------------------------------')
         return worked_hours
 
     def _find_time_starting(self, pending_duration, c_day, from_date):
@@ -371,7 +366,6 @@ def parse_datetime(time, has_date):
     try:
         return parser.parse(time)
     except:
-        print(time)
         for time_format in time_formats:
             try:
                 return datetime.datetime.strptime(time, time_format)

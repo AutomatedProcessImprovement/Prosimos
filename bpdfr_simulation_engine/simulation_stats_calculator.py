@@ -93,16 +93,6 @@ class LogInfo:
         process_kpi.idle_time.add_value(idle_time)
         process_kpi.cycle_time.add_value(idle_cycle_time - idle_time)
 
-        # These conditional are for debugging, remove after testing all the models
-        # if idle_time < 0:
-        #     print('===========================================================')
-        #     for xx in processing_intervals:
-        #         print("%s -> %s (%f)" % (str(xx.start), str(xx.end), xx.duration))
-        #     print('===========================================================')
-        # if idle_cycle_time != round(idle_processing_time + waiting_time, 6):
-        #     calc = idle_processing_time + waiting_time
-        #     print('trace_duration %s - %s idle_cycle_time (calculated)' % (idle_cycle_time, calc))
-
     def _update_global_task_stats(self, event_info: TaskEvent, cost_per_hour: float):
         self.started_at = min(self.started_at, event_info.started_datetime)
         self.ended_at = max(self.ended_at, event_info.completed_datetime)
@@ -164,11 +154,6 @@ class LogInfo:
         for trace_info in self.trace_list:
             self.compute_execution_times(trace_info, process_kpi)
 
-        if process_kpi.cycle_time.min < 0:
-            print("Negative Cycle Time: %s" % (str(process_kpi.cycle_time.avg)))
-        if process_kpi.processing_time.min < 0:
-            print("Negative Processing Time: %s" % (str(process_kpi.processing_time.avg)))
-
         kpi_map = {"cycle_time": process_kpi.cycle_time,
                    "processing_time": process_kpi.processing_time,
                    "idle_cycle_time": process_kpi.idle_cycle_time,
@@ -203,6 +188,7 @@ def compute_resource_utilization(bpm_env):
         bpm_env.sim_resources[r_id].available_time = available_time[calendar_info.calendar_id]
 
     for r_id in bpm_env.sim_resources:
+
         r_utilization = bpm_env.get_utilization_for(r_id)
         r_info = bpm_env.sim_setup.resources_map[r_id]
         stat_fwriter.writerow([r_id,
@@ -214,12 +200,6 @@ def compute_resource_utilization(bpm_env):
                                r_info.pool_info.pool_id,
                                r_info.pool_info.pool_name])
 
-        # if r_utilization > 1:
-        #     # print("Ideal: %s" % str(datetime.timedelta(seconds=bpm_env.real_duration[r_id])))
-        #     print("Sum:   %s" % str(datetime.timedelta(seconds=bpm_env.sim_resources[r_id].worked_time)))
-        #     print("Full:  %s" % str(datetime.timedelta(seconds=bpm_env.sim_resources[r_id].available_time)))
-        #     print("%s -> Utilization: %f" % (r_id, r_utilization))
-        #     print('-------------------------------------------')
     stat_fwriter.writerow([""])
 
 

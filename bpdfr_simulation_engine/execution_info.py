@@ -58,7 +58,6 @@ class TaskEvent:
         self.processing_time = (self.completed_at - self.started_at).total_seconds()
 
 
-
 class LogEvent:
     def __int__(self, task_id, started_datetime, resource_id):
         self.task_id = task_id
@@ -110,7 +109,6 @@ class Trace:
             if ev_info.started_at is not None and ev_info.completed_at is not None:
                 filtered_list.append(ev_info)
         self.event_list = filtered_list
-
 
 
 class EnabledEvent:

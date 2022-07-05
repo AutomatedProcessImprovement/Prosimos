@@ -48,34 +48,35 @@ class SimBPMEnv:
             p_state = sim_setup.initial_state()
             enabled_tasks = sim_setup.update_process_state(sim_setup.bpmn_graph.starting_event, p_state)
             enabled_datetime = self.simulation_datetime_from(arrival_time)
-            # print(enabled_datetime)
             self.log_info.trace_list.append(Trace(p_case, enabled_datetime))
             for task_id in enabled_tasks:
                 self.events_queue.append_arrival_event(EnabledEvent(p_case, p_state, task_id, arrival_time,
                                                                     enabled_datetime))
-                # prev = arrival_time
             arrival_time += sim_setup.next_arrival_time(enabled_datetime)
-            # print((arrival_time - prev) / 60)
 
     def execute_enabled_event(self, c_event: EnabledEvent):
         self.executed_events += 1
-        resource_id, r_available_at = self.resource_queue.pop_resource_for(c_event.task_id)
-        self.sim_resources[resource_id].allocated_tasks += 1
-        is_working, _ = self.sim_setup.get_resource_calendar(resource_id).is_working_datetime(c_event.enabled_datetime)
+        r_id, r_avail_at = self.resource_queue.pop_resource_for(c_event.task_id)
+        self.sim_resources[r_id].allocated_tasks += 1
+
+        r_avail_at = max(c_event.enabled_at, r_avail_at)
+        avail_datetime = self._datetime_from(r_avail_at)
+        is_working, _ = self.sim_setup.get_resource_calendar(r_id).is_working_datetime(avail_datetime)
         if not is_working:
-            r_available_at = c_event.enabled_at + self.sim_setup.next_resting_time(resource_id, c_event.enabled_datetime)
+            r_avail_at = r_avail_at + self.sim_setup.next_resting_time(r_id, avail_datetime)
 
-        full_evt = TaskEvent(c_event.p_case, c_event.task_id, resource_id, r_available_at,
-                             c_event.enabled_at, c_event.enabled_datetime, self)
+        full_evt = TaskEvent(c_event.p_case, c_event.task_id, r_id, r_avail_at, c_event.enabled_at,
+                             c_event.enabled_datetime, self)
 
-        self.log_info.add_event_info(c_event.p_case, full_evt, self.sim_setup.resources_map[resource_id].cost_per_hour)
+        self.log_info.add_event_info(c_event.p_case, full_evt, self.sim_setup.resources_map[r_id].cost_per_hour)
 
         r_next_available = full_evt.completed_at
 
-        if self.sim_resources[resource_id].switching_time > 0:
-            r_next_available += self.sim_setup.next_resting_time(resource_id, full_evt.completed_datetime)
-        self.resource_queue.upddate_resource_availability(resource_id, r_next_available)
-        self.sim_resources[resource_id].worked_time += full_evt.ideal_duration
+        if self.sim_resources[r_id].switching_time > 0:
+            r_next_available += self.sim_setup.next_resting_time(r_id, full_evt.completed_datetime)
+
+        self.resource_queue.upddate_resource_availability(r_id, r_next_available)
+        self.sim_resources[r_id].worked_time += full_evt.ideal_duration
 
         self.log_writer.add_csv_row([c_event.p_case,
                                      self.sim_setup.bpmn_graph.element_info[c_event.task_id].name,
@@ -136,7 +137,7 @@ def execute_full_process(bpm_env: SimBPMEnv, total_cases):
     while current_event is not None:
         bpm_env.execute_enabled_event(current_event)
         current_event = bpm_env.events_queue.pop_next_event()
-    print('Completed execution')
+
 
 def run_simulation(bpmn_path, json_path, total_cases, stat_out_path=None, log_out_path=None, starting_at=None):
     diffsim_info = SimDiffSetup(bpmn_path, json_path)
@@ -172,14 +173,10 @@ def run_simpy_simulation(diffsim_info, total_cases, stat_fwriter, log_fwriter):
     bpm_env = SimBPMEnv(diffsim_info, stat_fwriter, log_fwriter)
     add_simulation_event_log_header(log_fwriter)
     execute_full_process(bpm_env, total_cases)
-    # print("DiffSim state update   : %s" %
-    #       str(datetime.timedelta(seconds=bpm_env.time_update_process_state)))
-
     if log_fwriter:
         bpm_env.log_writer.force_write()
     if stat_fwriter:
         bpm_env.log_info.save_joint_statistics(bpm_env)
-    # print("Total Task Instances: %d" % bpm_env.executed_events)
 
 
 def add_simulation_event_log_header(log_fwriter):
