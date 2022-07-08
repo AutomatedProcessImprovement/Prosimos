@@ -6,23 +6,40 @@ from enum import Enum
 import pm4py
 import random
 from pm4py.objects.conversion.process_tree import converter
+from sympy import true
 
 
 class BPMN(Enum):
     TASK = 'TASK'
     START_EVENT = 'START-EVENT'
     END_EVENT = 'END-EVENT',
+    INTERMEDIATE_EVENT = 'INTERMEDIATE_EVENT',
     EXCLUSIVE_GATEWAY = 'EXCLUSIVE-GATEWAY'
     INCLUSIVE_GATEWAY = 'INCLUSIVE-GATEWAY'
     PARALLEL_GATEWAY = 'PARALLEL-GATEWAY'
     UNDEFINED = 'UNDEFINED'
 
+    @classmethod
+    def is_event(cls, type):
+        if (type == cls.START_EVENT or type == cls.END_EVENT or type == cls.INTERMEDIATE_EVENT):
+            return True
+        else:
+            return False
+
+class EVENT_TYPE(Enum):
+    MESSAGE = 'MESSAGE'
+    TIMER = 'TIMER'
+    LINK = 'LINK'
+    SIGNAL = 'SIGNAL'
+    UNDEFINED = 'UNDEFINED'
+
 
 class ElementInfo:
-    def __init__(self, element_type, element_id, element_name):
+    def __init__(self, element_type, element_id, element_name, event_type):
         self.id = element_id
         self.name = element_name
         self.type = element_type
+        self.event_type = event_type
         self.incoming_flows = list()
         self.outgoing_flows = list()
 
@@ -101,7 +118,7 @@ class BPMNGraph:
     def add_flow_arc(self, flow_id, source_id, target_id):
         for node_id in [source_id, target_id]:
             if node_id not in self.element_info:
-                self.element_info[node_id] = ElementInfo(BPMN.UNDEFINED, node_id, node_id)
+                self.element_info[node_id] = ElementInfo(BPMN.UNDEFINED, node_id, node_id, None)
         self.element_info[source_id].outgoing_flows.append(flow_id)
         self.element_info[target_id].incoming_flows.append(flow_id)
         self.flow_arcs[flow_id] = [source_id, target_id]

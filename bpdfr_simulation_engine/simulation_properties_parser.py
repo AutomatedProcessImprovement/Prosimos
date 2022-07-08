@@ -3,7 +3,7 @@ import xml.etree.ElementTree as ET
 
 from numpy import exp, sqrt, log
 
-from bpdfr_simulation_engine.control_flow_manager import BPMNGraph, ElementInfo, BPMN
+from bpdfr_simulation_engine.control_flow_manager import EVENT_TYPE, BPMNGraph, ElementInfo, BPMN
 from bpdfr_simulation_engine.resource_calendar import RCalendar, convert_time_unit_from_to, convertion_table, to_seconds
 from bpdfr_simulation_engine.resource_profile import ResourceProfile, PoolInfo
 from bpdfr_simulation_engine.probability_distributions import *
@@ -130,7 +130,8 @@ def parse_simulation_model(bpmn_path):
                   'xmlns:endEvent': BPMN.END_EVENT,
                   'xmlns:exclusiveGateway': BPMN.EXCLUSIVE_GATEWAY,
                   'xmlns:parallelGateway': BPMN.PARALLEL_GATEWAY,
-                  'xmlns:inclusiveGateway': BPMN.INCLUSIVE_GATEWAY}
+                  'xmlns:inclusiveGateway': BPMN.INCLUSIVE_GATEWAY,
+                  'xmlns:intermediateCatchEvent': BPMN.INTERMEDIATE_EVENT}
 
     bpmn_graph = BPMNGraph()
     for process in root.findall('xmlns:process', bpmn_element_ns):
@@ -139,12 +140,34 @@ def parse_simulation_model(bpmn_path):
                 name = bpmn_element.attrib["name"] \
                     if "name" in bpmn_element.attrib and len(bpmn_element.attrib["name"]) > 0 \
                     else bpmn_element.attrib["id"]
+                elem_general_type: BPMN = to_extract[xmlns_key]
+                
+                event_type = _get_event_type_from_element(bpmn_element) if BPMN.is_event(elem_general_type) else None
+                if (event_type == EVENT_TYPE.UNDEFINED):
+                    print(f"{name} event has an undefined event type")
+                
                 bpmn_graph.add_bpmn_element(bpmn_element.attrib["id"],
-                                            ElementInfo(to_extract[xmlns_key], bpmn_element.attrib["id"], name))
+                                            ElementInfo(elem_general_type, bpmn_element.attrib["id"], name, event_type))
         for flow_arc in process.findall('xmlns:sequenceFlow', bpmn_element_ns):
             bpmn_graph.add_flow_arc(flow_arc.attrib["id"], flow_arc.attrib["sourceRef"], flow_arc.attrib["targetRef"])
     bpmn_graph.encode_or_join_predecesors()
     return bpmn_graph
+
+def _get_event_type_from_element(bpmn_element):
+    children = bpmn_element.getchildren()
+
+    for child in children:
+        if "EventDefinition" in child.tag:
+            # tag example: '{http://www.omg.org/spec/BPMN/20100524/MODEL}timerEventDefinition'
+            type_name = child.tag.split("}")[1]
+            switcher = {
+                'timerEventDefinition': EVENT_TYPE.TIMER,
+                'messageEventDefinition': EVENT_TYPE.MESSAGE,
+                'linkEventDefinition': EVENT_TYPE.LINK,
+                'signalEventDefinition': EVENT_TYPE.SIGNAL
+            }
+
+            return switcher.get(type_name, EVENT_TYPE.UNDEFINED)
 
 
 def parse_qbp_simulation_process(qbp_bpmn_path, out_file):
