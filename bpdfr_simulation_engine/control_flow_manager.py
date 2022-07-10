@@ -6,8 +6,9 @@ from enum import Enum
 import pm4py
 import random
 from pm4py.objects.conversion.process_tree import converter
-from sympy import true
+from bpdfr_simulation_engine.probability_distributions import generate_number_from
 
+seconds_per_unit = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
 
 class BPMN(Enum):
     TASK = 'TASK'
@@ -17,11 +18,12 @@ class BPMN(Enum):
     EXCLUSIVE_GATEWAY = 'EXCLUSIVE-GATEWAY'
     INCLUSIVE_GATEWAY = 'INCLUSIVE-GATEWAY'
     PARALLEL_GATEWAY = 'PARALLEL-GATEWAY'
+    EVENT_BASED_GATEWAY = 'EVENT-BASED-GATEWAY'
     UNDEFINED = 'UNDEFINED'
 
     @classmethod
     def is_event(cls, type):
-        if (type == cls.START_EVENT or type == cls.END_EVENT or type == cls.INTERMEDIATE_EVENT):
+        if (type in [cls.START_EVENT, cls.END_EVENT, cls.INTERMEDIATE_EVENT]):
             return True
         else:
             return False
@@ -50,7 +52,7 @@ class ElementInfo:
         return len(self.incoming_flows) > 1
 
     def is_gateway(self):
-        return self.type in [BPMN.EXCLUSIVE_GATEWAY, BPMN.PARALLEL_GATEWAY, BPMN.INCLUSIVE_GATEWAY]
+        return self.type in [BPMN.EXCLUSIVE_GATEWAY, BPMN.PARALLEL_GATEWAY, BPMN.INCLUSIVE_GATEWAY, BPMN.EVENT_BASED_GATEWAY]
 
 
 class ProcessState:
@@ -101,10 +103,12 @@ class BPMNGraph:
         self.closest_distance = None
         self.decision_flows_sortest_path = None
         self._c_trace = None
+        self.event_distribution = None
 
-    def set_element_probabilities(self, element_probability, task_resource_probability):
+    def set_element_probabilities(self, element_probability, task_resource_probability, event_distribution):
         self.element_probability = element_probability
         self.task_resource_probability = task_resource_probability
+        self.event_distribution = event_distribution
 
     def add_bpmn_element(self, element_id, element_info):
         if element_info.type == BPMN.START_EVENT:
@@ -201,12 +205,12 @@ class BPMNGraph:
         if e_id == self.starting_event:
             return True
         e_info = self.element_info[e_id]
-        if e_info.type in [BPMN.TASK, BPMN.END_EVENT, BPMN.PARALLEL_GATEWAY]:
+        if e_info.type in [BPMN.TASK, BPMN.END_EVENT, BPMN.PARALLEL_GATEWAY, BPMN.INTERMEDIATE_EVENT]:
             for f_arc in e_info.incoming_flows:
                 if p_state.tokens[f_arc] < 1:
                     return False
             return True
-        elif e_info.type == BPMN.EXCLUSIVE_GATEWAY:
+        elif e_info.type in [BPMN.EXCLUSIVE_GATEWAY, BPMN.EVENT_BASED_GATEWAY]:
             for f_arc in e_info.incoming_flows:
                 if p_state.tokens[f_arc] > 0:
                     return True
@@ -247,8 +251,11 @@ class BPMNGraph:
             if len(f_arcs) > 1:
                 if e_info.type is BPMN.EXCLUSIVE_GATEWAY:
                     f_arcs = [self.element_probability[e_info.id].get_outgoing_flow()]
+                elif e_info.type is BPMN.EVENT_BASED_GATEWAY:
+                    f_arcs = [self.get_event_gateway_choice(e_info)]
                 else:
-                    if e_info.type in [BPMN.TASK, BPMN.PARALLEL_GATEWAY, BPMN.START_EVENT]:
+                    if e_info.type in \
+                        [BPMN.TASK, BPMN.PARALLEL_GATEWAY, BPMN.START_EVENT, BPMN.INTERMEDIATE_EVENT]:
                         f_arcs = copy.deepcopy(e_info.outgoing_flows)
                     elif e_info.type is BPMN.INCLUSIVE_GATEWAY:
                         f_arcs = self.element_probability[e_info.id].get_multiple_flows()
@@ -259,6 +266,58 @@ class BPMNGraph:
         if len(enabled_tasks) > 1:
             random.shuffle(enabled_tasks)
         return enabled_tasks
+
+    def get_event_gateway_choice(self, gateway_element_info: ElementInfo):
+        """
+        Find which flow will be executed next based on gateway element info
+
+        :param gateway_element_info: object of type ElementInfo which is gateway
+        :return: flow name that will be executed
+        """
+        all_gateway_choices = dict()
+        for outgoing_flow in gateway_element_info.outgoing_flows:
+            event_id = self.flow_arcs[outgoing_flow][1]
+            event_element = self.element_info[event_id]
+            if (event_element.event_type == EVENT_TYPE.TIMER):
+                # parse timer name
+                all_gateway_choices[outgoing_flow] = self.parse_timer_duration(event_element)
+            else:
+                # all other type should have defined probabilities
+                all_gateway_choices[outgoing_flow] = self.event_duration(event_id)
+        
+        min_value = min(all_gateway_choices.values())
+        res = [key for key, value in all_gateway_choices.items() if value == min_value]
+
+        # return randomly selected outgoing flow
+        # in case of same value for multiple flows
+        return random.choice(res)
+
+    def event_duration(self, event_id):
+        """
+        Find event duration of all types except TIMER
+
+        :event_id: id of the event element
+        :return: duration in seconds 
+        """
+        distribution = self.event_distibution[event_id]
+        val = generate_number_from(distribution["distribution_name"],
+                                   distribution["distribution_params"]
+        )
+        return val
+
+
+    def parse_timer_duration(self, timer_element_info):
+        """
+        Parse timer's name.
+        Accepted time format: 10s|10m|10h|10d|10w
+
+        :param timer_element_info: object of type ElementInfo with event_type TIMER
+        """
+        # Right now, we handle only realtive time span.
+        # TODO: specific point of time: 9am, Monday.
+        timer_duration = timer_element_info.name
+        return int(timer_duration[:-1]) * seconds_per_unit[timer_duration[-1]]
+
 
     def reply_trace(self, task_sequence, f_arcs_frequency, post_p=True, trace=None):
         self._c_trace = trace

@@ -14,11 +14,12 @@ class SimDiffSetup:
         self.process_name = ntpath.basename(bpmn_path).split(".")[0]
         self.start_datetime = datetime.datetime.now(pytz.utc)
 
-        self.resources_map, self.calendars_map, self.element_probability, self.task_resource, self.arrival_calendar \
+        self.resources_map, self.calendars_map, self.element_probability, self.task_resource, self.arrival_calendar, \
+            self.event_distibution \
             = parse_json_sim_parameters(json_path)
 
         self.bpmn_graph = parse_simulation_model(bpmn_path)
-        self.bpmn_graph.set_element_probabilities(self.element_probability, self.task_resource)
+        self.bpmn_graph.set_element_probabilities(self.element_probability, self.task_resource, self.event_distibution)
         if not self.arrival_calendar:
             self.arrival_calendar = self.find_arrival_calendar()
 

@@ -24,8 +24,9 @@ def parse_json_sim_parameters(json_path):
         element_distribution = parse_arrival_branching_probabilities(json_data["arrival_time_distribution"],
                                                                      json_data["gateway_branching_probabilities"])
         arrival_calendar = parse_arrival_calendar(json_data)
+        event_distibution = parse_event_distibution(json_data["event_distribution"])
 
-        return resources_map, calendars_map, element_distribution, task_resource_distribution, arrival_calendar
+        return resources_map, calendars_map, element_distribution, task_resource_distribution, arrival_calendar, event_distibution
 
 
 # def parse_pool_info(json_data, resources_map):
@@ -86,6 +87,29 @@ def parse_task_resource_distributions(json_data):
     return task_resource_distribution
 
 
+def parse_event_distibution(event_json_data):
+    """
+    Parse "event_distribution" section of json data
+    """
+    event_distibution = dict()
+
+    for event_info in event_json_data:
+        e_id = event_info["event_id"]
+
+        if e_id not in event_distibution:
+            event_distibution[e_id] = dict()
+            dist_params = []
+
+            for param_info in event_info["distribution_params"]:
+                dist_params.append(float(param_info["value"]))
+            
+            event_distibution[e_id] = {
+                "distribution_name": event_info["distribution_name"],
+                "distribution_params": dist_params
+            }
+
+    return event_distibution
+
 # def parse_calendar_from_json(json_data):
 #     resources_map = dict()
 #     calendars_map = dict()
@@ -131,6 +155,7 @@ def parse_simulation_model(bpmn_path):
                   'xmlns:exclusiveGateway': BPMN.EXCLUSIVE_GATEWAY,
                   'xmlns:parallelGateway': BPMN.PARALLEL_GATEWAY,
                   'xmlns:inclusiveGateway': BPMN.INCLUSIVE_GATEWAY,
+                  'xmlns:eventBasedGateway': BPMN.EVENT_BASED_GATEWAY,
                   'xmlns:intermediateCatchEvent': BPMN.INTERMEDIATE_EVENT}
 
     bpmn_graph = BPMNGraph()
