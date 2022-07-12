@@ -56,11 +56,11 @@ class SimDiffSetup:
     def is_enabled(self, e_id, p_state):
         return self.bpmn_graph.is_enabled(e_id, p_state)
 
-    def update_process_state(self, e_id, p_state):
-        return self.bpmn_graph.update_process_state(e_id, p_state)
+    def update_process_state(self, e_id, p_state, completed_time_prev_event):
+        return self.bpmn_graph.update_process_state(e_id, p_state, completed_time_prev_event)
 
     def find_arrival_calendar(self):
-        enabled_tasks = self.update_process_state(self.bpmn_graph.starting_event, self.initial_state())
+        enabled_tasks = self.update_process_state(self.bpmn_graph.starting_event, self.initial_state(), None)
         starter_resources = set()
         arrival_calendar = RCalendar("arrival_calendar")
         for task_id in enabled_tasks:

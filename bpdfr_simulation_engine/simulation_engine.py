@@ -5,6 +5,7 @@ from pathlib import Path
 import pytz
 import datetime
 from datetime import timedelta
+from bpdfr_simulation_engine.control_flow_manager import BPMN, EVENT_TYPE
 
 from bpdfr_simulation_engine.file_manager import FileManager
 from bpdfr_simulation_engine.execution_info import Trace, TaskEvent, EnabledEvent
@@ -46,8 +47,8 @@ class SimBPMEnv:
         # prev = 0
         for p_case in range(0, total_cases):
             p_state = sim_setup.initial_state()
-            enabled_tasks = sim_setup.update_process_state(sim_setup.bpmn_graph.starting_event, p_state)
             enabled_datetime = self.simulation_datetime_from(arrival_time)
+            enabled_tasks = sim_setup.update_process_state(sim_setup.bpmn_graph.starting_event, p_state, enabled_datetime)
             self.log_info.trace_list.append(Trace(p_case, enabled_datetime))
             for task_id in enabled_tasks:
                 self.events_queue.append_arrival_event(EnabledEvent(p_case, p_state, task_id, arrival_time,
@@ -56,44 +57,68 @@ class SimBPMEnv:
 
     def execute_enabled_event(self, c_event: EnabledEvent):
         self.executed_events += 1
-        r_id, r_avail_at = self.resource_queue.pop_resource_for(c_event.task_id)
-        self.sim_resources[r_id].allocated_tasks += 1
 
-        r_avail_at = max(c_event.enabled_at, r_avail_at)
-        avail_datetime = self._datetime_from(r_avail_at)
-        is_working, _ = self.sim_setup.get_resource_calendar(r_id).is_working_datetime(avail_datetime)
-        if not is_working:
-            r_avail_at = r_avail_at + self.sim_setup.next_resting_time(r_id, avail_datetime)
+        event_element_info = self.sim_setup.bpmn_graph.element_info[c_event.task_id]
+        completed_datetime_for_next_element = None
+        if (event_element_info.type == BPMN.TASK):
+            r_id, r_avail_at = self.resource_queue.pop_resource_for(c_event.task_id)
+            self.sim_resources[r_id].allocated_tasks += 1
 
-        full_evt = TaskEvent(c_event.p_case, c_event.task_id, r_id, r_avail_at, c_event.enabled_at,
-                             c_event.enabled_datetime, self)
+            r_avail_at = max(c_event.enabled_at, r_avail_at)
+            avail_datetime = self._datetime_from(r_avail_at)
+            is_working, _ = self.sim_setup.get_resource_calendar(r_id).is_working_datetime(avail_datetime)
+            if not is_working:
+                r_avail_at = r_avail_at + self.sim_setup.next_resting_time(r_id, avail_datetime)
 
-        self.log_info.add_event_info(c_event.p_case, full_evt, self.sim_setup.resources_map[r_id].cost_per_hour)
+            full_evt = TaskEvent(c_event.p_case, c_event.task_id, r_id, r_avail_at, c_event.enabled_at,
+                                c_event.enabled_datetime, self)
 
-        r_next_available = full_evt.completed_at
+            self.log_info.add_event_info(c_event.p_case, full_evt, self.sim_setup.resources_map[r_id].cost_per_hour)
 
-        if self.sim_resources[r_id].switching_time > 0:
-            r_next_available += self.sim_setup.next_resting_time(r_id, full_evt.completed_datetime)
+            r_next_available = full_evt.completed_at
 
-        self.resource_queue.upddate_resource_availability(r_id, r_next_available)
-        self.sim_resources[r_id].worked_time += full_evt.ideal_duration
+            if self.sim_resources[r_id].switching_time > 0:
+                r_next_available += self.sim_setup.next_resting_time(r_id, full_evt.completed_datetime)
 
-        self.log_writer.add_csv_row([c_event.p_case,
-                                     self.sim_setup.bpmn_graph.element_info[c_event.task_id].name,
-                                     full_evt.enabled_datetime,
-                                     full_evt.started_datetime,
-                                     full_evt.completed_datetime,
-                                     self.sim_setup.resources_map[full_evt.resource_id].resource_name])
+            self.resource_queue.upddate_resource_availability(r_id, r_next_available)
+            self.sim_resources[r_id].worked_time += full_evt.ideal_duration
+
+            self.log_writer.add_csv_row([c_event.p_case,
+                                        self.sim_setup.bpmn_graph.element_info[c_event.task_id].name,
+                                        full_evt.enabled_datetime,
+                                        full_evt.started_datetime,
+                                        full_evt.completed_datetime,
+                                        self.sim_setup.resources_map[full_evt.resource_id].resource_name])
+
+            completed_datetime_for_next_element = full_evt.completed_datetime
+
+            completed_at = full_evt.completed_at
+            completed_datetime = full_evt.completed_datetime
+        else:
+            # Handle event types separately (they don't need assigned resource)
+            event_duration_seconds = None
+            event_element = self.sim_setup.bpmn_graph.element_info[c_event.task_id]
+            if (event_element.event_type == EVENT_TYPE.TIMER):
+                # parse timer name
+                event_duration_seconds = self.sim_setup.bpmn_graph.parse_timer_duration(event_element, c_event.enabled_datetime)
+            else:
+                # all other type should have defined probabilities
+                event_duration_seconds = self.sim_setup.bpmn_graph.event_duration(event_element.id)
+
+            completed_datetime_for_next_element = c_event.enabled_datetime + timedelta(seconds=event_duration_seconds)
+
+            completed_at = c_event.enabled_at + event_duration_seconds
+            completed_datetime = completed_datetime_for_next_element
 
         # Updating the process state. Retrieving/enqueuing enabled tasks, it also schedules the corresponding event
         # s_t = datetime.datetime.now()
-        enabled_tasks = self.sim_setup.update_process_state(c_event.task_id, c_event.p_state)
+        enabled_tasks = self.sim_setup.update_process_state(c_event.task_id, c_event.p_state, completed_datetime_for_next_element)
         # self.time_update_process_state += (datetime.datetime.now() - s_t).total_seconds()
 
         for next_task in enabled_tasks:
             self.events_queue.append_enabled_event(
-                EnabledEvent(c_event.p_case, c_event.p_state, next_task, full_evt.completed_at,
-                             full_evt.completed_datetime))
+                EnabledEvent(c_event.p_case, c_event.p_state, next_task, completed_at,
+                             completed_datetime))
 
     def _datetime_from(self, in_seconds):
         return self.simulation_datetime_from(in_seconds) if in_seconds is not None else None

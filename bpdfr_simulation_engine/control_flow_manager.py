@@ -1,4 +1,6 @@
 import copy
+import datetime
+from datetime import timedelta
 import sys
 from collections import deque
 from enum import Enum
@@ -7,6 +9,7 @@ import pm4py
 import random
 from pm4py.objects.conversion.process_tree import converter
 from bpdfr_simulation_engine.probability_distributions import generate_number_from
+from bpdfr_simulation_engine.resource_calendar import str_week_days
 
 seconds_per_unit = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
 
@@ -235,7 +238,11 @@ class BPMNGraph:
                 return False
         return False
 
-    def update_process_state(self, e_id, p_state):
+    def update_process_state(self, e_id, p_state, completed_datetime_prev_event):
+        """
+        :param completed_time_prev_event: datetime of the completion of the previous event
+                                          which equals to enabled time for current event
+        """
         if not self.is_enabled(e_id, p_state):
             return []
         enabled_tasks = list()
@@ -252,7 +259,7 @@ class BPMNGraph:
                 if e_info.type is BPMN.EXCLUSIVE_GATEWAY:
                     f_arcs = [self.element_probability[e_info.id].get_outgoing_flow()]
                 elif e_info.type is BPMN.EVENT_BASED_GATEWAY:
-                    f_arcs = [self.get_event_gateway_choice(e_info)]
+                    f_arcs = [self.get_event_gateway_choice(e_info, completed_datetime_prev_event)]
                 else:
                     if e_info.type in \
                         [BPMN.TASK, BPMN.PARALLEL_GATEWAY, BPMN.START_EVENT, BPMN.INTERMEDIATE_EVENT]:
@@ -267,7 +274,7 @@ class BPMNGraph:
             random.shuffle(enabled_tasks)
         return enabled_tasks
 
-    def get_event_gateway_choice(self, gateway_element_info: ElementInfo):
+    def get_event_gateway_choice(self, gateway_element_info: ElementInfo, completed_datetime_prev_event):
         """
         Find which flow will be executed next based on gateway element info
 
@@ -280,7 +287,7 @@ class BPMNGraph:
             event_element = self.element_info[event_id]
             if (event_element.event_type == EVENT_TYPE.TIMER):
                 # parse timer name
-                all_gateway_choices[outgoing_flow] = self.parse_timer_duration(event_element)
+                all_gateway_choices[outgoing_flow] = self.parse_timer_duration(event_element, completed_datetime_prev_event)
             else:
                 # all other type should have defined probabilities
                 all_gateway_choices[outgoing_flow] = self.event_duration(event_id)
@@ -299,24 +306,61 @@ class BPMNGraph:
         :event_id: id of the event element
         :return: duration in seconds 
         """
-        distribution = self.event_distibution[event_id]
+        distribution = self.event_distribution[event_id]
         val = generate_number_from(distribution["distribution_name"],
                                    distribution["distribution_params"]
         )
         return val
 
 
-    def parse_timer_duration(self, timer_element_info):
+    def parse_timer_duration(self, timer_element_info, completed_datetime_prev_event):
         """
         Parse timer's name.
         Accepted time format: 10s|10m|10h|10d|10w
 
         :param timer_element_info: object of type ElementInfo with event_type TIMER
+        :param completed_datetime_prev_event: datetime of the previously finished event
+                                              (used for event-based gateway)
         """
-        # Right now, we handle only realtive time span.
-        # TODO: specific point of time: 9am, Monday.
-        timer_duration = timer_element_info.name
-        return int(timer_duration[:-1]) * seconds_per_unit[timer_duration[-1]]
+        timer_duration_arr = timer_element_info.name.upper().split(", ")
+        add_days = None
+        new_datetime = None
+        for timer_duration in timer_duration_arr:
+            if (timer_duration in str_week_days.keys()):
+                # absolute weekday
+                # e.g., Monday, Sunday
+                completed_datetime_weekday = completed_datetime_prev_event.weekday()
+                timer_weekday = str_week_days.get(timer_duration)
+                if (timer_weekday > completed_datetime_weekday):
+                    add_days = timer_weekday - completed_datetime_weekday
+                else:
+                    diff_days = completed_datetime_weekday - timer_weekday
+                    add_days = 6 - diff_days
+                
+                new_datetime = completed_datetime_prev_event + timedelta(days=add_days)
+
+            elif (":" in timer_duration):
+                # absolute time
+                # e.g., 10:12, 21:30:10, 19:10
+                time = datetime.datetime.strptime(timer_duration, '%H:%M:%S').time()
+
+                if (add_days != None):
+                    # weekday and time combination
+                    new_datetime = new_datetime.replace(hour=time.hour, minute=time.minute, second=time.second)
+                else:
+                    if (completed_datetime_prev_event.time() > time):
+                        # next day
+                        next_day = completed_datetime_prev_event + timedelta(days=1)
+                        new_datetime = next_day.replace(hour=time.hour, minute=time.minute, second=time.second)
+
+            else:
+                # relative time span
+                # e.g., 10m, 10h, 10d, 10w
+                units = timer_duration[-1].lower()
+                return int(timer_duration[:-1]) * seconds_per_unit[units]
+
+        delta = new_datetime - completed_datetime_prev_event
+        return delta.seconds
 
 
     def reply_trace(self, task_sequence, f_arcs_frequency, post_p=True, trace=None):
@@ -648,7 +692,7 @@ class BPMNGraph:
         p_state.state_mask |= self.arcs_bitset[f_arc]
         next_e = self.flow_arcs[f_arc][1]
         if self.is_enabled(next_e, p_state):
-            if self.element_info[next_e].type == BPMN.TASK:
+            if self.element_info[next_e].type in [BPMN.TASK, BPMN.INTERMEDIATE_EVENT]:
                 enabled_tasks.append(next_e)
             else:
                 to_execute.append(next_e)

@@ -24,7 +24,7 @@ def parse_json_sim_parameters(json_path):
         element_distribution = parse_arrival_branching_probabilities(json_data["arrival_time_distribution"],
                                                                      json_data["gateway_branching_probabilities"])
         arrival_calendar = parse_arrival_calendar(json_data)
-        event_distibution = parse_event_distibution(json_data["event_distribution"])
+        event_distibution = parse_event_distribution(json_data["event_distribution"])
 
         return resources_map, calendars_map, element_distribution, task_resource_distribution, arrival_calendar, event_distibution
 
@@ -87,7 +87,7 @@ def parse_task_resource_distributions(json_data):
     return task_resource_distribution
 
 
-def parse_event_distibution(event_json_data):
+def parse_event_distribution(event_json_data):
     """
     Parse "event_distribution" section of json data
     """
@@ -169,7 +169,7 @@ def parse_simulation_model(bpmn_path):
                 
                 event_type = _get_event_type_from_element(bpmn_element) if BPMN.is_event(elem_general_type) else None
                 if (event_type == EVENT_TYPE.UNDEFINED):
-                    print(f"{name} event has an undefined event type")
+                    print(f"WARNING: {name} event has an undefined event type")
                 
                 bpmn_graph.add_bpmn_element(bpmn_element.attrib["id"],
                                             ElementInfo(elem_general_type, bpmn_element.attrib["id"], name, event_type))
