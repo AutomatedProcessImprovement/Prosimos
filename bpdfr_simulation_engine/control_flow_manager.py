@@ -279,6 +279,7 @@ class BPMNGraph:
         Find which flow will be executed next based on gateway element info
 
         :param gateway_element_info: object of type ElementInfo which is gateway
+        :param completed_datetime_prev_event: datetime of the previously finished event
         :return: flow name that will be executed
         """
         all_gateway_choices = dict()
@@ -341,8 +342,8 @@ class BPMNGraph:
 
             elif (":" in timer_duration):
                 # absolute time
-                # e.g., 10:12, 21:30:10, 19:10
-                time = datetime.datetime.strptime(timer_duration, '%H:%M:%S').time()
+                # e.g., 10:12, 21:30, 19:10
+                time = datetime.datetime.strptime(timer_duration, '%H:%M').time()
 
                 if (add_days != None):
                     # weekday and time combination
@@ -352,6 +353,8 @@ class BPMNGraph:
                         # next day
                         next_day = completed_datetime_prev_event + timedelta(days=1)
                         new_datetime = next_day.replace(hour=time.hour, minute=time.minute, second=time.second)
+                    else:
+                        new_datetime = completed_datetime_prev_event.replace(hour=time.hour, minute=time.minute, second=time.second)
 
             else:
                 # relative time span

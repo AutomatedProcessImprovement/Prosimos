@@ -110,6 +110,17 @@ class SimBPMEnv:
             completed_at = c_event.enabled_at + event_duration_seconds
             completed_datetime = completed_datetime_for_next_element
 
+            full_evt = TaskEvent.create_event_entity(c_event, completed_at, completed_datetime)
+
+            self.log_info.add_event_info(c_event.p_case, full_evt, 0)
+
+            self.log_writer.add_csv_row([c_event.p_case,
+                            self.sim_setup.bpmn_graph.element_info[c_event.task_id].name,
+                            full_evt.enabled_datetime,
+                            full_evt.started_datetime,
+                            full_evt.completed_datetime,
+                            "No assigned resource"])
+
         # Updating the process state. Retrieving/enqueuing enabled tasks, it also schedules the corresponding event
         # s_t = datetime.datetime.now()
         enabled_tasks = self.sim_setup.update_process_state(c_event.task_id, c_event.p_state, completed_datetime_for_next_element)
