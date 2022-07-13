@@ -62,7 +62,7 @@ class DiffResourceQueue:
     def pop_resource_for(self, task_id):
         return self._resource_queues[self._task_queue_map[task_id]].pop_min()
 
-    def upddate_resource_availability(self, resource_id, released_at):
+    def update_resource_availability(self, resource_id, released_at):
         for q_index in self._resource_queue_map[resource_id]:
             self._resource_queues[q_index].insert(resource_id, released_at)
 

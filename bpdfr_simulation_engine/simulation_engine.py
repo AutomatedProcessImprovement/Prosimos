@@ -80,9 +80,9 @@ class SimBPMEnv:
             if self.sim_resources[r_id].switching_time > 0:
                 r_next_available += self.sim_setup.next_resting_time(r_id, full_evt.completed_datetime)
 
-            self.resource_queue.upddate_resource_availability(r_id, r_next_available)
+            self.resource_queue.update_resource_availability(r_id, r_next_available)
             self.sim_resources[r_id].worked_time += full_evt.ideal_duration
-
+            
             self.log_writer.add_csv_row([c_event.p_case,
                                         self.sim_setup.bpmn_graph.element_info[c_event.task_id].name,
                                         full_evt.enabled_datetime,
@@ -114,12 +114,13 @@ class SimBPMEnv:
 
             self.log_info.add_event_info(c_event.p_case, full_evt, 0)
 
-            self.log_writer.add_csv_row([c_event.p_case,
-                            self.sim_setup.bpmn_graph.element_info[c_event.task_id].name,
-                            full_evt.enabled_datetime,
-                            full_evt.started_datetime,
-                            full_evt.completed_datetime,
-                            "No assigned resource"])
+            if (self.sim_setup.is_event_added_to_log):
+                self.log_writer.add_csv_row([c_event.p_case,
+                                self.sim_setup.bpmn_graph.element_info[c_event.task_id].name,
+                                full_evt.enabled_datetime,
+                                full_evt.started_datetime,
+                                full_evt.completed_datetime,
+                                "No assigned resource"])
 
         # Updating the process state. Retrieving/enqueuing enabled tasks, it also schedules the corresponding event
         # s_t = datetime.datetime.now()
@@ -175,8 +176,8 @@ def execute_full_process(bpm_env: SimBPMEnv, total_cases):
         current_event = bpm_env.events_queue.pop_next_event()
 
 
-def run_simulation(bpmn_path, json_path, total_cases, stat_out_path=None, log_out_path=None, starting_at=None):
-    diffsim_info = SimDiffSetup(bpmn_path, json_path)
+def run_simulation(bpmn_path, json_path, total_cases, stat_out_path=None, log_out_path=None, starting_at=None, is_event_added_to_log=False):
+    diffsim_info = SimDiffSetup(bpmn_path, json_path, is_event_added_to_log)
 
     if not diffsim_info:
         return None

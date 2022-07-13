@@ -10,7 +10,7 @@ from bpdfr_simulation_engine.simulation_properties_parser import parse_simulatio
 
 
 class SimDiffSetup:
-    def __init__(self, bpmn_path, json_path):
+    def __init__(self, bpmn_path, json_path, is_event_added_to_log):
         self.process_name = ntpath.basename(bpmn_path).split(".")[0]
         self.start_datetime = datetime.datetime.now(pytz.utc)
 
@@ -22,6 +22,8 @@ class SimDiffSetup:
         self.bpmn_graph.set_element_probabilities(self.element_probability, self.task_resource, self.event_distibution)
         if not self.arrival_calendar:
             self.arrival_calendar = self.find_arrival_calendar()
+
+        self.is_event_added_to_log = is_event_added_to_log
 
     def verify_simulation_input(self):
         for e_id in self.bpmn_graph.element_info:

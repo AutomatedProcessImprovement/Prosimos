@@ -30,9 +30,12 @@ def cli():
 @click.option('--starting_at', required=False,
               help='Date-time of the first process case in the simulation.'
                    'If this parameter is not provided, the current date-time is assigned.')
+@click.option('--is_event_added_to_log', required=False,
+              help='Boolean showing whether event should be added to the resulted simulation log.'
+                   'If this parameter is not provided, False is considered as the parameter value.')
 @click.pass_context
-def start_simulation(ctx, bpmn_path, json_path, total_cases, stat_out_path=None, log_out_path=None, starting_at=None):
-    run_simulation(bpmn_path, json_path, total_cases, stat_out_path, log_out_path, starting_at)
+def start_simulation(ctx, bpmn_path, json_path, total_cases, stat_out_path=None, log_out_path=None, starting_at=None, is_event_added_to_log=False):
+    run_simulation(bpmn_path, json_path, total_cases, stat_out_path, log_out_path, starting_at, is_event_added_to_log)
 
 
 @cli.command()
