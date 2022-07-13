@@ -189,7 +189,8 @@ def _get_event_type_from_element(bpmn_element):
                 'timerEventDefinition': EVENT_TYPE.TIMER,
                 'messageEventDefinition': EVENT_TYPE.MESSAGE,
                 'linkEventDefinition': EVENT_TYPE.LINK,
-                'signalEventDefinition': EVENT_TYPE.SIGNAL
+                'signalEventDefinition': EVENT_TYPE.SIGNAL,
+                'terminateEventDefinition': EVENT_TYPE.TERMINATE
             }
 
             return switcher.get(type_name, EVENT_TYPE.UNDEFINED)

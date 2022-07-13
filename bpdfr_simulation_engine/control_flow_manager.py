@@ -36,6 +36,7 @@ class EVENT_TYPE(Enum):
     TIMER = 'TIMER'
     LINK = 'LINK'
     SIGNAL = 'SIGNAL'
+    TERMINATE = 'TERMINATE'
     UNDEFINED = 'UNDEFINED'
 
 
@@ -76,6 +77,10 @@ class ProcessState:
         if self.has_token(flow_id):
             self.tokens[flow_id] = 0
             self.state_mask &= ~self.arcs_bitset[flow_id]
+
+    def remove_all_tokens_on_terminate(self):
+        for token in self.tokens:
+            self.remove_token(token)
 
     def has_token(self, flow_id):
         return flow_id in self.tokens and self.tokens[flow_id] > 0
@@ -249,12 +254,17 @@ class BPMNGraph:
         to_execute = [e_id]
         current = 0
         while current < len(to_execute):
-            e_info = self.element_info[to_execute[current]]
-            for in_flow in e_info.incoming_flows:
-                if p_state.tokens[in_flow] > 0:
-                    p_state.tokens[in_flow] -= 1
-                    p_state.state_mask &= ~self.arcs_bitset[in_flow]
+            e_info: ElementInfo = self.element_info[to_execute[current]]
+            if e_info.type == BPMN.END_EVENT and e_info.event_type == EVENT_TYPE.TERMINATE:
+                """ Terminate End Event detected"""
+                p_state.remove_all_tokens_on_terminate()
+            else:
+                for in_flow in e_info.incoming_flows:
+                    if p_state.tokens[in_flow] > 0:
+                        p_state.tokens[in_flow] -= 1
+                        p_state.state_mask &= ~self.arcs_bitset[in_flow]
             f_arcs = e_info.outgoing_flows
+
             if len(f_arcs) > 1:
                 if e_info.type is BPMN.EXCLUSIVE_GATEWAY:
                     f_arcs = [self.element_probability[e_info.id].get_outgoing_flow()]
