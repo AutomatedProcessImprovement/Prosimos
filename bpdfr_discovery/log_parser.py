@@ -212,8 +212,12 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
         trace_info = Trace(caseid)
         initial_events[caseid] = datetime(9999, 12, 31, tzinfo=pytz.UTC)
         for event in trace:
+            if event['elementId'] in [bpmn_graph.starting_event, bpmn_graph.end_event]:
+                # trace event is the star or end event, we skip it for further parsing
+                continue
             task_name = event['concept:name']
             if 'org:resource' not in event:
+                # handling BIMP version of log file (with fake activities for start and end events)
                 resource = task_name
             else:
                 resource = event['org:resource']
