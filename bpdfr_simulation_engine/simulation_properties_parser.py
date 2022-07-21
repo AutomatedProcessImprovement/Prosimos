@@ -1,6 +1,8 @@
 import json
 import xml.etree.ElementTree as ET
 
+from numpy import exp, sqrt, log
+
 from bpdfr_simulation_engine.control_flow_manager import BPMNGraph, ElementInfo, BPMN
 from bpdfr_simulation_engine.resource_calendar import RCalendar, convert_time_unit_from_to, convertion_table, to_seconds
 from bpdfr_simulation_engine.resource_profile import ResourceProfile, PoolInfo
@@ -14,25 +16,27 @@ bpmn_element_ns = {'xmlns': bpmn_schema_url}
 def parse_json_sim_parameters(json_path):
     with open(json_path) as json_file:
         json_data = json.load(json_file)
-        resources_map, calendars_map = parse_calendar_from_json(json_data["resource_calendars"])
-        task_resource_distribution = json_data["task_resource_distribution"]
-        element_distribution = parse_simulation_parameters(json_data["arrival_time_distribution"],
-                                                           json_data["gateway_branching_probabilities"])
+
+        resources_map = parse_resource_profiles(json_data["resource_profiles"])
+        calendars_map = parse_resource_calendars(json_data["resource_calendars"])
+        task_resource_distribution = parse_task_resource_distributions(json_data["task_resource_distribution"])
+
+        element_distribution = parse_arrival_branching_probabilities(json_data["arrival_time_distribution"],
+                                                                     json_data["gateway_branching_probabilities"])
         arrival_calendar = parse_arrival_calendar(json_data)
-        parse_pool_info(json_data["resource_profiles"], resources_map)
 
         return resources_map, calendars_map, element_distribution, task_resource_distribution, arrival_calendar
 
 
-def parse_pool_info(json_data, resources_map):
-    for pool_id in json_data:
-        pool_name = json_data[pool_id]["name"]
-        for res_info in json_data[pool_id]["resource_list"]:
-            r_id = res_info["id"]
-            resources_map[r_id].pool_info = PoolInfo(pool_id, pool_name)
-            resources_map[r_id].resource_name = res_info["name"]
-            resources_map[r_id].cost_per_hour = float(res_info["cost_per_hour"])
-            resources_map[r_id].resource_amount = int(res_info["amount"])
+# def parse_pool_info(json_data, resources_map):
+#     for pool_id in json_data:
+#         pool_name = json_data[pool_id]["name"]
+#         for res_info in json_data[pool_id]["resource_list"]:
+#             r_id = res_info["id"]
+#             resources_map[r_id].pool_info = PoolInfo(pool_id, pool_name)
+#             resources_map[r_id].resource_name = res_info["name"]
+#             resources_map[r_id].cost_per_hour = float(res_info["cost_per_hour"])
+#             resources_map[r_id].resource_amount = int(res_info["amount"])
 
 
 def parse_arrival_calendar(json_data):
@@ -44,32 +48,75 @@ def parse_arrival_calendar(json_data):
     return arrival_calendar
 
 
-def parse_calendar_from_json(json_data):
+def parse_resource_profiles(json_data):
     resources_map = dict()
-    calendars_map = dict()
-    for r_id in json_data:
-        calendar_id = "%s_timetable" % r_id
-        resources_map[r_id] = ResourceProfile(r_id, r_id, calendar_id, 1.0)
-        r_calendar = RCalendar(calendar_id)
-        for c_item in json_data[r_id]:
+    for pool_entry in json_data:
+        for r_info in pool_entry["resource_list"]:
+            r_id = r_info["id"]
+            resources_map[r_id] = ResourceProfile(r_id, r_info["name"], r_info["calendar"],
+                                                  float(r_info["cost_per_hour"]))
+            resources_map[r_id].resource_amount = int(r_info["amount"])
+            resources_map[r_id].pool_info = PoolInfo(pool_entry["id"], pool_entry["name"])
+    return resources_map
+
+
+def parse_resource_calendars(json_data):
+    calendars_info = dict()
+    for c_info in json_data:
+        r_calendar = RCalendar(c_info["id"])
+        for c_item in c_info["time_periods"]:
             r_calendar.add_calendar_item(c_item['from'], c_item['to'], c_item['beginTime'], c_item['endTime'])
         r_calendar.compute_cumulative_durations()
-        calendars_map[r_calendar.calendar_id] = r_calendar
-    return resources_map, calendars_map
+        calendars_info[r_calendar.calendar_id] = r_calendar
+    return calendars_info
 
 
-def parse_simulation_parameters(arrival_json, gateway_json):
+def parse_task_resource_distributions(json_data):
+    task_resource_distribution = dict()
+    for perf_info in json_data:
+        t_id = perf_info["task_id"]
+        if t_id not in task_resource_distribution:
+            task_resource_distribution[t_id] = dict()
+        for r_info in perf_info["resources"]:
+            dist_params = []
+            for param_info in r_info["distribution_params"]:
+                dist_params.append(float(param_info["value"]))
+            task_resource_distribution[t_id][r_info["resource_id"]] = {"distribution_name": r_info["distribution_name"],
+                                                                       "distribution_params": dist_params}
+    return task_resource_distribution
+
+
+# def parse_calendar_from_json(json_data):
+#     resources_map = dict()
+#     calendars_map = dict()
+#     for r_id in json_data:
+#         calendar_id = "%s_timetable" % r_id
+#         resources_map[r_id] = ResourceProfile(r_id, r_id, calendar_id, 1.0)
+#         r_calendar = RCalendar(calendar_id)
+#         for c_item in json_data[r_id]:
+#             r_calendar.add_calendar_item(c_item['from'], c_item['to'], c_item['beginTime'], c_item['endTime'])
+#         r_calendar.compute_cumulative_durations()
+#         calendars_map[r_calendar.calendar_id] = r_calendar
+#     return resources_map, calendars_map
+
+
+def parse_arrival_branching_probabilities(arrival_json, gateway_json):
     element_distribution = dict()
 
-    element_distribution['arrivalTime'] = arrival_json
+    dist_params = []
+    for param_info in arrival_json["distribution_params"]:
+        dist_params.append(float(param_info["value"]))
+    element_distribution['arrivalTime'] = {"distribution_name": arrival_json["distribution_name"],
+                                           "distribution_params": dist_params}
 
-    for gateway_id in gateway_json:
+    for g_info in gateway_json:
+        g_id = g_info["gateway_id"]
         probability_list = list()
         out_arc = list()
-        for flow_arc in gateway_json[gateway_id]:
-            out_arc.append(flow_arc)
-            probability_list.append(gateway_json[gateway_id][flow_arc])
-        element_distribution[gateway_id] = Choice(out_arc, probability_list)
+        for prob_info in g_info["probabilities"]:
+            out_arc.append(prob_info["path_id"])
+            probability_list.append(float(prob_info["value"]))
+        element_distribution[g_id] = Choice(out_arc, probability_list)
 
     return element_distribution
 
@@ -104,6 +151,9 @@ def parse_qbp_simulation_process(qbp_bpmn_path, out_file):
     tree = ET.parse(qbp_bpmn_path)
     root = tree.getroot()
     simod_root = root.find("qbp:processSimulationInfo", simod_ns)
+    if simod_root is None:
+        print('PARSING ABORTED: Input BPMN model is not a simulation model, i.e., simulation parameters are missing.')
+        return
 
     # 1. Extracting gateway branching probabilities
     gateways_branching = dict()
@@ -207,10 +257,6 @@ def extract_dist_params(dist_info):
         return {"distribution_name": "norm", "distribution_params": [dist_params["mean"], dist_params["arg1"]]}
     if dist_name == "FIXED":
         return {"distribution_name": "fix", "distribution_params": [dist_params["mean"], 0, 1]}
-    # if dist_name == "LOGNORMAL":
-    #     # input: shape = standard deviation, loc = 0, scale exp(mean)
-    #     return {"distribution_name": "lognorm", "distribution_params": [dist_params["mean"],
-    #                                                                     dist_params["arg1"], 0, 1]}
     if dist_name == "UNIFORM":
         # input: loc = from, scale = to - from
         return {"distribution_name": "uniform", "distribution_params": [dist_params["arg1"],
@@ -223,6 +269,15 @@ def extract_dist_params(dist_info):
         # input: c = mode, loc = min, scale = max - min
         return {"distribution_name": "triang", "distribution_params": [dist_params["mean"], dist_params["arg1"],
                                                                        dist_params["arg2"] - dist_params["arg1"]]}
+    if dist_name == "LOGNORMAL":
+        mean_2 = dist_params["mean"] ** 2
+        variance = dist_params["arg1"]
+        phi = sqrt([variance + mean_2])[0]
+        mu = log(mean_2 / phi)
+        sigma = sqrt([log(phi ** 2 / mean_2)])[0]
+
+        # input: s = sigma = standard deviation, loc = 0, scale = exp(mu)
+        return {"distribution_name": "lognorm", "distribution_params": [sigma, 0, exp(mu)]}
     return None
 
 

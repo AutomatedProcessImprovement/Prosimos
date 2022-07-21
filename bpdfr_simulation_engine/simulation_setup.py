@@ -3,7 +3,7 @@ import datetime
 from datetime import timedelta
 import ntpath
 
-from bpdfr_simulation_engine.control_flow_manager import ProcessState
+from bpdfr_simulation_engine.control_flow_manager import ProcessState, ElementInfo, BPMN
 from bpdfr_simulation_engine.probability_distributions import generate_number_from
 from bpdfr_simulation_engine.resource_calendar import RCalendar
 from bpdfr_simulation_engine.simulation_properties_parser import parse_simulation_model, parse_json_sim_parameters
@@ -21,6 +21,15 @@ class SimDiffSetup:
         self.bpmn_graph.set_element_probabilities(self.element_probability, self.task_resource)
         if not self.arrival_calendar:
             self.arrival_calendar = self.find_arrival_calendar()
+
+    def verify_simulation_input(self):
+        for e_id in self.bpmn_graph.element_info:
+            e_info: ElementInfo = self.bpmn_graph[e_id]
+            if e_info.type == BPMN.TASK and e_info.id not in self.task_resource:
+                print("WARNING: No resource assigned to task %s" % e_info.name)
+            if e_info.type in [BPMN.INCLUSIVE_GATEWAY, BPMN.EXCLUSIVE_GATEWAY] and e_info.is_split():
+                if e_info.id not in self.element_probability:
+                    print("WARNING: No probability assigned to gateway %s" % e_info.name)
 
     def name_from_id(self, resource_id):
         return self.resources_map[resource_id].resource_name

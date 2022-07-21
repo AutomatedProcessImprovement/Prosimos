@@ -74,6 +74,7 @@ class LogInfo:
         real_work_intervals = list()
         for event_info in trace_info.event_list:
             r_calendar = self.sim_setup.calendars_map[self.sim_setup.resources_map[event_info.resource_id].calendar_id]
+
             r_calendar.remove_idle_times(event_info.started_datetime, event_info.completed_datetime,
                                          real_work_intervals)
             processing_intervals.append(Interval(event_info.started_datetime, event_info.completed_datetime))
@@ -91,16 +92,6 @@ class LogInfo:
         process_kpi.waiting_time.add_value(waiting_time)
         process_kpi.idle_time.add_value(idle_time)
         process_kpi.cycle_time.add_value(idle_cycle_time - idle_time)
-
-        # These conditional are for debugging, remove after testing all the models
-        # if idle_time < 0:
-        #     print('===========================================================')
-        #     for xx in processing_intervals:
-        #         print("%s -> %s (%f)" % (str(xx.start), str(xx.end), xx.duration))
-        #     print('===========================================================')
-        # if idle_cycle_time != round(idle_processing_time + waiting_time, 6):
-        #     calc = idle_processing_time + waiting_time
-        #     print('trace_duration %s - %s idle_cycle_time (calculated)' % (idle_cycle_time, calc))
 
     def _update_global_task_stats(self, event_info: TaskEvent, cost_per_hour: float):
         self.started_at = min(self.started_at, event_info.started_datetime)
@@ -120,7 +111,6 @@ class LogInfo:
         self.task_exec_info[t_id].cost.add_value(task_cost)
 
     def save_joint_statistics(self, bpm_env):
-        bpm_env.log_writer.force_write()
         self.save_start_end_dates(bpm_env.stat_fwriter)
         compute_resource_utilization(bpm_env)
         self.compute_individual_task_stats(bpm_env.stat_fwriter)
@@ -135,14 +125,14 @@ class LogInfo:
     def compute_individual_task_stats(self, stat_fwriter):
         stat_fwriter.writerow(['Individual Task Statistics'])
         stat_fwriter.writerow(['Name', 'Count', 'Min Duration', 'Max Duration', 'Avg Duration', 'Total Duration',
-                               'Min Waiting Time', 'Max Waiting Time', 'Ave Waiting Time', 'Total Waiting Time',
-                               'Min Processing Time', 'Max Processing Time', 'Ave Processing Time',
-                               'Total Processing Time', 'Min Cycle Time', 'Max Cycle Time', 'Ave Cycle Time',
-                               'Total Cycle Time', 'Min Idle Time', 'Max Idle Time', 'Ave Idle Time', 'Total Idle Time',
-                               'Min Idle Cycle Time', 'Max Idle Cycle Time', 'Ave Idle Cycle Time',
+                               'Min Waiting Time', 'Max Waiting Time', 'Avg Waiting Time', 'Total Waiting Time',
+                               'Min Processing Time', 'Max Processing Time', 'Avg Processing Time',
+                               'Total Processing Time', 'Min Cycle Time', 'Max Cycle Time', 'Avg Cycle Time',
+                               'Total Cycle Time', 'Min Idle Time', 'Max Idle Time', 'Avg Idle Time', 'Total Idle Time',
+                               'Min Idle Cycle Time', 'Max Idle Cycle Time', 'Avg Idle Cycle Time',
                                'Total Idle Cycle Time', 'Min Idle Processing Time', 'Max Idle Processing Time',
-                               'Ave Idle Processing Time', 'Total Idle Processing Time', 'Min Cost', 'Max Cost',
-                               'Ave Cost', 'Total Cost'])
+                               'Avg Idle Processing Time', 'Total Idle Processing Time', 'Min Cost', 'Max Cost',
+                               'Avg Cost', 'Total Cost'])
         for t_name in self.task_exec_info:
             t_info: KPIMap = self.task_exec_info[t_name]
             stat_fwriter.writerow([self.sim_setup.bpmn_graph.element_info[t_name].name,
@@ -198,6 +188,7 @@ def compute_resource_utilization(bpm_env):
         bpm_env.sim_resources[r_id].available_time = available_time[calendar_info.calendar_id]
 
     for r_id in bpm_env.sim_resources:
+
         r_utilization = bpm_env.get_utilization_for(r_id)
         r_info = bpm_env.sim_setup.resources_map[r_id]
         stat_fwriter.writerow([r_id,
@@ -209,12 +200,6 @@ def compute_resource_utilization(bpm_env):
                                r_info.pool_info.pool_id,
                                r_info.pool_info.pool_name])
 
-        # if r_utilization > 0:
-        #     print("Ideal: %s" % str(datetime.timedelta(seconds=bpm_env.real_duration[r_id])))
-        #     print("Sum:   %s" % str(datetime.timedelta(seconds=bpm_env.sim_resources[r_id].worked_time)))
-        #     print("Full:  %s" % str(datetime.timedelta(seconds=bpm_env.sim_resources[r_id].available_time)))
-        #     print("%s -> Utilization: %f" % (r_id, r_utilization))
-        #     print('-------------------------------------------')
     stat_fwriter.writerow([""])
 
 

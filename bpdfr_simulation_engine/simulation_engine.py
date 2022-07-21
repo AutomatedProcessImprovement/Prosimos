@@ -10,7 +10,7 @@ from bpdfr_simulation_engine.file_manager import FileManager
 from bpdfr_simulation_engine.execution_info import Trace, TaskEvent, EnabledEvent
 from bpdfr_simulation_engine.simulation_queues_ds import PriorityQueue, DiffResourceQueue, EventQueue
 from bpdfr_simulation_engine.simulation_setup import SimDiffSetup
-from bpdfr_simulation_engine.simulation_stats_calculator import LogInfo, print_event_state
+from bpdfr_simulation_engine.simulation_stats_calculator import LogInfo
 
 
 class SimResource:
@@ -30,6 +30,7 @@ class SimBPMEnv:
         self.log_writer = FileManager(10000, log_fwriter)
         self.log_info = LogInfo(sim_setup)
         self.executed_events = 0
+        self.time_update_process_state = 0
 
         r_first_available = dict()
         for r_id in sim_setup.resources_map:
@@ -42,6 +43,7 @@ class SimBPMEnv:
     def generate_all_arrival_events(self, total_cases):
         sim_setup = self.sim_setup
         arrival_time = 0
+        # prev = 0
         for p_case in range(0, total_cases):
             p_state = sim_setup.initial_state()
             enabled_tasks = sim_setup.update_process_state(sim_setup.bpmn_graph.starting_event, p_state)
@@ -54,18 +56,27 @@ class SimBPMEnv:
 
     def execute_enabled_event(self, c_event: EnabledEvent):
         self.executed_events += 1
-        resource_id, r_available_at = self.resource_queue.pop_resource_for(c_event.task_id)
-        self.sim_resources[resource_id].allocated_tasks += 1
-        full_evt = TaskEvent(c_event.p_case, c_event.task_id, resource_id, r_available_at,
-                             c_event.enabled_at, c_event.enabled_datetime, self)
-        self.log_info.add_event_info(c_event.p_case, full_evt, self.sim_setup.resources_map[resource_id].cost_per_hour)
+        r_id, r_avail_at = self.resource_queue.pop_resource_for(c_event.task_id)
+        self.sim_resources[r_id].allocated_tasks += 1
+
+        r_avail_at = max(c_event.enabled_at, r_avail_at)
+        avail_datetime = self._datetime_from(r_avail_at)
+        is_working, _ = self.sim_setup.get_resource_calendar(r_id).is_working_datetime(avail_datetime)
+        if not is_working:
+            r_avail_at = r_avail_at + self.sim_setup.next_resting_time(r_id, avail_datetime)
+
+        full_evt = TaskEvent(c_event.p_case, c_event.task_id, r_id, r_avail_at, c_event.enabled_at,
+                             c_event.enabled_datetime, self)
+
+        self.log_info.add_event_info(c_event.p_case, full_evt, self.sim_setup.resources_map[r_id].cost_per_hour)
 
         r_next_available = full_evt.completed_at
-        if self.sim_resources[resource_id].switching_time > 0:
-            r_next_available += self.sim_setup.next_resting_time(resource_id, full_evt.completed_datetime)
 
-        self.resource_queue.upddate_resource_availability(resource_id, r_next_available)
-        self.sim_resources[resource_id].worked_time += full_evt.ideal_duration
+        if self.sim_resources[r_id].switching_time > 0:
+            r_next_available += self.sim_setup.next_resting_time(r_id, full_evt.completed_datetime)
+
+        self.resource_queue.upddate_resource_availability(r_id, r_next_available)
+        self.sim_resources[r_id].worked_time += full_evt.ideal_duration
 
         self.log_writer.add_csv_row([c_event.p_case,
                                      self.sim_setup.bpmn_graph.element_info[c_event.task_id].name,
@@ -75,7 +86,10 @@ class SimBPMEnv:
                                      self.sim_setup.resources_map[full_evt.resource_id].resource_name])
 
         # Updating the process state. Retrieving/enqueuing enabled tasks, it also schedules the corresponding event
+        # s_t = datetime.datetime.now()
         enabled_tasks = self.sim_setup.update_process_state(c_event.task_id, c_event.p_state)
+        # self.time_update_process_state += (datetime.datetime.now() - s_t).total_seconds()
+
         for next_task in enabled_tasks:
             self.events_queue.append_enabled_event(
                 EnabledEvent(c_event.p_case, c_event.p_state, next_task, full_evt.completed_at,
@@ -115,8 +129,10 @@ class SimBPMEnv:
 def execute_full_process(bpm_env: SimBPMEnv, total_cases):
     # Initialize event queue with the arrival times of all the cases to simulate,
     # i.e., all the initial events are enqueued and sorted by their arrival times
+    # s_t = datetime.datetime.now()
     bpm_env.generate_all_arrival_events(total_cases)
-
+    # print("Generation of all cases: %s" %
+    #       str(datetime.timedelta(seconds=(datetime.datetime.now() - s_t).total_seconds())))
     current_event = bpm_env.events_queue.pop_next_event()
     while current_event is not None:
         bpm_env.execute_enabled_event(current_event)
@@ -157,11 +173,13 @@ def run_simpy_simulation(diffsim_info, total_cases, stat_fwriter, log_fwriter):
     bpm_env = SimBPMEnv(diffsim_info, stat_fwriter, log_fwriter)
     add_simulation_event_log_header(log_fwriter)
     execute_full_process(bpm_env, total_cases)
+    if log_fwriter:
+        bpm_env.log_writer.force_write()
     if stat_fwriter:
         bpm_env.log_info.save_joint_statistics(bpm_env)
-    # print("Total Task Instances: %d" % bpm_env.executed_events)
 
 
 def add_simulation_event_log_header(log_fwriter):
-    log_fwriter.writerow([
-        'CaseID', 'Activity', 'EnableTimestamp', 'StartTimestamp', 'EndTimestamp', 'Resource', ])
+    if log_fwriter:
+        log_fwriter.writerow([
+            'case_id', 'activity', 'enable_time', 'start_time', 'end_time', 'resource', ])

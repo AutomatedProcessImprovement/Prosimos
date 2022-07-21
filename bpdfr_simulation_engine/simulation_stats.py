@@ -29,7 +29,7 @@ class SimulationResult:
         self.resource_utilization = dict()
         self.resource_info = dict()
         self.aggregated_pool_info = dict()
-        self._max_res_s = 0
+        self._max_res_s = 26
 
     def print_simulation_results(self):
         print("First process instance started at:  %s" % str(self.started_at))
@@ -37,7 +37,7 @@ class SimulationResult:
         print("Total Duration: %s" % str(datetime.timedelta(seconds=(self.simulation_duration()))))
         print("Total instances simulated: %d" % self.process_kpi_map.cycle_time.count)
         print('------------------------------------------------------------')
-        print('AVERAGE KIP VALUES -- FULL PROCESS')
+        print('AVERAGE KPI VALUES -- FULL PROCESS')
         print('Waiting Time .......... %s' % format_duration(self.process_kpi_map.waiting_time.avg, 25))
         print('Idle Cycle Time ....... %s' % format_duration(self.process_kpi_map.idle_cycle_time.avg, 25))
         print('Cycle Time ............ %s' % format_duration(self.process_kpi_map.cycle_time.avg, 25))
@@ -45,22 +45,31 @@ class SimulationResult:
         print('Processing Time ....... %s' % format_duration(self.process_kpi_map.processing_time.avg, 25))
         print('Idle Time  ............ %s' % format_duration(self.process_kpi_map.idle_time.avg, 25))
         print('------------------------------------------------------------')
+        print('MIN KPI VALUES -- FULL PROCESS')
+        print('Waiting Time .......... %s' % format_duration(self.process_kpi_map.waiting_time.min, 25))
+        print('Idle Cycle Time ....... %s' % format_duration(self.process_kpi_map.idle_cycle_time.min, 25))
+        print('Cycle Time ............ %s' % format_duration(self.process_kpi_map.cycle_time.min, 25))
+        print('Idle Processing Time .. %s' % format_duration(self.process_kpi_map.idle_processing_time.min, 25))
+        print('Processing Time ....... %s' % format_duration(self.process_kpi_map.processing_time.min, 25))
+        print('Idle Time  ............ %s' % format_duration(self.process_kpi_map.idle_time.min, 25))
+        print('------------------------------------------------------------')
         print('AGGREGATED RESOURCE POOL UTILIZATION')
         r_s = max(self._max_res_s, 13)
-        print('| %s | %s | %s | %s | %s | %s |' % ('Pool Name'.ljust(r_s),
-                                                   'Avg Resource Utilization'.ljust(25),
-                                                   'Avg Tasks Allocated'.ljust(20),
-                                                   'Total Tasks Allocated'.ljust(21),
-                                                   'Avg Time Worked'.ljust(25),
-                                                   'Avg Time Available'.ljust(25)))
-        for pool_id in self.aggregated_pool_info:
-            pool_kpi: AggregatedPoolInfo = self.aggregated_pool_info[pool_id]
-            print('| %s | %s | %s | %s | %s | %s |' % (pool_kpi.pool_info.pool_name.ljust(r_s),
-                                                       str(round(pool_kpi.kpi_utilization.avg, 3)).ljust(25),
-                                                       str(round(pool_kpi.kpi_allocated_tasks.avg)).ljust(20),
-                                                       str(pool_kpi.kpi_allocated_tasks.total).ljust(21),
-                                                       format_duration(pool_kpi.kpi_worked_time.avg, 25),
-                                                       format_duration(pool_kpi.kpi_available_time.avg, 25)))
+        # print('| %s | %s | %s | %s | %s | %s |' % ('Pool Name'.ljust(r_s),
+        #                                            'Avg Resource Utilization'.ljust(25),
+        #                                            'Avg Tasks Allocated'.ljust(20),
+        #                                            'Total Tasks Allocated'.ljust(21),
+        #                                            'Avg Time Worked'.ljust(25),
+        #                                            'Avg Time Available'.ljust(25)))
+        # for pool_id in self.aggregated_pool_info:
+        #     pool_kpi: AggregatedPoolInfo = self.aggregated_pool_info[pool_id]
+        #     print('| %s | %s | %s | %s | %s | %s |' % (pool_kpi.pool_info.pool_name.ljust(r_s),
+        #                                                str(round(pool_kpi.kpi_utilization.avg, 3)).ljust(25),
+        #                                                str(round(pool_kpi.kpi_allocated_tasks.avg)).ljust(20),
+        #                                                str(pool_kpi.kpi_allocated_tasks.total).ljust(21),
+        #                                                format_duration(pool_kpi.kpi_worked_time.avg, 25),
+        #                                                format_duration(pool_kpi.kpi_available_time.avg, 25)))
+        # print(len(self.resource_utilization))
         print('------------------------------------------------------------')
         print('INDIVIDUAL RESOURCE UTILIZATION')
         print('| %s | %s | %s | %s | %s | %s |' % ('Resource Name'.ljust(r_s),
@@ -92,9 +101,10 @@ class SimulationResult:
                                                              'Idle Processing Time'.ljust(d_s),
                                                              'Processing Time'.ljust(d_s),
                                                              'Idle Time'.ljust(d_s),))
+
         for task_name in self.tasks_kpi_map:
             kpi_info: KPIMap = self.tasks_kpi_map[task_name]
-            print('| %s | %s | %s | %s | %s | %s | %s | %s |' % (task_name.ljust(max_t),
+            print('| %s | %s | %s | %s | %s | %s | %s | %s |' % (task_name.ljust(26),
                                                                  str(kpi_info.cycle_time.count).ljust(c_s),
                                                                  format_duration(kpi_info.waiting_time.avg, d_s),
                                                                  format_duration(kpi_info.idle_cycle_time.avg, d_s),

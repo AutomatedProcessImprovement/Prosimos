@@ -75,6 +75,8 @@ class DiffResourceQueue:
                 joint_tasks = set()
                 for task_id_2 in task_resource_map:
                     is_joint = True
+                    if len(task_resource_map[task_id_2]) != len(task_resource_map[task_id_1]):
+                        continue
                     for r_id in task_resource_map[task_id_2]:
                         if r_id not in task_resource_map[task_id_1]:
                             is_joint = False
@@ -100,6 +102,24 @@ class DiffResourceQueue:
 
 
 class EventQueue:
+    def __init__(self):
+        self.enabled_events = PriorityQueue()
+
+    def append_arrival_event(self, event_info):
+        self.enabled_events.insert(event_info, event_info.enabled_at)
+
+    def append_enabled_event(self, event_info):
+        self.enabled_events.insert(event_info, event_info.enabled_at)
+
+    def pop_next_event(self):
+        if self.enabled_events:
+            event_info, _ = self.enabled_events.pop_min()
+            return event_info
+        else:
+            return None
+
+
+class EventQueue1:
     def __init__(self):
         self.arrival_events = deque()
         self.enabled_events = deque()

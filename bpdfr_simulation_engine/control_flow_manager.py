@@ -40,6 +40,7 @@ class ProcessState:
     def __init__(self, bpmn_graph):
         self.arcs_bitset = bpmn_graph.arcs_bitset
         self.tokens = dict()
+        self.flow_date = dict()
         self.state_mask = 0
         for flow_arc in bpmn_graph.flow_arcs:
             self.tokens[flow_arc] = 0
@@ -80,6 +81,9 @@ class BPMNGraph:
         self.decision_successors = dict()
         self.element_probability = None
         self.task_resource_probability = None
+        self.closest_distance = None
+        self.decision_flows_sortest_path = None
+        self._c_trace = None
 
     def set_element_probabilities(self, element_probability, task_resource_probability):
         self.element_probability = element_probability
@@ -129,7 +133,7 @@ class BPMNGraph:
         while suc_queue:
             e_info = suc_queue.popleft()
             for out_flow in e_info.outgoing_flows:
-                next_info = self._get_sucessor(out_flow)
+                next_info = self._get_successor(out_flow)
                 if next_info.id not in visited:
                     visited.add(next_info.id)
                     next_info = self.element_info[next_info.id]
@@ -142,14 +146,14 @@ class BPMNGraph:
         visited = {or_join_id}
         self.or_join_conflicting_pred[or_join_id] = set()
         for in_flow in self.element_info[or_join_id].incoming_flows:
-            self._dfs_from_or_join(or_join_id, in_flow, self._get_predecesor(in_flow), visited)
+            self._dfs_from_or_join(or_join_id, in_flow, self._get_predecessor(in_flow), visited)
 
     def _dfs_from_or_join(self, or_id, flow_id, e_info, visited):
         visited.add(e_info.id)
         if e_info.type in [BPMN.INCLUSIVE_GATEWAY, BPMN.EXCLUSIVE_GATEWAY] and e_info.is_split():
             self.or_join_conflicting_pred[or_id].add(e_info.id)
         for in_flow in e_info.incoming_flows:
-            prev_info = self._get_predecesor(in_flow)
+            prev_info = self._get_predecessor(in_flow)
             if prev_info.id not in visited and prev_info.is_gateway():
                 self._dfs_from_or_join(or_id, flow_id, prev_info, visited)
 
@@ -239,27 +243,41 @@ class BPMNGraph:
             random.shuffle(enabled_tasks)
         return enabled_tasks
 
-    def reply_trace(self, task_sequence, f_arcs_frequency):
+    def reply_trace(self, task_sequence, f_arcs_frequency, post_p=True, trace=None):
+        self._c_trace = trace
+        task_enabling = list()
         p_state = ProcessState(self)
         fired_tasks = list()
         fired_or_splits = set()
         for flow_id in self.element_info[self.starting_event].outgoing_flows:
+            p_state.flow_date[flow_id] = self._c_trace[0].started_at if self._c_trace is not None else None
             p_state.add_token(flow_id)
         pending_tasks = dict()
-        for current_index in range(0, len(task_sequence)):
+        for current_index in range(len(task_sequence)):
+            el_id = self.from_name.get(task_sequence[current_index])
             fired_tasks.append(False)
-            self.try_firing(current_index, current_index, task_sequence, fired_tasks, pending_tasks, p_state,
-                            f_arcs_frequency, fired_or_splits)
-            p_state.add_token(self.element_info[task_sequence[current_index]].outgoing_flows[0])
+
+            in_flow = self.element_info[el_id].incoming_flows[0]
+            task_enabling.append(p_state.flow_date[in_flow] if in_flow in p_state.flow_date else None)
+            if self._c_trace:
+                self.update_flow_dates(self.element_info[el_id], p_state,
+                                       self._c_trace[current_index].completed_at if self._c_trace is not None else None)
+
+            self.try_firing(current_index, current_index, task_sequence, fired_tasks, pending_tasks,
+                            p_state, f_arcs_frequency, fired_or_splits)
+
+            if el_id is None:  # NOTE: skipping if no such element in self.from_name
+                continue
+            p_state.add_token(self.element_info[el_id].outgoing_flows[0])
             if current_index in pending_tasks:
                 for pending_index in pending_tasks[current_index]:
-                    self.try_firing(pending_index, current_index, task_sequence, fired_tasks, pending_tasks, p_state,
-                                    f_arcs_frequency, fired_or_splits)
+                    self.try_firing(pending_index, current_index, task_sequence, fired_tasks, pending_tasks,
+                                    p_state, f_arcs_frequency, fired_or_splits)
 
         # Firing End Event
-        enabled_end, or_fired, path_decisions = self.find_enabled_predecesors(self.element_info[self.end_event],
-                                                                              p_state)
-        self.fire_enabled_predecesors(enabled_end, p_state, or_fired, path_decisions, f_arcs_frequency, fired_or_splits)
+        enabled_end, or_fired, path_decisions = self._find_enabled_predecessors(
+            self.element_info[self.end_event], p_state)
+        self.fire_enabled_predecessors(enabled_end, p_state, or_fired, path_decisions, f_arcs_frequency, fired_or_splits)
         end_flow = self.element_info[self.end_event].incoming_flows[0]
         if p_state.has_token(end_flow):
             p_state.tokens[end_flow] = 0
@@ -269,23 +287,81 @@ class BPMNGraph:
             if not fired_tasks[i]:
                 is_correct = False
                 break
-        # if not is_correct:
-        #     for i in range(0, len(task_sequence)):
-        #         # if not fired_tasks[i]:
-        #         print("%s: %s" % (str(fired_tasks[i]), task_sequence[i]))
 
         self.check_unfired_or_splits(fired_or_splits, f_arcs_frequency, p_state)
-        return is_correct, fired_tasks, p_state.pending_tokens()
+        if post_p:
+            self.postprocess_unfired_tasks(task_sequence, fired_tasks, f_arcs_frequency, task_enabling)
+        self._c_trace = None
+        return is_correct, fired_tasks, p_state.pending_tokens(), task_enabling
+
+    def postprocess_unfired_tasks(self, task_sequence: list, fired_tasks: list, f_arcs_frequency: dict,
+                                  task_enablement: list):
+        if self.closest_distance is None:
+            self._sort_by_closest_predecesors()
+        task_sequence = [task_name for task_name in task_sequence if task_name in self.from_name]
+        for i in range(0, len(fired_tasks)):
+            if not fired_tasks[i]:
+                e_info = self.element_info[self.from_name.get(task_sequence[i])]
+                fix_from = [self.starting_event, self.closest_distance[e_info.id][self.starting_event]]
+                j = i - 1
+                while j >= 0:
+                    p_info = self.element_info[self.from_name.get(task_sequence[j])]
+                    if p_info.id in self.closest_distance[e_info.id] and self.closest_distance[e_info.id][p_info.id] < \
+                            fix_from[1]:
+                        fix_from = [p_info.id, self.closest_distance[e_info.id][p_info.id]]
+                        if fix_from[1] == 1:
+                            break
+                    j -= 1
+                if fix_from[0] is not None:
+                    if task_enablement[i] is None:
+                        task_enablement[i] = self._c_trace[j].completed_at if j >= 0 else self._c_trace[0].completed_at
+                    for flow_id in self.decision_flows_sortest_path[e_info.id][fix_from[0]]:
+                        if flow_id not in f_arcs_frequency:
+                            f_arcs_frequency[flow_id] = 0
+                        f_arcs_frequency[flow_id] += 1
+
+    def _sort_by_closest_predecesors(self):
+        self.closest_distance = dict()
+        self.decision_flows_sortest_path = dict()
+        for e_id in self.element_info:
+            self.closest_distance[e_id] = dict()
+            pred_seq = dict()
+            distance_map = {e_id: 0}
+            pred_queue = deque([self.element_info[e_id]])
+            while pred_queue:
+                e_info = pred_queue.popleft()
+                for flow_id in e_info.incoming_flows:
+                    pred_info = self._get_predecessor(flow_id)
+                    if pred_info.id not in distance_map:
+                        pred_seq[pred_info.id] = flow_id
+                        dist = distance_map[e_info.id]
+                        if pred_info.type in [BPMN.TASK, BPMN.START_EVENT]:
+                            dist += 1
+                            self.closest_distance[e_id][pred_info.id] = dist
+                        distance_map[pred_info.id] = dist
+                        pred_queue.append(pred_info)
+            self.decision_flows_sortest_path[e_id] = dict()
+            for p_id in self.element_info:
+                self.decision_flows_sortest_path[e_id][p_id] = list()
+                if p_id is not e_id and p_id in self.closest_distance[e_id]:
+                    p_info = self.element_info[p_id]
+                    while p_info.id is not e_id:
+                        if p_info.type in [BPMN.INCLUSIVE_GATEWAY, BPMN.EXCLUSIVE_GATEWAY] and p_info.is_split():
+                            self.decision_flows_sortest_path[e_id][p_id].append(pred_seq[p_info.id])
+                        p_info = self._get_successor(pred_seq[p_info.id])
 
     def try_firing(self, task_index, from_index, task_sequence, fired_tasks, pending_tasks, p_state,
                    f_arcs_frequency, fired_or_splits):
-        task_info = self.element_info[task_sequence[task_index]]
+        el_id = self.from_name.get(task_sequence[task_index])
+        if el_id is None:
+            return
+        task_info = self.element_info[el_id]
         if not p_state.has_token(task_info.incoming_flows[0]):
-            enabled_pred, or_fired, path_decisions = self.find_enabled_predecesors(task_info, p_state)
+            enabled_pred, or_fired, path_decisions = self._find_enabled_predecessors(task_info, p_state)
             firing_index = self.find_firing_index(task_index, from_index, task_sequence, path_decisions, enabled_pred)
             if firing_index == from_index:
-                self.fire_enabled_predecesors(enabled_pred, p_state, or_fired, path_decisions, f_arcs_frequency,
-                                              fired_or_splits)
+                self.fire_enabled_predecessors(enabled_pred, p_state, or_fired, path_decisions, f_arcs_frequency,
+                                               fired_or_splits)
             elif firing_index not in pending_tasks:
                 pending_tasks[firing_index] = [task_index]
             else:
@@ -294,8 +370,8 @@ class BPMNGraph:
             p_state.remove_token(task_info.incoming_flows[0])
             fired_tasks[task_index] = True
 
-    def closer_enabled_predecesors(self, e_info, flow_id, enabled_pred, or_firing, path_split, visited, p_state, dist,
-                                   min_dist):
+    def closer_enabled_predecessors(self, e_info, flow_id, enabled_pred, or_firing, path_split, visited, p_state, dist,
+                                    min_dist):
         if self.is_enabled(e_info.id, p_state):
             if dist not in enabled_pred:
                 enabled_pred[dist] = list()
@@ -315,10 +391,10 @@ class BPMNGraph:
                 closer_pred, temp_path, or_f = dict(), dict(), dict()
                 c_min = sys.maxsize
                 for in_flow in e_info.incoming_flows:
-                    pr_info = self._get_predecesor(in_flow)
+                    pr_info = self._get_predecessor(in_flow)
                     if pr_info.id not in visited:
-                        d, e_p, o_f, t_path = self.closer_enabled_predecesors(pr_info, in_flow, dict(), dict(), dict(),
-                                                                              visited, p_state, dist + 1, min_dist)
+                        d, e_p, o_f, t_path = self.closer_enabled_predecessors(pr_info, in_flow, dict(), dict(), dict(),
+                                                                               visited, p_state, dist + 1, min_dist)
                         if d < c_min:
                             c_min, closer_pred, or_f, temp_path = d, e_p, o_f, t_path
                 for e_id in closer_pred:
@@ -331,21 +407,21 @@ class BPMNGraph:
             else:
                 c_min = dist if e_info.id in or_firing else sys.maxsize
                 for in_flow in e_info.incoming_flows:
-                    pred_info = self._get_predecesor(in_flow)
+                    pred_info = self._get_predecessor(in_flow)
                     if pred_info.id not in visited and pred_info.is_gateway():
-                        res = self.closer_enabled_predecesors(pred_info, in_flow, enabled_pred, or_firing, path_split,
-                                                              visited, p_state, dist + 1, min_dist)
+                        res = self.closer_enabled_predecessors(pred_info, in_flow, enabled_pred, or_firing, path_split,
+                                                               visited, p_state, dist + 1, min_dist)
                         c_min = min(res[0], c_min)
 
                 return c_min, enabled_pred, or_firing, path_split
         return sys.maxsize, enabled_pred, or_firing, path_split
 
-    def find_enabled_predecesors(self, from_task_info, p_state):
-        pred_info = self._get_predecesor(from_task_info.incoming_flows[0])
+    def _find_enabled_predecessors(self, from_task_info, p_state):
+        pred_info = self._get_predecessor(from_task_info.incoming_flows[0])
         max_dist = [0]
-        closer_pred = self.closer_enabled_predecesors(pred_info, from_task_info.incoming_flows[0], dict(),
-                                                      dict(), dict(), set(), p_state, 0,
-                                                      max_dist)
+        closer_pred = self.closer_enabled_predecessors(pred_info, from_task_info.incoming_flows[0], dict(),
+                                                       dict(), dict(), set(), p_state, 0,
+                                                       max_dist)
         enabled_pred = deque()
         for i in range(0, max_dist[0] + 1):
             if i in closer_pred[1]:
@@ -380,8 +456,8 @@ class BPMNGraph:
                         is_conflicting = True
         return is_conflicting, conflicting_gateways
 
-    def fire_enabled_predecesors(self, enabled_pred, p_state, or_firing, path_decisions, f_arcs_frequency,
-                                 fired_or_split):
+    def fire_enabled_predecessors(self, enabled_pred, p_state, or_firing, path_decisions, f_arcs_frequency,
+                                  fired_or_split):
         visited_elements = set()
         if not enabled_pred:
             self.try_firing_or_join(enabled_pred, p_state, or_firing, path_decisions, f_arcs_frequency)
@@ -405,6 +481,19 @@ class BPMNGraph:
             for in_flow in e_info.incoming_flows:
                 p_state.remove_token(in_flow)
             self.try_firing_or_join(enabled_pred, p_state, or_firing, path_decisions, f_arcs_frequency)
+
+    def update_flow_dates(self, e_info: ElementInfo, p_state: ProcessState, last_date):
+        visited_elements = set()
+        suc_queue = deque([e_info])
+        visited_elements.add(e_info.id)
+        while suc_queue:
+            e_info = suc_queue.popleft()
+            for out_flow in e_info.outgoing_flows:
+                next_info = self._get_successor(out_flow)
+                p_state.flow_date[out_flow] = last_date
+                if next_info.is_gateway() and next_info.id not in visited_elements:
+                    suc_queue.append(next_info)
+                    visited_elements.add(next_info.id)
 
     def try_firing_or_join(self, enabled_pred, p_state, or_firing, path_decisions, f_arcs_frequency):
         fired = set()
@@ -442,7 +531,7 @@ class BPMNGraph:
             f_arcs_frequency[flow_id] += 1
         p_state.add_token(flow_id)
         if not from_or:
-            next_info = self._get_sucessor(flow_id)
+            next_info = self._get_successor(flow_id)
             if next_info.type is BPMN.PARALLEL_GATEWAY and self.is_enabled(next_info.id, p_state):
                 enabled_pred.appendleft([next_info, None])
             elif next_info.id in path_decisions:
@@ -455,23 +544,26 @@ class BPMNGraph:
                 else:
                     enabled_pred.appendleft([next_info, path_decisions[next_info.id]])
 
-    def _get_predecesor(self, flow_id):
+    def _get_predecessor(self, flow_id):
         return self.element_info[self.flow_arcs[flow_id][0]]
 
-    def _get_sucessor(self, flow_id):
+    def _get_successor(self, flow_id):
         return self.element_info[self.flow_arcs[flow_id][1]]
 
     def compute_branching_probability(self, flow_arcs_frequency):
         gateways_branching = dict()
         for e_id in self.element_info:
-            if self.element_info[e_id].type == BPMN.EXCLUSIVE_GATEWAY and len(
+            if self.element_info[e_id].type in [BPMN.EXCLUSIVE_GATEWAY, BPMN.INCLUSIVE_GATEWAY] and len(
                     self.element_info[e_id].outgoing_flows) > 1:
                 total_frequency = 0
                 for flow_id in self.element_info[e_id].outgoing_flows:
+                    if flow_id not in flow_arcs_frequency:
+                        flow_arcs_frequency[flow_id] = 0
                     total_frequency += flow_arcs_frequency[flow_id]
                 flow_arc_probability = dict()
                 for flow_id in self.element_info[e_id].outgoing_flows:
-                    flow_arc_probability[flow_id] = flow_arcs_frequency[flow_id] / total_frequency
+                    flow_arc_probability[flow_id] = flow_arcs_frequency[
+                                                        flow_id] / total_frequency if total_frequency > 0 else 0
                 gateways_branching[e_id] = flow_arc_probability
         return gateways_branching
 
