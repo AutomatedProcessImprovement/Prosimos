@@ -1,779 +1,3128 @@
-<?xml version="1.0" encoding="UTF-8" ?>
-<!-- This file has been generated with the OpenXES library. It conforms -->
-<!-- to the XML serialization of the XES standard for log storage and -->
-<!-- management. -->
-<!-- XES standard version: 2.0 -->
-<!-- OpenXES library version: 2.27 -->
-<!-- OpenXES is available from http://www.openxes.org/ -->
-<log xes.version="2.0" xes.features="nested-attributes" openxes.version="2.27">
-	<extension name="Lifecycle" prefix="lifecycle" uri="http://www.xes-standard.org/lifecycle.xesext"/>
-	<extension name="Organizational" prefix="org" uri="http://www.xes-standard.org/org.xesext"/>
-	<extension name="Time" prefix="time" uri="http://www.xes-standard.org/time.xesext"/>
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- XES version 1.0 -->
+<!-- Created by Fluxicon Disco (http://fluxicon.com/disco/ -->
+<!-- (c) 2017 Fluxicon - http://fluxicon.com/ -->
+<log xes.version="1.0" xmlns="http://www.xes-standard.org" xes.creator="Fluxicon Disco">
 	<extension name="Concept" prefix="concept" uri="http://www.xes-standard.org/concept.xesext"/>
-	<extension name="Semantic" prefix="semantic" uri="http://www.xes-standard.org/semantic.xesext"/>
+	<extension name="Lifecycle" prefix="lifecycle" uri="http://www.xes-standard.org/lifecycle.xesext"/>
+	<extension name="Time" prefix="time" uri="http://www.xes-standard.org/time.xesext"/>
+	<extension name="Organizational" prefix="org" uri="http://www.xes-standard.org/org.xesext"/>
 	<global scope="trace">
-		<string key="concept:name" value="__INVALID__"/>
+		<string key="concept:name" value="name"/>
+		<string key="variant" value="string"/>
+		<int key="variant-index" value="0"/>
 	</global>
 	<global scope="event">
-		<string key="concept:name" value="__INVALID__"/>
-		<string key="lifecycle:transition" value="complete"/>
+		<string key="concept:name" value="name"/>
+		<string key="lifecycle:transition" value="transition"/>
+		<string key="org:resource" value="resource"/>
+		<date key="time:timestamp" value="2017-08-11T16:28:42.240+03:00"/>
+		<string key="Activity" value="string"/>
+		<string key="Resource" value="string"/>
 	</global>
-	<classifier name="MXML Legacy Classifier" keys="concept:name lifecycle:transition"/>
-	<classifier name="Event Name" keys="concept:name"/>
-	<classifier name="Resource" keys="org:resource"/>
-	<string key="source" value="com.qbpsimulator"/>
-	<string key="concept:name" value="c070c9a4-6c49-403f-84b5-ae1a64dd2937"/>
+	<classifier name="Activity" keys="Activity"/>
+	<classifier name="Resource" keys="Resource"/>
 	<string key="lifecycle:model" value="standard"/>
+	<string key="creator" value="Fluxicon Disco"/>
+	<string key="library" value="Fluxicon Octane"/>
 	<trace>
-		<string key="concept:name" value="7"/>
-		<string key="LogType" value="MXML.EnactmentLog"/>
+		<string key="concept:name" value="1"/>
+		<string key="variant" value="Variant 2"/>
+		<int key="variant-index" value="2"/>
+		<string key="creator" value="Fluxicon Disco"/>
 		<event>
-			<string key="elementId" value="sid-4B24111F-B305-4608-9E12-744B47C44D0D"/>
-			<string key="resourceId" value="QBP_DEFAULT_RESOURCE"/>
-			<string key="org:resource" value="Clerk_1-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Create Purchase Requisition"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T14:51:18.717Z"/>
-			<string key="concept:name" value="Check credit history"/>
+			<string key="org:resource" value="Kim Passa"/>
+			<date key="time:timestamp" value="2011-01-01T00:00:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Requisition"/>
+			<string key="Resource" value="Kim Passa"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-4B24111F-B305-4608-9E12-744B47C44D0D"/>
-			<string key="resourceId" value="QBP_DEFAULT_RESOURCE"/>
-			<string key="org:resource" value="Clerk_1-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Create Purchase Requisition"/>
 			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T15:00:08.646Z"/>
-			<string key="resourceCost" value="3.6800624999999996"/>
-			<string key="concept:name" value="Check credit history"/>
+			<string key="org:resource" value="Kim Passa"/>
+			<date key="time:timestamp" value="2011-01-01T00:37:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Requisition"/>
+			<string key="Resource" value="Kim Passa"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"/>
-			<string key="resourceId" value="qbp_3463808c-85a2-4af7-898b-c63920ec014c"/>
-			<string key="org:resource" value="Clerk_2-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Create Request for Quotation"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T15:10:50.892Z"/>
-			<string key="concept:name" value="Check income sources"/>
+			<string key="org:resource" value="Kim Passa"/>
+			<date key="time:timestamp" value="2011-01-01T05:37:00.000+02:00"/>
+			<string key="Activity" value="Create Request for Quotation"/>
+			<string key="Resource" value="Kim Passa"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"/>
-			<string key="resourceId" value="qbp_3463808c-85a2-4af7-898b-c63920ec014c"/>
-			<string key="org:resource" value="Clerk_2-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Create Request for Quotation"/>
 			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T15:29:35.103Z"/>
-			<string key="resourceCost" value="7.8070208333333335"/>
-			<string key="concept:name" value="Check income sources"/>
+			<string key="org:resource" value="Kim Passa"/>
+			<date key="time:timestamp" value="2011-01-01T05:45:00.000+02:00"/>
+			<string key="Activity" value="Create Request for Quotation"/>
+			<string key="Resource" value="Kim Passa"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C"/>
-			<string key="resourceId" value="qbp_1ac9c0f4-d0c2-4deb-b3e2-07b278648fb9"/>
-			<string key="org:resource" value="Credit_Officer_1-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T15:29:35.103Z"/>
-			<string key="concept:name" value="Assess application"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-01T06:41:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Karel de Groot"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C"/>
-			<string key="resourceId" value="qbp_1ac9c0f4-d0c2-4deb-b3e2-07b278648fb9"/>
-			<string key="org:resource" value="Credit_Officer_1-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
 			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T15:31:06.518Z"/>
-			<string key="resourceCost" value="1.2696527777777777"/>
-			<string key="concept:name" value="Assess application"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-01T06:55:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Karel de Groot"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-503A048D-6344-446A-8D67-172B164CF8FA"/>
-			<string key="resourceId" value="qbp_584b6bb1-ea0a-4972-a62e-c2a76fadee9e"/>
-			<string key="org:resource" value="Credit_Officer_2-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Send Request for Quotation to Supplier"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T15:39:04.273Z"/>
-			<string key="concept:name" value="Make credit offer"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-01T11:43:00.000+02:00"/>
+			<string key="Activity" value="Send Request for Quotation to Supplier"/>
+			<string key="Resource" value="Karel de Groot"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-503A048D-6344-446A-8D67-172B164CF8FA"/>
-			<string key="resourceId" value="qbp_584b6bb1-ea0a-4972-a62e-c2a76fadee9e"/>
-			<string key="org:resource" value="Credit_Officer_2-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Send Request for Quotation to Supplier"/>
 			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T15:48:08.534Z"/>
-			<string key="resourceCost" value="7.559180555555556"/>
-			<string key="concept:name" value="Make credit offer"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-01T12:09:00.000+02:00"/>
+			<string key="Activity" value="Send Request for Quotation to Supplier"/>
+			<string key="Resource" value="Karel de Groot"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-08B606A8-2F7C-4DFD-BEA8-A0F4694AA576"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
-			<string key="concept:name" value="Credit application processed"/>
+			<string key="concept:name" value="Create Quotation comparison Map"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T15:48:08.534Z"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-01T12:32:00.000+02:00"/>
+			<string key="Activity" value="Create Quotation comparison Map"/>
+			<string key="Resource" value="Magdalena Predutta"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-08B606A8-2F7C-4DFD-BEA8-A0F4694AA576"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
-			<string key="concept:name" value="Credit application processed"/>
+			<string key="concept:name" value="Create Quotation comparison Map"/>
 			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T15:48:08.534Z"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-01T16:03:00.000+02:00"/>
+			<string key="Activity" value="Create Quotation comparison Map"/>
+			<string key="Resource" value="Magdalena Predutta"/>
 		</event>
-	</trace>
-	<trace>
-		<string key="concept:name" value="6"/>
-		<string key="LogType" value="MXML.EnactmentLog"/>
 		<event>
-			<string key="elementId" value="sid-4B24111F-B305-4608-9E12-744B47C44D0D"/>
-			<string key="resourceId" value="QBP_DEFAULT_RESOURCE"/>
-			<string key="org:resource" value="Clerk_1-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Analyze Quotation Comparison Map"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T14:39:49.640Z"/>
-			<string key="concept:name" value="Check credit history"/>
+			<string key="org:resource" value="Immanuel Karagianni"/>
+			<date key="time:timestamp" value="2011-01-01T22:44:00.000+02:00"/>
+			<string key="Activity" value="Analyze Quotation Comparison Map"/>
+			<string key="Resource" value="Immanuel Karagianni"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"/>
-			<string key="resourceId" value="qbp_3463808c-85a2-4af7-898b-c63920ec014c"/>
-			<string key="org:resource" value="Clerk_2-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Analyze Quotation Comparison Map"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Immanuel Karagianni"/>
+			<date key="time:timestamp" value="2011-01-01T23:13:00.000+02:00"/>
+			<string key="Activity" value="Analyze Quotation Comparison Map"/>
+			<string key="Resource" value="Immanuel Karagianni"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Choose best option"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T14:49:27.678Z"/>
-			<string key="concept:name" value="Check income sources"/>
+			<string key="org:resource" value="Tesca Lobes"/>
+			<date key="time:timestamp" value="2011-01-01T23:13:00.000+02:00"/>
+			<string key="Activity" value="Choose best option"/>
+			<string key="Resource" value="Tesca Lobes"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-4B24111F-B305-4608-9E12-744B47C44D0D"/>
-			<string key="resourceId" value="QBP_DEFAULT_RESOURCE"/>
-			<string key="org:resource" value="Clerk_1-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Choose best option"/>
 			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T14:51:18.717Z"/>
-			<string key="resourceCost" value="4.785256944444444"/>
-			<string key="concept:name" value="Check credit history"/>
+			<string key="org:resource" value="Tesca Lobes"/>
+			<date key="time:timestamp" value="2011-01-01T23:13:00.000+02:00"/>
+			<string key="Activity" value="Choose best option"/>
+			<string key="Resource" value="Tesca Lobes"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"/>
-			<string key="resourceId" value="qbp_3463808c-85a2-4af7-898b-c63920ec014c"/>
-			<string key="org:resource" value="Clerk_2-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
-			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T15:10:50.892Z"/>
-			<string key="resourceCost" value="8.911208333333333"/>
-			<string key="concept:name" value="Check income sources"/>
-		</event>
-		<event>
-			<string key="elementId" value="sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C"/>
-			<string key="resourceId" value="qbp_1ac9c0f4-d0c2-4deb-b3e2-07b278648fb9"/>
-			<string key="org:resource" value="Credit_Officer_1-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Settle Conditions With Supplier"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T15:10:50.892Z"/>
-			<string key="concept:name" value="Assess application"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-02T01:22:00.000+02:00"/>
+			<string key="Activity" value="Settle Conditions With Supplier"/>
+			<string key="Resource" value="Francois de Perrier"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C"/>
-			<string key="resourceId" value="qbp_1ac9c0f4-d0c2-4deb-b3e2-07b278648fb9"/>
-			<string key="org:resource" value="Credit_Officer_1-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Settle Conditions With Supplier"/>
 			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T15:26:41.313Z"/>
-			<string key="resourceCost" value="13.200291666666667"/>
-			<string key="concept:name" value="Assess application"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-02T09:20:00.000+02:00"/>
+			<string key="Activity" value="Settle Conditions With Supplier"/>
+			<string key="Resource" value="Francois de Perrier"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-503A048D-6344-446A-8D67-172B164CF8FA"/>
-			<string key="resourceId" value="qbp_584b6bb1-ea0a-4972-a62e-c2a76fadee9e"/>
-			<string key="org:resource" value="Credit_Officer_2-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Create Purchase Order"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T15:26:41.313Z"/>
-			<string key="concept:name" value="Make credit offer"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-02T09:58:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Order"/>
+			<string key="Resource" value="Karel de Groot"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-503A048D-6344-446A-8D67-172B164CF8FA"/>
-			<string key="resourceId" value="qbp_584b6bb1-ea0a-4972-a62e-c2a76fadee9e"/>
-			<string key="org:resource" value="Credit_Officer_2-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Create Purchase Order"/>
 			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T15:39:04.273Z"/>
-			<string key="resourceCost" value="10.318888888888889"/>
-			<string key="concept:name" value="Make credit offer"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-02T10:10:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Order"/>
+			<string key="Resource" value="Karel de Groot"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-08B606A8-2F7C-4DFD-BEA8-A0F4694AA576"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
-			<string key="concept:name" value="Credit application processed"/>
+			<string key="concept:name" value="Confirm Purchase Order"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T15:39:04.273Z"/>
+			<string key="org:resource" value="Sean Manney"/>
+			<date key="time:timestamp" value="2011-01-02T14:09:00.000+02:00"/>
+			<string key="Activity" value="Confirm Purchase Order"/>
+			<string key="Resource" value="Sean Manney"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-08B606A8-2F7C-4DFD-BEA8-A0F4694AA576"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
-			<string key="concept:name" value="Credit application processed"/>
+			<string key="concept:name" value="Confirm Purchase Order"/>
 			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T15:39:04.273Z"/>
+			<string key="org:resource" value="Sean Manney"/>
+			<date key="time:timestamp" value="2011-01-02T14:43:00.000+02:00"/>
+			<string key="Activity" value="Confirm Purchase Order"/>
+			<string key="Resource" value="Sean Manney"/>
 		</event>
-	</trace>
-	<trace>
-		<string key="concept:name" value="8"/>
-		<string key="LogType" value="MXML.EnactmentLog"/>
 		<event>
-			<string key="elementId" value="sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"/>
-			<string key="resourceId" value="qbp_3463808c-85a2-4af7-898b-c63920ec014c"/>
-			<string key="org:resource" value="Clerk_2-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Deliver Goods Services"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T15:39:49.903Z"/>
-			<string key="concept:name" value="Check income sources"/>
+			<string key="org:resource" value="Sean Manney"/>
+			<date key="time:timestamp" value="2011-01-02T20:49:00.000+02:00"/>
+			<string key="Activity" value="Deliver Goods Services"/>
+			<string key="Resource" value="Sean Manney"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-4B24111F-B305-4608-9E12-744B47C44D0D"/>
-			<string key="resourceId" value="QBP_DEFAULT_RESOURCE"/>
-			<string key="org:resource" value="Clerk_1-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Deliver Goods Services"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Sean Manney"/>
+			<date key="time:timestamp" value="2011-01-03T03:37:00.000+02:00"/>
+			<string key="Activity" value="Deliver Goods Services"/>
+			<string key="Resource" value="Sean Manney"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Release Purchase Order"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T15:39:49.903Z"/>
-			<string key="concept:name" value="Check credit history"/>
+			<string key="org:resource" value="Elvira Lores"/>
+			<date key="time:timestamp" value="2011-01-03T11:20:00.000+02:00"/>
+			<string key="Activity" value="Release Purchase Order"/>
+			<string key="Resource" value="Elvira Lores"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-4B24111F-B305-4608-9E12-744B47C44D0D"/>
-			<string key="resourceId" value="QBP_DEFAULT_RESOURCE"/>
-			<string key="org:resource" value="Clerk_1-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Release Purchase Order"/>
 			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T15:51:16.354Z"/>
-			<string key="resourceCost" value="4.7670208333333335"/>
-			<string key="concept:name" value="Check credit history"/>
+			<string key="org:resource" value="Elvira Lores"/>
+			<date key="time:timestamp" value="2011-01-03T11:21:00.000+02:00"/>
+			<string key="Activity" value="Release Purchase Order"/>
+			<string key="Resource" value="Elvira Lores"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"/>
-			<string key="resourceId" value="qbp_3463808c-85a2-4af7-898b-c63920ec014c"/>
-			<string key="org:resource" value="Clerk_2-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
-			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T15:52:53.952Z"/>
-			<string key="resourceCost" value="5.444784722222222"/>
-			<string key="concept:name" value="Check income sources"/>
-		</event>
-		<event>
-			<string key="elementId" value="sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C"/>
-			<string key="resourceId" value="qbp_1ac9c0f4-d0c2-4deb-b3e2-07b278648fb9"/>
-			<string key="org:resource" value="Credit_Officer_1-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Approve Purchase Order for payment"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T15:52:53.952Z"/>
-			<string key="concept:name" value="Assess application"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-03T19:09:00.000+02:00"/>
+			<string key="Activity" value="Approve Purchase Order for payment"/>
+			<string key="Resource" value="Karel de Groot"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C"/>
-			<string key="resourceId" value="qbp_1ac9c0f4-d0c2-4deb-b3e2-07b278648fb9"/>
-			<string key="org:resource" value="Credit_Officer_1-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Approve Purchase Order for payment"/>
 			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T15:53:39.163Z"/>
-			<string key="resourceCost" value="0.6279305555555554"/>
-			<string key="concept:name" value="Assess application"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-03T19:10:00.000+02:00"/>
+			<string key="Activity" value="Approve Purchase Order for payment"/>
+			<string key="Resource" value="Karel de Groot"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-503A048D-6344-446A-8D67-172B164CF8FA"/>
-			<string key="resourceId" value="qbp_584b6bb1-ea0a-4972-a62e-c2a76fadee9e"/>
-			<string key="org:resource" value="Credit_Officer_2-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Send Invoice"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T15:53:39.163Z"/>
-			<string key="concept:name" value="Make credit offer"/>
+			<string key="org:resource" value="Kiu Kan"/>
+			<date key="time:timestamp" value="2011-01-04T00:54:00.000+02:00"/>
+			<string key="Activity" value="Send Invoice"/>
+			<string key="Resource" value="Kiu Kan"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-503A048D-6344-446A-8D67-172B164CF8FA"/>
-			<string key="resourceId" value="qbp_584b6bb1-ea0a-4972-a62e-c2a76fadee9e"/>
-			<string key="org:resource" value="Credit_Officer_2-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Send Invoice"/>
 			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T16:00:50.453Z"/>
-			<string key="resourceCost" value="5.990138888888889"/>
-			<string key="concept:name" value="Make credit offer"/>
+			<string key="org:resource" value="Kiu Kan"/>
+			<date key="time:timestamp" value="2011-01-04T00:54:00.000+02:00"/>
+			<string key="Activity" value="Send Invoice"/>
+			<string key="Resource" value="Kiu Kan"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-08B606A8-2F7C-4DFD-BEA8-A0F4694AA576"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
-			<string key="concept:name" value="Credit application processed"/>
+			<string key="concept:name" value="Release Supplier's Invoice"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T16:00:50.453Z"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-04T15:08:00.000+02:00"/>
+			<string key="Activity" value="Release Supplier's Invoice"/>
+			<string key="Resource" value="Karalda Nimwada"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-08B606A8-2F7C-4DFD-BEA8-A0F4694AA576"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
-			<string key="concept:name" value="Credit application processed"/>
+			<string key="concept:name" value="Release Supplier's Invoice"/>
 			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T16:00:50.453Z"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-04T15:13:00.000+02:00"/>
+			<string key="Activity" value="Release Supplier's Invoice"/>
+			<string key="Resource" value="Karalda Nimwada"/>
 		</event>
-	</trace>
-	<trace>
-		<string key="concept:name" value="3"/>
-		<string key="LogType" value="MXML.EnactmentLog"/>
 		<event>
-			<string key="elementId" value="sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"/>
-			<string key="resourceId" value="qbp_3463808c-85a2-4af7-898b-c63920ec014c"/>
-			<string key="org:resource" value="Clerk_2-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Authorize Supplier's Invoice payment"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T13:17:02.029Z"/>
-			<string key="concept:name" value="Check income sources"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-04T15:13:00.000+02:00"/>
+			<string key="Activity" value="Authorize Supplier's Invoice payment"/>
+			<string key="Resource" value="Karalda Nimwada"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-4B24111F-B305-4608-9E12-744B47C44D0D"/>
-			<string key="resourceId" value="QBP_DEFAULT_RESOURCE"/>
-			<string key="org:resource" value="Clerk_1-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Authorize Supplier's Invoice payment"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-04T15:13:00.000+02:00"/>
+			<string key="Activity" value="Authorize Supplier's Invoice payment"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Pay Invoice"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T13:17:02.029Z"/>
-			<string key="concept:name" value="Check credit history"/>
+			<string key="org:resource" value="Pedro Alvares"/>
+			<date key="time:timestamp" value="2011-01-04T15:22:00.000+02:00"/>
+			<string key="Activity" value="Pay Invoice"/>
+			<string key="Resource" value="Pedro Alvares"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-4B24111F-B305-4608-9E12-744B47C44D0D"/>
-			<string key="resourceId" value="QBP_DEFAULT_RESOURCE"/>
-			<string key="org:resource" value="Clerk_1-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Pay Invoice"/>
 			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T13:22:50.738Z"/>
-			<string key="resourceCost" value="2.421590277777778"/>
-			<string key="concept:name" value="Check credit history"/>
-		</event>
-		<event>
-			<string key="elementId" value="sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"/>
-			<string key="resourceId" value="qbp_3463808c-85a2-4af7-898b-c63920ec014c"/>
-			<string key="org:resource" value="Clerk_2-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
-			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T13:40:07.094Z"/>
-			<string key="resourceCost" value="9.618506944444444"/>
-			<string key="concept:name" value="Check income sources"/>
-		</event>
-		<event>
-			<string key="elementId" value="sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C"/>
-			<string key="resourceId" value="qbp_1ac9c0f4-d0c2-4deb-b3e2-07b278648fb9"/>
-			<string key="org:resource" value="Credit_Officer_1-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
-			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T13:56:45.389Z"/>
-			<string key="concept:name" value="Assess application"/>
-		</event>
-		<event>
-			<string key="elementId" value="sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C"/>
-			<string key="resourceId" value="qbp_1ac9c0f4-d0c2-4deb-b3e2-07b278648fb9"/>
-			<string key="org:resource" value="Credit_Officer_1-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
-			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T14:03:27.467Z"/>
-			<string key="resourceCost" value="5.584416666666666"/>
-			<string key="concept:name" value="Assess application"/>
-		</event>
-		<event>
-			<string key="elementId" value="sid-503A048D-6344-446A-8D67-172B164CF8FA"/>
-			<string key="resourceId" value="qbp_584b6bb1-ea0a-4972-a62e-c2a76fadee9e"/>
-			<string key="org:resource" value="Credit_Officer_2-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
-			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T14:10:37.139Z"/>
-			<string key="concept:name" value="Make credit offer"/>
-		</event>
-		<event>
-			<string key="elementId" value="sid-503A048D-6344-446A-8D67-172B164CF8FA"/>
-			<string key="resourceId" value="qbp_584b6bb1-ea0a-4972-a62e-c2a76fadee9e"/>
-			<string key="org:resource" value="Credit_Officer_2-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
-			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T14:21:37.775Z"/>
-			<string key="resourceCost" value="9.1755"/>
-			<string key="concept:name" value="Make credit offer"/>
-		</event>
-		<event>
-			<string key="elementId" value="sid-08B606A8-2F7C-4DFD-BEA8-A0F4694AA576"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
-			<string key="concept:name" value="Credit application processed"/>
-			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T14:21:37.775Z"/>
-		</event>
-		<event>
-			<string key="elementId" value="sid-08B606A8-2F7C-4DFD-BEA8-A0F4694AA576"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
-			<string key="concept:name" value="Credit application processed"/>
-			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T14:21:37.775Z"/>
+			<string key="org:resource" value="Pedro Alvares"/>
+			<date key="time:timestamp" value="2011-01-04T15:31:00.000+02:00"/>
+			<string key="Activity" value="Pay Invoice"/>
+			<string key="Resource" value="Pedro Alvares"/>
 		</event>
 	</trace>
 	<trace>
 		<string key="concept:name" value="2"/>
-		<string key="LogType" value="MXML.EnactmentLog"/>
+		<string key="variant" value="Variant 20"/>
+		<int key="variant-index" value="20"/>
+		<string key="creator" value="Fluxicon Disco"/>
 		<event>
-			<string key="elementId" value="sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"/>
-			<string key="resourceId" value="qbp_3463808c-85a2-4af7-898b-c63920ec014c"/>
-			<string key="org:resource" value="Clerk_2-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Create Purchase Requisition"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T12:58:05.128Z"/>
-			<string key="concept:name" value="Check income sources"/>
+			<string key="org:resource" value="Immanuel Karagianni"/>
+			<date key="time:timestamp" value="2011-01-01T00:16:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Requisition"/>
+			<string key="Resource" value="Immanuel Karagianni"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-4B24111F-B305-4608-9E12-744B47C44D0D"/>
-			<string key="resourceId" value="QBP_DEFAULT_RESOURCE"/>
-			<string key="org:resource" value="Clerk_1-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Create Purchase Requisition"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Immanuel Karagianni"/>
+			<date key="time:timestamp" value="2011-01-01T00:29:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Requisition"/>
+			<string key="Resource" value="Immanuel Karagianni"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Request for Quotation"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T12:58:05.128Z"/>
-			<string key="concept:name" value="Check credit history"/>
+			<string key="org:resource" value="Alberto Duport"/>
+			<date key="time:timestamp" value="2011-01-01T08:16:00.000+02:00"/>
+			<string key="Activity" value="Create Request for Quotation"/>
+			<string key="Resource" value="Alberto Duport"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-4B24111F-B305-4608-9E12-744B47C44D0D"/>
-			<string key="resourceId" value="QBP_DEFAULT_RESOURCE"/>
-			<string key="org:resource" value="Clerk_1-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Create Request for Quotation"/>
 			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T13:09:27.949Z"/>
-			<string key="resourceCost" value="4.7418125"/>
-			<string key="concept:name" value="Check credit history"/>
+			<string key="org:resource" value="Alberto Duport"/>
+			<date key="time:timestamp" value="2011-01-01T08:26:00.000+02:00"/>
+			<string key="Activity" value="Create Request for Quotation"/>
+			<string key="Resource" value="Alberto Duport"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"/>
-			<string key="resourceId" value="qbp_3463808c-85a2-4af7-898b-c63920ec014c"/>
-			<string key="org:resource" value="Clerk_2-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
-			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T13:10:35.785Z"/>
-			<string key="resourceCost" value="5.2128958333333335"/>
-			<string key="concept:name" value="Check income sources"/>
-		</event>
-		<event>
-			<string key="elementId" value="sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C"/>
-			<string key="resourceId" value="qbp_1ac9c0f4-d0c2-4deb-b3e2-07b278648fb9"/>
-			<string key="org:resource" value="Credit_Officer_1-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T13:55:04.907Z"/>
-			<string key="concept:name" value="Assess application"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-01T09:34:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Karel de Groot"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C"/>
-			<string key="resourceId" value="qbp_1ac9c0f4-d0c2-4deb-b3e2-07b278648fb9"/>
-			<string key="org:resource" value="Credit_Officer_1-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
 			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T13:56:45.389Z"/>
-			<string key="resourceCost" value="1.3955833333333334"/>
-			<string key="concept:name" value="Assess application"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-01T09:38:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Karel de Groot"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-503A048D-6344-446A-8D67-172B164CF8FA"/>
-			<string key="resourceId" value="qbp_584b6bb1-ea0a-4972-a62e-c2a76fadee9e"/>
-			<string key="org:resource" value="Credit_Officer_2-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Amend Request for Quotation"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T14:02:14.858Z"/>
-			<string key="concept:name" value="Make credit offer"/>
+			<string key="org:resource" value="Christian Francois"/>
+			<date key="time:timestamp" value="2011-01-01T10:16:00.000+02:00"/>
+			<string key="Activity" value="Amend Request for Quotation"/>
+			<string key="Resource" value="Christian Francois"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-503A048D-6344-446A-8D67-172B164CF8FA"/>
-			<string key="resourceId" value="qbp_584b6bb1-ea0a-4972-a62e-c2a76fadee9e"/>
-			<string key="org:resource" value="Credit_Officer_2-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Amend Request for Quotation"/>
 			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T14:10:37.139Z"/>
-			<string key="resourceCost" value="6.976125"/>
-			<string key="concept:name" value="Make credit offer"/>
+			<string key="org:resource" value="Christian Francois"/>
+			<date key="time:timestamp" value="2011-01-01T10:21:00.000+02:00"/>
+			<string key="Activity" value="Amend Request for Quotation"/>
+			<string key="Resource" value="Christian Francois"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-08B606A8-2F7C-4DFD-BEA8-A0F4694AA576"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
-			<string key="concept:name" value="Credit application processed"/>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T14:10:37.139Z"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-01T11:15:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Magdalena Predutta"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-08B606A8-2F7C-4DFD-BEA8-A0F4694AA576"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
-			<string key="concept:name" value="Credit application processed"/>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
 			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T14:10:37.139Z"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-01T11:48:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Magdalena Predutta"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Amend Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Esmana Liubiata"/>
+			<date key="time:timestamp" value="2011-01-01T12:33:00.000+02:00"/>
+			<string key="Activity" value="Amend Request for Quotation"/>
+			<string key="Resource" value="Esmana Liubiata"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Amend Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Esmana Liubiata"/>
+			<date key="time:timestamp" value="2011-01-01T12:39:00.000+02:00"/>
+			<string key="Activity" value="Amend Request for Quotation"/>
+			<string key="Resource" value="Esmana Liubiata"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-01T13:28:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-01T13:38:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Send Request for Quotation to Supplier"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-01T15:18:00.000+02:00"/>
+			<string key="Activity" value="Send Request for Quotation to Supplier"/>
+			<string key="Resource" value="Francois de Perrier"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Send Request for Quotation to Supplier"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-01T15:40:00.000+02:00"/>
+			<string key="Activity" value="Send Request for Quotation to Supplier"/>
+			<string key="Resource" value="Francois de Perrier"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Quotation comparison Map"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-01T15:55:00.000+02:00"/>
+			<string key="Activity" value="Create Quotation comparison Map"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Quotation comparison Map"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-01T16:43:00.000+02:00"/>
+			<string key="Activity" value="Create Quotation comparison Map"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Quotation Comparison Map"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Esmana Liubiata"/>
+			<date key="time:timestamp" value="2011-01-01T23:33:00.000+02:00"/>
+			<string key="Activity" value="Analyze Quotation Comparison Map"/>
+			<string key="Resource" value="Esmana Liubiata"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Quotation Comparison Map"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Esmana Liubiata"/>
+			<date key="time:timestamp" value="2011-01-01T23:44:00.000+02:00"/>
+			<string key="Activity" value="Analyze Quotation Comparison Map"/>
+			<string key="Resource" value="Esmana Liubiata"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Choose best option"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Fjodor Kowalski"/>
+			<date key="time:timestamp" value="2011-01-01T23:44:00.000+02:00"/>
+			<string key="Activity" value="Choose best option"/>
+			<string key="Resource" value="Fjodor Kowalski"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Choose best option"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Fjodor Kowalski"/>
+			<date key="time:timestamp" value="2011-01-01T23:44:00.000+02:00"/>
+			<string key="Activity" value="Choose best option"/>
+			<string key="Resource" value="Fjodor Kowalski"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Settle Conditions With Supplier"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-02T02:15:00.000+02:00"/>
+			<string key="Activity" value="Settle Conditions With Supplier"/>
+			<string key="Resource" value="Magdalena Predutta"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Settle Conditions With Supplier"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-02T15:07:00.000+02:00"/>
+			<string key="Activity" value="Settle Conditions With Supplier"/>
+			<string key="Resource" value="Magdalena Predutta"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Purchase Order"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-02T16:21:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Order"/>
+			<string key="Resource" value="Magdalena Predutta"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Purchase Order"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-02T16:31:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Order"/>
+			<string key="Resource" value="Magdalena Predutta"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Confirm Purchase Order"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Esmeralda Clay"/>
+			<date key="time:timestamp" value="2011-01-02T20:23:00.000+02:00"/>
+			<string key="Activity" value="Confirm Purchase Order"/>
+			<string key="Resource" value="Esmeralda Clay"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Confirm Purchase Order"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Esmeralda Clay"/>
+			<date key="time:timestamp" value="2011-01-02T20:29:00.000+02:00"/>
+			<string key="Activity" value="Confirm Purchase Order"/>
+			<string key="Resource" value="Esmeralda Clay"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Deliver Goods Services"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Esmeralda Clay"/>
+			<date key="time:timestamp" value="2011-01-03T03:15:00.000+02:00"/>
+			<string key="Activity" value="Deliver Goods Services"/>
+			<string key="Resource" value="Esmeralda Clay"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Deliver Goods Services"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Esmeralda Clay"/>
+			<date key="time:timestamp" value="2011-01-04T14:53:00.000+02:00"/>
+			<string key="Activity" value="Deliver Goods Services"/>
+			<string key="Resource" value="Esmeralda Clay"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Release Purchase Order"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Elvira Lores"/>
+			<date key="time:timestamp" value="2011-01-04T23:01:00.000+02:00"/>
+			<string key="Activity" value="Release Purchase Order"/>
+			<string key="Resource" value="Elvira Lores"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Release Purchase Order"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Elvira Lores"/>
+			<date key="time:timestamp" value="2011-01-04T23:02:00.000+02:00"/>
+			<string key="Activity" value="Release Purchase Order"/>
+			<string key="Resource" value="Elvira Lores"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Approve Purchase Order for payment"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-05T09:03:00.000+02:00"/>
+			<string key="Activity" value="Approve Purchase Order for payment"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Approve Purchase Order for payment"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-05T09:04:00.000+02:00"/>
+			<string key="Activity" value="Approve Purchase Order for payment"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Send Invoice"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Esmeralda Clay"/>
+			<date key="time:timestamp" value="2011-01-05T14:50:00.000+02:00"/>
+			<string key="Activity" value="Send Invoice"/>
+			<string key="Resource" value="Esmeralda Clay"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Send Invoice"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Esmeralda Clay"/>
+			<date key="time:timestamp" value="2011-01-05T14:50:00.000+02:00"/>
+			<string key="Activity" value="Send Invoice"/>
+			<string key="Resource" value="Esmeralda Clay"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Release Supplier's Invoice"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Pedro Alvares"/>
+			<date key="time:timestamp" value="2011-01-06T05:04:00.000+02:00"/>
+			<string key="Activity" value="Release Supplier's Invoice"/>
+			<string key="Resource" value="Pedro Alvares"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Release Supplier's Invoice"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Pedro Alvares"/>
+			<date key="time:timestamp" value="2011-01-06T05:07:00.000+02:00"/>
+			<string key="Activity" value="Release Supplier's Invoice"/>
+			<string key="Resource" value="Pedro Alvares"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Settle Dispute With Supplier"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-06T05:38:00.000+02:00"/>
+			<string key="Activity" value="Settle Dispute With Supplier"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Settle Dispute With Supplier"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-06T05:58:00.000+02:00"/>
+			<string key="Activity" value="Settle Dispute With Supplier"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Authorize Supplier's Invoice payment"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Pedro Alvares"/>
+			<date key="time:timestamp" value="2011-01-06T05:58:00.000+02:00"/>
+			<string key="Activity" value="Authorize Supplier's Invoice payment"/>
+			<string key="Resource" value="Pedro Alvares"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Authorize Supplier's Invoice payment"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Pedro Alvares"/>
+			<date key="time:timestamp" value="2011-01-06T05:58:00.000+02:00"/>
+			<string key="Activity" value="Authorize Supplier's Invoice payment"/>
+			<string key="Resource" value="Pedro Alvares"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Pay Invoice"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-06T06:21:00.000+02:00"/>
+			<string key="Activity" value="Pay Invoice"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Pay Invoice"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-06T06:32:00.000+02:00"/>
+			<string key="Activity" value="Pay Invoice"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+	</trace>
+	<trace>
+		<string key="concept:name" value="3"/>
+		<string key="variant" value="Variant 1"/>
+		<int key="variant-index" value="1"/>
+		<string key="creator" value="Fluxicon Disco"/>
+		<event>
+			<string key="concept:name" value="Create Purchase Requisition"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Kim Passa"/>
+			<date key="time:timestamp" value="2011-01-01T02:23:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Requisition"/>
+			<string key="Resource" value="Kim Passa"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Purchase Requisition"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Kim Passa"/>
+			<date key="time:timestamp" value="2011-01-01T03:03:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Requisition"/>
+			<string key="Resource" value="Kim Passa"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Purchase Requisition"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Heinz Gutschmidt"/>
+			<date key="time:timestamp" value="2011-01-02T01:50:00.000+02:00"/>
+			<string key="Activity" value="Analyze Purchase Requisition"/>
+			<string key="Resource" value="Heinz Gutschmidt"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Purchase Requisition"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Heinz Gutschmidt"/>
+			<date key="time:timestamp" value="2011-01-02T01:58:00.000+02:00"/>
+			<string key="Activity" value="Analyze Purchase Requisition"/>
+			<string key="Resource" value="Heinz Gutschmidt"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Francis Odell"/>
+			<date key="time:timestamp" value="2011-01-02T02:01:00.000+02:00"/>
+			<string key="Activity" value="Create Request for Quotation"/>
+			<string key="Resource" value="Francis Odell"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Francis Odell"/>
+			<date key="time:timestamp" value="2011-01-02T02:03:00.000+02:00"/>
+			<string key="Activity" value="Create Request for Quotation"/>
+			<string key="Resource" value="Francis Odell"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-02T03:27:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-02T03:48:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Send Request for Quotation to Supplier"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-02T15:29:00.000+02:00"/>
+			<string key="Activity" value="Send Request for Quotation to Supplier"/>
+			<string key="Resource" value="Magdalena Predutta"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Send Request for Quotation to Supplier"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-02T15:55:00.000+02:00"/>
+			<string key="Activity" value="Send Request for Quotation to Supplier"/>
+			<string key="Resource" value="Magdalena Predutta"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Quotation comparison Map"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-02T16:00:00.000+02:00"/>
+			<string key="Activity" value="Create Quotation comparison Map"/>
+			<string key="Resource" value="Francois de Perrier"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Quotation comparison Map"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-02T21:00:00.000+02:00"/>
+			<string key="Activity" value="Create Quotation comparison Map"/>
+			<string key="Resource" value="Francois de Perrier"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Quotation Comparison Map"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Clement Duchot"/>
+			<date key="time:timestamp" value="2011-01-03T03:18:00.000+02:00"/>
+			<string key="Activity" value="Analyze Quotation Comparison Map"/>
+			<string key="Resource" value="Clement Duchot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Quotation Comparison Map"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Clement Duchot"/>
+			<date key="time:timestamp" value="2011-01-03T03:47:00.000+02:00"/>
+			<string key="Activity" value="Analyze Quotation Comparison Map"/>
+			<string key="Resource" value="Clement Duchot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Choose best option"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Christian Francois"/>
+			<date key="time:timestamp" value="2011-01-03T03:47:00.000+02:00"/>
+			<string key="Activity" value="Choose best option"/>
+			<string key="Resource" value="Christian Francois"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Choose best option"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Christian Francois"/>
+			<date key="time:timestamp" value="2011-01-03T03:47:00.000+02:00"/>
+			<string key="Activity" value="Choose best option"/>
+			<string key="Resource" value="Christian Francois"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Settle Conditions With Supplier"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-03T14:14:00.000+02:00"/>
+			<string key="Activity" value="Settle Conditions With Supplier"/>
+			<string key="Resource" value="Francois de Perrier"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Settle Conditions With Supplier"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-03T22:16:00.000+02:00"/>
+			<string key="Activity" value="Settle Conditions With Supplier"/>
+			<string key="Resource" value="Francois de Perrier"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Purchase Order"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-03T23:51:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Order"/>
+			<string key="Resource" value="Francois de Perrier"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Purchase Order"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-03T23:59:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Order"/>
+			<string key="Resource" value="Francois de Perrier"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Confirm Purchase Order"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karen Clarens"/>
+			<date key="time:timestamp" value="2011-01-04T03:47:00.000+02:00"/>
+			<string key="Activity" value="Confirm Purchase Order"/>
+			<string key="Resource" value="Karen Clarens"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Confirm Purchase Order"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karen Clarens"/>
+			<date key="time:timestamp" value="2011-01-04T04:10:00.000+02:00"/>
+			<string key="Activity" value="Confirm Purchase Order"/>
+			<string key="Resource" value="Karen Clarens"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Deliver Goods Services"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Esmeralda Clay"/>
+			<date key="time:timestamp" value="2011-01-04T14:53:00.000+02:00"/>
+			<string key="Activity" value="Deliver Goods Services"/>
+			<string key="Resource" value="Esmeralda Clay"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Deliver Goods Services"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Esmeralda Clay"/>
+			<date key="time:timestamp" value="2011-01-05T14:20:00.000+02:00"/>
+			<string key="Activity" value="Deliver Goods Services"/>
+			<string key="Resource" value="Esmeralda Clay"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Release Purchase Order"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Elvira Lores"/>
+			<date key="time:timestamp" value="2011-01-05T21:54:00.000+02:00"/>
+			<string key="Activity" value="Release Purchase Order"/>
+			<string key="Resource" value="Elvira Lores"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Release Purchase Order"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Elvira Lores"/>
+			<date key="time:timestamp" value="2011-01-05T21:55:00.000+02:00"/>
+			<string key="Activity" value="Release Purchase Order"/>
+			<string key="Resource" value="Elvira Lores"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Approve Purchase Order for payment"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-06T13:46:00.000+02:00"/>
+			<string key="Activity" value="Approve Purchase Order for payment"/>
+			<string key="Resource" value="Francois de Perrier"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Approve Purchase Order for payment"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-06T13:47:00.000+02:00"/>
+			<string key="Activity" value="Approve Purchase Order for payment"/>
+			<string key="Resource" value="Francois de Perrier"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Send Invoice"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Kiu Kan"/>
+			<date key="time:timestamp" value="2011-01-07T01:33:00.000+02:00"/>
+			<string key="Activity" value="Send Invoice"/>
+			<string key="Resource" value="Kiu Kan"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Send Invoice"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Kiu Kan"/>
+			<date key="time:timestamp" value="2011-01-07T01:33:00.000+02:00"/>
+			<string key="Activity" value="Send Invoice"/>
+			<string key="Resource" value="Kiu Kan"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Release Supplier's Invoice"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-07T15:51:00.000+02:00"/>
+			<string key="Activity" value="Release Supplier's Invoice"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Release Supplier's Invoice"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-07T15:55:00.000+02:00"/>
+			<string key="Activity" value="Release Supplier's Invoice"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Authorize Supplier's Invoice payment"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-07T15:55:00.000+02:00"/>
+			<string key="Activity" value="Authorize Supplier's Invoice payment"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Authorize Supplier's Invoice payment"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-07T15:55:00.000+02:00"/>
+			<string key="Activity" value="Authorize Supplier's Invoice payment"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Pay Invoice"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-07T16:24:00.000+02:00"/>
+			<string key="Activity" value="Pay Invoice"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Pay Invoice"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-07T16:31:00.000+02:00"/>
+			<string key="Activity" value="Pay Invoice"/>
+			<string key="Resource" value="Karalda Nimwada"/>
 		</event>
 	</trace>
 	<trace>
 		<string key="concept:name" value="4"/>
-		<string key="LogType" value="MXML.EnactmentLog"/>
+		<string key="variant" value="Variant 37"/>
+		<int key="variant-index" value="37"/>
+		<string key="creator" value="Fluxicon Disco"/>
 		<event>
-			<string key="elementId" value="sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"/>
-			<string key="resourceId" value="qbp_3463808c-85a2-4af7-898b-c63920ec014c"/>
-			<string key="org:resource" value="Clerk_2-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Create Purchase Requisition"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T14:20:09.302Z"/>
-			<string key="concept:name" value="Check income sources"/>
+			<string key="org:resource" value="Fjodor Kowalski"/>
+			<date key="time:timestamp" value="2011-01-01T08:39:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Requisition"/>
+			<string key="Resource" value="Fjodor Kowalski"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-4B24111F-B305-4608-9E12-744B47C44D0D"/>
-			<string key="resourceId" value="QBP_DEFAULT_RESOURCE"/>
-			<string key="org:resource" value="Clerk_1-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Create Purchase Requisition"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Fjodor Kowalski"/>
+			<date key="time:timestamp" value="2011-01-01T09:00:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Requisition"/>
+			<string key="Resource" value="Fjodor Kowalski"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Purchase Requisition"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T14:20:09.302Z"/>
-			<string key="concept:name" value="Check credit history"/>
+			<string key="org:resource" value="Maris Freeman"/>
+			<date key="time:timestamp" value="2011-01-01T18:45:00.000+02:00"/>
+			<string key="Activity" value="Analyze Purchase Requisition"/>
+			<string key="Resource" value="Maris Freeman"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-4B24111F-B305-4608-9E12-744B47C44D0D"/>
-			<string key="resourceId" value="QBP_DEFAULT_RESOURCE"/>
-			<string key="org:resource" value="Clerk_1-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Analyze Purchase Requisition"/>
 			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T14:27:37.100Z"/>
-			<string key="resourceCost" value="3.1097083333333337"/>
-			<string key="concept:name" value="Check credit history"/>
+			<string key="org:resource" value="Maris Freeman"/>
+			<date key="time:timestamp" value="2011-01-01T18:51:00.000+02:00"/>
+			<string key="Activity" value="Analyze Purchase Requisition"/>
+			<string key="Resource" value="Maris Freeman"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"/>
-			<string key="resourceId" value="qbp_3463808c-85a2-4af7-898b-c63920ec014c"/>
-			<string key="org:resource" value="Clerk_2-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
-			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T14:34:40.746Z"/>
-			<string key="resourceCost" value="6.051694444444444"/>
-			<string key="concept:name" value="Check income sources"/>
-		</event>
-		<event>
-			<string key="elementId" value="sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C"/>
-			<string key="resourceId" value="qbp_1ac9c0f4-d0c2-4deb-b3e2-07b278648fb9"/>
-			<string key="org:resource" value="Credit_Officer_1-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Create Request for Quotation"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T14:34:40.746Z"/>
-			<string key="concept:name" value="Assess application"/>
+			<string key="org:resource" value="Heinz Gutschmidt"/>
+			<date key="time:timestamp" value="2011-01-01T18:56:00.000+02:00"/>
+			<string key="Activity" value="Create Request for Quotation"/>
+			<string key="Resource" value="Heinz Gutschmidt"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C"/>
-			<string key="resourceId" value="qbp_1ac9c0f4-d0c2-4deb-b3e2-07b278648fb9"/>
-			<string key="org:resource" value="Credit_Officer_1-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Create Request for Quotation"/>
 			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T14:48:59.665Z"/>
-			<string key="resourceCost" value="11.929430555555555"/>
-			<string key="concept:name" value="Assess application"/>
+			<string key="org:resource" value="Heinz Gutschmidt"/>
+			<date key="time:timestamp" value="2011-01-01T18:58:00.000+02:00"/>
+			<string key="Activity" value="Create Request for Quotation"/>
+			<string key="Resource" value="Heinz Gutschmidt"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-503A048D-6344-446A-8D67-172B164CF8FA"/>
-			<string key="resourceId" value="qbp_584b6bb1-ea0a-4972-a62e-c2a76fadee9e"/>
-			<string key="org:resource" value="Credit_Officer_2-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T14:48:59.665Z"/>
-			<string key="concept:name" value="Make credit offer"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-01T19:58:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Francois de Perrier"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-503A048D-6344-446A-8D67-172B164CF8FA"/>
-			<string key="resourceId" value="qbp_584b6bb1-ea0a-4972-a62e-c2a76fadee9e"/>
-			<string key="org:resource" value="Credit_Officer_2-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
 			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T14:54:36.144Z"/>
-			<string key="resourceCost" value="4.673319444444445"/>
-			<string key="concept:name" value="Make credit offer"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-01T20:19:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Francois de Perrier"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-08B606A8-2F7C-4DFD-BEA8-A0F4694AA576"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
-			<string key="concept:name" value="Credit application processed"/>
+			<string key="concept:name" value="Amend Request for Quotation"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T14:54:36.144Z"/>
+			<string key="org:resource" value="Nico Ojenbeer"/>
+			<date key="time:timestamp" value="2011-01-01T21:06:00.000+02:00"/>
+			<string key="Activity" value="Amend Request for Quotation"/>
+			<string key="Resource" value="Nico Ojenbeer"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-08B606A8-2F7C-4DFD-BEA8-A0F4694AA576"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
-			<string key="concept:name" value="Credit application processed"/>
+			<string key="concept:name" value="Amend Request for Quotation"/>
 			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T14:54:36.144Z"/>
+			<string key="org:resource" value="Nico Ojenbeer"/>
+			<date key="time:timestamp" value="2011-01-01T21:14:00.000+02:00"/>
+			<string key="Activity" value="Amend Request for Quotation"/>
+			<string key="Resource" value="Nico Ojenbeer"/>
 		</event>
-	</trace>
-	<trace>
-		<string key="concept:name" value="1"/>
-		<string key="LogType" value="MXML.EnactmentLog"/>
 		<event>
-			<string key="elementId" value="sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"/>
-			<string key="resourceId" value="qbp_3463808c-85a2-4af7-898b-c63920ec014c"/>
-			<string key="org:resource" value="Clerk_2-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T12:00:11.391Z"/>
-			<string key="concept:name" value="Check income sources"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-01T22:01:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Francois de Perrier"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-4B24111F-B305-4608-9E12-744B47C44D0D"/>
-			<string key="resourceId" value="QBP_DEFAULT_RESOURCE"/>
-			<string key="org:resource" value="Clerk_1-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-01T22:24:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Francois de Perrier"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Send Request for Quotation to Supplier"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T12:00:11.391Z"/>
-			<string key="concept:name" value="Check credit history"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-02T02:42:00.000+02:00"/>
+			<string key="Activity" value="Send Request for Quotation to Supplier"/>
+			<string key="Resource" value="Karel de Groot"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-4B24111F-B305-4608-9E12-744B47C44D0D"/>
-			<string key="resourceId" value="QBP_DEFAULT_RESOURCE"/>
-			<string key="org:resource" value="Clerk_1-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Send Request for Quotation to Supplier"/>
 			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T12:13:55.856Z"/>
-			<string key="resourceCost" value="5.725451388888889"/>
-			<string key="concept:name" value="Check credit history"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-02T03:01:00.000+02:00"/>
+			<string key="Activity" value="Send Request for Quotation to Supplier"/>
+			<string key="Resource" value="Karel de Groot"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"/>
-			<string key="resourceId" value="qbp_3463808c-85a2-4af7-898b-c63920ec014c"/>
-			<string key="org:resource" value="Clerk_2-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
-			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T12:19:30.766Z"/>
-			<string key="resourceCost" value="8.051215277777779"/>
-			<string key="concept:name" value="Check income sources"/>
-		</event>
-		<event>
-			<string key="elementId" value="sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C"/>
-			<string key="resourceId" value="qbp_1ac9c0f4-d0c2-4deb-b3e2-07b278648fb9"/>
-			<string key="org:resource" value="Credit_Officer_1-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Create Quotation comparison Map"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T13:02:08.679Z"/>
-			<string key="concept:name" value="Assess application"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-02T03:48:00.000+02:00"/>
+			<string key="Activity" value="Create Quotation comparison Map"/>
+			<string key="Resource" value="Karel de Groot"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C"/>
-			<string key="resourceId" value="qbp_1ac9c0f4-d0c2-4deb-b3e2-07b278648fb9"/>
-			<string key="org:resource" value="Credit_Officer_1-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Create Quotation comparison Map"/>
 			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T13:55:04.907Z"/>
-			<string key="resourceCost" value="44.11427777777778"/>
-			<string key="concept:name" value="Assess application"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-02T09:08:00.000+02:00"/>
+			<string key="Activity" value="Create Quotation comparison Map"/>
+			<string key="Resource" value="Karel de Groot"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-503A048D-6344-446A-8D67-172B164CF8FA"/>
-			<string key="resourceId" value="qbp_584b6bb1-ea0a-4972-a62e-c2a76fadee9e"/>
-			<string key="org:resource" value="Credit_Officer_2-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Analyze Quotation Comparison Map"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T13:55:04.907Z"/>
-			<string key="concept:name" value="Make credit offer"/>
+			<string key="org:resource" value="Elvira Lores"/>
+			<date key="time:timestamp" value="2011-01-02T15:59:00.000+02:00"/>
+			<string key="Activity" value="Analyze Quotation Comparison Map"/>
+			<string key="Resource" value="Elvira Lores"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-503A048D-6344-446A-8D67-172B164CF8FA"/>
-			<string key="resourceId" value="qbp_584b6bb1-ea0a-4972-a62e-c2a76fadee9e"/>
-			<string key="org:resource" value="Credit_Officer_2-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Analyze Quotation Comparison Map"/>
 			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T14:02:14.858Z"/>
-			<string key="resourceCost" value="5.971541666666668"/>
-			<string key="concept:name" value="Make credit offer"/>
+			<string key="org:resource" value="Elvira Lores"/>
+			<date key="time:timestamp" value="2011-01-02T16:13:00.000+02:00"/>
+			<string key="Activity" value="Analyze Quotation Comparison Map"/>
+			<string key="Resource" value="Elvira Lores"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-08B606A8-2F7C-4DFD-BEA8-A0F4694AA576"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
-			<string key="concept:name" value="Credit application processed"/>
+			<string key="concept:name" value="Choose best option"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T14:02:14.858Z"/>
+			<string key="org:resource" value="Kim Passa"/>
+			<date key="time:timestamp" value="2011-01-02T16:13:00.000+02:00"/>
+			<string key="Activity" value="Choose best option"/>
+			<string key="Resource" value="Kim Passa"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-08B606A8-2F7C-4DFD-BEA8-A0F4694AA576"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
-			<string key="concept:name" value="Credit application processed"/>
+			<string key="concept:name" value="Choose best option"/>
 			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T14:02:14.858Z"/>
+			<string key="org:resource" value="Kim Passa"/>
+			<date key="time:timestamp" value="2011-01-02T16:13:00.000+02:00"/>
+			<string key="Activity" value="Choose best option"/>
+			<string key="Resource" value="Kim Passa"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Settle Conditions With Supplier"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-02T19:13:00.000+02:00"/>
+			<string key="Activity" value="Settle Conditions With Supplier"/>
+			<string key="Resource" value="Magdalena Predutta"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Settle Conditions With Supplier"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-03T07:45:00.000+02:00"/>
+			<string key="Activity" value="Settle Conditions With Supplier"/>
+			<string key="Resource" value="Magdalena Predutta"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Purchase Order"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-03T12:08:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Order"/>
+			<string key="Resource" value="Magdalena Predutta"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Purchase Order"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-03T12:17:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Order"/>
+			<string key="Resource" value="Magdalena Predutta"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Confirm Purchase Order"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Carmen Finacse"/>
+			<date key="time:timestamp" value="2011-01-03T16:13:00.000+02:00"/>
+			<string key="Activity" value="Confirm Purchase Order"/>
+			<string key="Resource" value="Carmen Finacse"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Confirm Purchase Order"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Carmen Finacse"/>
+			<date key="time:timestamp" value="2011-01-03T16:38:00.000+02:00"/>
+			<string key="Activity" value="Confirm Purchase Order"/>
+			<string key="Resource" value="Carmen Finacse"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Deliver Goods Services"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Carmen Finacse"/>
+			<date key="time:timestamp" value="2011-01-03T23:05:00.000+02:00"/>
+			<string key="Activity" value="Deliver Goods Services"/>
+			<string key="Resource" value="Carmen Finacse"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Deliver Goods Services"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Carmen Finacse"/>
+			<date key="time:timestamp" value="2011-01-05T02:30:00.000+02:00"/>
+			<string key="Activity" value="Deliver Goods Services"/>
+			<string key="Resource" value="Carmen Finacse"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Release Purchase Order"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Miu Hanwan"/>
+			<date key="time:timestamp" value="2011-01-05T09:57:00.000+02:00"/>
+			<string key="Activity" value="Release Purchase Order"/>
+			<string key="Resource" value="Miu Hanwan"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Release Purchase Order"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Miu Hanwan"/>
+			<date key="time:timestamp" value="2011-01-05T09:58:00.000+02:00"/>
+			<string key="Activity" value="Release Purchase Order"/>
+			<string key="Resource" value="Miu Hanwan"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Approve Purchase Order for payment"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-06T00:29:00.000+02:00"/>
+			<string key="Activity" value="Approve Purchase Order for payment"/>
+			<string key="Resource" value="Magdalena Predutta"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Approve Purchase Order for payment"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-06T00:30:00.000+02:00"/>
+			<string key="Activity" value="Approve Purchase Order for payment"/>
+			<string key="Resource" value="Magdalena Predutta"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Send Invoice"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Esmeralda Clay"/>
+			<date key="time:timestamp" value="2011-01-06T06:13:00.000+02:00"/>
+			<string key="Activity" value="Send Invoice"/>
+			<string key="Resource" value="Esmeralda Clay"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Send Invoice"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Esmeralda Clay"/>
+			<date key="time:timestamp" value="2011-01-06T06:13:00.000+02:00"/>
+			<string key="Activity" value="Send Invoice"/>
+			<string key="Resource" value="Esmeralda Clay"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Authorize Supplier's Invoice payment"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Pedro Alvares"/>
+			<date key="time:timestamp" value="2011-01-06T20:39:00.000+02:00"/>
+			<string key="Activity" value="Authorize Supplier's Invoice payment"/>
+			<string key="Resource" value="Pedro Alvares"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Authorize Supplier's Invoice payment"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Pedro Alvares"/>
+			<date key="time:timestamp" value="2011-01-06T20:39:00.000+02:00"/>
+			<string key="Activity" value="Authorize Supplier's Invoice payment"/>
+			<string key="Resource" value="Pedro Alvares"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Pay Invoice"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-06T21:25:00.000+02:00"/>
+			<string key="Activity" value="Pay Invoice"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Pay Invoice"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-06T21:32:00.000+02:00"/>
+			<string key="Activity" value="Pay Invoice"/>
+			<string key="Resource" value="Karalda Nimwada"/>
 		</event>
 	</trace>
 	<trace>
 		<string key="concept:name" value="5"/>
-		<string key="LogType" value="MXML.EnactmentLog"/>
+		<string key="variant" value="Variant 37"/>
+		<int key="variant-index" value="37"/>
+		<string key="creator" value="Fluxicon Disco"/>
 		<event>
-			<string key="elementId" value="sid-4B24111F-B305-4608-9E12-744B47C44D0D"/>
-			<string key="resourceId" value="QBP_DEFAULT_RESOURCE"/>
-			<string key="org:resource" value="Clerk_1-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Create Purchase Requisition"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T14:29:00.115Z"/>
-			<string key="concept:name" value="Check credit history"/>
+			<string key="org:resource" value="Esmana Liubiata"/>
+			<date key="time:timestamp" value="2011-01-01T09:49:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Requisition"/>
+			<string key="Resource" value="Esmana Liubiata"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"/>
-			<string key="resourceId" value="qbp_3463808c-85a2-4af7-898b-c63920ec014c"/>
-			<string key="org:resource" value="Clerk_2-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Create Purchase Requisition"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Esmana Liubiata"/>
+			<date key="time:timestamp" value="2011-01-01T10:35:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Requisition"/>
+			<string key="Resource" value="Esmana Liubiata"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Purchase Requisition"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T14:34:40.746Z"/>
-			<string key="concept:name" value="Check income sources"/>
+			<string key="org:resource" value="Maris Freeman"/>
+			<date key="time:timestamp" value="2011-01-02T01:50:00.000+02:00"/>
+			<string key="Activity" value="Analyze Purchase Requisition"/>
+			<string key="Resource" value="Maris Freeman"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-4B24111F-B305-4608-9E12-744B47C44D0D"/>
-			<string key="resourceId" value="QBP_DEFAULT_RESOURCE"/>
-			<string key="org:resource" value="Clerk_1-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Analyze Purchase Requisition"/>
 			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T14:39:49.640Z"/>
-			<string key="resourceCost" value="4.510590277777778"/>
-			<string key="concept:name" value="Check credit history"/>
+			<string key="org:resource" value="Maris Freeman"/>
+			<date key="time:timestamp" value="2011-01-02T01:57:00.000+02:00"/>
+			<string key="Activity" value="Analyze Purchase Requisition"/>
+			<string key="Resource" value="Maris Freeman"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"/>
-			<string key="resourceId" value="qbp_3463808c-85a2-4af7-898b-c63920ec014c"/>
-			<string key="org:resource" value="Clerk_2-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
-			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T14:49:27.678Z"/>
-			<string key="resourceCost" value="6.15925"/>
-			<string key="concept:name" value="Check income sources"/>
-		</event>
-		<event>
-			<string key="elementId" value="sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C"/>
-			<string key="resourceId" value="qbp_1ac9c0f4-d0c2-4deb-b3e2-07b278648fb9"/>
-			<string key="org:resource" value="Credit_Officer_1-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Create Request for Quotation"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T14:49:27.678Z"/>
-			<string key="concept:name" value="Assess application"/>
+			<string key="org:resource" value="Maris Freeman"/>
+			<date key="time:timestamp" value="2011-01-02T02:05:00.000+02:00"/>
+			<string key="Activity" value="Create Request for Quotation"/>
+			<string key="Resource" value="Maris Freeman"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C"/>
-			<string key="resourceId" value="qbp_1ac9c0f4-d0c2-4deb-b3e2-07b278648fb9"/>
-			<string key="org:resource" value="Credit_Officer_1-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Create Request for Quotation"/>
 			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T15:10:20.057Z"/>
-			<string key="resourceCost" value="17.394152777777776"/>
-			<string key="concept:name" value="Assess application"/>
+			<string key="org:resource" value="Maris Freeman"/>
+			<date key="time:timestamp" value="2011-01-02T02:06:00.000+02:00"/>
+			<string key="Activity" value="Create Request for Quotation"/>
+			<string key="Resource" value="Maris Freeman"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-503A048D-6344-446A-8D67-172B164CF8FA"/>
-			<string key="resourceId" value="qbp_584b6bb1-ea0a-4972-a62e-c2a76fadee9e"/>
-			<string key="org:resource" value="Credit_Officer_2-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T15:10:20.057Z"/>
-			<string key="concept:name" value="Make credit offer"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-02T03:02:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Karel de Groot"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-503A048D-6344-446A-8D67-172B164CF8FA"/>
-			<string key="resourceId" value="qbp_584b6bb1-ea0a-4972-a62e-c2a76fadee9e"/>
-			<string key="org:resource" value="Credit_Officer_2-000001"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
 			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T15:18:39.500Z"/>
-			<string key="resourceCost" value="6.936708333333333"/>
-			<string key="concept:name" value="Make credit offer"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-02T03:27:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Karel de Groot"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-08B606A8-2F7C-4DFD-BEA8-A0F4694AA576"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
-			<string key="concept:name" value="Credit application processed"/>
+			<string key="concept:name" value="Amend Request for Quotation"/>
 			<string key="lifecycle:transition" value="start"/>
-			<date key="time:timestamp" value="2020-07-01T15:18:39.500Z"/>
+			<string key="org:resource" value="Anne Olwada"/>
+			<date key="time:timestamp" value="2011-01-02T04:21:00.000+02:00"/>
+			<string key="Activity" value="Amend Request for Quotation"/>
+			<string key="Resource" value="Anne Olwada"/>
 		</event>
 		<event>
-			<string key="elementId" value="sid-08B606A8-2F7C-4DFD-BEA8-A0F4694AA576"/>
-			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
-			<string key="concept:name" value="Credit application processed"/>
+			<string key="concept:name" value="Amend Request for Quotation"/>
 			<string key="lifecycle:transition" value="complete"/>
-			<date key="time:timestamp" value="2020-07-01T15:18:39.500Z"/>
+			<string key="org:resource" value="Anne Olwada"/>
+			<date key="time:timestamp" value="2011-01-02T04:33:00.000+02:00"/>
+			<string key="Activity" value="Amend Request for Quotation"/>
+			<string key="Resource" value="Anne Olwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-02T09:08:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-02T09:42:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Send Request for Quotation to Supplier"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-02T18:49:00.000+02:00"/>
+			<string key="Activity" value="Send Request for Quotation to Supplier"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Send Request for Quotation to Supplier"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-02T19:21:00.000+02:00"/>
+			<string key="Activity" value="Send Request for Quotation to Supplier"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Quotation comparison Map"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-02T19:36:00.000+02:00"/>
+			<string key="Activity" value="Create Quotation comparison Map"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Quotation comparison Map"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-02T20:14:00.000+02:00"/>
+			<string key="Activity" value="Create Quotation comparison Map"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Quotation Comparison Map"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Anne Olwada"/>
+			<date key="time:timestamp" value="2011-01-03T03:18:00.000+02:00"/>
+			<string key="Activity" value="Analyze Quotation Comparison Map"/>
+			<string key="Resource" value="Anne Olwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Quotation Comparison Map"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Anne Olwada"/>
+			<date key="time:timestamp" value="2011-01-03T03:30:00.000+02:00"/>
+			<string key="Activity" value="Analyze Quotation Comparison Map"/>
+			<string key="Resource" value="Anne Olwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Choose best option"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Nico Ojenbeer"/>
+			<date key="time:timestamp" value="2011-01-03T03:30:00.000+02:00"/>
+			<string key="Activity" value="Choose best option"/>
+			<string key="Resource" value="Nico Ojenbeer"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Choose best option"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Nico Ojenbeer"/>
+			<date key="time:timestamp" value="2011-01-03T03:30:00.000+02:00"/>
+			<string key="Activity" value="Choose best option"/>
+			<string key="Resource" value="Nico Ojenbeer"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Settle Conditions With Supplier"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-03T13:18:00.000+02:00"/>
+			<string key="Activity" value="Settle Conditions With Supplier"/>
+			<string key="Resource" value="Magdalena Predutta"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Settle Conditions With Supplier"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-03T19:12:00.000+02:00"/>
+			<string key="Activity" value="Settle Conditions With Supplier"/>
+			<string key="Resource" value="Magdalena Predutta"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Purchase Order"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-03T21:01:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Order"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Purchase Order"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-03T21:09:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Order"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Confirm Purchase Order"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karen Clarens"/>
+			<date key="time:timestamp" value="2011-01-04T01:02:00.000+02:00"/>
+			<string key="Activity" value="Confirm Purchase Order"/>
+			<string key="Resource" value="Karen Clarens"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Confirm Purchase Order"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karen Clarens"/>
+			<date key="time:timestamp" value="2011-01-04T01:24:00.000+02:00"/>
+			<string key="Activity" value="Confirm Purchase Order"/>
+			<string key="Resource" value="Karen Clarens"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Deliver Goods Services"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Kiu Kan"/>
+			<date key="time:timestamp" value="2011-01-04T09:08:00.000+02:00"/>
+			<string key="Activity" value="Deliver Goods Services"/>
+			<string key="Resource" value="Kiu Kan"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Deliver Goods Services"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Kiu Kan"/>
+			<date key="time:timestamp" value="2011-01-05T04:37:00.000+02:00"/>
+			<string key="Activity" value="Deliver Goods Services"/>
+			<string key="Resource" value="Kiu Kan"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Release Purchase Order"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Anna Kaufmann"/>
+			<date key="time:timestamp" value="2011-01-05T12:13:00.000+02:00"/>
+			<string key="Activity" value="Release Purchase Order"/>
+			<string key="Resource" value="Anna Kaufmann"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Release Purchase Order"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Anna Kaufmann"/>
+			<date key="time:timestamp" value="2011-01-05T12:14:00.000+02:00"/>
+			<string key="Activity" value="Release Purchase Order"/>
+			<string key="Resource" value="Anna Kaufmann"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Approve Purchase Order for payment"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-06T02:41:00.000+02:00"/>
+			<string key="Activity" value="Approve Purchase Order for payment"/>
+			<string key="Resource" value="Francois de Perrier"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Approve Purchase Order for payment"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-06T02:42:00.000+02:00"/>
+			<string key="Activity" value="Approve Purchase Order for payment"/>
+			<string key="Resource" value="Francois de Perrier"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Send Invoice"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Esmeralda Clay"/>
+			<date key="time:timestamp" value="2011-01-06T08:23:00.000+02:00"/>
+			<string key="Activity" value="Send Invoice"/>
+			<string key="Resource" value="Esmeralda Clay"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Send Invoice"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Esmeralda Clay"/>
+			<date key="time:timestamp" value="2011-01-06T08:23:00.000+02:00"/>
+			<string key="Activity" value="Send Invoice"/>
+			<string key="Resource" value="Esmeralda Clay"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Authorize Supplier's Invoice payment"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-06T22:47:00.000+02:00"/>
+			<string key="Activity" value="Authorize Supplier's Invoice payment"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Authorize Supplier's Invoice payment"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-06T22:47:00.000+02:00"/>
+			<string key="Activity" value="Authorize Supplier's Invoice payment"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Pay Invoice"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-06T22:55:00.000+02:00"/>
+			<string key="Activity" value="Pay Invoice"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Pay Invoice"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-06T23:04:00.000+02:00"/>
+			<string key="Activity" value="Pay Invoice"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+	</trace>
+	<trace>
+		<string key="concept:name" value="6"/>
+		<string key="variant" value="Variant 10"/>
+		<int key="variant-index" value="10"/>
+		<string key="creator" value="Fluxicon Disco"/>
+		<event>
+			<string key="concept:name" value="Create Purchase Requisition"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Christian Francois"/>
+			<date key="time:timestamp" value="2011-01-01T11:20:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Requisition"/>
+			<string key="Resource" value="Christian Francois"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Purchase Requisition"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Christian Francois"/>
+			<date key="time:timestamp" value="2011-01-01T11:37:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Requisition"/>
+			<string key="Resource" value="Christian Francois"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Alberto Duport"/>
+			<date key="time:timestamp" value="2011-01-01T17:32:00.000+02:00"/>
+			<string key="Activity" value="Create Request for Quotation"/>
+			<string key="Resource" value="Alberto Duport"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Alberto Duport"/>
+			<date key="time:timestamp" value="2011-01-01T17:45:00.000+02:00"/>
+			<string key="Activity" value="Create Request for Quotation"/>
+			<string key="Resource" value="Alberto Duport"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-01T18:39:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Magdalena Predutta"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-01T18:55:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Magdalena Predutta"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Amend Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Penn Osterwalder"/>
+			<date key="time:timestamp" value="2011-01-01T19:47:00.000+02:00"/>
+			<string key="Activity" value="Amend Request for Quotation"/>
+			<string key="Resource" value="Penn Osterwalder"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Amend Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Penn Osterwalder"/>
+			<date key="time:timestamp" value="2011-01-01T19:55:00.000+02:00"/>
+			<string key="Activity" value="Amend Request for Quotation"/>
+			<string key="Resource" value="Penn Osterwalder"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-01T20:55:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Francois de Perrier"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-01T21:28:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Francois de Perrier"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Amend Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Anne Olwada"/>
+			<date key="time:timestamp" value="2011-01-01T22:13:00.000+02:00"/>
+			<string key="Activity" value="Amend Request for Quotation"/>
+			<string key="Resource" value="Anne Olwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Amend Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Anne Olwada"/>
+			<date key="time:timestamp" value="2011-01-01T22:28:00.000+02:00"/>
+			<string key="Activity" value="Amend Request for Quotation"/>
+			<string key="Resource" value="Anne Olwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-01T23:24:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-01T23:48:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Send Request for Quotation to Supplier"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-02T09:51:00.000+02:00"/>
+			<string key="Activity" value="Send Request for Quotation to Supplier"/>
+			<string key="Resource" value="Francois de Perrier"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Send Request for Quotation to Supplier"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-02T10:22:00.000+02:00"/>
+			<string key="Activity" value="Send Request for Quotation to Supplier"/>
+			<string key="Resource" value="Francois de Perrier"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Quotation comparison Map"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-02T10:27:00.000+02:00"/>
+			<string key="Activity" value="Create Quotation comparison Map"/>
+			<string key="Resource" value="Francois de Perrier"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Quotation comparison Map"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-02T15:32:00.000+02:00"/>
+			<string key="Activity" value="Create Quotation comparison Map"/>
+			<string key="Resource" value="Francois de Perrier"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Quotation Comparison Map"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Penn Osterwalder"/>
+			<date key="time:timestamp" value="2011-01-02T21:44:00.000+02:00"/>
+			<string key="Activity" value="Analyze Quotation Comparison Map"/>
+			<string key="Resource" value="Penn Osterwalder"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Quotation Comparison Map"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Penn Osterwalder"/>
+			<date key="time:timestamp" value="2011-01-02T22:01:00.000+02:00"/>
+			<string key="Activity" value="Analyze Quotation Comparison Map"/>
+			<string key="Resource" value="Penn Osterwalder"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Choose best option"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Tesca Lobes"/>
+			<date key="time:timestamp" value="2011-01-02T22:01:00.000+02:00"/>
+			<string key="Activity" value="Choose best option"/>
+			<string key="Resource" value="Tesca Lobes"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Choose best option"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Tesca Lobes"/>
+			<date key="time:timestamp" value="2011-01-02T22:01:00.000+02:00"/>
+			<string key="Activity" value="Choose best option"/>
+			<string key="Resource" value="Tesca Lobes"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Settle Conditions With Supplier"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-03T00:25:00.000+02:00"/>
+			<string key="Activity" value="Settle Conditions With Supplier"/>
+			<string key="Resource" value="Francois de Perrier"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Settle Conditions With Supplier"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-03T13:16:00.000+02:00"/>
+			<string key="Activity" value="Settle Conditions With Supplier"/>
+			<string key="Resource" value="Francois de Perrier"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Purchase Order"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-03T14:57:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Order"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Purchase Order"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-03T15:07:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Order"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Confirm Purchase Order"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karen Clarens"/>
+			<date key="time:timestamp" value="2011-01-03T18:55:00.000+02:00"/>
+			<string key="Activity" value="Confirm Purchase Order"/>
+			<string key="Resource" value="Karen Clarens"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Confirm Purchase Order"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karen Clarens"/>
+			<date key="time:timestamp" value="2011-01-03T19:16:00.000+02:00"/>
+			<string key="Activity" value="Confirm Purchase Order"/>
+			<string key="Resource" value="Karen Clarens"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Deliver Goods Services"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karen Clarens"/>
+			<date key="time:timestamp" value="2011-01-04T05:08:00.000+02:00"/>
+			<string key="Activity" value="Deliver Goods Services"/>
+			<string key="Resource" value="Karen Clarens"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Deliver Goods Services"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karen Clarens"/>
+			<date key="time:timestamp" value="2011-01-05T03:16:00.000+02:00"/>
+			<string key="Activity" value="Deliver Goods Services"/>
+			<string key="Resource" value="Karen Clarens"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Release Purchase Order"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Nico Ojenbeer"/>
+			<date key="time:timestamp" value="2011-01-05T10:27:00.000+02:00"/>
+			<string key="Activity" value="Release Purchase Order"/>
+			<string key="Resource" value="Nico Ojenbeer"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Release Purchase Order"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Nico Ojenbeer"/>
+			<date key="time:timestamp" value="2011-01-05T10:28:00.000+02:00"/>
+			<string key="Activity" value="Release Purchase Order"/>
+			<string key="Resource" value="Nico Ojenbeer"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Approve Purchase Order for payment"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-05T17:09:00.000+02:00"/>
+			<string key="Activity" value="Approve Purchase Order for payment"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Approve Purchase Order for payment"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-05T17:10:00.000+02:00"/>
+			<string key="Activity" value="Approve Purchase Order for payment"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Send Invoice"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Esmeralda Clay"/>
+			<date key="time:timestamp" value="2011-01-05T22:56:00.000+02:00"/>
+			<string key="Activity" value="Send Invoice"/>
+			<string key="Resource" value="Esmeralda Clay"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Send Invoice"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Esmeralda Clay"/>
+			<date key="time:timestamp" value="2011-01-05T22:56:00.000+02:00"/>
+			<string key="Activity" value="Send Invoice"/>
+			<string key="Resource" value="Esmeralda Clay"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Release Supplier's Invoice"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-06T13:12:00.000+02:00"/>
+			<string key="Activity" value="Release Supplier's Invoice"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Release Supplier's Invoice"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-06T13:19:00.000+02:00"/>
+			<string key="Activity" value="Release Supplier's Invoice"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Authorize Supplier's Invoice payment"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-06T13:19:00.000+02:00"/>
+			<string key="Activity" value="Authorize Supplier's Invoice payment"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Authorize Supplier's Invoice payment"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-06T13:19:00.000+02:00"/>
+			<string key="Activity" value="Authorize Supplier's Invoice payment"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Pay Invoice"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-06T13:43:00.000+02:00"/>
+			<string key="Activity" value="Pay Invoice"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Pay Invoice"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-06T13:50:00.000+02:00"/>
+			<string key="Activity" value="Pay Invoice"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+	</trace>
+	<trace>
+		<string key="concept:name" value="7"/>
+		<string key="variant" value="Variant 13"/>
+		<int key="variant-index" value="13"/>
+		<string key="creator" value="Fluxicon Disco"/>
+		<event>
+			<string key="concept:name" value="Create Purchase Requisition"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Esmana Liubiata"/>
+			<date key="time:timestamp" value="2011-01-01T14:05:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Requisition"/>
+			<string key="Resource" value="Esmana Liubiata"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Purchase Requisition"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Esmana Liubiata"/>
+			<date key="time:timestamp" value="2011-01-01T15:00:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Requisition"/>
+			<string key="Resource" value="Esmana Liubiata"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Purchase Requisition"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Maris Freeman"/>
+			<date key="time:timestamp" value="2011-01-02T13:33:00.000+02:00"/>
+			<string key="Activity" value="Analyze Purchase Requisition"/>
+			<string key="Resource" value="Maris Freeman"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Purchase Requisition"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Maris Freeman"/>
+			<date key="time:timestamp" value="2011-01-02T13:38:00.000+02:00"/>
+			<string key="Activity" value="Analyze Purchase Requisition"/>
+			<string key="Resource" value="Maris Freeman"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Maris Freeman"/>
+			<date key="time:timestamp" value="2011-01-02T13:41:00.000+02:00"/>
+			<string key="Activity" value="Create Request for Quotation"/>
+			<string key="Resource" value="Maris Freeman"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Maris Freeman"/>
+			<date key="time:timestamp" value="2011-01-02T13:42:00.000+02:00"/>
+			<string key="Activity" value="Create Request for Quotation"/>
+			<string key="Resource" value="Maris Freeman"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-02T15:07:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Magdalena Predutta"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-02T15:29:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Magdalena Predutta"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Amend Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Esmana Liubiata"/>
+			<date key="time:timestamp" value="2011-01-02T16:21:00.000+02:00"/>
+			<string key="Activity" value="Amend Request for Quotation"/>
+			<string key="Resource" value="Esmana Liubiata"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Amend Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Esmana Liubiata"/>
+			<date key="time:timestamp" value="2011-01-02T16:28:00.000+02:00"/>
+			<string key="Activity" value="Amend Request for Quotation"/>
+			<string key="Resource" value="Esmana Liubiata"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-02T17:22:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-02T17:47:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Amend Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Nico Ojenbeer"/>
+			<date key="time:timestamp" value="2011-01-02T18:36:00.000+02:00"/>
+			<string key="Activity" value="Amend Request for Quotation"/>
+			<string key="Resource" value="Nico Ojenbeer"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Amend Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Nico Ojenbeer"/>
+			<date key="time:timestamp" value="2011-01-02T18:50:00.000+02:00"/>
+			<string key="Activity" value="Amend Request for Quotation"/>
+			<string key="Resource" value="Nico Ojenbeer"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-02T20:14:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-02T20:28:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Send Request for Quotation to Supplier"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-03T00:17:00.000+02:00"/>
+			<string key="Activity" value="Send Request for Quotation to Supplier"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Send Request for Quotation to Supplier"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-03T00:40:00.000+02:00"/>
+			<string key="Activity" value="Send Request for Quotation to Supplier"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Quotation comparison Map"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-03T08:00:00.000+02:00"/>
+			<string key="Activity" value="Create Quotation comparison Map"/>
+			<string key="Resource" value="Magdalena Predutta"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Quotation comparison Map"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-03T12:08:00.000+02:00"/>
+			<string key="Activity" value="Create Quotation comparison Map"/>
+			<string key="Resource" value="Magdalena Predutta"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Quotation Comparison Map"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Miu Hanwan"/>
+			<date key="time:timestamp" value="2011-01-03T19:19:00.000+02:00"/>
+			<string key="Activity" value="Analyze Quotation Comparison Map"/>
+			<string key="Resource" value="Miu Hanwan"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Quotation Comparison Map"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Miu Hanwan"/>
+			<date key="time:timestamp" value="2011-01-03T19:35:00.000+02:00"/>
+			<string key="Activity" value="Analyze Quotation Comparison Map"/>
+			<string key="Resource" value="Miu Hanwan"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Choose best option"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Immanuel Karagianni"/>
+			<date key="time:timestamp" value="2011-01-03T19:35:00.000+02:00"/>
+			<string key="Activity" value="Choose best option"/>
+			<string key="Resource" value="Immanuel Karagianni"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Choose best option"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Immanuel Karagianni"/>
+			<date key="time:timestamp" value="2011-01-03T19:35:00.000+02:00"/>
+			<string key="Activity" value="Choose best option"/>
+			<string key="Resource" value="Immanuel Karagianni"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Settle Conditions With Supplier"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-03T22:52:00.000+02:00"/>
+			<string key="Activity" value="Settle Conditions With Supplier"/>
+			<string key="Resource" value="Magdalena Predutta"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Settle Conditions With Supplier"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-04T13:08:00.000+02:00"/>
+			<string key="Activity" value="Settle Conditions With Supplier"/>
+			<string key="Resource" value="Magdalena Predutta"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Purchase Order"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-04T17:10:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Order"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Purchase Order"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-04T17:18:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Order"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Confirm Purchase Order"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Carmen Finacse"/>
+			<date key="time:timestamp" value="2011-01-05T02:37:00.000+02:00"/>
+			<string key="Activity" value="Confirm Purchase Order"/>
+			<string key="Resource" value="Carmen Finacse"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Confirm Purchase Order"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Carmen Finacse"/>
+			<date key="time:timestamp" value="2011-01-05T02:44:00.000+02:00"/>
+			<string key="Activity" value="Confirm Purchase Order"/>
+			<string key="Resource" value="Carmen Finacse"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Deliver Goods Services"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karen Clarens"/>
+			<date key="time:timestamp" value="2011-01-05T09:12:00.000+02:00"/>
+			<string key="Activity" value="Deliver Goods Services"/>
+			<string key="Resource" value="Karen Clarens"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Deliver Goods Services"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karen Clarens"/>
+			<date key="time:timestamp" value="2011-01-05T19:17:00.000+02:00"/>
+			<string key="Activity" value="Deliver Goods Services"/>
+			<string key="Resource" value="Karen Clarens"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Release Purchase Order"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Clement Duchot"/>
+			<date key="time:timestamp" value="2011-01-06T02:34:00.000+02:00"/>
+			<string key="Activity" value="Release Purchase Order"/>
+			<string key="Resource" value="Clement Duchot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Release Purchase Order"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Clement Duchot"/>
+			<date key="time:timestamp" value="2011-01-06T02:35:00.000+02:00"/>
+			<string key="Activity" value="Release Purchase Order"/>
+			<string key="Resource" value="Clement Duchot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Approve Purchase Order for payment"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-06T10:43:00.000+02:00"/>
+			<string key="Activity" value="Approve Purchase Order for payment"/>
+			<string key="Resource" value="Magdalena Predutta"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Approve Purchase Order for payment"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-06T10:44:00.000+02:00"/>
+			<string key="Activity" value="Approve Purchase Order for payment"/>
+			<string key="Resource" value="Magdalena Predutta"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Send Invoice"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karen Clarens"/>
+			<date key="time:timestamp" value="2011-01-06T19:11:00.000+02:00"/>
+			<string key="Activity" value="Send Invoice"/>
+			<string key="Resource" value="Karen Clarens"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Send Invoice"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karen Clarens"/>
+			<date key="time:timestamp" value="2011-01-06T19:11:00.000+02:00"/>
+			<string key="Activity" value="Send Invoice"/>
+			<string key="Resource" value="Karen Clarens"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Release Supplier's Invoice"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-07T09:22:00.000+02:00"/>
+			<string key="Activity" value="Release Supplier's Invoice"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Release Supplier's Invoice"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-07T09:27:00.000+02:00"/>
+			<string key="Activity" value="Release Supplier's Invoice"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Authorize Supplier's Invoice payment"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-07T09:27:00.000+02:00"/>
+			<string key="Activity" value="Authorize Supplier's Invoice payment"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Authorize Supplier's Invoice payment"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-07T09:27:00.000+02:00"/>
+			<string key="Activity" value="Authorize Supplier's Invoice payment"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Pay Invoice"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-07T09:41:00.000+02:00"/>
+			<string key="Activity" value="Pay Invoice"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Pay Invoice"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-07T09:53:00.000+02:00"/>
+			<string key="Activity" value="Pay Invoice"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+	</trace>
+	<trace>
+		<string key="concept:name" value="8"/>
+		<string key="variant" value="Variant 8"/>
+		<int key="variant-index" value="8"/>
+		<string key="creator" value="Fluxicon Disco"/>
+		<event>
+			<string key="concept:name" value="Create Purchase Requisition"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Fjodor Kowalski"/>
+			<date key="time:timestamp" value="2011-01-01T14:27:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Requisition"/>
+			<string key="Resource" value="Fjodor Kowalski"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Purchase Requisition"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Fjodor Kowalski"/>
+			<date key="time:timestamp" value="2011-01-01T15:17:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Requisition"/>
+			<string key="Resource" value="Fjodor Kowalski"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Tesca Lobes"/>
+			<date key="time:timestamp" value="2011-01-01T18:00:00.000+02:00"/>
+			<string key="Activity" value="Create Request for Quotation"/>
+			<string key="Resource" value="Tesca Lobes"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Tesca Lobes"/>
+			<date key="time:timestamp" value="2011-01-01T18:07:00.000+02:00"/>
+			<string key="Activity" value="Create Request for Quotation"/>
+			<string key="Resource" value="Tesca Lobes"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-01T19:04:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Francois de Perrier"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-01T19:27:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Francois de Perrier"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Amend Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Tesca Lobes"/>
+			<date key="time:timestamp" value="2011-01-01T20:21:00.000+02:00"/>
+			<string key="Activity" value="Amend Request for Quotation"/>
+			<string key="Resource" value="Tesca Lobes"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Amend Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Tesca Lobes"/>
+			<date key="time:timestamp" value="2011-01-01T20:34:00.000+02:00"/>
+			<string key="Activity" value="Amend Request for Quotation"/>
+			<string key="Resource" value="Tesca Lobes"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-01T21:35:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Magdalena Predutta"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-01T22:01:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Magdalena Predutta"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Send Request for Quotation to Supplier"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-02T09:20:00.000+02:00"/>
+			<string key="Activity" value="Send Request for Quotation to Supplier"/>
+			<string key="Resource" value="Francois de Perrier"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Send Request for Quotation to Supplier"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-02T09:48:00.000+02:00"/>
+			<string key="Activity" value="Send Request for Quotation to Supplier"/>
+			<string key="Resource" value="Francois de Perrier"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Quotation comparison Map"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-02T10:10:00.000+02:00"/>
+			<string key="Activity" value="Create Quotation comparison Map"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Quotation comparison Map"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-02T15:33:00.000+02:00"/>
+			<string key="Activity" value="Create Quotation comparison Map"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Quotation Comparison Map"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Anne Olwada"/>
+			<date key="time:timestamp" value="2011-01-02T22:08:00.000+02:00"/>
+			<string key="Activity" value="Analyze Quotation Comparison Map"/>
+			<string key="Resource" value="Anne Olwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Quotation Comparison Map"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Anne Olwada"/>
+			<date key="time:timestamp" value="2011-01-02T22:14:00.000+02:00"/>
+			<string key="Activity" value="Analyze Quotation Comparison Map"/>
+			<string key="Resource" value="Anne Olwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Choose best option"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Immanuel Karagianni"/>
+			<date key="time:timestamp" value="2011-01-02T22:14:00.000+02:00"/>
+			<string key="Activity" value="Choose best option"/>
+			<string key="Resource" value="Immanuel Karagianni"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Choose best option"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Immanuel Karagianni"/>
+			<date key="time:timestamp" value="2011-01-02T22:14:00.000+02:00"/>
+			<string key="Activity" value="Choose best option"/>
+			<string key="Resource" value="Immanuel Karagianni"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Settle Conditions With Supplier"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-03T00:40:00.000+02:00"/>
+			<string key="Activity" value="Settle Conditions With Supplier"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Settle Conditions With Supplier"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-03T12:50:00.000+02:00"/>
+			<string key="Activity" value="Settle Conditions With Supplier"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Purchase Order"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-03T15:07:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Order"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Purchase Order"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-03T15:19:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Order"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Confirm Purchase Order"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Sean Manney"/>
+			<date key="time:timestamp" value="2011-01-03T19:06:00.000+02:00"/>
+			<string key="Activity" value="Confirm Purchase Order"/>
+			<string key="Resource" value="Sean Manney"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Confirm Purchase Order"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Sean Manney"/>
+			<date key="time:timestamp" value="2011-01-03T19:31:00.000+02:00"/>
+			<string key="Activity" value="Confirm Purchase Order"/>
+			<string key="Resource" value="Sean Manney"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Deliver Goods Services"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Sean Manney"/>
+			<date key="time:timestamp" value="2011-01-04T05:00:00.000+02:00"/>
+			<string key="Activity" value="Deliver Goods Services"/>
+			<string key="Resource" value="Sean Manney"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Deliver Goods Services"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Sean Manney"/>
+			<date key="time:timestamp" value="2011-01-05T10:34:00.000+02:00"/>
+			<string key="Activity" value="Deliver Goods Services"/>
+			<string key="Resource" value="Sean Manney"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Release Purchase Order"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Esmana Liubiata"/>
+			<date key="time:timestamp" value="2011-01-05T18:11:00.000+02:00"/>
+			<string key="Activity" value="Release Purchase Order"/>
+			<string key="Resource" value="Esmana Liubiata"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Release Purchase Order"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Esmana Liubiata"/>
+			<date key="time:timestamp" value="2011-01-05T18:12:00.000+02:00"/>
+			<string key="Activity" value="Release Purchase Order"/>
+			<string key="Resource" value="Esmana Liubiata"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Approve Purchase Order for payment"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-06T13:47:00.000+02:00"/>
+			<string key="Activity" value="Approve Purchase Order for payment"/>
+			<string key="Resource" value="Francois de Perrier"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Approve Purchase Order for payment"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-06T13:48:00.000+02:00"/>
+			<string key="Activity" value="Approve Purchase Order for payment"/>
+			<string key="Resource" value="Francois de Perrier"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Send Invoice"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Kiu Kan"/>
+			<date key="time:timestamp" value="2011-01-07T01:19:00.000+02:00"/>
+			<string key="Activity" value="Send Invoice"/>
+			<string key="Resource" value="Kiu Kan"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Send Invoice"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Kiu Kan"/>
+			<date key="time:timestamp" value="2011-01-07T01:19:00.000+02:00"/>
+			<string key="Activity" value="Send Invoice"/>
+			<string key="Resource" value="Kiu Kan"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Release Supplier's Invoice"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Pedro Alvares"/>
+			<date key="time:timestamp" value="2011-01-07T15:41:00.000+02:00"/>
+			<string key="Activity" value="Release Supplier's Invoice"/>
+			<string key="Resource" value="Pedro Alvares"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Release Supplier's Invoice"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Pedro Alvares"/>
+			<date key="time:timestamp" value="2011-01-07T15:48:00.000+02:00"/>
+			<string key="Activity" value="Release Supplier's Invoice"/>
+			<string key="Resource" value="Pedro Alvares"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Authorize Supplier's Invoice payment"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-07T15:48:00.000+02:00"/>
+			<string key="Activity" value="Authorize Supplier's Invoice payment"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Authorize Supplier's Invoice payment"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-07T15:48:00.000+02:00"/>
+			<string key="Activity" value="Authorize Supplier's Invoice payment"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Pay Invoice"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Pedro Alvares"/>
+			<date key="time:timestamp" value="2011-01-07T15:53:00.000+02:00"/>
+			<string key="Activity" value="Pay Invoice"/>
+			<string key="Resource" value="Pedro Alvares"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Pay Invoice"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Pedro Alvares"/>
+			<date key="time:timestamp" value="2011-01-07T16:04:00.000+02:00"/>
+			<string key="Activity" value="Pay Invoice"/>
+			<string key="Resource" value="Pedro Alvares"/>
+		</event>
+	</trace>
+	<trace>
+		<string key="concept:name" value="9"/>
+		<string key="variant" value="Variant 46"/>
+		<int key="variant-index" value="46"/>
+		<string key="creator" value="Fluxicon Disco"/>
+		<event>
+			<string key="concept:name" value="Create Purchase Requisition"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Tesca Lobes"/>
+			<date key="time:timestamp" value="2011-01-01T16:17:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Requisition"/>
+			<string key="Resource" value="Tesca Lobes"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Purchase Requisition"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Tesca Lobes"/>
+			<date key="time:timestamp" value="2011-01-01T16:34:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Requisition"/>
+			<string key="Resource" value="Tesca Lobes"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Penn Osterwalder"/>
+			<date key="time:timestamp" value="2011-01-01T22:38:00.000+02:00"/>
+			<string key="Activity" value="Create Request for Quotation"/>
+			<string key="Resource" value="Penn Osterwalder"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Penn Osterwalder"/>
+			<date key="time:timestamp" value="2011-01-01T22:48:00.000+02:00"/>
+			<string key="Activity" value="Create Request for Quotation"/>
+			<string key="Resource" value="Penn Osterwalder"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-01T23:49:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-02T00:12:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Amend Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Heinz Gutschmidt"/>
+			<date key="time:timestamp" value="2011-01-02T16:04:00.000+02:00"/>
+			<string key="Activity" value="Amend Request for Quotation"/>
+			<string key="Resource" value="Heinz Gutschmidt"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Amend Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Heinz Gutschmidt"/>
+			<date key="time:timestamp" value="2011-01-02T16:30:00.000+02:00"/>
+			<string key="Activity" value="Amend Request for Quotation"/>
+			<string key="Resource" value="Heinz Gutschmidt"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-02T17:27:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Magdalena Predutta"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-02T17:51:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Magdalena Predutta"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Amend Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Fjodor Kowalski"/>
+			<date key="time:timestamp" value="2011-01-02T18:46:00.000+02:00"/>
+			<string key="Activity" value="Amend Request for Quotation"/>
+			<string key="Resource" value="Fjodor Kowalski"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Amend Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Fjodor Kowalski"/>
+			<date key="time:timestamp" value="2011-01-02T18:57:00.000+02:00"/>
+			<string key="Activity" value="Amend Request for Quotation"/>
+			<string key="Resource" value="Fjodor Kowalski"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-02T20:28:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-02T20:45:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Amend Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Elvira Lores"/>
+			<date key="time:timestamp" value="2011-01-02T21:43:00.000+02:00"/>
+			<string key="Activity" value="Amend Request for Quotation"/>
+			<string key="Resource" value="Elvira Lores"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Amend Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Elvira Lores"/>
+			<date key="time:timestamp" value="2011-01-02T21:49:00.000+02:00"/>
+			<string key="Activity" value="Amend Request for Quotation"/>
+			<string key="Resource" value="Elvira Lores"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-02T22:54:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Francois de Perrier"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-02T23:26:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Francois de Perrier"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Amend Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Esmana Liubiata"/>
+			<date key="time:timestamp" value="2011-01-03T00:14:00.000+02:00"/>
+			<string key="Activity" value="Amend Request for Quotation"/>
+			<string key="Resource" value="Esmana Liubiata"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Amend Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Esmana Liubiata"/>
+			<date key="time:timestamp" value="2011-01-03T00:25:00.000+02:00"/>
+			<string key="Activity" value="Amend Request for Quotation"/>
+			<string key="Resource" value="Esmana Liubiata"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-03T07:45:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Magdalena Predutta"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Magdalena Predutta"/>
+			<date key="time:timestamp" value="2011-01-03T08:00:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Magdalena Predutta"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Amend Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Heinz Gutschmidt"/>
+			<date key="time:timestamp" value="2011-01-04T00:04:00.000+02:00"/>
+			<string key="Activity" value="Amend Request for Quotation"/>
+			<string key="Resource" value="Heinz Gutschmidt"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Amend Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Heinz Gutschmidt"/>
+			<date key="time:timestamp" value="2011-01-04T00:25:00.000+02:00"/>
+			<string key="Activity" value="Amend Request for Quotation"/>
+			<string key="Resource" value="Heinz Gutschmidt"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-04T02:02:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Francois de Perrier"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-04T02:23:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Francois de Perrier"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Amend Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Anna Kaufmann"/>
+			<date key="time:timestamp" value="2011-01-04T03:12:00.000+02:00"/>
+			<string key="Activity" value="Amend Request for Quotation"/>
+			<string key="Resource" value="Anna Kaufmann"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Amend Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Anna Kaufmann"/>
+			<date key="time:timestamp" value="2011-01-04T03:22:00.000+02:00"/>
+			<string key="Activity" value="Amend Request for Quotation"/>
+			<string key="Resource" value="Anna Kaufmann"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-04T05:51:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-04T05:56:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+	</trace>
+	<trace>
+		<string key="concept:name" value="10"/>
+		<string key="variant" value="Variant 9"/>
+		<int key="variant-index" value="9"/>
+		<string key="creator" value="Fluxicon Disco"/>
+		<event>
+			<string key="concept:name" value="Create Purchase Requisition"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Esmana Liubiata"/>
+			<date key="time:timestamp" value="2011-01-02T02:52:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Requisition"/>
+			<string key="Resource" value="Esmana Liubiata"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Purchase Requisition"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Esmana Liubiata"/>
+			<date key="time:timestamp" value="2011-01-02T03:43:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Requisition"/>
+			<string key="Resource" value="Esmana Liubiata"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Immanuel Karagianni"/>
+			<date key="time:timestamp" value="2011-01-02T10:25:00.000+02:00"/>
+			<string key="Activity" value="Create Request for Quotation"/>
+			<string key="Resource" value="Immanuel Karagianni"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Immanuel Karagianni"/>
+			<date key="time:timestamp" value="2011-01-02T10:32:00.000+02:00"/>
+			<string key="Activity" value="Create Request for Quotation"/>
+			<string key="Resource" value="Immanuel Karagianni"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-02T15:32:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Francois de Perrier"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Request for Quotation"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Francois de Perrier"/>
+			<date key="time:timestamp" value="2011-01-02T15:59:00.000+02:00"/>
+			<string key="Activity" value="Analyze Request for Quotation"/>
+			<string key="Resource" value="Francois de Perrier"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Send Request for Quotation to Supplier"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-03T12:50:00.000+02:00"/>
+			<string key="Activity" value="Send Request for Quotation to Supplier"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Send Request for Quotation to Supplier"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-03T13:07:00.000+02:00"/>
+			<string key="Activity" value="Send Request for Quotation to Supplier"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Quotation comparison Map"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-03T13:31:00.000+02:00"/>
+			<string key="Activity" value="Create Quotation comparison Map"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Quotation comparison Map"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-03T14:28:00.000+02:00"/>
+			<string key="Activity" value="Create Quotation comparison Map"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Quotation Comparison Map"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Anna Kaufmann"/>
+			<date key="time:timestamp" value="2011-01-03T21:44:00.000+02:00"/>
+			<string key="Activity" value="Analyze Quotation Comparison Map"/>
+			<string key="Resource" value="Anna Kaufmann"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Analyze Quotation Comparison Map"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Anna Kaufmann"/>
+			<date key="time:timestamp" value="2011-01-03T22:05:00.000+02:00"/>
+			<string key="Activity" value="Analyze Quotation Comparison Map"/>
+			<string key="Resource" value="Anna Kaufmann"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Choose best option"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Nico Ojenbeer"/>
+			<date key="time:timestamp" value="2011-01-03T22:05:00.000+02:00"/>
+			<string key="Activity" value="Choose best option"/>
+			<string key="Resource" value="Nico Ojenbeer"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Choose best option"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Nico Ojenbeer"/>
+			<date key="time:timestamp" value="2011-01-03T22:05:00.000+02:00"/>
+			<string key="Activity" value="Choose best option"/>
+			<string key="Resource" value="Nico Ojenbeer"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Settle Conditions With Supplier"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-03T23:53:00.000+02:00"/>
+			<string key="Activity" value="Settle Conditions With Supplier"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Settle Conditions With Supplier"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-04T04:31:00.000+02:00"/>
+			<string key="Activity" value="Settle Conditions With Supplier"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Purchase Order"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-04T09:44:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Order"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Create Purchase Order"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-04T09:52:00.000+02:00"/>
+			<string key="Activity" value="Create Purchase Order"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Confirm Purchase Order"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Carmen Finacse"/>
+			<date key="time:timestamp" value="2011-01-05T02:49:00.000+02:00"/>
+			<string key="Activity" value="Confirm Purchase Order"/>
+			<string key="Resource" value="Carmen Finacse"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Confirm Purchase Order"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Carmen Finacse"/>
+			<date key="time:timestamp" value="2011-01-05T02:58:00.000+02:00"/>
+			<string key="Activity" value="Confirm Purchase Order"/>
+			<string key="Resource" value="Carmen Finacse"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Deliver Goods Services"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Kiu Kan"/>
+			<date key="time:timestamp" value="2011-01-05T11:48:00.000+02:00"/>
+			<string key="Activity" value="Deliver Goods Services"/>
+			<string key="Resource" value="Kiu Kan"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Deliver Goods Services"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Kiu Kan"/>
+			<date key="time:timestamp" value="2011-01-07T01:19:00.000+02:00"/>
+			<string key="Activity" value="Deliver Goods Services"/>
+			<string key="Resource" value="Kiu Kan"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Release Purchase Order"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Tesca Lobes"/>
+			<date key="time:timestamp" value="2011-01-07T08:54:00.000+02:00"/>
+			<string key="Activity" value="Release Purchase Order"/>
+			<string key="Resource" value="Tesca Lobes"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Release Purchase Order"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Tesca Lobes"/>
+			<date key="time:timestamp" value="2011-01-07T08:55:00.000+02:00"/>
+			<string key="Activity" value="Release Purchase Order"/>
+			<string key="Resource" value="Tesca Lobes"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Approve Purchase Order for payment"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-09T02:55:00.000+02:00"/>
+			<string key="Activity" value="Approve Purchase Order for payment"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Approve Purchase Order for payment"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karel de Groot"/>
+			<date key="time:timestamp" value="2011-01-09T02:56:00.000+02:00"/>
+			<string key="Activity" value="Approve Purchase Order for payment"/>
+			<string key="Resource" value="Karel de Groot"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Send Invoice"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karen Clarens"/>
+			<date key="time:timestamp" value="2011-01-10T00:23:00.000+02:00"/>
+			<string key="Activity" value="Send Invoice"/>
+			<string key="Resource" value="Karen Clarens"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Send Invoice"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karen Clarens"/>
+			<date key="time:timestamp" value="2011-01-10T00:23:00.000+02:00"/>
+			<string key="Activity" value="Send Invoice"/>
+			<string key="Resource" value="Karen Clarens"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Release Supplier's Invoice"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-10T14:45:00.000+02:00"/>
+			<string key="Activity" value="Release Supplier's Invoice"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Release Supplier's Invoice"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-10T14:48:00.000+02:00"/>
+			<string key="Activity" value="Release Supplier's Invoice"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Settle Dispute With Supplier"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-10T15:09:00.000+02:00"/>
+			<string key="Activity" value="Settle Dispute With Supplier"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Settle Dispute With Supplier"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-10T15:34:00.000+02:00"/>
+			<string key="Activity" value="Settle Dispute With Supplier"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Authorize Supplier's Invoice payment"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-10T15:43:00.000+02:00"/>
+			<string key="Activity" value="Authorize Supplier's Invoice payment"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Authorize Supplier's Invoice payment"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Karalda Nimwada"/>
+			<date key="time:timestamp" value="2011-01-10T15:43:00.000+02:00"/>
+			<string key="Activity" value="Authorize Supplier's Invoice payment"/>
+			<string key="Resource" value="Karalda Nimwada"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Pay Invoice"/>
+			<string key="lifecycle:transition" value="start"/>
+			<string key="org:resource" value="Pedro Alvares"/>
+			<date key="time:timestamp" value="2011-01-10T16:03:00.000+02:00"/>
+			<string key="Activity" value="Pay Invoice"/>
+			<string key="Resource" value="Pedro Alvares"/>
+		</event>
+		<event>
+			<string key="concept:name" value="Pay Invoice"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<string key="org:resource" value="Pedro Alvares"/>
+			<date key="time:timestamp" value="2011-01-10T16:16:00.000+02:00"/>
+			<string key="Activity" value="Pay Invoice"/>
+			<string key="Resource" value="Pedro Alvares"/>
 		</event>
 	</trace>
 </log>
