@@ -17,4 +17,4 @@ jobs:
           python-version: 3.9
       - run: pip install -r requirements.txt
       - run: pip install --editable .
-      - run: pytest testing_scripts/test_cli.py
+      - run: pytest testing_scripts/

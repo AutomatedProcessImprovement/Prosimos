@@ -12,3 +12,4 @@ bimp_test_examples/
 *.egg-info
 .pymon
 .DS_Store
+.vscode/

@@ -175,7 +175,8 @@ def parse_and_validate_input(log_path, bpmn_path, minutes_x_granule, conf, supp,
 
     try:
         log_traces = xes_importer.apply(log_path)
-    except:
+    except BaseException as error:
+        print('An exception occurred: {}'.format(error))
         raise Exception("Invalid XES event-log.")
 
     return bpmn_graph, log_traces
