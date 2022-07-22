@@ -8,6 +8,7 @@ from datetime import datetime
 
 import pytz
 from pm4py.objects.log.importer.xes import importer as xes_importer
+from bpdfr_simulation_engine.control_flow_manager import BPMNGraph
 
 from bpdfr_simulation_engine.execution_info import ProcessInfo, Trace, TaskEvent
 from bpdfr_simulation_engine.probability_distributions import best_fit_distribution
@@ -213,8 +214,8 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
         trace_info = Trace(caseid)
         initial_events[caseid] = datetime(9999, 12, 31, tzinfo=pytz.UTC)
         for event in trace:
-            if event['elementId'] in [bpmn_graph.starting_event, bpmn_graph.end_event]:
-                # trace event is the star or end event, we skip it for further parsing
+            if is_trace_event_start_or_end(event, bpmn_graph) == True:
+                # trace event is a start or end event, we skip it for further parsing
                 continue
             task_name = event['concept:name']
             if 'org:resource' not in event:
@@ -337,6 +338,25 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
             task_events,
             task_resource_events,
             bpmn_graph.from_name]
+
+
+def is_trace_event_start_or_end(event, bpmn_graph: BPMNGraph):
+    """ Check whether the trace event is start or end event """
+
+    element_id = event.get("elementId", get_element_id_from_bpmn_graph(event, bpmn_graph)) 
+    
+    if element_id == "":
+        print("WARNING: Trace event could not be mapped to the BPMN element.")
+    elif element_id in [bpmn_graph.starting_event, bpmn_graph.end_event]:
+        return True
+
+    return False
+
+def get_element_id_from_bpmn_graph(event, bpmn_graph: BPMNGraph):
+    concept_name = event.get("concept:name", "")
+    #TODO: check whether 'from_name' handles duplicated names of elements in the BPMN model
+    element_id = bpmn_graph.from_name.get(concept_name, "")
+    return element_id
 
 
 def save_prosimos_json(to_save, file_path):
