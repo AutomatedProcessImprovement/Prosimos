@@ -1,0 +1,779 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- This file has been generated with the OpenXES library. It conforms -->
+<!-- to the XML serialization of the XES standard for log storage and -->
+<!-- management. -->
+<!-- XES standard version: 2.0 -->
+<!-- OpenXES library version: 2.27 -->
+<!-- OpenXES is available from http://www.openxes.org/ -->
+<log xes.version="2.0" xes.features="nested-attributes" openxes.version="2.27">
+	<extension name="Lifecycle" prefix="lifecycle" uri="http://www.xes-standard.org/lifecycle.xesext"/>
+	<extension name="Organizational" prefix="org" uri="http://www.xes-standard.org/org.xesext"/>
+	<extension name="Time" prefix="time" uri="http://www.xes-standard.org/time.xesext"/>
+	<extension name="Concept" prefix="concept" uri="http://www.xes-standard.org/concept.xesext"/>
+	<extension name="Semantic" prefix="semantic" uri="http://www.xes-standard.org/semantic.xesext"/>
+	<global scope="trace">
+		<string key="concept:name" value="__INVALID__"/>
+	</global>
+	<global scope="event">
+		<string key="concept:name" value="__INVALID__"/>
+		<string key="lifecycle:transition" value="complete"/>
+	</global>
+	<classifier name="MXML Legacy Classifier" keys="concept:name lifecycle:transition"/>
+	<classifier name="Event Name" keys="concept:name"/>
+	<classifier name="Resource" keys="org:resource"/>
+	<string key="source" value="com.qbpsimulator"/>
+	<string key="concept:name" value="c070c9a4-6c49-403f-84b5-ae1a64dd2937"/>
+	<string key="lifecycle:model" value="standard"/>
+	<trace>
+		<string key="concept:name" value="7"/>
+		<string key="LogType" value="MXML.EnactmentLog"/>
+		<event>
+			<string key="elementId" value="sid-4B24111F-B305-4608-9E12-744B47C44D0D"/>
+			<string key="resourceId" value="QBP_DEFAULT_RESOURCE"/>
+			<string key="org:resource" value="Clerk_1-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T14:51:18.717Z"/>
+			<string key="concept:name" value="Check credit history"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-4B24111F-B305-4608-9E12-744B47C44D0D"/>
+			<string key="resourceId" value="QBP_DEFAULT_RESOURCE"/>
+			<string key="org:resource" value="Clerk_1-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T15:00:08.646Z"/>
+			<string key="resourceCost" value="3.6800624999999996"/>
+			<string key="concept:name" value="Check credit history"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"/>
+			<string key="resourceId" value="qbp_3463808c-85a2-4af7-898b-c63920ec014c"/>
+			<string key="org:resource" value="Clerk_2-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T15:10:50.892Z"/>
+			<string key="concept:name" value="Check income sources"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"/>
+			<string key="resourceId" value="qbp_3463808c-85a2-4af7-898b-c63920ec014c"/>
+			<string key="org:resource" value="Clerk_2-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T15:29:35.103Z"/>
+			<string key="resourceCost" value="7.8070208333333335"/>
+			<string key="concept:name" value="Check income sources"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C"/>
+			<string key="resourceId" value="qbp_1ac9c0f4-d0c2-4deb-b3e2-07b278648fb9"/>
+			<string key="org:resource" value="Credit_Officer_1-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T15:29:35.103Z"/>
+			<string key="concept:name" value="Assess application"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C"/>
+			<string key="resourceId" value="qbp_1ac9c0f4-d0c2-4deb-b3e2-07b278648fb9"/>
+			<string key="org:resource" value="Credit_Officer_1-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T15:31:06.518Z"/>
+			<string key="resourceCost" value="1.2696527777777777"/>
+			<string key="concept:name" value="Assess application"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-503A048D-6344-446A-8D67-172B164CF8FA"/>
+			<string key="resourceId" value="qbp_584b6bb1-ea0a-4972-a62e-c2a76fadee9e"/>
+			<string key="org:resource" value="Credit_Officer_2-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T15:39:04.273Z"/>
+			<string key="concept:name" value="Make credit offer"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-503A048D-6344-446A-8D67-172B164CF8FA"/>
+			<string key="resourceId" value="qbp_584b6bb1-ea0a-4972-a62e-c2a76fadee9e"/>
+			<string key="org:resource" value="Credit_Officer_2-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T15:48:08.534Z"/>
+			<string key="resourceCost" value="7.559180555555556"/>
+			<string key="concept:name" value="Make credit offer"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-08B606A8-2F7C-4DFD-BEA8-A0F4694AA576"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Credit application processed"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T15:48:08.534Z"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-08B606A8-2F7C-4DFD-BEA8-A0F4694AA576"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Credit application processed"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T15:48:08.534Z"/>
+		</event>
+	</trace>
+	<trace>
+		<string key="concept:name" value="6"/>
+		<string key="LogType" value="MXML.EnactmentLog"/>
+		<event>
+			<string key="elementId" value="sid-4B24111F-B305-4608-9E12-744B47C44D0D"/>
+			<string key="resourceId" value="QBP_DEFAULT_RESOURCE"/>
+			<string key="org:resource" value="Clerk_1-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T14:39:49.640Z"/>
+			<string key="concept:name" value="Check credit history"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"/>
+			<string key="resourceId" value="qbp_3463808c-85a2-4af7-898b-c63920ec014c"/>
+			<string key="org:resource" value="Clerk_2-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T14:49:27.678Z"/>
+			<string key="concept:name" value="Check income sources"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-4B24111F-B305-4608-9E12-744B47C44D0D"/>
+			<string key="resourceId" value="QBP_DEFAULT_RESOURCE"/>
+			<string key="org:resource" value="Clerk_1-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T14:51:18.717Z"/>
+			<string key="resourceCost" value="4.785256944444444"/>
+			<string key="concept:name" value="Check credit history"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"/>
+			<string key="resourceId" value="qbp_3463808c-85a2-4af7-898b-c63920ec014c"/>
+			<string key="org:resource" value="Clerk_2-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T15:10:50.892Z"/>
+			<string key="resourceCost" value="8.911208333333333"/>
+			<string key="concept:name" value="Check income sources"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C"/>
+			<string key="resourceId" value="qbp_1ac9c0f4-d0c2-4deb-b3e2-07b278648fb9"/>
+			<string key="org:resource" value="Credit_Officer_1-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T15:10:50.892Z"/>
+			<string key="concept:name" value="Assess application"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C"/>
+			<string key="resourceId" value="qbp_1ac9c0f4-d0c2-4deb-b3e2-07b278648fb9"/>
+			<string key="org:resource" value="Credit_Officer_1-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T15:26:41.313Z"/>
+			<string key="resourceCost" value="13.200291666666667"/>
+			<string key="concept:name" value="Assess application"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-503A048D-6344-446A-8D67-172B164CF8FA"/>
+			<string key="resourceId" value="qbp_584b6bb1-ea0a-4972-a62e-c2a76fadee9e"/>
+			<string key="org:resource" value="Credit_Officer_2-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T15:26:41.313Z"/>
+			<string key="concept:name" value="Make credit offer"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-503A048D-6344-446A-8D67-172B164CF8FA"/>
+			<string key="resourceId" value="qbp_584b6bb1-ea0a-4972-a62e-c2a76fadee9e"/>
+			<string key="org:resource" value="Credit_Officer_2-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T15:39:04.273Z"/>
+			<string key="resourceCost" value="10.318888888888889"/>
+			<string key="concept:name" value="Make credit offer"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-08B606A8-2F7C-4DFD-BEA8-A0F4694AA576"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Credit application processed"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T15:39:04.273Z"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-08B606A8-2F7C-4DFD-BEA8-A0F4694AA576"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Credit application processed"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T15:39:04.273Z"/>
+		</event>
+	</trace>
+	<trace>
+		<string key="concept:name" value="8"/>
+		<string key="LogType" value="MXML.EnactmentLog"/>
+		<event>
+			<string key="elementId" value="sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"/>
+			<string key="resourceId" value="qbp_3463808c-85a2-4af7-898b-c63920ec014c"/>
+			<string key="org:resource" value="Clerk_2-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T15:39:49.903Z"/>
+			<string key="concept:name" value="Check income sources"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-4B24111F-B305-4608-9E12-744B47C44D0D"/>
+			<string key="resourceId" value="QBP_DEFAULT_RESOURCE"/>
+			<string key="org:resource" value="Clerk_1-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T15:39:49.903Z"/>
+			<string key="concept:name" value="Check credit history"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-4B24111F-B305-4608-9E12-744B47C44D0D"/>
+			<string key="resourceId" value="QBP_DEFAULT_RESOURCE"/>
+			<string key="org:resource" value="Clerk_1-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T15:51:16.354Z"/>
+			<string key="resourceCost" value="4.7670208333333335"/>
+			<string key="concept:name" value="Check credit history"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"/>
+			<string key="resourceId" value="qbp_3463808c-85a2-4af7-898b-c63920ec014c"/>
+			<string key="org:resource" value="Clerk_2-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T15:52:53.952Z"/>
+			<string key="resourceCost" value="5.444784722222222"/>
+			<string key="concept:name" value="Check income sources"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C"/>
+			<string key="resourceId" value="qbp_1ac9c0f4-d0c2-4deb-b3e2-07b278648fb9"/>
+			<string key="org:resource" value="Credit_Officer_1-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T15:52:53.952Z"/>
+			<string key="concept:name" value="Assess application"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C"/>
+			<string key="resourceId" value="qbp_1ac9c0f4-d0c2-4deb-b3e2-07b278648fb9"/>
+			<string key="org:resource" value="Credit_Officer_1-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T15:53:39.163Z"/>
+			<string key="resourceCost" value="0.6279305555555554"/>
+			<string key="concept:name" value="Assess application"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-503A048D-6344-446A-8D67-172B164CF8FA"/>
+			<string key="resourceId" value="qbp_584b6bb1-ea0a-4972-a62e-c2a76fadee9e"/>
+			<string key="org:resource" value="Credit_Officer_2-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T15:53:39.163Z"/>
+			<string key="concept:name" value="Make credit offer"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-503A048D-6344-446A-8D67-172B164CF8FA"/>
+			<string key="resourceId" value="qbp_584b6bb1-ea0a-4972-a62e-c2a76fadee9e"/>
+			<string key="org:resource" value="Credit_Officer_2-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T16:00:50.453Z"/>
+			<string key="resourceCost" value="5.990138888888889"/>
+			<string key="concept:name" value="Make credit offer"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-08B606A8-2F7C-4DFD-BEA8-A0F4694AA576"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Credit application processed"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T16:00:50.453Z"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-08B606A8-2F7C-4DFD-BEA8-A0F4694AA576"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Credit application processed"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T16:00:50.453Z"/>
+		</event>
+	</trace>
+	<trace>
+		<string key="concept:name" value="3"/>
+		<string key="LogType" value="MXML.EnactmentLog"/>
+		<event>
+			<string key="elementId" value="sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"/>
+			<string key="resourceId" value="qbp_3463808c-85a2-4af7-898b-c63920ec014c"/>
+			<string key="org:resource" value="Clerk_2-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T13:17:02.029Z"/>
+			<string key="concept:name" value="Check income sources"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-4B24111F-B305-4608-9E12-744B47C44D0D"/>
+			<string key="resourceId" value="QBP_DEFAULT_RESOURCE"/>
+			<string key="org:resource" value="Clerk_1-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T13:17:02.029Z"/>
+			<string key="concept:name" value="Check credit history"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-4B24111F-B305-4608-9E12-744B47C44D0D"/>
+			<string key="resourceId" value="QBP_DEFAULT_RESOURCE"/>
+			<string key="org:resource" value="Clerk_1-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T13:22:50.738Z"/>
+			<string key="resourceCost" value="2.421590277777778"/>
+			<string key="concept:name" value="Check credit history"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"/>
+			<string key="resourceId" value="qbp_3463808c-85a2-4af7-898b-c63920ec014c"/>
+			<string key="org:resource" value="Clerk_2-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T13:40:07.094Z"/>
+			<string key="resourceCost" value="9.618506944444444"/>
+			<string key="concept:name" value="Check income sources"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C"/>
+			<string key="resourceId" value="qbp_1ac9c0f4-d0c2-4deb-b3e2-07b278648fb9"/>
+			<string key="org:resource" value="Credit_Officer_1-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T13:56:45.389Z"/>
+			<string key="concept:name" value="Assess application"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C"/>
+			<string key="resourceId" value="qbp_1ac9c0f4-d0c2-4deb-b3e2-07b278648fb9"/>
+			<string key="org:resource" value="Credit_Officer_1-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T14:03:27.467Z"/>
+			<string key="resourceCost" value="5.584416666666666"/>
+			<string key="concept:name" value="Assess application"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-503A048D-6344-446A-8D67-172B164CF8FA"/>
+			<string key="resourceId" value="qbp_584b6bb1-ea0a-4972-a62e-c2a76fadee9e"/>
+			<string key="org:resource" value="Credit_Officer_2-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T14:10:37.139Z"/>
+			<string key="concept:name" value="Make credit offer"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-503A048D-6344-446A-8D67-172B164CF8FA"/>
+			<string key="resourceId" value="qbp_584b6bb1-ea0a-4972-a62e-c2a76fadee9e"/>
+			<string key="org:resource" value="Credit_Officer_2-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T14:21:37.775Z"/>
+			<string key="resourceCost" value="9.1755"/>
+			<string key="concept:name" value="Make credit offer"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-08B606A8-2F7C-4DFD-BEA8-A0F4694AA576"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Credit application processed"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T14:21:37.775Z"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-08B606A8-2F7C-4DFD-BEA8-A0F4694AA576"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Credit application processed"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T14:21:37.775Z"/>
+		</event>
+	</trace>
+	<trace>
+		<string key="concept:name" value="2"/>
+		<string key="LogType" value="MXML.EnactmentLog"/>
+		<event>
+			<string key="elementId" value="sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"/>
+			<string key="resourceId" value="qbp_3463808c-85a2-4af7-898b-c63920ec014c"/>
+			<string key="org:resource" value="Clerk_2-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T12:58:05.128Z"/>
+			<string key="concept:name" value="Check income sources"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-4B24111F-B305-4608-9E12-744B47C44D0D"/>
+			<string key="resourceId" value="QBP_DEFAULT_RESOURCE"/>
+			<string key="org:resource" value="Clerk_1-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T12:58:05.128Z"/>
+			<string key="concept:name" value="Check credit history"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-4B24111F-B305-4608-9E12-744B47C44D0D"/>
+			<string key="resourceId" value="QBP_DEFAULT_RESOURCE"/>
+			<string key="org:resource" value="Clerk_1-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T13:09:27.949Z"/>
+			<string key="resourceCost" value="4.7418125"/>
+			<string key="concept:name" value="Check credit history"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"/>
+			<string key="resourceId" value="qbp_3463808c-85a2-4af7-898b-c63920ec014c"/>
+			<string key="org:resource" value="Clerk_2-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T13:10:35.785Z"/>
+			<string key="resourceCost" value="5.2128958333333335"/>
+			<string key="concept:name" value="Check income sources"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C"/>
+			<string key="resourceId" value="qbp_1ac9c0f4-d0c2-4deb-b3e2-07b278648fb9"/>
+			<string key="org:resource" value="Credit_Officer_1-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T13:55:04.907Z"/>
+			<string key="concept:name" value="Assess application"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C"/>
+			<string key="resourceId" value="qbp_1ac9c0f4-d0c2-4deb-b3e2-07b278648fb9"/>
+			<string key="org:resource" value="Credit_Officer_1-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T13:56:45.389Z"/>
+			<string key="resourceCost" value="1.3955833333333334"/>
+			<string key="concept:name" value="Assess application"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-503A048D-6344-446A-8D67-172B164CF8FA"/>
+			<string key="resourceId" value="qbp_584b6bb1-ea0a-4972-a62e-c2a76fadee9e"/>
+			<string key="org:resource" value="Credit_Officer_2-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T14:02:14.858Z"/>
+			<string key="concept:name" value="Make credit offer"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-503A048D-6344-446A-8D67-172B164CF8FA"/>
+			<string key="resourceId" value="qbp_584b6bb1-ea0a-4972-a62e-c2a76fadee9e"/>
+			<string key="org:resource" value="Credit_Officer_2-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T14:10:37.139Z"/>
+			<string key="resourceCost" value="6.976125"/>
+			<string key="concept:name" value="Make credit offer"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-08B606A8-2F7C-4DFD-BEA8-A0F4694AA576"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Credit application processed"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T14:10:37.139Z"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-08B606A8-2F7C-4DFD-BEA8-A0F4694AA576"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Credit application processed"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T14:10:37.139Z"/>
+		</event>
+	</trace>
+	<trace>
+		<string key="concept:name" value="4"/>
+		<string key="LogType" value="MXML.EnactmentLog"/>
+		<event>
+			<string key="elementId" value="sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"/>
+			<string key="resourceId" value="qbp_3463808c-85a2-4af7-898b-c63920ec014c"/>
+			<string key="org:resource" value="Clerk_2-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T14:20:09.302Z"/>
+			<string key="concept:name" value="Check income sources"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-4B24111F-B305-4608-9E12-744B47C44D0D"/>
+			<string key="resourceId" value="QBP_DEFAULT_RESOURCE"/>
+			<string key="org:resource" value="Clerk_1-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T14:20:09.302Z"/>
+			<string key="concept:name" value="Check credit history"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-4B24111F-B305-4608-9E12-744B47C44D0D"/>
+			<string key="resourceId" value="QBP_DEFAULT_RESOURCE"/>
+			<string key="org:resource" value="Clerk_1-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T14:27:37.100Z"/>
+			<string key="resourceCost" value="3.1097083333333337"/>
+			<string key="concept:name" value="Check credit history"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"/>
+			<string key="resourceId" value="qbp_3463808c-85a2-4af7-898b-c63920ec014c"/>
+			<string key="org:resource" value="Clerk_2-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T14:34:40.746Z"/>
+			<string key="resourceCost" value="6.051694444444444"/>
+			<string key="concept:name" value="Check income sources"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C"/>
+			<string key="resourceId" value="qbp_1ac9c0f4-d0c2-4deb-b3e2-07b278648fb9"/>
+			<string key="org:resource" value="Credit_Officer_1-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T14:34:40.746Z"/>
+			<string key="concept:name" value="Assess application"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C"/>
+			<string key="resourceId" value="qbp_1ac9c0f4-d0c2-4deb-b3e2-07b278648fb9"/>
+			<string key="org:resource" value="Credit_Officer_1-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T14:48:59.665Z"/>
+			<string key="resourceCost" value="11.929430555555555"/>
+			<string key="concept:name" value="Assess application"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-503A048D-6344-446A-8D67-172B164CF8FA"/>
+			<string key="resourceId" value="qbp_584b6bb1-ea0a-4972-a62e-c2a76fadee9e"/>
+			<string key="org:resource" value="Credit_Officer_2-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T14:48:59.665Z"/>
+			<string key="concept:name" value="Make credit offer"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-503A048D-6344-446A-8D67-172B164CF8FA"/>
+			<string key="resourceId" value="qbp_584b6bb1-ea0a-4972-a62e-c2a76fadee9e"/>
+			<string key="org:resource" value="Credit_Officer_2-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T14:54:36.144Z"/>
+			<string key="resourceCost" value="4.673319444444445"/>
+			<string key="concept:name" value="Make credit offer"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-08B606A8-2F7C-4DFD-BEA8-A0F4694AA576"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Credit application processed"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T14:54:36.144Z"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-08B606A8-2F7C-4DFD-BEA8-A0F4694AA576"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Credit application processed"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T14:54:36.144Z"/>
+		</event>
+	</trace>
+	<trace>
+		<string key="concept:name" value="1"/>
+		<string key="LogType" value="MXML.EnactmentLog"/>
+		<event>
+			<string key="elementId" value="sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"/>
+			<string key="resourceId" value="qbp_3463808c-85a2-4af7-898b-c63920ec014c"/>
+			<string key="org:resource" value="Clerk_2-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T12:00:11.391Z"/>
+			<string key="concept:name" value="Check income sources"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-4B24111F-B305-4608-9E12-744B47C44D0D"/>
+			<string key="resourceId" value="QBP_DEFAULT_RESOURCE"/>
+			<string key="org:resource" value="Clerk_1-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T12:00:11.391Z"/>
+			<string key="concept:name" value="Check credit history"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-4B24111F-B305-4608-9E12-744B47C44D0D"/>
+			<string key="resourceId" value="QBP_DEFAULT_RESOURCE"/>
+			<string key="org:resource" value="Clerk_1-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T12:13:55.856Z"/>
+			<string key="resourceCost" value="5.725451388888889"/>
+			<string key="concept:name" value="Check credit history"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"/>
+			<string key="resourceId" value="qbp_3463808c-85a2-4af7-898b-c63920ec014c"/>
+			<string key="org:resource" value="Clerk_2-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T12:19:30.766Z"/>
+			<string key="resourceCost" value="8.051215277777779"/>
+			<string key="concept:name" value="Check income sources"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C"/>
+			<string key="resourceId" value="qbp_1ac9c0f4-d0c2-4deb-b3e2-07b278648fb9"/>
+			<string key="org:resource" value="Credit_Officer_1-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T13:02:08.679Z"/>
+			<string key="concept:name" value="Assess application"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C"/>
+			<string key="resourceId" value="qbp_1ac9c0f4-d0c2-4deb-b3e2-07b278648fb9"/>
+			<string key="org:resource" value="Credit_Officer_1-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T13:55:04.907Z"/>
+			<string key="resourceCost" value="44.11427777777778"/>
+			<string key="concept:name" value="Assess application"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-503A048D-6344-446A-8D67-172B164CF8FA"/>
+			<string key="resourceId" value="qbp_584b6bb1-ea0a-4972-a62e-c2a76fadee9e"/>
+			<string key="org:resource" value="Credit_Officer_2-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T13:55:04.907Z"/>
+			<string key="concept:name" value="Make credit offer"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-503A048D-6344-446A-8D67-172B164CF8FA"/>
+			<string key="resourceId" value="qbp_584b6bb1-ea0a-4972-a62e-c2a76fadee9e"/>
+			<string key="org:resource" value="Credit_Officer_2-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T14:02:14.858Z"/>
+			<string key="resourceCost" value="5.971541666666668"/>
+			<string key="concept:name" value="Make credit offer"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-08B606A8-2F7C-4DFD-BEA8-A0F4694AA576"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Credit application processed"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T14:02:14.858Z"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-08B606A8-2F7C-4DFD-BEA8-A0F4694AA576"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Credit application processed"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T14:02:14.858Z"/>
+		</event>
+	</trace>
+	<trace>
+		<string key="concept:name" value="5"/>
+		<string key="LogType" value="MXML.EnactmentLog"/>
+		<event>
+			<string key="elementId" value="sid-4B24111F-B305-4608-9E12-744B47C44D0D"/>
+			<string key="resourceId" value="QBP_DEFAULT_RESOURCE"/>
+			<string key="org:resource" value="Clerk_1-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T14:29:00.115Z"/>
+			<string key="concept:name" value="Check credit history"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"/>
+			<string key="resourceId" value="qbp_3463808c-85a2-4af7-898b-c63920ec014c"/>
+			<string key="org:resource" value="Clerk_2-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T14:34:40.746Z"/>
+			<string key="concept:name" value="Check income sources"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-4B24111F-B305-4608-9E12-744B47C44D0D"/>
+			<string key="resourceId" value="QBP_DEFAULT_RESOURCE"/>
+			<string key="org:resource" value="Clerk_1-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T14:39:49.640Z"/>
+			<string key="resourceCost" value="4.510590277777778"/>
+			<string key="concept:name" value="Check credit history"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"/>
+			<string key="resourceId" value="qbp_3463808c-85a2-4af7-898b-c63920ec014c"/>
+			<string key="org:resource" value="Clerk_2-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T14:49:27.678Z"/>
+			<string key="resourceCost" value="6.15925"/>
+			<string key="concept:name" value="Check income sources"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C"/>
+			<string key="resourceId" value="qbp_1ac9c0f4-d0c2-4deb-b3e2-07b278648fb9"/>
+			<string key="org:resource" value="Credit_Officer_1-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T14:49:27.678Z"/>
+			<string key="concept:name" value="Assess application"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C"/>
+			<string key="resourceId" value="qbp_1ac9c0f4-d0c2-4deb-b3e2-07b278648fb9"/>
+			<string key="org:resource" value="Credit_Officer_1-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T15:10:20.057Z"/>
+			<string key="resourceCost" value="17.394152777777776"/>
+			<string key="concept:name" value="Assess application"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-503A048D-6344-446A-8D67-172B164CF8FA"/>
+			<string key="resourceId" value="qbp_584b6bb1-ea0a-4972-a62e-c2a76fadee9e"/>
+			<string key="org:resource" value="Credit_Officer_2-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T15:10:20.057Z"/>
+			<string key="concept:name" value="Make credit offer"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-503A048D-6344-446A-8D67-172B164CF8FA"/>
+			<string key="resourceId" value="qbp_584b6bb1-ea0a-4972-a62e-c2a76fadee9e"/>
+			<string key="org:resource" value="Credit_Officer_2-000001"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T15:18:39.500Z"/>
+			<string key="resourceCost" value="6.936708333333333"/>
+			<string key="concept:name" value="Make credit offer"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-08B606A8-2F7C-4DFD-BEA8-A0F4694AA576"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Credit application processed"/>
+			<string key="lifecycle:transition" value="start"/>
+			<date key="time:timestamp" value="2020-07-01T15:18:39.500Z"/>
+		</event>
+		<event>
+			<string key="elementId" value="sid-08B606A8-2F7C-4DFD-BEA8-A0F4694AA576"/>
+			<string key="processId" value="sid-e138ad92-53db-4474-a117-cf3a5074182e"/>
+			<string key="concept:name" value="Credit application processed"/>
+			<string key="lifecycle:transition" value="complete"/>
+			<date key="time:timestamp" value="2020-07-01T15:18:39.500Z"/>
+		</event>
+	</trace>
+</log>
