@@ -8,6 +8,7 @@ from datetime import datetime
 
 import pytz
 from pm4py.objects.log.importer.xes import importer as xes_importer
+from bpdfr_discovery.exceptions import NotXesFormatException
 from bpdfr_simulation_engine.control_flow_manager import BPMNGraph
 
 from bpdfr_simulation_engine.execution_info import ProcessInfo, Trace, TaskEvent
@@ -174,6 +175,13 @@ def parse_and_validate_input(log_path, bpmn_path, minutes_x_granule, conf, supp,
     except:
         raise Exception("Invalid BPMN model.")
 
+    file_extension = log_path.split(".")[-1]
+
+    if (file_extension != "xes"):
+        #TODO: parse CSV file
+        print(f"File format {file_extension} is not supported")
+        raise NotXesFormatException()
+    
     try:
         log_traces = xes_importer.apply(log_path)
     except BaseException as error:
