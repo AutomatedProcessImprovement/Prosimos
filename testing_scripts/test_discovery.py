@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 import pytest
+from bpdfr_discovery.exceptions import NotXesFormatException
 from bpdfr_discovery.log_parser import preprocess_xes_log
 
 
@@ -56,3 +57,16 @@ def test_discovery_valid_input_not_empty_json(assets_path):
     assert len(task_events) != 0, 'Task Events should not be empty'
     assert len(task_resource_events) != 0, 'Task Resource Events should not be empty'
     assert len(id_from_name) != 0, "Map 'elementId - name' should not be empty"
+
+def test_discovery_csv_input_error(assets_path):
+    model_path = assets_path / 'purchasing_example.bpmn'
+    log_path = assets_path / 'purchasing_example_log.csv'
+    output_path = assets_path / 'purchasing_example.json'
+
+    [granule, conf, supp, part, adj_calendar] = [60, 0.1, 0.9, 0.6, True]
+
+    with pytest.raises(NotXesFormatException):
+        _ = preprocess_xes_log(log_path.as_posix(),
+                                            model_path.as_posix(),
+                                            output_path.as_posix(), granule, conf, supp, part,
+                                            adj_calendar)
