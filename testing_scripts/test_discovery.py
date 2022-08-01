@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 from bpdfr_discovery.exceptions import NotXesFormatException
 from bpdfr_discovery.log_parser import preprocess_xes_log
+from bpdfr_simulation_engine.exceptions import InvalidBpmnModelException
 
 
 @pytest.fixture
@@ -66,6 +67,19 @@ def test_discovery_csv_input_error(assets_path):
     [granule, conf, supp, part, adj_calendar] = [60, 0.1, 0.9, 0.6, True]
 
     with pytest.raises(NotXesFormatException):
+        _ = preprocess_xes_log(log_path.as_posix(),
+                                            model_path.as_posix(),
+                                            output_path.as_posix(), granule, conf, supp, part,
+                                            adj_calendar)
+
+def test_discovery_two_end_events_error_message(assets_path):
+    model_path = assets_path / 'purchasing_example_multiple_end_events.bpmn'
+    log_path = assets_path / 'purchasing_example_multiple_events_log.xes'
+    output_path = assets_path / 'purchasing_example.json'
+
+    [granule, conf, supp, part, adj_calendar] = [60, 0.1, 0.9, 0.6, True]
+
+    with pytest.raises(InvalidBpmnModelException):
         _ = preprocess_xes_log(log_path.as_posix(),
                                             model_path.as_posix(),
                                             output_path.as_posix(), granule, conf, supp, part,
