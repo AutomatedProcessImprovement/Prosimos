@@ -175,7 +175,7 @@ def parse_and_validate_input(log_path, bpmn_path, minutes_x_granule, conf, supp,
         bpmn_graph = parse_simulation_model(bpmn_path)
     except InvalidBpmnModelException as e:
         print(str(e))
-        raise InvalidBpmnModelException(f"Invalid BPMN model: {str(e)}")
+        raise InvalidBpmnModelException(f"Invalid BPMN model ({str(e)})")
     except:
         raise Exception("Invalid BPMN model.")
 
