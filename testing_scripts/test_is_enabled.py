@@ -18,7 +18,7 @@ def test_or_gateway_one_token_before_or_true(assets_path):
 
     # ====== ARRANGE ======
     bpmn_path = assets_path / 'test_and_or.bpmn'
-    json_path = assets_path / 'test_and_or.json'
+    json_path = assets_path / 'test_or_xor_follow.json'
     
     _, _, element_probability, task_resource, _ \
         = parse_json_sim_parameters(json_path)
@@ -53,7 +53,7 @@ def test_or_gateway_both_tokens_before_or_true(assets_path):
 
     # ====== ARRANGE ======
     bpmn_path = assets_path / 'test_and_or.bpmn'
-    json_path = assets_path / 'test_and_or.json'
+    json_path = assets_path / 'test_or_xor_follow.json'
     
     _, _, element_probability, task_resource, _ \
         = parse_json_sim_parameters(json_path)
@@ -92,7 +92,7 @@ def test_or_gateway_one_token_before_xor_false(assets_path):
 
     # ====== ARRANGE ======
     bpmn_path = assets_path / 'test_and_or.bpmn'
-    json_path = assets_path / 'test_and_or.json'
+    json_path = assets_path / 'test_or_xor_follow.json'
     
     _, _, element_probability, task_resource, _ \
         = parse_json_sim_parameters(json_path)
