@@ -37,6 +37,9 @@ class ElementInfo:
     def is_gateway(self):
         return self.type in [BPMN.EXCLUSIVE_GATEWAY, BPMN.PARALLEL_GATEWAY, BPMN.INCLUSIVE_GATEWAY]
 
+    def is_start_or_end_event(self):
+        return self.type in [BPMN.START_EVENT, BPMN.END_EVENT]
+
 
 class ProcessState:
     def __init__(self, bpmn_graph):

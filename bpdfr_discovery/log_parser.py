@@ -9,10 +9,10 @@ from datetime import datetime
 import pytz
 from pm4py.objects.log.importer.xes import importer as xes_importer
 from bpdfr_discovery.exceptions import NotXesFormatException
-from bpdfr_simulation_engine.control_flow_manager import BPMNGraph
-from bpdfr_simulation_engine.exceptions import InvalidBpmnModelException
+from bpdfr_simulation_engine.control_flow_manager import BPMN, BPMNGraph
+from bpdfr_simulation_engine.exceptions import InvalidBpmnModelException, InvalidLogFileException
 
-from bpdfr_simulation_engine.execution_info import ProcessInfo, Trace, TaskEvent
+from bpdfr_simulation_engine.execution_info import Trace, TaskEvent
 from bpdfr_simulation_engine.probability_distributions import best_fit_distribution
 
 import ntpath
@@ -174,8 +174,13 @@ def parse_and_validate_input(log_path, bpmn_path, minutes_x_granule, conf, supp,
         model_name = ntpath.basename(bpmn_path).split('.')[0]
         bpmn_graph = parse_simulation_model(bpmn_path)
     except InvalidBpmnModelException as e:
-        print(str(e))
-        raise InvalidBpmnModelException(f"Invalid BPMN model ({str(e)})")
+        error_str = str(e)
+        print(error_str)
+        raise InvalidBpmnModelException(f"Invalid BPMN model ({error_str})")
+    except InvalidLogFileException as e:
+        error_str = str(e)
+        print(error_str)
+        raise InvalidLogFileException(error_str)
     except:
         raise Exception("Invalid BPMN model.")
 
@@ -229,12 +234,9 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
             if is_trace_event_start_or_end(event, bpmn_graph) == True:
                 # trace event is a start or end event, we skip it for further parsing
                 continue
-            task_name = event['concept:name']
-            if 'org:resource' not in event:
-                # handling BIMP version of log file (with fake activities for start and end events)
-                resource = task_name
-            else:
-                resource = event['org:resource']
+
+            resource = validate_and_get_resource(event, bpmn_graph)
+
             state = event['lifecycle:transition'].lower()
             timestamp = event['time:timestamp']
             if min_date is None:
@@ -250,6 +252,7 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
             resource_freq[resource] += 1
 
             max_resource_freq = max(max_resource_freq, resource_freq[resource])
+            task_name = event['concept:name']
 
             if task_name not in task_resource_freq:
                 task_resource_events[task_name] = dict()
@@ -350,6 +353,31 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
             task_events,
             task_resource_events,
             bpmn_graph.from_name]
+
+
+def validate_and_get_resource(event, bpmn_graph: BPMNGraph):
+    """
+    Validate that task from the log file exists in the BPMN diagram
+    Validate that task has assigned resource
+    Return the name of the resource
+    """
+    task_name = event['concept:name']
+    el_id = bpmn_graph.from_name.get(task_name)
+    if (el_id is None):
+        raise InvalidLogFileException(f"Activity '{task_name}' could not be found in the BPMN diagram")
+
+    element = bpmn_graph.element_info.get(el_id)
+    if (element is None):
+        raise InvalidLogFileException(f"Cannot load details about activity '{task_name}' (element_id: {el_id})")
+
+    if element.is_start_or_end_event() == True and 'org:resource' not in event:
+        # handling BIMP version of log file (with fake activities for start and end events)
+        return task_name
+    else:
+        if element.type == BPMN.TASK and 'org:resource' not in event:
+            raise InvalidLogFileException(f"Activity '{task_name}' (element_id: {el_id}) should have assigned resource")
+        else:
+            return event['org:resource']
 
 
 def is_trace_event_start_or_end(event, bpmn_graph: BPMNGraph):
