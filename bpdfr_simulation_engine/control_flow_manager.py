@@ -11,7 +11,10 @@ from pm4py.objects.conversion.process_tree import converter
 from bpdfr_simulation_engine.probability_distributions import generate_number_from
 from bpdfr_simulation_engine.resource_calendar import str_week_days
 
+from bpdfr_simulation_engine.exceptions import InvalidBpmnModelException
+
 seconds_per_unit = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
+
 
 class BPMN(Enum):
     TASK = 'TASK'
@@ -58,6 +61,9 @@ class ElementInfo:
     def is_gateway(self):
         return self.type in [BPMN.EXCLUSIVE_GATEWAY, BPMN.PARALLEL_GATEWAY, BPMN.INCLUSIVE_GATEWAY, BPMN.EVENT_BASED_GATEWAY]
 
+    def is_start_or_end_event(self):
+        return self.type in [BPMN.START_EVENT, BPMN.END_EVENT]
+
 
 class ProcessState:
     def __init__(self, bpmn_graph):
@@ -97,6 +103,7 @@ class BPMNGraph:
     def __init__(self):
         self.starting_event = None
         self.end_event = None
+        self.end_events_count = 0
         self.element_info = dict()
         self.from_name = dict()
         self.flow_arcs = dict()
@@ -123,6 +130,7 @@ class BPMNGraph:
             self.starting_event = element_id
         if element_info.type == BPMN.END_EVENT:
             self.end_event = element_id
+            self.end_events_count += 1
         self.element_info[element_id] = element_info
         self.from_name[element_info.name] = element_id
         self.nodes_bitset[element_id] = (1 << len(self.element_info))
@@ -170,6 +178,12 @@ class BPMNGraph:
                         self.decision_successors[split_info.id].add(next_info.id)
                     elif next_info.is_gateway():
                         suc_queue.append(next_info)
+
+    def validate_model(self):
+        if (self.end_events_count == 0):
+            raise InvalidBpmnModelException("At least one end event is required")
+        if (self.end_events_count > 1):
+            raise InvalidBpmnModelException("Temporarily not supporting multiple end events")
 
     def _find_or_conflicting_predecesors(self, or_join_id):
         visited = {or_join_id}

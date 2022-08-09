@@ -1,0 +1,262 @@
+{
+    "resource_profiles": [
+        {
+            "id": "Activity_1tidlw3",
+            "name": "Task 1 A",
+            "resource_list": [
+                {
+                    "id": "Default resource-000001",
+                    "name": "Default resource-000001",
+                    "cost_per_hour": 1,
+                    "amount": 1,
+                    "calendar": "Default resource-000001timetable",
+                    "assigned_tasks": [
+                        "Activity_1tidlw3",
+                        "Activity_1uiiyhu",
+                        "Activity_0mz9221"
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "Activity_1uiiyhu",
+            "name": "Task 1 B",
+            "resource_list": [
+                {
+                    "id": "Default resource-000001",
+                    "name": "Default resource-000001",
+                    "cost_per_hour": 1,
+                    "amount": 1,
+                    "calendar": "Default resource-000001timetable",
+                    "assigned_tasks": [
+                        "Activity_1tidlw3",
+                        "Activity_1uiiyhu",
+                        "Activity_0mz9221"
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "Activity_0mz9221",
+            "name": "Task 2",
+            "resource_list": [
+                {
+                    "id": "Default resource-000001",
+                    "name": "Default resource-000001",
+                    "cost_per_hour": 1,
+                    "amount": 1,
+                    "calendar": "Default resource-000001timetable",
+                    "assigned_tasks": [
+                        "Activity_1tidlw3",
+                        "Activity_1uiiyhu",
+                        "Activity_0mz9221"
+                    ]
+                }
+            ]
+        }
+    ],
+    "arrival_time_distribution": {
+        "distribution_name": "lognorm",
+        "distribution_params": [
+            {
+                "value": 6.152294221733814
+            },
+            {
+                "value": 599.9999999999999
+            },
+            {
+                "value": 1.37835691529231
+            },
+            {
+                "value": 600
+            },
+            {
+                "value": 13800
+            }
+        ]
+    },
+    "arrival_time_calendar": [
+        {
+            "from": "MONDAY",
+            "to": "MONDAY",
+            "beginTime": "09:00:00",
+            "endTime": "10:00:00"
+        },
+        {
+            "from": "MONDAY",
+            "to": "MONDAY",
+            "beginTime": "11:00:00",
+            "endTime": "17:00:00"
+        },
+        {
+            "from": "TUESDAY",
+            "to": "TUESDAY",
+            "beginTime": "09:00:00",
+            "endTime": "10:00:00"
+        },
+        {
+            "from": "TUESDAY",
+            "to": "TUESDAY",
+            "beginTime": "11:00:00",
+            "endTime": "15:00:00"
+        },
+        {
+            "from": "TUESDAY",
+            "to": "TUESDAY",
+            "beginTime": "16:00:00",
+            "endTime": "17:00:00"
+        },
+        {
+            "from": "WEDNESDAY",
+            "to": "WEDNESDAY",
+            "beginTime": "09:00:00",
+            "endTime": "17:00:00"
+        },
+        {
+            "from": "THURSDAY",
+            "to": "THURSDAY",
+            "beginTime": "09:00:00",
+            "endTime": "11:00:00"
+        },
+        {
+            "from": "THURSDAY",
+            "to": "THURSDAY",
+            "beginTime": "12:00:00",
+            "endTime": "18:00:00"
+        },
+        {
+            "from": "FRIDAY",
+            "to": "FRIDAY",
+            "beginTime": "09:00:00",
+            "endTime": "17:00:00"
+        }
+    ],
+    "gateway_branching_probabilities": [
+        {
+            "gateway_id": "Gateway_06dy61d",
+            "probabilities": [
+                {
+                    "path_id": "Flow_0urvgxh",
+                    "value": 0
+                },
+                {
+                    "path_id": "Flow_0vgoazd",
+                    "value": 1
+                }
+            ]
+        },
+        {
+            "gateway_id": "Gateway_0kc8ypb",
+            "probabilities": [
+                {
+                    "path_id": "Flow_0wy9dja",
+                    "value": 0.5037593984962406
+                },
+                {
+                    "path_id": "Flow_1sl476n",
+                    "value": 0.49624060150375937
+                }
+            ]
+        }
+    ],
+    "task_resource_distribution": [
+        {
+            "task_id": "Activity_1tidlw3",
+            "resources": [
+                {
+                    "resource_id": "Default resource-000001",
+                    "distribution_name": "exponnorm",
+                    "distribution_params": [
+                        {
+                            "value": 0.9806369443780159
+                        },
+                        {
+                            "value": 5173.627177444789
+                        },
+                        {
+                            "value": 1065.1797799436029
+                        },
+                        {
+                            "value": 2400
+                        },
+                        {
+                            "value": 9600
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "task_id": "Activity_1uiiyhu",
+            "resources": [
+                {
+                    "resource_id": "Default resource-000001",
+                    "distribution_name": "fix",
+                    "distribution_params": [
+                        {
+                            "value": 600
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "task_id": "Activity_0mz9221",
+            "resources": [
+                {
+                    "resource_id": "Default resource-000001",
+                    "distribution_name": "fix",
+                    "distribution_params": [
+                        {
+                            "value": 1800
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
+    "resource_calendars": [
+        {
+            "id": "Default resource-000001timetable",
+            "name": "Default resource-000001timetable",
+            "time_periods": [
+                {
+                    "from": "MONDAY",
+                    "to": "MONDAY",
+                    "beginTime": "09:00:00",
+                    "endTime": "18:00:00"
+                },
+                {
+                    "from": "TUESDAY",
+                    "to": "TUESDAY",
+                    "beginTime": "09:00:00",
+                    "endTime": "17:00:00"
+                },
+                {
+                    "from": "WEDNESDAY",
+                    "to": "WEDNESDAY",
+                    "beginTime": "09:00:00",
+                    "endTime": "17:00:00"
+                },
+                {
+                    "from": "THURSDAY",
+                    "to": "THURSDAY",
+                    "beginTime": "09:00:00",
+                    "endTime": "11:00:00"
+                },
+                {
+                    "from": "THURSDAY",
+                    "to": "THURSDAY",
+                    "beginTime": "12:00:00",
+                    "endTime": "18:00:00"
+                },
+                {
+                    "from": "FRIDAY",
+                    "to": "FRIDAY",
+                    "beginTime": "09:00:00",
+                    "endTime": "18:00:00"
+                }
+            ]
+        }
+    ]
+}

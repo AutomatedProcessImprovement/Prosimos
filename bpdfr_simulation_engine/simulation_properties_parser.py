@@ -176,6 +176,7 @@ def parse_simulation_model(bpmn_path):
         for flow_arc in process.findall('xmlns:sequenceFlow', bpmn_element_ns):
             bpmn_graph.add_flow_arc(flow_arc.attrib["id"], flow_arc.attrib["sourceRef"], flow_arc.attrib["targetRef"])
     bpmn_graph.encode_or_join_predecesors()
+    bpmn_graph.validate_model()
     return bpmn_graph
 
 def _get_event_type_from_element(bpmn_element):
