@@ -7,7 +7,7 @@ import pm4py
 import random
 from pm4py.objects.conversion.process_tree import converter
 
-from bpdfr_simulation_engine.exceptions import InvalidBpmnModelException, InvalidLogFileException
+from bpdfr_simulation_engine.exceptions import InvalidBpmnModelException
 
 
 class BPMN(Enum):
@@ -36,6 +36,9 @@ class ElementInfo:
 
     def is_gateway(self):
         return self.type in [BPMN.EXCLUSIVE_GATEWAY, BPMN.PARALLEL_GATEWAY, BPMN.INCLUSIVE_GATEWAY]
+
+    def is_start_or_end_event(self):
+        return self.type in [BPMN.START_EVENT, BPMN.END_EVENT]
 
 
 class ProcessState:
@@ -264,17 +267,10 @@ class BPMNGraph:
             p_state.add_token(flow_id)
         pending_tasks = dict()
         for current_index in range(len(task_sequence)):
-            task_name =  task_sequence[current_index]
-            el_id = self.from_name.get(task_name)
-            if (el_id is None):
-                raise InvalidLogFileException(f"Activity '{task_name}' could not be found in the BPMN diagram")
-
+            el_id = self.from_name.get(task_sequence[current_index])
             fired_tasks.append(False)
-            element = self.element_info.get(el_id)
-            if (element is None):
-                raise InvalidLogFileException(f"Cannot load details about activity '{task_name}' (element_id: {el_id})")
 
-            in_flow = element.incoming_flows[0]
+            in_flow = self.element_info[el_id].incoming_flows[0]
             task_enabling.append(p_state.flow_date[in_flow] if in_flow in p_state.flow_date else None)
             if self._c_trace:
                 self.update_flow_dates(self.element_info[el_id], p_state,
