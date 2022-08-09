@@ -7,3 +7,7 @@ class Error(Exception):
 
 class InvalidBpmnModelException(Error):
     """Raised when the provided BPMN model is invalid"""
+
+
+class InvalidLogFileException(Error):
+    """Raised when the provided log file is invalid"""
