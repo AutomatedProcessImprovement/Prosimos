@@ -10,7 +10,7 @@ import pytz
 from pm4py.objects.log.importer.xes import importer as xes_importer
 from bpdfr_discovery.exceptions import NotXesFormatException
 from bpdfr_simulation_engine.control_flow_manager import BPMNGraph
-from bpdfr_simulation_engine.exceptions import InvalidBpmnModelException
+from bpdfr_simulation_engine.exceptions import InvalidBpmnModelException, InvalidLogFileException
 
 from bpdfr_simulation_engine.execution_info import ProcessInfo, Trace, TaskEvent
 from bpdfr_simulation_engine.probability_distributions import best_fit_distribution
@@ -174,8 +174,13 @@ def parse_and_validate_input(log_path, bpmn_path, minutes_x_granule, conf, supp,
         model_name = ntpath.basename(bpmn_path).split('.')[0]
         bpmn_graph = parse_simulation_model(bpmn_path)
     except InvalidBpmnModelException as e:
-        print(str(e))
-        raise InvalidBpmnModelException(f"Invalid BPMN model ({str(e)})")
+        error_str = str(e)
+        print(error_str)
+        raise InvalidBpmnModelException(f"Invalid BPMN model ({error_str})")
+    except InvalidLogFileException as e:
+        error_str = str(e)
+        print(error_str)
+        raise InvalidLogFileException(error_str)
     except:
         raise Exception("Invalid BPMN model.")
 
