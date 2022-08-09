@@ -51,7 +51,9 @@ def test_enabled_first_task_enables_next_one(assets_path):
     (this is guaranteed by the gateway probability of 1 - 0).
 
     Output: 'Task 2' activity is being returned as an enabled.
-    Two flows ("Flow_1sl476n", "Flow_0vgoazd") contain tokens while others do not. 
+    Two flows ("Flow_1sl476n", "Flow_0vgoazd") contain tokens while others do not.
+    Flow_1sl476n:   OR split -> activity Task 1 A
+    Flow_0vgoazd:   XOR split -> activity Task 2
     """
 
     # ====== ARRANGE ======
