@@ -220,6 +220,48 @@ def test_update_state_event_gateway_upper_limit(assets_path):
     verify_flow_tokens(all_tokens, expected_flows_with_token)
 
 
+def test_update_state_terminate_event(assets_path):
+    """
+    Input: two tokens executing in parallel due to the parallel gateway.
+    'Handle order response' activity was executed and, as result, token is now at 'Flow_14zyrni'.
+    
+    Output: update_process_state of the enabled event triggers the Terminate event.
+    All tokens should be nullified as this is the end of the process.
+    """
+
+    # ====== ARRANGE ======
+    bpmn_path = assets_path / 'stock_replenishment.bpmn'
+    json_path = assets_path / 'stock_replenishment_logs.json'
+    
+    _, _, element_probability, task_resource, _, event_distribution \
+        = parse_json_sim_parameters(json_path)
+
+    bpmn_graph = parse_simulation_model(bpmn_path)
+    bpmn_graph.set_element_probabilities(element_probability, task_resource, event_distribution)
+    
+    sim_setup = SimDiffSetup(bpmn_path, json_path, False)
+    sim_setup.set_starting_satetime(pytz.utc.localize(datetime.datetime.now()))
+    p_state = sim_setup.initial_state()
+
+    # 'Order response received'         -> 'Handle order response'
+    p_state.add_token("Flow_14zyrni")
+
+    p_state.add_token("Flow_1jwj934")
+    
+    # ====== ACT ======
+    e_id = "Event_06aw5gs"            # 'Handle order response' activity
+    prev_completed_event_time = \
+        datetime.datetime.fromisoformat('2022-08-05T12:05:00')
+    result = bpmn_graph.update_process_state(e_id, p_state, prev_completed_event_time)
+
+    # ====== ASSERT ======
+    assert len(result) == 0, "List with enabled tasks should contain no elements"
+
+    all_tokens = p_state.tokens
+    expected_flows_with_token = []
+    verify_flow_tokens(all_tokens, expected_flows_with_token)
+
+
 def verify_flow_tokens(all_tokens, expected_flows_with_token):
     for flow in expected_flows_with_token: 
         assert all_tokens[flow] == 1, \
