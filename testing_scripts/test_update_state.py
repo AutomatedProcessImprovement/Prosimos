@@ -135,6 +135,91 @@ def test_enabled_first_task_token_wait_at_the_or_join(assets_path):
     verify_flow_tokens(all_tokens, expected_flows_with_token)
 
 
+def test_update_state_event_gateway_event_happened(assets_path):
+    """
+    Input: enabled event-based gateway due to the token before.
+    
+    Output: event-based gateway results in executing the first event 'Order response received'
+    (this happens due to the provided event_distribution).
+    Verify that token changes its position before the event and 
+    returns the event as an enabled event
+    """
+
+    # ====== ARRANGE ======
+    bpmn_path = assets_path / 'stock_replenishment.bpmn'
+    json_path = assets_path / 'stock_replenishment_logs.json'
+    
+    _, _, element_probability, task_resource, _, event_distribution \
+        = parse_json_sim_parameters(json_path)
+
+    bpmn_graph = parse_simulation_model(bpmn_path)
+    bpmn_graph.set_element_probabilities(element_probability, task_resource, event_distribution)
+    
+    sim_setup = SimDiffSetup(bpmn_path, json_path, False)
+    sim_setup.set_starting_satetime(pytz.utc.localize(datetime.datetime.now()))
+    p_state = sim_setup.initial_state()
+
+    # Parallel gateway split            -> Event-based gateway split
+    p_state.add_token("Flow_0d8kgwc")
+
+    # ====== ACT ======
+    e_id = "Gateway_0ntcp3d"            # Event-based gateway split
+    prev_completed_event_time = \
+        datetime.datetime.fromisoformat('2022-08-10T16:05:00') # Wednesday, 16:05
+    result = bpmn_graph.update_process_state(e_id, p_state, prev_completed_event_time)
+
+    # ====== ASSERT ======
+    assert len(result) == 1, "List with enabled tasks should contain one element"
+    assert sorted(result) == ["Event_1qclhcl"]
+
+    all_tokens = p_state.tokens
+    expected_flows_with_token = ["Flow_0bzfgao"]
+    verify_flow_tokens(all_tokens, expected_flows_with_token)
+
+
+def test_update_state_event_gateway_upper_limit(assets_path):
+    """
+    Input: enabled event-based gateway due to the token before.
+    
+    Output: event-based gateway results in executing the timer of 'Friday, 14:00'
+    (this happens because the prev activity happens at 12:05 
+    and we will only receive response three hours after).
+    Verify that token changes its position before the event 'Friday, 14:00' and 
+    returns the event as an enabled event.
+    """
+
+    # ====== ARRANGE ======
+    bpmn_path = assets_path / 'stock_replenishment.bpmn'
+    json_path = assets_path / 'stock_replenishment_logs.json'
+    
+    _, _, element_probability, task_resource, _, event_distribution \
+        = parse_json_sim_parameters(json_path)
+
+    bpmn_graph = parse_simulation_model(bpmn_path)
+    bpmn_graph.set_element_probabilities(element_probability, task_resource, event_distribution)
+    
+    sim_setup = SimDiffSetup(bpmn_path, json_path, False)
+    sim_setup.set_starting_satetime(pytz.utc.localize(datetime.datetime.now()))
+    p_state = sim_setup.initial_state()
+
+    # Parallel gateway split            -> Event-based gateway split
+    p_state.add_token("Flow_0d8kgwc")
+
+    # ====== ACT ======
+    e_id = "Gateway_0ntcp3d"            # Event-based gateway split
+    prev_completed_event_time = \
+        datetime.datetime.fromisoformat('2022-08-05T12:05:00')
+    result = bpmn_graph.update_process_state(e_id, p_state, prev_completed_event_time)
+
+    # ====== ASSERT ======
+    assert len(result) == 1, "List with enabled tasks should contain one element"
+    assert sorted(result) == ["Event_0bsdbzb"]
+
+    all_tokens = p_state.tokens
+    expected_flows_with_token = ["Flow_0u4ip3z"]
+    verify_flow_tokens(all_tokens, expected_flows_with_token)
+
+
 def verify_flow_tokens(all_tokens, expected_flows_with_token):
     for flow in expected_flows_with_token: 
         assert all_tokens[flow] == 1, \

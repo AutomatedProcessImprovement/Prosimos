@@ -63,6 +63,9 @@ class ElementInfo:
 
     def is_start_or_end_event(self):
         return self.type in [BPMN.START_EVENT, BPMN.END_EVENT]
+    
+    def is_event(self):
+        return self.type in [BPMN.START_EVENT, BPMN.END_EVENT, BPMN.INTERMEDIATE_EVENT]
 
 
 class ProcessState:
@@ -129,9 +132,8 @@ class BPMNGraph:
         if element_info.type == BPMN.START_EVENT:
             self.starting_event = element_id
         if element_info.type == BPMN.END_EVENT:
-            if not (self.end_events_count == 1 and element_info.event_type == EVENT_TYPE.TERMINATE):
-                self.end_event = element_id
-                self.end_events_count += 1
+            self.end_event = element_id
+            self.end_events_count += 1
         self.element_info[element_id] = element_info
         self.from_name[element_info.name] = element_id
         self.nodes_bitset[element_id] = (1 << len(self.element_info))
