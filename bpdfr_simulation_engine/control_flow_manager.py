@@ -129,8 +129,9 @@ class BPMNGraph:
         if element_info.type == BPMN.START_EVENT:
             self.starting_event = element_id
         if element_info.type == BPMN.END_EVENT:
-            self.end_event = element_id
-            self.end_events_count += 1
+            if not (self.end_events_count == 1 and element_info.event_type == EVENT_TYPE.TERMINATE):
+                self.end_event = element_id
+                self.end_events_count += 1
         self.element_info[element_id] = element_info
         self.from_name[element_info.name] = element_id
         self.nodes_bitset[element_id] = (1 << len(self.element_info))

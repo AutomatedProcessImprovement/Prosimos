@@ -258,5 +258,8 @@
                 }
             ]
         }
-    ]
+    ],
+    "event_distribution": {
+        
+    }
 }

@@ -167,10 +167,8 @@ def parse_simulation_model(bpmn_path):
                     else bpmn_element.attrib["id"]
                 elem_general_type: BPMN = to_extract[xmlns_key]
                 
-                event_type = _get_event_type_from_element(bpmn_element) if BPMN.is_event(elem_general_type) else None
-                if (event_type == EVENT_TYPE.UNDEFINED):
-                    print(f"WARNING: {name} event has an undefined event type")
-                
+                event_type = _get_event_type_from_element(name, bpmn_element) if BPMN.is_event(elem_general_type) else None
+
                 bpmn_graph.add_bpmn_element(bpmn_element.attrib["id"],
                                             ElementInfo(elem_general_type, bpmn_element.attrib["id"], name, event_type))
         for flow_arc in process.findall('xmlns:sequenceFlow', bpmn_element_ns):
@@ -179,7 +177,7 @@ def parse_simulation_model(bpmn_path):
     bpmn_graph.validate_model()
     return bpmn_graph
 
-def _get_event_type_from_element(bpmn_element):
+def _get_event_type_from_element(name: str, bpmn_element):
     children = bpmn_element.getchildren()
 
     for child in children:
@@ -194,7 +192,11 @@ def _get_event_type_from_element(bpmn_element):
                 'terminateEventDefinition': EVENT_TYPE.TERMINATE
             }
 
-            return switcher.get(type_name, EVENT_TYPE.UNDEFINED)
+            event_type = switcher.get(type_name, EVENT_TYPE.UNDEFINED)
+            if (event_type == EVENT_TYPE.UNDEFINED):
+                print(f"WARNING: {name} event has an undefined event type")
+
+            return event_type
 
 
 def parse_qbp_simulation_process(qbp_bpmn_path, out_file):

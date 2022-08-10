@@ -16,13 +16,13 @@ def test_not_enabled_event_empty_tasks(assets_path):
     bpmn_path = assets_path / 'test_and_or.bpmn'
     json_path = assets_path / 'test_or_xor_follow.json'
     
-    _, _, element_probability, task_resource, _ \
+    _, _, element_probability, task_resource, _, event_distribution \
         = parse_json_sim_parameters(json_path)
 
     bpmn_graph = parse_simulation_model(bpmn_path)
-    bpmn_graph.set_element_probabilities(element_probability, task_resource)
+    bpmn_graph.set_element_probabilities(element_probability, task_resource, event_distribution)
     
-    sim_setup = SimDiffSetup(bpmn_path, json_path)
+    sim_setup = SimDiffSetup(bpmn_path, json_path, False)
     sim_setup.set_starting_satetime(pytz.utc.localize(datetime.datetime.now()))
     p_state = sim_setup.initial_state()
 
@@ -34,7 +34,8 @@ def test_not_enabled_event_empty_tasks(assets_path):
 
     # ====== ACT ======
     e_id = "Activity_1tidlw3"       # id of the 'Task 1 A' activity
-    result = bpmn_graph.update_process_state(e_id, p_state)
+    prev_completed_event_time = datetime.datetime.now(pytz.utc)
+    result = bpmn_graph.update_process_state(e_id, p_state, prev_completed_event_time)
 
     # ====== ASSERT ======
     assert len(result) == 0, "List with enabled tasks should not contain elements"
@@ -60,13 +61,13 @@ def test_enabled_first_task_enables_next_one(assets_path):
     bpmn_path = assets_path / 'test_and_or.bpmn'
     json_path = assets_path / 'test_or_xor_follow.json'
     
-    _, _, element_probability, task_resource, _ \
+    _, _, element_probability, task_resource, _, event_distribution \
         = parse_json_sim_parameters(json_path)
 
     bpmn_graph = parse_simulation_model(bpmn_path)
-    bpmn_graph.set_element_probabilities(element_probability, task_resource)
+    bpmn_graph.set_element_probabilities(element_probability, task_resource, event_distribution)
     
-    sim_setup = SimDiffSetup(bpmn_path, json_path)
+    sim_setup = SimDiffSetup(bpmn_path, json_path, False)
     sim_setup.set_starting_satetime(pytz.utc.localize(datetime.datetime.now()))
     p_state = sim_setup.initial_state()
 
@@ -78,7 +79,8 @@ def test_enabled_first_task_enables_next_one(assets_path):
 
     # ====== ACT ======
     e_id = "Activity_1uiiyhu"           # id of the 'Task 1 B' activity
-    result = bpmn_graph.update_process_state(e_id, p_state)
+    prev_completed_event_time = datetime.datetime.now(pytz.utc)
+    result = bpmn_graph.update_process_state(e_id, p_state, prev_completed_event_time)
 
     # ====== ASSERT ======
     assert len(result) == 1, "List with enabled tasks should contain one element"
@@ -104,13 +106,13 @@ def test_enabled_first_task_token_wait_at_the_or_join(assets_path):
     bpmn_path = assets_path / 'test_and_or.bpmn'
     json_path = assets_path / 'test_or_not_xor_follow.json'
     
-    _, _, element_probability, task_resource, _ \
+    _, _, element_probability, task_resource, _, event_distribution \
         = parse_json_sim_parameters(json_path)
 
     bpmn_graph = parse_simulation_model(bpmn_path)
-    bpmn_graph.set_element_probabilities(element_probability, task_resource)
+    bpmn_graph.set_element_probabilities(element_probability, task_resource, event_distribution)
     
-    sim_setup = SimDiffSetup(bpmn_path, json_path)
+    sim_setup = SimDiffSetup(bpmn_path, json_path, False)
     sim_setup.set_starting_satetime(pytz.utc.localize(datetime.datetime.now()))
     p_state = sim_setup.initial_state()
 
@@ -122,7 +124,8 @@ def test_enabled_first_task_token_wait_at_the_or_join(assets_path):
 
     # ====== ACT ======
     e_id = "Activity_1uiiyhu"           # id of the 'Task 1 B' activity
-    result = bpmn_graph.update_process_state(e_id, p_state)
+    prev_completed_event_time = datetime.datetime.now(pytz.utc)
+    result = bpmn_graph.update_process_state(e_id, p_state, prev_completed_event_time)
 
     # ====== ASSERT ======
     assert len(result) == 0, "List with enabled tasks should not contain elements"
