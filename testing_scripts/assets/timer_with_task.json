@@ -1,0 +1,78 @@
+{
+    "resource_profiles": [
+        {
+            "id": "Activity_002wpuc",
+            "name": "Task 1",
+            "resource_list": [
+                {
+                    "id": "Default resource-000001",
+                    "name": "Default resource-000001",
+                    "cost_per_hour": 1,
+                    "amount": 1,
+                    "calendar": "Default resource-000001timetable",
+                    "assigned_tasks": [
+                        "Activity_002wpuc"
+                    ]
+                }
+            ]
+        }
+    ],
+    "arrival_time_distribution": {
+        "distribution_name": "fix",
+        "distribution_params": [
+            {
+                "value": 3600.0
+            }
+        ]
+    },
+    "arrival_time_calendar": [
+        {
+            "from": "THURSDAY",
+            "to": "THURSDAY",
+            "beginTime": "09:00:00",
+            "endTime": "14:00:00"
+        }
+    ],
+    "gateway_branching_probabilities": [],
+    "task_resource_distribution": [
+        {
+            "task_id": "Activity_002wpuc",
+            "resources": [
+                {
+                    "resource_id": "Default resource-000001",
+                    "distribution_name": "fix",
+                    "distribution_params": [
+                        {
+                            "value": 1800.0
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
+    "resource_calendars": [
+        {
+            "id": "Default resource-000001timetable",
+            "name": "Default resource-000001timetable",
+            "time_periods": [
+                {
+                    "from": "THURSDAY",
+                    "to": "THURSDAY",
+                    "beginTime": "09:00:00",
+                    "endTime": "14:00:00"
+                }
+            ]
+        }
+    ],
+    "event_distribution": [
+        {
+            "event_id": "Event_056pdi5",
+            "distribution_name": "fix",
+            "distribution_params": [
+                {
+                    "value": 900.0
+                }
+            ]
+        }
+    ]
+}
