@@ -16,6 +16,7 @@ def main():
 
     start = datetime.datetime.now()
     preprocess_xes_log(model_info['xes_log'], model_info['bpmn'], model_info['json'], granule, conf, supp, part, adj_c)
+    # preprocess_xes_log(model_info['csv_log'], model_info['bpmn'], model_info['json'], granule, conf, supp, part, adj_c, True)
     print("Discovery Time: %s" % str(datetime.timedelta(seconds=(datetime.datetime.now() - start).total_seconds())))
 
     print('--------------------------------------------------------------------------')

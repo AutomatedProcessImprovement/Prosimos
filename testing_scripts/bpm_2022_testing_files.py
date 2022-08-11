@@ -15,7 +15,7 @@ experiment_logs = {0: 'production',
 process_files = {
     'demo_example': {
         'xes_log': './../input_output_files/discovery_input_files/xes_logs/log_demo_filtered.xes',
-        'csv_log': './../input_output_files/discovery_input_files/csv_logs/pending.csv',
+        'csv_log': './../input_output_files/discovery_input_files/csv_logs/log_demo_filtered.csv',
         'real_csv_log': './../input_output_files/discovery_output_files/real_csv_logs/pending.csv',
         'bpmn': './../input_output_files/discovery_input_files/bpmn_models/Credit_Application_Simulation.bpmn',
         'json': './../input_output_files/discovery_output_files/json/demo_example.json',

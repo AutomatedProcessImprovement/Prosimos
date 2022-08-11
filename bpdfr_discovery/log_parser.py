@@ -158,7 +158,7 @@ def compute_kpi_times_from_csv_log(log_path, bpmn_graph):
     return cumul_task_stats
 
 
-def parse_and_validate_input(log_path, bpmn_path, minutes_x_granule, conf, supp, part):
+def parse_and_validate_input(log_path, bpmn_path, minutes_x_granule, conf, supp, part, is_csv=False):
     if minutes_x_granule < 0 or 1440 % minutes_x_granule != 0:
         raise Exception("Invalid granule_size. The time interval must be a divisor of 1400, e.g., 15, 30, 60 minutes")
     if conf < 0 or conf > 1:
@@ -168,25 +168,97 @@ def parse_and_validate_input(log_path, bpmn_path, minutes_x_granule, conf, supp,
     if part < 0 or part > 1:
         raise Exception("Invalid resource participation ratio. It must be a value between 0 and 1, both inclusive.")
     try:
-        model_name = ntpath.basename(bpmn_path).split('.')[0]
         bpmn_graph = parse_simulation_model(bpmn_path)
     except:
         raise Exception("Invalid BPMN model.")
-
-    try:
-        log_traces = xes_importer.apply(log_path)
-    except:
-        raise Exception("Invalid XES event-log.")
+    if is_csv:
+        try:
+            log_traces = parse_csv(log_path)
+        except:
+            raise Exception("Invalid CSV event-log.")
+    else:
+        try:
+            log_traces = xes_importer.apply(log_path)
+        except:
+            raise Exception("Invalid XES event-log.")
 
     return bpmn_graph, log_traces
 
 
+def process_csv_header(first_row):
+    i_map = dict()
+    i = 0
+    key_words = ['case', 'activity', 'start', 'end', 'resource']
+    for key in first_row:
+        l_key = key.lower()
+        for kw in key_words:
+            if kw in l_key:
+                i_map[kw] = i
+                break
+        i += 1
+    return i_map
+
+
+class CSVTrace:
+    def __init__(self, case_id):
+        self.attributes = {'concept:name': case_id}
+        self.events = list()
+
+    def add_event(self, activity, state, resource, timestamp):
+        self.events.append({'concept:name': activity.strip(),
+                            'elementId': activity.strip(),
+                            'org:resource': resource.strip(),
+                            'lifecycle:transition': state.strip(),
+                            'time:timestamp': timestamp})
+
+    def __iter__(self):
+        return CSVTraceIterator(self.events)
+
+
+class CSVTraceIterator:
+    def __init__(self, events):
+        self._events = events
+        self._index = -1
+
+    def __next__(self):
+        self._index += 1
+        if self._index < len(self._events):
+            return self._events[self._index]
+        raise StopIteration
+
+
+def parse_csv(log_path):
+    try:
+        with open(log_path, mode='r') as csv_file:
+            csv_reader = csv.reader(csv_file, delimiter=',')
+            i_map = process_csv_header(next(csv_reader))
+
+            log_traces = list()
+            trace_map = dict()
+
+            for row in csv_reader:
+                case_id = row[i_map['case']]
+                if case_id not in trace_map:
+                    trace_map[case_id] = len(log_traces)
+                    log_traces.append(CSVTrace(case_id))
+                log_traces[trace_map[case_id]].add_event(row[i_map['activity']], 'start', row[i_map['resource']],
+                                                         pd.to_datetime(row[i_map['start']], utc=True))
+                log_traces[trace_map[case_id]].add_event(row[i_map['activity']], 'complete', row[i_map['resource']],
+                                                         pd.to_datetime(row[i_map['end']], utc=True))
+
+            for trace in log_traces:
+                trace.events.sort(key=lambda x: x['time:timestamp'])
+            return log_traces
+    except IOError:
+        return list()
+
+
 def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_confidence, min_support,
-                       min_participation, fit_calendar, min_bin=50):
+                       min_participation, fit_calendar, is_csv=False, min_bin=50):
     print('Discovery Params: Conf: %.2f, Supp: %.2f, R. Part: %.2f, Adj. Cal: %s'
           % (min_confidence, min_support, min_participation, str(fit_calendar)))
     bpmn_graph, log_traces = parse_and_validate_input(log_path, bpmn_path, minutes_x_granule, min_confidence,
-                                                      min_support, min_participation)
+                                                      min_support, min_participation, is_csv)
 
     calendar_factory = CalendarFactory(minutes_x_granule)
     completed_events = list()

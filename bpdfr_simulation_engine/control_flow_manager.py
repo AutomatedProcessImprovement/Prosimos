@@ -256,7 +256,6 @@ class BPMNGraph:
         for current_index in range(len(task_sequence)):
             el_id = self.from_name.get(task_sequence[current_index])
             fired_tasks.append(False)
-
             in_flow = self.element_info[el_id].incoming_flows[0]
             task_enabling.append(p_state.flow_date[in_flow] if in_flow in p_state.flow_date else None)
             if self._c_trace:
