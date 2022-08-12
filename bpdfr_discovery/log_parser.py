@@ -260,7 +260,8 @@ def parse_csv(log_path):
             for trace in log_traces:
                 trace.events.sort(key=lambda x: x['time:timestamp'])
             return log_traces
-    except IOError:
+    except IOError as e:
+        print(str(e))
         return list()
 
 
@@ -434,14 +435,17 @@ def validate_and_get_resource(event, bpmn_graph: BPMNGraph):
     if (element is None):
         raise InvalidLogFileException(f"Cannot load details about activity '{task_name}' (element_id: {el_id})")
 
-    if element.is_start_or_end_event() == True and 'org:resource' not in event:
+    if element.is_start_or_end_event() == True and is_event_resource_empty(event):
         # handling BIMP version of log file (with fake activities for start and end events)
         return task_name
     else:
-        if element.type == BPMN.TASK and 'org:resource' not in event:
+        if element.type == BPMN.TASK and is_event_resource_empty(event):
             raise InvalidLogFileException(f"Activity '{task_name}' (element_id: {el_id}) should have assigned resource")
         else:
             return event['org:resource']
+
+def is_event_resource_empty(event):
+    return 'org:resource' not in event or event['org:resource'] == '' 
 
 
 def is_trace_event_start_or_end(event, bpmn_graph: BPMNGraph):
