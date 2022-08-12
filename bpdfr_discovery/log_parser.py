@@ -260,7 +260,8 @@ def parse_csv(log_path):
             for trace in log_traces:
                 trace.events.sort(key=lambda x: x['time:timestamp'])
             return log_traces
-    except IOError:
+    except IOError as e:
+        print(str(e))
         return list()
 
 
