@@ -32,6 +32,14 @@ def assets_path(request) -> Path:
 
 
 def test_timer_event_correct_duration_in_sim_logs(assets_path):
+    """
+    Input: run simulation with writting events to the log file
+
+    Output:
+    1) validate that the file does include both task and event per each case
+    2) validate the duration of the logged task (30 min)
+    3) validate the duration of the logged timer event (15 min)
+    """
     # ====== ARRANGE ======
 
     model_path = assets_path / 'timer_with_task.bpmn'
@@ -77,10 +85,10 @@ def test_timer_event_correct_duration_in_sim_logs(assets_path):
 
     # other events should include only task 
     # with the fixed distribution of 30 minutes
-    other_than_timer_events = df[df['activity'] != '15m']
-    end_start_diff_for_other_events = other_than_timer_events['end_time'] - other_than_timer_events['start_time']
+    df = df[df['activity'] != '15m']
+    end_start_diff_for_other_events = df['end_time'] - df['start_time']
 
-    assert other_than_timer_events.shape[0] == 5, \
+    assert df.shape[0] == 5, \
         "The total number of task events in the log file should be equal to 5"
 
     expected_task_timedelta = datetime.timedelta(minutes=30)
@@ -88,4 +96,55 @@ def test_timer_event_correct_duration_in_sim_logs(assets_path):
         assert diff == expected_task_timedelta, \
             f"The duration of the task does not equal to 30 min"
 
-    # TODO: add new test for validating that event record doesn't appear in the log file
+def test_timer_event_no_events_in_logs(assets_path):
+    """
+    Input: run simulation without writting events to the log file
+
+    Output:
+    1) validate that the file does include only tasks (automatically means no event)
+    2) validate the duration of the logged task (30 min)
+    """
+    
+    # ====== ARRANGE ======
+
+    model_path = assets_path / 'timer_with_task.bpmn'
+    json_path = assets_path / 'timer_with_task.json'
+    sim_stats = assets_path / 'timer_with_task_stats.csv'
+    sim_logs = assets_path / 'timer_with_task_logs.csv'
+
+    start_string = '2022-06-21 13:22:30.035185+03:00'
+    start_date = parse_datetime(start_string, True)
+
+    # ====== ACT ======
+    _, _ = run_diff_res_simulation(start_date,
+                                    5,
+                                    model_path,
+                                    json_path,
+                                    sim_stats,
+                                    sim_logs,
+                                    False)
+
+    # ====== ASSERT ======
+    df = pd.read_csv(sim_logs)
+    grouped_by_case_id = df.groupby(by="case_id")["case_id"]
+    assert grouped_by_case_id.count().size == 5, \
+        "The total number of simulated cases does not equal to the setup number"
+    
+    for name, group in grouped_by_case_id:
+        assert group.size == 1, \
+            f"The case '{name}' does not have the required number of logged simulated activities"
+
+    df['start_time'] = pd.to_datetime(df['start_time'], errors='coerce')
+    df['end_time'] = pd.to_datetime(df['end_time'], errors='coerce')
+
+    # events should include only task 
+    # with the fixed distribution of 30 minutes
+    end_start_diff_for_other_events = df['end_time'] - df['start_time']
+
+    assert df.shape[0] == 5, \
+        "The total number of task events in the log file should be equal to 5"
+
+    expected_task_timedelta = datetime.timedelta(minutes=30)
+    for diff in end_start_diff_for_other_events:
+        assert diff == expected_task_timedelta, \
+            f"The duration of the task does not equal to 30 min"
