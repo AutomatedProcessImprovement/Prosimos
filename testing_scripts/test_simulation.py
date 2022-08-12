@@ -39,7 +39,7 @@ def test_timer_event_correct_duration_in_sim_logs(assets_path):
 
     start_string = '2022-06-21 13:22:30.035185+03:00'
     start_date = parse_datetime(start_string, True)
-    sim_time, diff_sim_result = run_diff_res_simulation(start_date,
+    _, _ = run_diff_res_simulation(start_date,
                                                  5,
                                                  model_path,
                                                  json_path,
@@ -59,6 +59,17 @@ def test_timer_event_correct_duration_in_sim_logs(assets_path):
         assert group.size == 2, \
             f"The case '{name}' does not have the required number of logged simulated activities"
 
-    # TODO: validate the duration of the timer event
+    only_timer_events = df[df['activity'] == '15m']
+    only_timer_events['start_time'] = pd.to_datetime(only_timer_events['start_time'], errors='coerce')
+    only_timer_events['end_time'] = pd.to_datetime(only_timer_events['end_time'], errors='coerce')
+    end_start_diff_for_timer = only_timer_events['end_time'] - only_timer_events['start_time']
+
+    assert only_timer_events.shape[0] == 5, \
+        "The total number of timer events in the log file should be equal to 5"
+
+    expected_timedelta = datetime.timedelta(minutes=15)
+    for diff in end_start_diff_for_timer:
+        assert diff == expected_timedelta, \
+            f"The duration of timer does not equal to 15 min"
 
     # TODO: add new test for validating that event record doesn't appear in the log file
