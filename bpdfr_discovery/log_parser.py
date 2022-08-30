@@ -288,6 +288,8 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
     observed_task_resources = dict()
     min_max_task_duration = dict()
     total_events = 0
+    removed_traces = 0
+    removed_events = 0
 
     for trace in log_traces:
         caseid = trace.attributes['concept:name']
@@ -296,7 +298,7 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
         trace_info = Trace(caseid)
         initial_events[caseid] = datetime(9999, 12, 31, tzinfo=pytz.UTC)
         for event in trace:
-            if is_trace_event_start_or_end(event, bpmn_graph) == True:
+            if is_trace_event_start_or_end(event, bpmn_graph):
                 # trace event is a start or end event, we skip it for further parsing
                 continue
 
@@ -347,22 +349,29 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
                     min_max_task_duration[task_name][0] = min(min_max_task_duration[task_name][0], duration)
                     min_max_task_duration[task_name][1] = max(min_max_task_duration[task_name][1], duration)
 
-        trace_info.filter_incomplete_events()
+        removed_events += trace_info.filter_incomplete_events()
+        if len(trace_info.event_list) == 0:
+            removed_traces += 1
+            continue
+
         task_sequence = sort_by_completion_times(trace_info)
+
         is_correct, fired_tasks, pending_tokens, _ = bpmn_graph.reply_trace(task_sequence,
                                                                             flow_arcs_frequency,
                                                                             True,
                                                                             trace_info.event_list)
 
+    print('Processed Traces in Log ----- %d / %d' % (len(log_traces) - removed_traces, len(log_traces)))
+    print('Processed Events in Log ----- %d / %d' % (total_events, total_events - removed_events))
+    print("Total Activities in Log - %d" % len(task_events))
+    print("Total Resources in Log -- %d" % len(resource_freq))
+
+    if removed_traces == len(log_traces):
+        raise InvalidLogFileException
+
     resource_freq_ratio = dict()
     for r_name in resource_freq:
         resource_freq_ratio[r_name] = resource_freq[r_name] / max_resource_freq
-
-    # print("First Case Started at: %s" % str(min_date))
-    print('Total Traces in Log ----- %d' % len(log_traces))
-    print('Total Events in Log ----- %d' % total_events)
-    print("Total Activities in Log - %d" % len(task_events))
-    print("Total Resources in Log -- %d" % len(resource_freq))
 
     # # (1) Discovering Resource Calendars
     # # resource_calendars = calendar_factory.build_weekly_calendars(min_confidence, min_support)
@@ -397,6 +406,9 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
 
     # # (5) Discovering Gateways Branching Probabilities
     # print("Discovering Branching Probabilities ...")
+    # for flow_id in flow_arcs_frequency:
+    #     print("%s: %d" % (flow_id, flow_arcs_frequency[flow_id]))
+
     gateways_branching = bpmn_graph.compute_branching_probability(flow_arcs_frequency)
 
     to_save = {
@@ -428,11 +440,11 @@ def validate_and_get_resource(event, bpmn_graph: BPMNGraph):
     """
     task_name = event['concept:name']
     el_id = bpmn_graph.from_name.get(task_name)
-    if (el_id is None):
+    if el_id is None:
         raise InvalidLogFileException(f"Activity '{task_name}' could not be found in the BPMN diagram")
 
     element = bpmn_graph.element_info.get(el_id)
-    if (element is None):
+    if element is None:
         raise InvalidLogFileException(f"Cannot load details about activity '{task_name}' (element_id: {el_id})")
 
     if element.is_start_or_end_event() == True and is_event_resource_empty(event):
@@ -444,15 +456,16 @@ def validate_and_get_resource(event, bpmn_graph: BPMNGraph):
         else:
             return event['org:resource']
 
+
 def is_event_resource_empty(event):
-    return 'org:resource' not in event or event['org:resource'] == '' 
+    return 'org:resource' not in event or event['org:resource'] == ''
 
 
 def is_trace_event_start_or_end(event, bpmn_graph: BPMNGraph):
     """ Check whether the trace event is start or end event """
 
-    element_id = event.get("elementId", get_element_id_from_bpmn_graph(event, bpmn_graph)) 
-    
+    element_id = event.get("elementId", get_element_id_from_bpmn_graph(event, bpmn_graph))
+
     if element_id == "":
         print("WARNING: Trace event could not be mapped to the BPMN element.")
     elif element_id in [bpmn_graph.starting_event, bpmn_graph.end_event]:
@@ -460,12 +473,13 @@ def is_trace_event_start_or_end(event, bpmn_graph: BPMNGraph):
 
     return False
 
+
 def get_element_id_from_bpmn_graph(event, bpmn_graph: BPMNGraph):
     concept_name = event.get("concept:name", "")
-    #TODO: check whether 'from_name' handles duplicated names of elements in the BPMN model
+    # TODO: check whether 'from_name' handles duplicated names of elements in the BPMN model
     element_id = bpmn_graph.from_name.get(concept_name, "")
     return element_id
-    
+
 
 def save_prosimos_json(to_save, file_path):
     resource_calendars = []

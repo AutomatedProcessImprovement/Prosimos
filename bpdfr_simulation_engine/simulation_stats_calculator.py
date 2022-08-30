@@ -27,11 +27,12 @@ class KPIInfo:
         self.avg = self.total / self.count if self.count > 0 else 0
 
     def add_value(self, new_value):
-        self.min = min(self.min, new_value)
-        self.max = max(self.max, new_value)
-        self.total += new_value
-        self.count += 1
-        self.avg = self.total / self.count
+        if new_value >= 0:
+            self.min = min(self.min, new_value)
+            self.max = max(self.max, new_value)
+            self.total += new_value
+            self.count += 1
+            self.avg = self.total / self.count
 
 
 class KPIMap:

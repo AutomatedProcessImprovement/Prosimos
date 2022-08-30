@@ -150,9 +150,9 @@ class BPMNGraph:
                         suc_queue.append(next_info)
 
     def validate_model(self):
-        if (self.end_events_count == 0):
+        if self.end_events_count == 0:
             raise InvalidBpmnModelException("At least one end event is required")
-        if (self.end_events_count > 1):
+        if self.end_events_count > 1:
             raise InvalidBpmnModelException("Temporarily not supporting multiple end events")
 
     def _find_or_conflicting_predecesors(self, or_join_id):
@@ -289,7 +289,8 @@ class BPMNGraph:
         # Firing End Event
         enabled_end, or_fired, path_decisions = self._find_enabled_predecessors(
             self.element_info[self.end_event], p_state)
-        self.fire_enabled_predecessors(enabled_end, p_state, or_fired, path_decisions, f_arcs_frequency, fired_or_splits)
+        self.fire_enabled_predecessors(enabled_end, p_state, or_fired, path_decisions, f_arcs_frequency,
+                                       fired_or_splits)
         end_flow = self.element_info[self.end_event].incoming_flows[0]
         if p_state.has_token(end_flow):
             p_state.tokens[end_flow] = 0
@@ -384,7 +385,11 @@ class BPMNGraph:
 
     def closer_enabled_predecessors(self, e_info, flow_id, enabled_pred, or_firing, path_split, visited, p_state, dist,
                                     min_dist):
+        # Verificar que hacer cuando el camino más corto termina en el Start event,
+        # pero hay una tarea habilitada en un camino más largo
         if self.is_enabled(e_info.id, p_state):
+            # if e_info.type is BPMN.START_EVENT:
+            #     dist = len(self.flow_arcs)
             if dist not in enabled_pred:
                 enabled_pred[dist] = list()
             enabled_pred[dist].append([e_info, flow_id])
@@ -407,8 +412,10 @@ class BPMNGraph:
                     if pr_info.id not in visited:
                         d, e_p, o_f, t_path = self.closer_enabled_predecessors(pr_info, in_flow, dict(), dict(), dict(),
                                                                                visited, p_state, dist + 1, min_dist)
-                        if d < c_min:
+
+                        if d < c_min or (BPMNGraph._has_start_event(closer_pred) and d != sys.maxsize):
                             c_min, closer_pred, or_f, temp_path = d, e_p, o_f, t_path
+
                 for e_id in closer_pred:
                     enabled_pred[e_id] = closer_pred[e_id]
                 for e_id in temp_path:
@@ -427,6 +434,16 @@ class BPMNGraph:
 
                 return c_min, enabled_pred, or_firing, path_split
         return sys.maxsize, enabled_pred, or_firing, path_split
+
+    @staticmethod
+    def _has_start_event(closer_pred):
+        has_start_event = False
+        for e_id in closer_pred:
+            for e_info in closer_pred[e_id]:
+                if e_info[0].type is BPMN.START_EVENT:
+                    has_start_event = True
+                    break
+        return has_start_event
 
     def _find_enabled_predecessors(self, from_task_info, p_state):
         pred_info = self._get_predecessor(from_task_info.incoming_flows[0])
