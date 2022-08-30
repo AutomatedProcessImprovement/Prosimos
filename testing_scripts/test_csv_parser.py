@@ -2,7 +2,7 @@ from bpdfr_discovery.log_parser import parse_csv
 from test_discovery import assets_path
 
 def test_discovery_valid_input_not_empty_json(assets_path):
-    log_path = assets_path / 'purchasing_example_log.csv'
+    log_path = assets_path / 'financial_log.csv'
 
     log_traces = parse_csv(log_path)
 

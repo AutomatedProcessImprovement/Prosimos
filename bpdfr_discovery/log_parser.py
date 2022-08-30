@@ -464,20 +464,28 @@ def is_event_resource_empty(event):
 def is_trace_event_start_or_end(event, bpmn_graph: BPMNGraph):
     """ Check whether the trace event is start or end event """
 
-    element_id = event.get("elementId", get_element_id_from_bpmn_graph(event, bpmn_graph))
+    element_id = get_element_id_from_event_info(event, bpmn_graph)
 
     if element_id == "":
         print("WARNING: Trace event could not be mapped to the BPMN element.")
+        return False
     elif element_id in [bpmn_graph.starting_event, bpmn_graph.end_event]:
         return True
 
     return False
 
 
-def get_element_id_from_bpmn_graph(event, bpmn_graph: BPMNGraph):
-    concept_name = event.get("concept:name", "")
+def get_element_id_from_event_info(event, bpmn_graph: BPMNGraph):
+    original_element_id = event.get("elementId", "")
+    task_name = event.get("concept:name", "")
+
+    if original_element_id != "" and original_element_id != task_name:
+        # when log file is in CSV format, then task_name == original_element_id
+        # and they both equals to task name
+        return original_element_id
+
     # TODO: check whether 'from_name' handles duplicated names of elements in the BPMN model
-    element_id = bpmn_graph.from_name.get(concept_name, "")
+    element_id = bpmn_graph.from_name.get(task_name, "")
     return element_id
 
 
