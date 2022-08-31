@@ -207,6 +207,11 @@ def process_csv_header(first_row):
                 i_map[kw] = i
                 break
         i += 1
+
+    for key in key_words:
+        if key not in i_map:
+            raise Exception('%s column missing in the CSV file.' % key)
+
     return i_map
 
 
@@ -298,8 +303,14 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
         trace_info = Trace(caseid)
         initial_events[caseid] = datetime(9999, 12, 31, tzinfo=pytz.UTC)
         for event in trace:
+            total_events += 1
             if is_trace_event_start_or_end(event, bpmn_graph):
                 # trace event is a start or end event, we skip it for further parsing
+                removed_events += 1
+                continue
+            if not is_event_in_bpmn_model(event, bpmn_graph):
+                # event in the log does not match any task in the BPMN model
+                removed_events += 1
                 continue
 
             resource = validate_and_get_resource(event, bpmn_graph)
@@ -340,7 +351,6 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
                 started_events[task_name] = trace_info.start_event(task_name, task_name, timestamp, resource)
             elif state == "complete":
                 if task_name in started_events:
-                    total_events += 1
                     c_event = trace_info.complete_event(started_events.pop(task_name), timestamp)
                     task_events[task_name].append(c_event)
                     task_resource_events[task_name][resource].append(c_event)
@@ -361,13 +371,20 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
                                                                             True,
                                                                             trace_info.event_list)
 
-    print('Processed Traces in Log ----- %d / %d' % (len(log_traces) - removed_traces, len(log_traces)))
-    print('Processed Events in Log ----- %d / %d' % (total_events, total_events - removed_events))
+    print('Processed Traces in Log ----- %d (real) / %d (total)' % (len(log_traces) - removed_traces, len(log_traces)))
+    print('Processed Events in Log ----- %d (real) / %d (total)' % (total_events - removed_events, total_events))
     print("Total Activities in Log - %d" % len(task_events))
     print("Total Resources in Log -- %d" % len(resource_freq))
 
     if removed_traces == len(log_traces):
-        raise InvalidLogFileException
+        raise Exception(
+            'Invalid Log: All traces filtered due to events missing at least one of the following attributes'
+            '- task_name, resource, start_datetime or end datetime')
+
+    if total_events - removed_events < total_events / 2:
+        raise Exception(
+            'Invalid Log: More than 50% of events filtered due of at least ine of the following attributes missing'
+            '- task_name, resource, start_datetime or end_datetime')
 
     resource_freq_ratio = dict()
     for r_name in resource_freq:
@@ -376,6 +393,7 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
     # # (1) Discovering Resource Calendars
     # # resource_calendars = calendar_factory.build_weekly_calendars(min_confidence, min_support)
     # # removed_resources = print_initial_resource_calendar_info(resource_calendars, resource_freq, max_resource_freq)
+
     res_calendars, task_resources, joint_resource_events, pools_json, coverage_map = \
         discover_resource_calendars(calendar_factory, task_resource_events, min_confidence, min_support,
                                     min_participation)
@@ -447,7 +465,7 @@ def validate_and_get_resource(event, bpmn_graph: BPMNGraph):
     if element is None:
         raise InvalidLogFileException(f"Cannot load details about activity '{task_name}' (element_id: {el_id})")
 
-    if element.is_start_or_end_event() == True and is_event_resource_empty(event):
+    if element.is_start_or_end_event() and is_event_resource_empty(event):
         # handling BIMP version of log file (with fake activities for start and end events)
         return task_name
     else:
@@ -473,6 +491,12 @@ def is_trace_event_start_or_end(event, bpmn_graph: BPMNGraph):
         return True
 
     return False
+
+
+def is_event_in_bpmn_model(event, bpmn_graph: BPMNGraph):
+    """ Check whether the task name in the event matches a task in the BPMN process model """
+
+    return True if event['concept:name'] in bpmn_graph.from_name else False
 
 
 def get_element_id_from_event_info(event, bpmn_graph: BPMNGraph):

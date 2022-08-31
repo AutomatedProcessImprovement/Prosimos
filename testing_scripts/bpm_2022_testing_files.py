@@ -180,19 +180,7 @@ process_files = {
         'start_datetime': '2022-06-21 13:22:30.035185+03:00',
         'total_cases': 100,
         'disc_params': [60, 0.1, 0.9, 0.6, True]
-    },
-    'purchasing_1': {
-        'xes_log': './../input_output_files/discovery_input_files/xes_logs/purchasing_1.xes',
-        'csv_log': './../input_output_files/discovery_input_files/csv_logs/purchasing_1.csv',
-        'real_csv_log': './../input_output_files/discovery_output_files/real_csv_logs/purchasing_1.csv',
-        'bpmn': './../input_output_files/discovery_input_files/bpmn_models/purchasing_1.bpmn',
-        'json': './../input_output_files/discovery_output_files/json/purchasing_1.json',
-        'sim_log': './../input_output_files/discovery_output_files/prosimos_logs/purchasing_1.csv',
-        'demo_stats': './../input_output_files/discovery_output_files/prosimos_logs/purchasing_1.csv',
-        'start_datetime': '2011-01-01T00:00:00.000000-05:00',
-        'total_cases': 100,
-        'disc_params': [60, 0.1, 0.9, 0.6, True]
-    },
+    }
 }
 
 canonical_json = {

@@ -8,7 +8,7 @@ from testing_scripts.bpm_2022_testing_files import process_files
 
 
 def main():
-    model_info = process_files['demo_example']
+    model_info = process_files['financial']
     print('--------------------------------------------------------------------------')
     print("Starting Discovery of demo example ...")
     print('--------------------------------------------------------------------------')

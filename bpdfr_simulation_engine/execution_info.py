@@ -110,7 +110,7 @@ class Trace:
             if ev_info.started_at is not None and ev_info.completed_at is not None:
                 filtered_list.append(ev_info)
             else:
-                filtered_events += 1
+                filtered_events += 2
         self.event_list = filtered_list
         return filtered_events
 
