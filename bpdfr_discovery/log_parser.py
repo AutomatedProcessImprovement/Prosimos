@@ -8,6 +8,8 @@ from datetime import datetime
 
 import pytz
 from pm4py.objects.log.importer.xes import importer as xes_importer
+
+from bpdfr_discovery.exceptions import InvalidInputDiscoveryParameters
 from bpdfr_simulation_engine.control_flow_manager import BPMN, BPMNGraph
 from bpdfr_simulation_engine.exceptions import InvalidBpmnModelException, InvalidLogFileException
 
@@ -162,13 +164,17 @@ def compute_kpi_times_from_csv_log(log_path, bpmn_graph):
 
 def parse_and_validate_input(log_path, bpmn_path, minutes_x_granule, conf, supp, part, is_csv=False):
     if minutes_x_granule < 0 or 1440 % minutes_x_granule != 0:
-        raise Exception("Invalid granule_size. The time interval must be a divisor of 1400, e.g., 15, 30, 60 minutes")
+        raise InvalidInputDiscoveryParameters(
+            "Invalid granule_size. The time interval must be a divisor of 1400, e.g., 15, 30, 60 minutes")
     if conf < 0 or conf > 1:
-        raise Exception("Invalid confidence. The confidence index must be a value between 0 and 1, both inclusive.")
+        raise InvalidInputDiscoveryParameters(
+            "Invalid confidence. The confidence index must be a value between 0 and 1, both inclusive.")
     if supp < 0 or supp > 1:
-        raise Exception("Invalid support. The support index must be a value between 0 and 1, both inclusive.")
+        raise InvalidInputDiscoveryParameters(
+            "Invalid support. The support index must be a value between 0 and 1, both inclusive.")
     if part < 0 or part > 1:
-        raise Exception("Invalid resource participation ratio. It must be a value between 0 and 1, both inclusive.")
+        raise InvalidInputDiscoveryParameters(
+            "Invalid resource participation ratio. It must be a value between 0 and 1, both inclusive.")
     try:
         bpmn_graph = parse_simulation_model(bpmn_path)
     except InvalidBpmnModelException as e:
@@ -379,12 +385,12 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
     print("Total Resources in Log -- %d" % len(resource_freq))
 
     if removed_traces == len(log_traces):
-        raise Exception(
+        raise InvalidLogFileException(
             'Invalid Log: All traces filtered due to events missing at least one of the following attributes'
             '- task_name, resource, start_datetime or end datetime')
 
     if total_events - removed_events < total_events / 2:
-        raise Exception(
+        raise InvalidLogFileException(
             'Invalid Log: More than 50% of events filtered due of at least ine of the following attributes missing'
             '- task_name, resource, start_datetime or end_datetime')
 
