@@ -180,18 +180,20 @@ def parse_and_validate_input(log_path, bpmn_path, minutes_x_granule, conf, supp,
         print(error_str)
         raise InvalidLogFileException(error_str)
     except:
-        raise Exception("Invalid BPMN model.")
+        raise InvalidBpmnModelException("Invalid BPMN model.")
 
     if is_csv:
         try:
             log_traces = parse_csv(log_path)
+        except InvalidLogFileException as e:
+            raise e
         except:
-            raise Exception("Invalid CSV event-log.")
+            raise InvalidLogFileException("Invalid CSV event-log.")
     else:
         try:
             log_traces = xes_importer.apply(log_path)
         except:
-            raise Exception("Invalid XES event-log.")
+            raise InvalidLogFileException("Invalid XES event-log.")
 
     return bpmn_graph, log_traces
 
@@ -210,7 +212,7 @@ def process_csv_header(first_row):
 
     for key in key_words:
         if key not in i_map:
-            raise Exception('%s column missing in the CSV file.' % key)
+            raise InvalidLogFileException('%s column missing in the CSV file.' % key)
 
     return i_map
 

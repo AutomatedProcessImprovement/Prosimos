@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from bpdfr_discovery.exceptions import NotXesFormatException
 from bpdfr_discovery.log_parser import preprocess_xes_log
-from bpdfr_simulation_engine.exceptions import InvalidBpmnModelException
+from bpdfr_simulation_engine.exceptions import InvalidBpmnModelException, InvalidLogFileException
 
 
 @pytest.fixture
@@ -110,3 +110,18 @@ def test_discovery_two_end_events_error_message(assets_path):
                                             output_path.as_posix(), granule, conf, supp, part,
                                             adj_calendar,
                                             False)
+
+def test_discovery_invalid_csv_error_message(assets_path):
+    model_path = assets_path / 'purchasing_example.bpmn'
+    log_path = assets_path / 'purchasing_example_sim_scenario.csv'
+    output_path = assets_path / 'purchasing_example.json'
+
+    [granule, conf, supp, part, adj_calendar] = [60, 0.1, 0.9, 0.6, True]
+
+    with pytest.raises(InvalidLogFileException, match='end column missing in the CSV file.'):
+        _ = preprocess_xes_log(log_path.as_posix(),
+                                            model_path.as_posix(),
+                                            output_path.as_posix(), granule, conf, supp, part,
+                                            adj_calendar,
+                                            True # is_csv
+                                )
