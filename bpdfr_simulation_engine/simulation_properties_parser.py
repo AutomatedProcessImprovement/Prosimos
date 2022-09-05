@@ -239,7 +239,7 @@ def _get_event_type_from_element(name: str, bpmn_element):
 
 
 def _add_fake_gateway(bpmn_graph, g_id, g_type, t_id, e_map, in_front=True):
-    bpmn_graph.add_bpmn_element(g_id, ElementInfo(g_type, g_id, g_id))
+    bpmn_graph.add_bpmn_element(g_id, ElementInfo(g_type, g_id, g_id, None))
     if in_front:
         bpmn_graph.add_flow_arc('%s_%s' % (g_id, t_id), g_id, t_id)
     else:
