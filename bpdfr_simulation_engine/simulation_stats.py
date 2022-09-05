@@ -45,15 +45,15 @@ class SimulationResult:
         print('Processing Time ....... %s' % format_duration(self.process_kpi_map.processing_time.avg, 25))
         print('Idle Time  ............ %s' % format_duration(self.process_kpi_map.idle_time.avg, 25))
         print('------------------------------------------------------------')
-        print('MIN KPI VALUES -- FULL PROCESS')
-        print('Waiting Time .......... %s' % format_duration(self.process_kpi_map.waiting_time.min, 25))
-        print('Idle Cycle Time ....... %s' % format_duration(self.process_kpi_map.idle_cycle_time.min, 25))
-        print('Cycle Time ............ %s' % format_duration(self.process_kpi_map.cycle_time.min, 25))
-        print('Idle Processing Time .. %s' % format_duration(self.process_kpi_map.idle_processing_time.min, 25))
-        print('Processing Time ....... %s' % format_duration(self.process_kpi_map.processing_time.min, 25))
-        print('Idle Time  ............ %s' % format_duration(self.process_kpi_map.idle_time.min, 25))
-        print('------------------------------------------------------------')
-        print('AGGREGATED RESOURCE POOL UTILIZATION')
+        # print('MIN KPI VALUES -- FULL PROCESS')
+        # print('Waiting Time .......... %s' % format_duration(self.process_kpi_map.waiting_time.min, 25))
+        # print('Idle Cycle Time ....... %s' % format_duration(self.process_kpi_map.idle_cycle_time.min, 25))
+        # print('Cycle Time ............ %s' % format_duration(self.process_kpi_map.cycle_time.min, 25))
+        # print('Idle Processing Time .. %s' % format_duration(self.process_kpi_map.idle_processing_time.min, 25))
+        # print('Processing Time ....... %s' % format_duration(self.process_kpi_map.processing_time.min, 25))
+        # print('Idle Time  ............ %s' % format_duration(self.process_kpi_map.idle_time.min, 25))
+        # print('------------------------------------------------------------')
+        # print('AGGREGATED RESOURCE POOL UTILIZATION')
         r_s = max(self._max_res_s, 13)
         # print('| %s | %s | %s | %s | %s | %s |' % ('Pool Name'.ljust(r_s),
         #                                            'Avg Resource Utilization'.ljust(25),
@@ -70,7 +70,7 @@ class SimulationResult:
         #                                                format_duration(pool_kpi.kpi_worked_time.avg, 25),
         #                                                format_duration(pool_kpi.kpi_available_time.avg, 25)))
         # print(len(self.resource_utilization))
-        print('------------------------------------------------------------')
+        # print('------------------------------------------------------------')
         print('INDIVIDUAL RESOURCE UTILIZATION')
         print('| %s | %s | %s | %s | %s | %s |' % ('Resource Name'.ljust(r_s),
                                                    'Utilization'.ljust(11),

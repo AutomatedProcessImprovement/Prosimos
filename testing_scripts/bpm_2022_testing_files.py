@@ -15,7 +15,7 @@ experiment_logs = {0: 'production',
 process_files = {
     'demo_example': {
         'xes_log': './../input_output_files/discovery_input_files/xes_logs/log_demo_filtered.xes',
-        'csv_log': './../input_output_files/discovery_input_files/csv_logs/pending.csv',
+        'csv_log': './../input_output_files/discovery_input_files/csv_logs/log_demo_filtered.csv',
         'real_csv_log': './../input_output_files/discovery_output_files/real_csv_logs/pending.csv',
         'bpmn': './../input_output_files/discovery_input_files/bpmn_models/Credit_Application_Simulation.bpmn',
         'json': './../input_output_files/discovery_output_files/json/demo_example.json',
@@ -156,7 +156,31 @@ process_files = {
             'start_datetime': '2016-03-16 20:48:00+00:00',
             'total_cases': 46330,
             'disc_params': [60, 0.3, 1.0, 0.5, True]
-        }
+        },
+    'bpi_12_edoc': {
+        'xes_log': './../input_output_files/discovery_input_files/xes_logs/bpi_2012_edoc.xes',
+        'csv_log': './../input_output_files/discovery_input_files/csv_logs/bpi_2012_edoc.csv',
+        'real_csv_log': './../input_output_files/discovery_output_files/real_csv_logs/bpi_2012_edoc.csv',
+        'bpmn': './../input_output_files/discovery_input_files/bpmn_models/bpi_2012_edoc.bpmn',
+        'json': './../input_output_files/discovery_output_files/json/bpi_2012_edoc.json',
+        'sim_log': './../input_output_files/discovery_output_files/prosimos_logs/bpi_2012_edoc.csv',
+        'demo_stats': './../input_output_files/discovery_output_files/prosimos_logs/bpi_2012_edoc.csv',
+        'start_datetime': '2022-06-21 13:22:30.035185+03:00',
+        'total_cases': 100,
+        'disc_params': [60, 0.1, 0.9, 0.6, True]
+    },
+    'financial': {
+        'xes_log': './../input_output_files/discovery_input_files/xes_logs/financial.xes',
+        'csv_log': './../input_output_files/discovery_input_files/csv_logs/financial.csv',
+        'real_csv_log': './../input_output_files/discovery_output_files/real_csv_logs/financial.csv',
+        'bpmn': './../input_output_files/discovery_input_files/bpmn_models/financial100.bpmn',
+        'json': './../input_output_files/discovery_output_files/json/financial.json',
+        'sim_log': './../input_output_files/discovery_output_files/prosimos_logs/financial.csv',
+        'demo_stats': './../input_output_files/discovery_output_files/prosimos_logs/financial.csv',
+        'start_datetime': '2022-06-21 13:22:30.035185+03:00',
+        'total_cases': 100,
+        'disc_params': [60, 0.1, 0.9, 0.6, True]
+    }
 }
 
 canonical_json = {

@@ -8,11 +8,12 @@ from datetime import datetime
 
 import pytz
 from pm4py.objects.log.importer.xes import importer as xes_importer
-from bpdfr_discovery.exceptions import NotXesFormatException
+
+from bpdfr_discovery.exceptions import InvalidInputDiscoveryParameters
 from bpdfr_simulation_engine.control_flow_manager import BPMN, BPMNGraph
 from bpdfr_simulation_engine.exceptions import InvalidBpmnModelException, InvalidLogFileException
 
-from bpdfr_simulation_engine.execution_info import Trace, TaskEvent
+from bpdfr_simulation_engine.execution_info import ProcessInfo, Trace, TaskEvent
 from bpdfr_simulation_engine.probability_distributions import best_fit_distribution
 
 import ntpath
@@ -161,17 +162,20 @@ def compute_kpi_times_from_csv_log(log_path, bpmn_graph):
     return cumul_task_stats
 
 
-def parse_and_validate_input(log_path, bpmn_path, minutes_x_granule, conf, supp, part):
+def parse_and_validate_input(log_path, bpmn_path, minutes_x_granule, conf, supp, part, is_csv=False):
     if minutes_x_granule < 0 or 1440 % minutes_x_granule != 0:
-        raise Exception("Invalid granule_size. The time interval must be a divisor of 1400, e.g., 15, 30, 60 minutes")
+        raise InvalidInputDiscoveryParameters(
+            "Invalid granule_size. The time interval must be a divisor of 1400, e.g., 15, 30, 60 minutes")
     if conf < 0 or conf > 1:
-        raise Exception("Invalid confidence. The confidence index must be a value between 0 and 1, both inclusive.")
+        raise InvalidInputDiscoveryParameters(
+            "Invalid confidence. The confidence index must be a value between 0 and 1, both inclusive.")
     if supp < 0 or supp > 1:
-        raise Exception("Invalid support. The support index must be a value between 0 and 1, both inclusive.")
+        raise InvalidInputDiscoveryParameters(
+            "Invalid support. The support index must be a value between 0 and 1, both inclusive.")
     if part < 0 or part > 1:
-        raise Exception("Invalid resource participation ratio. It must be a value between 0 and 1, both inclusive.")
+        raise InvalidInputDiscoveryParameters(
+            "Invalid resource participation ratio. It must be a value between 0 and 1, both inclusive.")
     try:
-        model_name = ntpath.basename(bpmn_path).split('.')[0]
         bpmn_graph = parse_simulation_model(bpmn_path)
     except InvalidBpmnModelException as e:
         error_str = str(e)
@@ -182,30 +186,104 @@ def parse_and_validate_input(log_path, bpmn_path, minutes_x_granule, conf, supp,
         print(error_str)
         raise InvalidLogFileException(error_str)
     except:
-        raise Exception("Invalid BPMN model.")
+        raise InvalidBpmnModelException("Invalid BPMN model.")
 
-    file_extension = log_path.split(".")[-1]
-
-    if (file_extension != "xes"):
-        #TODO: parse CSV file
-        print(f"File format {file_extension} is not supported")
-        raise NotXesFormatException()
-    
-    try:
-        log_traces = xes_importer.apply(log_path)
-    except BaseException as error:
-        print('An exception occurred: {}'.format(error))
-        raise Exception("Invalid XES event-log.")
+    if is_csv:
+        try:
+            log_traces = parse_csv(log_path)
+        except InvalidLogFileException as e:
+            raise e
+        except:
+            raise InvalidLogFileException("Invalid CSV event-log.")
+    else:
+        try:
+            log_traces = xes_importer.apply(log_path)
+        except:
+            raise InvalidLogFileException("Invalid XES event-log.")
 
     return bpmn_graph, log_traces
 
 
+def process_csv_header(first_row):
+    i_map = dict()
+    i = 0
+    key_words = ['case', 'activity', 'start', 'end', 'resource']
+    for key in first_row:
+        l_key = key.lower()
+        for kw in key_words:
+            if kw in l_key:
+                i_map[kw] = i
+                break
+        i += 1
+
+    for key in key_words:
+        if key not in i_map:
+            raise InvalidLogFileException('%s column missing in the CSV file.' % key)
+
+    return i_map
+
+
+class CSVTrace:
+    def __init__(self, case_id):
+        self.attributes = {'concept:name': case_id}
+        self.events = list()
+
+    def add_event(self, activity, state, resource, timestamp):
+        self.events.append({'concept:name': activity.strip(),
+                            'elementId': activity.strip(),
+                            'org:resource': resource.strip(),
+                            'lifecycle:transition': state.strip(),
+                            'time:timestamp': timestamp})
+
+    def __iter__(self):
+        return CSVTraceIterator(self.events)
+
+
+class CSVTraceIterator:
+    def __init__(self, events):
+        self._events = events
+        self._index = -1
+
+    def __next__(self):
+        self._index += 1
+        if self._index < len(self._events):
+            return self._events[self._index]
+        raise StopIteration
+
+
+def parse_csv(log_path):
+    try:
+        with open(log_path, mode='r') as csv_file:
+            csv_reader = csv.reader(csv_file, delimiter=',')
+            i_map = process_csv_header(next(csv_reader))
+
+            log_traces = list()
+            trace_map = dict()
+
+            for row in csv_reader:
+                case_id = row[i_map['case']]
+                if case_id not in trace_map:
+                    trace_map[case_id] = len(log_traces)
+                    log_traces.append(CSVTrace(case_id))
+                log_traces[trace_map[case_id]].add_event(row[i_map['activity']], 'start', row[i_map['resource']],
+                                                         pd.to_datetime(row[i_map['start']], utc=True))
+                log_traces[trace_map[case_id]].add_event(row[i_map['activity']], 'complete', row[i_map['resource']],
+                                                         pd.to_datetime(row[i_map['end']], utc=True))
+
+            for trace in log_traces:
+                trace.events.sort(key=lambda x: x['time:timestamp'])
+            return log_traces
+    except IOError as e:
+        print(str(e))
+        return list()
+
+
 def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_confidence, min_support,
-                       min_participation, fit_calendar, min_bin=50):
+                       min_participation, fit_calendar, is_csv=False, min_bin=50):
     print('Discovery Params: Conf: %.2f, Supp: %.2f, R. Part: %.2f, Adj. Cal: %s'
           % (min_confidence, min_support, min_participation, str(fit_calendar)))
     bpmn_graph, log_traces = parse_and_validate_input(log_path, bpmn_path, minutes_x_granule, min_confidence,
-                                                      min_support, min_participation)
+                                                      min_support, min_participation, is_csv)
 
     calendar_factory = CalendarFactory(minutes_x_granule)
     completed_events = list()
@@ -223,6 +301,8 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
     observed_task_resources = dict()
     min_max_task_duration = dict()
     total_events = 0
+    removed_traces = 0
+    removed_events = 0
 
     for trace in log_traces:
         caseid = trace.attributes['concept:name']
@@ -231,8 +311,14 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
         trace_info = Trace(caseid)
         initial_events[caseid] = datetime(9999, 12, 31, tzinfo=pytz.UTC)
         for event in trace:
-            if is_trace_event_start_or_end(event, bpmn_graph) == True:
+            total_events += 1
+            if is_trace_event_start_or_end(event, bpmn_graph):
                 # trace event is a start or end event, we skip it for further parsing
+                removed_events += 1
+                continue
+            if not is_event_in_bpmn_model(event, bpmn_graph):
+                # event in the log does not match any task in the BPMN model
+                removed_events += 1
                 continue
 
             resource = validate_and_get_resource(event, bpmn_graph)
@@ -273,7 +359,6 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
                 started_events[task_name] = trace_info.start_event(task_name, task_name, timestamp, resource)
             elif state == "complete":
                 if task_name in started_events:
-                    total_events += 1
                     c_event = trace_info.complete_event(started_events.pop(task_name), timestamp)
                     task_events[task_name].append(c_event)
                     task_resource_events[task_name][resource].append(c_event)
@@ -282,26 +367,41 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
                     min_max_task_duration[task_name][0] = min(min_max_task_duration[task_name][0], duration)
                     min_max_task_duration[task_name][1] = max(min_max_task_duration[task_name][1], duration)
 
-        trace_info.filter_incomplete_events()
+        removed_events += trace_info.filter_incomplete_events()
+        if len(trace_info.event_list) == 0:
+            removed_traces += 1
+            continue
+
         task_sequence = sort_by_completion_times(trace_info)
+
         is_correct, fired_tasks, pending_tokens, _ = bpmn_graph.reply_trace(task_sequence,
                                                                             flow_arcs_frequency,
                                                                             True,
                                                                             trace_info.event_list)
 
+    print('Processed Traces in Log ----- %d (real) / %d (total)' % (len(log_traces) - removed_traces, len(log_traces)))
+    print('Processed Events in Log ----- %d (real) / %d (total)' % (total_events - removed_events, total_events))
+    print("Total Activities in Log - %d" % len(task_events))
+    print("Total Resources in Log -- %d" % len(resource_freq))
+
+    if removed_traces == len(log_traces):
+        raise InvalidLogFileException(
+            'Invalid Log: All traces filtered due to events missing at least one of the following attributes'
+            '- task_name, resource, start_datetime or end datetime')
+
+    if total_events - removed_events < total_events / 2:
+        raise InvalidLogFileException(
+            'Invalid Log: More than 50% of events filtered due of at least ine of the following attributes missing'
+            '- task_name, resource, start_datetime or end_datetime')
+
     resource_freq_ratio = dict()
     for r_name in resource_freq:
         resource_freq_ratio[r_name] = resource_freq[r_name] / max_resource_freq
 
-    # print("First Case Started at: %s" % str(min_date))
-    print('Total Traces in Log ----- %d' % len(log_traces))
-    print('Total Events in Log ----- %d' % total_events)
-    print("Total Activities in Log - %d" % len(task_events))
-    print("Total Resources in Log -- %d" % len(resource_freq))
-
     # # (1) Discovering Resource Calendars
     # # resource_calendars = calendar_factory.build_weekly_calendars(min_confidence, min_support)
     # # removed_resources = print_initial_resource_calendar_info(resource_calendars, resource_freq, max_resource_freq)
+
     res_calendars, task_resources, joint_resource_events, pools_json, coverage_map = \
         discover_resource_calendars(calendar_factory, task_resource_events, min_confidence, min_support,
                                     min_participation)
@@ -332,6 +432,9 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
 
     # # (5) Discovering Gateways Branching Probabilities
     # print("Discovering Branching Probabilities ...")
+    # for flow_id in flow_arcs_frequency:
+    #     print("%s: %d" % (flow_id, flow_arcs_frequency[flow_id]))
+
     gateways_branching = bpmn_graph.compute_branching_probability(flow_arcs_frequency)
 
     to_save = {
@@ -363,40 +466,59 @@ def validate_and_get_resource(event, bpmn_graph: BPMNGraph):
     """
     task_name = event['concept:name']
     el_id = bpmn_graph.from_name.get(task_name)
-    if (el_id is None):
+    if el_id is None:
         raise InvalidLogFileException(f"Activity '{task_name}' could not be found in the BPMN diagram")
 
     element = bpmn_graph.element_info.get(el_id)
-    if (element is None):
+    if element is None:
         raise InvalidLogFileException(f"Cannot load details about activity '{task_name}' (element_id: {el_id})")
 
-    if element.is_event() == True and 'org:resource' not in event:
+    if element.is_event() and is_event_resource_empty(event):
         # handling BIMP version of log file (with fake activities for start and end events)
         # and also case for intermediate events when we do not need assigned resource
         return task_name
     else:
-        if element.type == BPMN.TASK and 'org:resource' not in event:
+        if element.type == BPMN.TASK and is_event_resource_empty(event):
             raise InvalidLogFileException(f"Activity '{task_name}' (element_id: {el_id}) should have assigned resource")
         else:
             return event['org:resource']
 
 
+def is_event_resource_empty(event):
+    return 'org:resource' not in event or event['org:resource'] == ''
+
+
 def is_trace_event_start_or_end(event, bpmn_graph: BPMNGraph):
     """ Check whether the trace event is start or end event """
 
-    element_id = event.get("elementId", get_element_id_from_bpmn_graph(event, bpmn_graph)) 
-    
+    element_id = get_element_id_from_event_info(event, bpmn_graph)
+
     if element_id == "":
         print("WARNING: Trace event could not be mapped to the BPMN element.")
+        return False
     elif element_id in [bpmn_graph.starting_event, bpmn_graph.end_event]:
         return True
 
     return False
 
-def get_element_id_from_bpmn_graph(event, bpmn_graph: BPMNGraph):
-    concept_name = event.get("concept:name", "")
-    #TODO: check whether 'from_name' handles duplicated names of elements in the BPMN model
-    element_id = bpmn_graph.from_name.get(concept_name, "")
+
+def is_event_in_bpmn_model(event, bpmn_graph: BPMNGraph):
+    """ Check whether the task name in the event matches a task in the BPMN process model """
+
+    return True if event['concept:name'] in bpmn_graph.from_name else False
+
+
+def get_element_id_from_event_info(event, bpmn_graph: BPMNGraph):
+    original_element_id = event.get("elementId", "")
+    task_name = event.get("concept:name", "")
+
+    if original_element_id != "" and original_element_id != task_name:
+        # when log file is in CSV format, then task_name == original_element_id
+        # and they both equals to task name
+        return original_element_id
+
+    # TODO: check whether 'from_name' handles duplicated names of elements in the BPMN model
+    element_id = bpmn_graph.from_name.get(task_name, "")
     return element_id
 
 
