@@ -2,6 +2,7 @@ import json
 import xml.etree.ElementTree as ET
 
 from numpy import exp, sqrt, log
+from bpdfr_simulation_engine.batching_processing import BATCH_TYPE, FiringSubRule
 
 from bpdfr_simulation_engine.control_flow_manager import EVENT_TYPE, BPMNGraph, ElementInfo, BPMN
 from bpdfr_simulation_engine.resource_calendar import RCalendar, convert_time_unit_from_to, convertion_table, to_seconds
@@ -25,8 +26,9 @@ def parse_json_sim_parameters(json_path):
                                                                      json_data["gateway_branching_probabilities"])
         arrival_calendar = parse_arrival_calendar(json_data)
         event_distibution = parse_event_distribution(json_data["event_distribution"])
+        batch_processing = parse_batch_processing(json_data["batch_processing"])
 
-        return resources_map, calendars_map, element_distribution, task_resource_distribution, arrival_calendar, event_distibution
+        return resources_map, calendars_map, element_distribution, task_resource_distribution, arrival_calendar, event_distibution, batch_processing
 
 
 # def parse_pool_info(json_data, resources_map):
@@ -109,6 +111,42 @@ def parse_event_distribution(event_json_data):
             }
 
     return event_distibution
+
+def parse_batch_processing(batch_processing_json_data):
+    """
+    Parse "batch_processing" section of json data
+    """
+    batch_config = dict()
+
+    for batch_processing in batch_processing_json_data:
+        t_id = batch_processing["task_id"]
+        type = BATCH_TYPE(batch_processing["type"])
+
+        firing_rules = []
+        for or_rules in batch_processing["firing_rules"]:
+            parsed_or_rules = []
+
+            for and_rule in or_rules:
+                condition = FiringSubRule(
+                    and_rule["attribute"],
+                    and_rule["comparison"],
+                    and_rule["value"]
+                )
+
+                parsed_or_rules.append(condition)
+
+            firing_rules.append(parsed_or_rules)
+
+        # TODO: "batch_frequency" and "size_distrib" should be added, as well
+
+        batch_config[t_id] = {
+            "type": type,
+            "duration_distribution": batch_processing["duration_distrib"],
+            "firing_rules": firing_rules
+        }
+
+        return batch_config
+
 
 # def parse_calendar_from_json(json_data):
 #     resources_map = dict()
