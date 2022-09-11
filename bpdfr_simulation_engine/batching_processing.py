@@ -4,16 +4,17 @@ import operator
 OPERATOR_SYMBOLS = {
     '<': operator.lt,
     '<=': operator.le,
-    '==': operator.eq,
+    '=': operator.eq,
     '!=': operator.ne,
     '>': operator.gt,
     '>=': operator.ge
 }
 
 class BATCH_TYPE(Enum):
-    SEQUENTIAL = 'Sequential'
-    START_EVENT = 'Concurrent'
-    PARALLEL = 'Parallel'
+    SEQUENTIAL = 'Sequential'   # one after another
+    CONCURRENT = 'Concurrent'   # tasks are in progress simultaneously 
+                                # (executor changes the context between different tasks)
+    PARALLEL = 'Parallel'       # tasks are being executed simultaneously
 
 class FiringSubRule():
     def __init__(self, variable1: str, operator: str, value2: str):

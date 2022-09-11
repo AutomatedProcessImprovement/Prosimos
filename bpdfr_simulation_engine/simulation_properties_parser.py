@@ -2,7 +2,7 @@ import json
 import xml.etree.ElementTree as ET
 
 from numpy import exp, sqrt, log
-from bpdfr_simulation_engine.batching_processing import BATCH_TYPE, FiringSubRule
+from bpdfr_simulation_engine.batching_processing import BATCH_TYPE, FiringRule, FiringSubRule
 
 from bpdfr_simulation_engine.control_flow_manager import EVENT_TYPE, BPMNGraph, ElementInfo, BPMN
 from bpdfr_simulation_engine.resource_calendar import RCalendar, convert_time_unit_from_to, convertion_table, to_seconds
@@ -135,7 +135,8 @@ def parse_batch_processing(batch_processing_json_data):
 
                 parsed_or_rules.append(condition)
 
-            firing_rules.append(parsed_or_rules)
+            firing_rule = FiringRule(parsed_or_rules)
+            firing_rules.append(firing_rule)
 
         # TODO: "batch_frequency" and "size_distrib" should be added, as well
 
@@ -145,7 +146,7 @@ def parse_batch_processing(batch_processing_json_data):
             "firing_rules": firing_rules
         }
 
-        return batch_config
+    return batch_config
 
 
 # def parse_calendar_from_json(json_data):

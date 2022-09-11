@@ -8,12 +8,25 @@ from enum import Enum
 import pm4py
 import random
 from pm4py.objects.conversion.process_tree import converter
+from bpdfr_simulation_engine.batching_processing import FiringRule
 from bpdfr_simulation_engine.probability_distributions import generate_number_from
 from bpdfr_simulation_engine.resource_calendar import str_week_days
 
 from bpdfr_simulation_engine.exceptions import InvalidBpmnModelException
 
 seconds_per_unit = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
+
+
+class BatchInfoForExecution:
+    def __init__(self, case_ids, batch_info):
+        self.case_ids = case_ids
+        self.batch_info = batch_info
+
+
+class EnabledTask:
+    def __init__(self, task_id, batch_info: BatchInfoForExecution = None):
+        self.task_id = task_id
+        self.batch_info = batch_info
 
 
 class BPMN(Enum):
@@ -122,11 +135,16 @@ class BPMNGraph:
         self.decision_flows_sortest_path = None
         self._c_trace = None
         self.event_distribution = None
+        self.batch_info = dict()
+        self.batch_count = dict()
+        self.batch_waiting_processes = dict()
 
-    def set_element_probabilities(self, element_probability, task_resource_probability, event_distribution):
+    def set_additional_fields_from_json(self, element_probability, task_resource_probability, \
+        event_distribution, batch_processing):
         self.element_probability = element_probability
         self.task_resource_probability = task_resource_probability
         self.event_distribution = event_distribution
+        self.batch_info = batch_processing
 
     def add_bpmn_element(self, element_id, element_info):
         if element_info.type == BPMN.START_EVENT:
@@ -230,7 +248,15 @@ class BPMNGraph:
         if e_id == self.starting_event:
             return True
         e_info = self.element_info[e_id]
-        if e_info.type in [BPMN.TASK, BPMN.END_EVENT, BPMN.PARALLEL_GATEWAY, BPMN.INTERMEDIATE_EVENT]:
+        if e_info.type == BPMN.TASK:
+            # not enabled in case there is no token before the task
+            # we assume that there might be only one incoming flow to the task
+            for f_arc in e_info.incoming_flows:
+                if p_state.tokens[f_arc] < 1:
+                    return False
+
+            return True
+        if e_info.type in [BPMN.END_EVENT, BPMN.PARALLEL_GATEWAY, BPMN.INTERMEDIATE_EVENT]:
             for f_arc in e_info.incoming_flows:
                 if p_state.tokens[f_arc] < 1:
                     return False
@@ -260,7 +286,7 @@ class BPMNGraph:
                 return False
         return False
 
-    def update_process_state(self, e_id, p_state, completed_datetime_prev_event):
+    def update_process_state(self, case_id, e_id, p_state, completed_datetime_prev_event):
         """
         :param completed_time_prev_event: datetime of the completion of the previous event
                                           which equals to enabled time for current event
@@ -295,11 +321,61 @@ class BPMNGraph:
                         f_arcs = self.element_probability[e_info.id].get_multiple_flows()
                 random.shuffle(f_arcs)
             for f_arc in f_arcs:
-                self._find_next(f_arc, p_state, enabled_tasks, to_execute)
+                self._find_next(f_arc, case_id, p_state, enabled_tasks, to_execute)
             current += 1
         if len(enabled_tasks) > 1:
             random.shuffle(enabled_tasks)
         return enabled_tasks
+
+    def is_task_batched(self, task_id):
+        return self.batch_info.get(task_id, None) != None
+
+
+    def is_batched_task_enabled(self, task_id):
+        task_batch_info = self.batch_info.get(task_id, None)
+
+        if task_batch_info == None:
+            print(f"WARNING: task {task_id} does not have config for batching processing")
+            return False
+
+        firing_rules: FiringRule = task_batch_info["firing_rules"]
+
+        size_count = self.batch_count[task_id] if self.batch_count.get(task_id, None) != None else 0
+
+        count = {
+            "size": size_count
+        }
+        
+        is_batched_task_enabled = False
+        for rule in firing_rules:
+            is_batched_task_enabled = rule.is_true(count)
+
+            # fast exit if one of the rule is true
+            if is_batched_task_enabled:
+                return is_batched_task_enabled
+
+        return is_batched_task_enabled
+
+
+    def increase_task_count(self, task_id, case_id):
+        """ Keep track of the batched tasks in the queue """
+        # keep track of case_id which are waiting for the firing rule to be true
+        if task_id not in self.batch_waiting_processes:
+            self.batch_waiting_processes[task_id] = []
+        
+        # in case we execute the batch, no need to increase the total num
+        # if case_id in self.batch_waiting_processes[task_id]:
+        #     return
+        
+        self.batch_waiting_processes[task_id].append(case_id)
+        
+        if task_id in self.batch_count:
+            self.batch_count[task_id] += 1
+        else:
+            self.batch_count[task_id] = 1
+        
+
+
 
     def get_event_gateway_choice(self, gateway_element_info: ElementInfo, completed_datetime_prev_event):
         """
@@ -326,6 +402,7 @@ class BPMNGraph:
         # return randomly selected outgoing flow
         # in case of same value for multiple flows
         return random.choice(res)
+
 
     def event_duration(self, event_id):
         """
@@ -733,15 +810,54 @@ class BPMNGraph:
                 gateways_branching[e_id] = flow_arc_probability
         return gateways_branching
 
-    def _find_next(self, f_arc, p_state, enabled_tasks, to_execute):
+    def _find_next(self, f_arc, case_id, p_state, enabled_tasks, to_execute):
         p_state.tokens[f_arc] += 1
         p_state.state_mask |= self.arcs_bitset[f_arc]
         next_e = self.flow_arcs[f_arc][1]
         if self.is_enabled(next_e, p_state):
-            if self.element_info[next_e].type in [BPMN.TASK, BPMN.INTERMEDIATE_EVENT]:
-                enabled_tasks.append(next_e)
+            if self.element_info[next_e].type == BPMN.TASK and self.is_task_batched(next_e):
+                if self.is_batched_task_enabled(next_e):
+                    batch_info = BatchInfoForExecution(
+                        self.batch_waiting_processes[next_e],
+                        self.batch_info)
+                    enabled_tasks.append(EnabledTask(next_e, batch_info))
+                    self._clear_batch(next_e)
+                else:
+                    # wait till the time firing rule is true
+                    # TODO: add waiting time
+                    self.increase_task_count(next_e, case_id)
+            elif self.element_info[next_e].type in [BPMN.TASK, BPMN.INTERMEDIATE_EVENT]:
+                enabled_tasks.append(EnabledTask(next_e))
             else:
                 to_execute.append(next_e)
+
+
+    def _clear_batch(self, next_e):
+        """
+        When we passed on the information about the batch for the execution,
+        clear that data from here to avoid multiple execution
+        """
+        self.batch_waiting_processes[next_e] = []
+        self.batch_count[next_e] = 0
+
+
+    def increase_task_count(self, task_id, case_id):
+        """ Keep track of the batched tasks in the queue """
+
+        # keep track of case_id which are waiting for the firing rule to be true
+        if task_id not in self.batch_waiting_processes:
+            self.batch_waiting_processes[task_id] = []
+        
+        # in case we execute the batch, there is no need to increase the total num
+        if case_id in self.batch_waiting_processes[task_id]:
+            return
+        
+        self.batch_waiting_processes[task_id].append(case_id)
+        
+        if task_id in self.batch_count:
+            self.batch_count[task_id] += 1
+        else:
+            self.batch_count[task_id] = 1
 
 
 def discover_bpmn_from_log(log_path, process_name):

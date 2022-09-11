@@ -1,3 +1,4 @@
+from numpy import number
 import pytz
 import datetime
 from datetime import timedelta
@@ -19,7 +20,8 @@ class SimDiffSetup:
             = parse_json_sim_parameters(json_path)
 
         self.bpmn_graph = parse_simulation_model(bpmn_path)
-        self.bpmn_graph.set_element_probabilities(self.element_probability, self.task_resource, self.event_distibution)
+        self.bpmn_graph.set_additional_fields_from_json(self.element_probability, \
+            self.task_resource, self.event_distibution, self.batch_processing)
         if not self.arrival_calendar:
             self.arrival_calendar = self.find_arrival_calendar()
 
@@ -58,11 +60,12 @@ class SimDiffSetup:
     def is_enabled(self, e_id, p_state):
         return self.bpmn_graph.is_enabled(e_id, p_state)
 
-    def update_process_state(self, e_id, p_state, completed_time_prev_event):
-        return self.bpmn_graph.update_process_state(e_id, p_state, completed_time_prev_event)
+    def update_process_state(self, p_case, e_id, p_state, completed_time_prev_event):
+        return self.bpmn_graph.update_process_state(p_case, e_id, p_state, completed_time_prev_event)
 
     def find_arrival_calendar(self):
-        enabled_tasks = self.update_process_state(self.bpmn_graph.starting_event, self.initial_state(), None)
+        # TODO: make sure this 0 as p_case does not break anything
+        enabled_tasks = self.update_process_state(0, self.bpmn_graph.starting_event, self.initial_state(), None)
         starter_resources = set()
         arrival_calendar = RCalendar("arrival_calendar")
         for task_id in enabled_tasks:
@@ -73,10 +76,27 @@ class SimDiffSetup:
                 starter_resources.add(r_id)
         return arrival_calendar
 
-    def ideal_task_duration(self, task_id, resource_id):
+    def ideal_task_duration(self, task_id, resource_id, num_tasks_in_batch: number):
         val = generate_number_from(self.task_resource[task_id][resource_id]['distribution_name'],
-                                   self.task_resource[task_id][resource_id]['distribution_params'])
-        return val
+                        self.task_resource[task_id][resource_id]['distribution_params'])
+                        
+        if num_tasks_in_batch == 0:
+            # task executed NOT in batch
+            return val
+        else:
+            # task executed as a part of the batch
+            curr_batch_info = self.batch_processing.get(task_id, None)
+            if curr_batch_info == None:
+                print(f"WARNING: Could not find info about batch_processing for task {task_id}")
+
+            curr_coef = curr_batch_info.duration_distribution.get(num_tasks_in_batch, None)
+
+            if curr_coef is None:
+                # TODO: find the nearest key in case of not matching
+                return val
+
+            return curr_coef * val
+
 
     def real_task_duration(self, task_duration, resource_id, enabled_at):
         return self.calendars_map[self.resources_map[resource_id].calendar_id].find_idle_time(enabled_at, task_duration)
