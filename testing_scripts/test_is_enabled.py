@@ -20,11 +20,12 @@ def test_or_gateway_one_token_before_or_true(assets_path):
     bpmn_path = assets_path / 'test_and_or.bpmn'
     json_path = assets_path / 'test_or_xor_follow.json'
     
-    _, _, element_probability, task_resource, _, event_distribution \
+    _, _, element_probability, task_resource, _, event_distribution, batch_processing \
         = parse_json_sim_parameters(json_path)
 
     bpmn_graph = parse_simulation_model(bpmn_path)
-    bpmn_graph.set_element_probabilities(element_probability, task_resource, event_distribution)
+    bpmn_graph.set_additional_fields_from_json(element_probability, task_resource, 
+        event_distribution, batch_processing)
     
     sim_setup = SimDiffSetup(bpmn_path, json_path, False)
     sim_setup.set_starting_satetime(pytz.utc.localize(datetime.datetime.now()))
@@ -55,11 +56,12 @@ def test_or_gateway_both_tokens_before_or_true(assets_path):
     bpmn_path = assets_path / 'test_and_or.bpmn'
     json_path = assets_path / 'test_or_xor_follow.json'
     
-    _, _, element_probability, task_resource, _, event_distribution \
+    _, _, element_probability, task_resource, _, event_distribution, batch_processing \
         = parse_json_sim_parameters(json_path)
 
     bpmn_graph = parse_simulation_model(bpmn_path)
-    bpmn_graph.set_element_probabilities(element_probability, task_resource, event_distribution)
+    bpmn_graph.set_additional_fields_from_json(element_probability, task_resource,
+        event_distribution, batch_processing)
     
     sim_setup = SimDiffSetup(bpmn_path, json_path, False)
     sim_setup.set_starting_satetime(pytz.utc.localize(datetime.datetime.now()))
@@ -94,11 +96,12 @@ def test_or_gateway_one_token_before_xor_false(assets_path):
     bpmn_path = assets_path / 'test_and_or.bpmn'
     json_path = assets_path / 'test_or_xor_follow.json'
     
-    _, _, element_probability, task_resource, _, event_distribution \
+    _, _, element_probability, task_resource, _, event_distribution, batch_processing \
         = parse_json_sim_parameters(json_path)
 
     bpmn_graph = parse_simulation_model(bpmn_path)
-    bpmn_graph.set_element_probabilities(element_probability, task_resource, event_distribution)
+    bpmn_graph.set_additional_fields_from_json(element_probability, task_resource,
+        event_distribution, batch_processing)
     
     sim_setup = SimDiffSetup(bpmn_path, json_path, False)
     sim_setup.set_starting_satetime(pytz.utc.localize(datetime.datetime.now()))

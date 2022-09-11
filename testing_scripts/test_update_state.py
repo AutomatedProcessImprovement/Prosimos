@@ -16,14 +16,16 @@ def test_not_enabled_event_empty_tasks(assets_path):
     bpmn_path = assets_path / 'test_and_or.bpmn'
     json_path = assets_path / 'test_or_xor_follow.json'
     
-    _, _, element_probability, task_resource, _, event_distribution \
+    _, _, element_probability, task_resource, _, event_distribution, batch_processing \
         = parse_json_sim_parameters(json_path)
 
     bpmn_graph = parse_simulation_model(bpmn_path)
-    bpmn_graph.set_element_probabilities(element_probability, task_resource, event_distribution)
+    bpmn_graph.set_additional_fields_from_json(element_probability, task_resource,
+        event_distribution, batch_processing)
     
     sim_setup = SimDiffSetup(bpmn_path, json_path, False)
     sim_setup.set_starting_satetime(pytz.utc.localize(datetime.datetime.now()))
+    p_case = 0
     p_state = sim_setup.initial_state()
 
     # Task 1 A                      -> join inclusive (OR) gateway
@@ -35,7 +37,7 @@ def test_not_enabled_event_empty_tasks(assets_path):
     # ====== ACT ======
     e_id = "Activity_1tidlw3"       # id of the 'Task 1 A' activity
     prev_completed_event_time = datetime.datetime.now(pytz.utc)
-    result = bpmn_graph.update_process_state(e_id, p_state, prev_completed_event_time)
+    result = bpmn_graph.update_process_state(p_case, e_id, p_state, prev_completed_event_time)
 
     # ====== ASSERT ======
     assert len(result) == 0, "List with enabled tasks should not contain elements"
@@ -61,14 +63,16 @@ def test_enabled_first_task_enables_next_one(assets_path):
     bpmn_path = assets_path / 'test_and_or.bpmn'
     json_path = assets_path / 'test_or_xor_follow.json'
     
-    _, _, element_probability, task_resource, _, event_distribution \
+    _, _, element_probability, task_resource, _, event_distribution, batch_processing \
         = parse_json_sim_parameters(json_path)
 
     bpmn_graph = parse_simulation_model(bpmn_path)
-    bpmn_graph.set_element_probabilities(element_probability, task_resource, event_distribution)
+    bpmn_graph.set_additional_fields_from_json(element_probability, task_resource,
+        event_distribution, batch_processing)
     
     sim_setup = SimDiffSetup(bpmn_path, json_path, False)
     sim_setup.set_starting_satetime(pytz.utc.localize(datetime.datetime.now()))
+    p_case = 0
     p_state = sim_setup.initial_state()
 
     # split inclusive (OR) gateway      -> Task 1 B
@@ -80,11 +84,12 @@ def test_enabled_first_task_enables_next_one(assets_path):
     # ====== ACT ======
     e_id = "Activity_1uiiyhu"           # id of the 'Task 1 B' activity
     prev_completed_event_time = datetime.datetime.now(pytz.utc)
-    result = bpmn_graph.update_process_state(e_id, p_state, prev_completed_event_time)
+    result = bpmn_graph.update_process_state(p_case, e_id, p_state, prev_completed_event_time)
 
     # ====== ASSERT ======
     assert len(result) == 1, "List with enabled tasks should contain one element"
-    assert sorted(result) == ["Activity_0mz9221"]
+    assert result[0].task_id == "Activity_0mz9221"
+    assert result[0].batch_info == None 
 
     all_tokens = p_state.tokens
     expected_flows_with_token = ["Flow_1sl476n", "Flow_0vgoazd"]
@@ -106,14 +111,16 @@ def test_enabled_first_task_token_wait_at_the_or_join(assets_path):
     bpmn_path = assets_path / 'test_and_or.bpmn'
     json_path = assets_path / 'test_or_not_xor_follow.json'
     
-    _, _, element_probability, task_resource, _, event_distribution \
+    _, _, element_probability, task_resource, _, event_distribution, batch_processing \
         = parse_json_sim_parameters(json_path)
 
     bpmn_graph = parse_simulation_model(bpmn_path)
-    bpmn_graph.set_element_probabilities(element_probability, task_resource, event_distribution)
+    bpmn_graph.set_additional_fields_from_json(element_probability, task_resource,
+        event_distribution, batch_processing)
     
     sim_setup = SimDiffSetup(bpmn_path, json_path, False)
     sim_setup.set_starting_satetime(pytz.utc.localize(datetime.datetime.now()))
+    p_case = 0
     p_state = sim_setup.initial_state()
 
     # split inclusive (OR) gateway      -> Task 1 B
@@ -125,7 +132,7 @@ def test_enabled_first_task_token_wait_at_the_or_join(assets_path):
     # ====== ACT ======
     e_id = "Activity_1uiiyhu"           # id of the 'Task 1 B' activity
     prev_completed_event_time = datetime.datetime.now(pytz.utc)
-    result = bpmn_graph.update_process_state(e_id, p_state, prev_completed_event_time)
+    result = bpmn_graph.update_process_state(p_case, e_id, p_state, prev_completed_event_time)
 
     # ====== ASSERT ======
     assert len(result) == 0, "List with enabled tasks should not contain elements"
@@ -149,14 +156,16 @@ def test_update_state_event_gateway_event_happened(assets_path):
     bpmn_path = assets_path / 'stock_replenishment.bpmn'
     json_path = assets_path / 'stock_replenishment_logs.json'
     
-    _, _, element_probability, task_resource, _, event_distribution \
+    _, _, element_probability, task_resource, _, event_distribution, batch_processing \
         = parse_json_sim_parameters(json_path)
 
     bpmn_graph = parse_simulation_model(bpmn_path)
-    bpmn_graph.set_element_probabilities(element_probability, task_resource, event_distribution)
+    bpmn_graph.set_additional_fields_from_json(element_probability, task_resource,
+        event_distribution, batch_processing)
     
     sim_setup = SimDiffSetup(bpmn_path, json_path, False)
     sim_setup.set_starting_satetime(pytz.utc.localize(datetime.datetime.now()))
+    p_case = 0
     p_state = sim_setup.initial_state()
 
     # Parallel gateway split            -> Event-based gateway split
@@ -166,11 +175,12 @@ def test_update_state_event_gateway_event_happened(assets_path):
     e_id = "Gateway_0ntcp3d"            # Event-based gateway split
     prev_completed_event_time = \
         datetime.datetime.fromisoformat('2022-08-10T16:05:00') # Wednesday, 16:05
-    result = bpmn_graph.update_process_state(e_id, p_state, prev_completed_event_time)
+    result = bpmn_graph.update_process_state(p_case, e_id, p_state, prev_completed_event_time)
 
     # ====== ASSERT ======
     assert len(result) == 1, "List with enabled tasks should contain one element"
-    assert sorted(result) == ["Event_1qclhcl"]
+    assert result[0].task_id == "Event_1qclhcl"
+    assert result[0].batch_info == None
 
     all_tokens = p_state.tokens
     expected_flows_with_token = ["Flow_0bzfgao"]
@@ -192,14 +202,16 @@ def test_update_state_event_gateway_upper_limit(assets_path):
     bpmn_path = assets_path / 'stock_replenishment.bpmn'
     json_path = assets_path / 'stock_replenishment_logs.json'
     
-    _, _, element_probability, task_resource, _, event_distribution \
+    _, _, element_probability, task_resource, _, event_distribution, batch_processing \
         = parse_json_sim_parameters(json_path)
 
     bpmn_graph = parse_simulation_model(bpmn_path)
-    bpmn_graph.set_element_probabilities(element_probability, task_resource, event_distribution)
+    bpmn_graph.set_additional_fields_from_json(element_probability, task_resource,
+        event_distribution, batch_processing)
     
     sim_setup = SimDiffSetup(bpmn_path, json_path, False)
     sim_setup.set_starting_satetime(pytz.utc.localize(datetime.datetime.now()))
+    p_case = 0
     p_state = sim_setup.initial_state()
 
     # Parallel gateway split            -> Event-based gateway split
@@ -209,11 +221,12 @@ def test_update_state_event_gateway_upper_limit(assets_path):
     e_id = "Gateway_0ntcp3d"            # Event-based gateway split
     prev_completed_event_time = \
         datetime.datetime.fromisoformat('2022-08-05T12:05:00')
-    result = bpmn_graph.update_process_state(e_id, p_state, prev_completed_event_time)
+    result = bpmn_graph.update_process_state(p_case, e_id, p_state, prev_completed_event_time)
 
     # ====== ASSERT ======
     assert len(result) == 1, "List with enabled tasks should contain one element"
-    assert sorted(result) == ["Event_0bsdbzb"]
+    assert result[0].task_id == "Event_0bsdbzb"
+    assert result[0].batch_info == None
 
     all_tokens = p_state.tokens
     expected_flows_with_token = ["Flow_0u4ip3z"]
@@ -233,14 +246,16 @@ def test_update_state_terminate_event(assets_path):
     bpmn_path = assets_path / 'stock_replenishment.bpmn'
     json_path = assets_path / 'stock_replenishment_logs.json'
     
-    _, _, element_probability, task_resource, _, event_distribution \
+    _, _, element_probability, task_resource, _, event_distribution, batch_processing \
         = parse_json_sim_parameters(json_path)
 
     bpmn_graph = parse_simulation_model(bpmn_path)
-    bpmn_graph.set_element_probabilities(element_probability, task_resource, event_distribution)
+    bpmn_graph.set_additional_fields_from_json(element_probability, task_resource,
+        event_distribution, batch_processing)
     
     sim_setup = SimDiffSetup(bpmn_path, json_path, False)
     sim_setup.set_starting_satetime(pytz.utc.localize(datetime.datetime.now()))
+    p_case = 0
     p_state = sim_setup.initial_state()
 
     # 'Order response received'         -> 'Handle order response'
@@ -252,7 +267,7 @@ def test_update_state_terminate_event(assets_path):
     e_id = "Event_06aw5gs"            # 'Handle order response' activity
     prev_completed_event_time = \
         datetime.datetime.fromisoformat('2022-08-05T12:05:00')
-    result = bpmn_graph.update_process_state(e_id, p_state, prev_completed_event_time)
+    result = bpmn_graph.update_process_state(p_case, e_id, p_state, prev_completed_event_time)
 
     # ====== ASSERT ======
     assert len(result) == 0, "List with enabled tasks should contain no elements"

@@ -1,4 +1,3 @@
-from numpy import number
 import pytz
 import datetime
 from datetime import timedelta
@@ -76,7 +75,7 @@ class SimDiffSetup:
                 starter_resources.add(r_id)
         return arrival_calendar
 
-    def ideal_task_duration(self, task_id, resource_id, num_tasks_in_batch: number):
+    def ideal_task_duration(self, task_id, resource_id, num_tasks_in_batch):
         val = generate_number_from(self.task_resource[task_id][resource_id]['distribution_name'],
                         self.task_resource[task_id][resource_id]['distribution_params'])
                         
