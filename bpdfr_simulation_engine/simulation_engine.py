@@ -152,7 +152,7 @@ class SimBPMEnv:
                 r_avail_at = r_avail_at + self.sim_setup.next_resting_time(r_id, avail_datetime)
 
             full_evt = TaskEvent(p_case, task_id, r_id, r_avail_at, enabled_at,
-                                enabled_datetime, self)
+                                enabled_datetime, self, num_tasks_in_batch)
 
             self.log_info.add_event_info(p_case, full_evt, self.sim_setup.resources_map[r_id].cost_per_hour)
 

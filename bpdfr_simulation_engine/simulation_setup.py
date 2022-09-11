@@ -88,7 +88,7 @@ class SimDiffSetup:
             if curr_batch_info == None:
                 print(f"WARNING: Could not find info about batch_processing for task {task_id}")
 
-            curr_coef = curr_batch_info.duration_distribution.get(num_tasks_in_batch, None)
+            curr_coef = curr_batch_info.duration_distribution.get(str(num_tasks_in_batch), None)
 
             if curr_coef is None:
                 # TODO: find the nearest key in case of not matching

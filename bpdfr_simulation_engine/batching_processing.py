@@ -38,3 +38,9 @@ class FiringRule():
             result = result and rule.is_true(element)
 
         return result
+
+class BatchConfigPerTask():
+    def __init__(self, type, duration_distibution, firing_rules):
+        self.type = type
+        self.duration_distribution = duration_distibution # batch_processing["duration_distrib"],
+        self.firing_rules = firing_rules

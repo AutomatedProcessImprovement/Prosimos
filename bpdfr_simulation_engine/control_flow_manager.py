@@ -338,7 +338,7 @@ class BPMNGraph:
             print(f"WARNING: task {task_id} does not have config for batching processing")
             return False
 
-        firing_rules: FiringRule = task_batch_info["firing_rules"]
+        firing_rules: FiringRule = task_batch_info.firing_rules
 
         size_count = self.batch_count[task_id] if self.batch_count.get(task_id, None) != None else 0
 
