@@ -85,7 +85,7 @@ class SimBPMEnv:
                     self.execute_task(c_event)
             else:
                 completed_at, completed_datetime, completed_datetime_for_next_element = \
-                    self.execute_task(c_event)
+                    self.execute_event(c_event)
 
             # Updating the process state. Retrieving/enqueuing enabled tasks, it also schedules the corresponding event
             # s_t = datetime.datetime.now()
