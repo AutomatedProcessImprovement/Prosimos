@@ -357,26 +357,6 @@ class BPMNGraph:
         return is_batched_task_enabled
 
 
-    def increase_task_count(self, task_id, case_id):
-        """ Keep track of the batched tasks in the queue """
-        # keep track of case_id which are waiting for the firing rule to be true
-        if task_id not in self.batch_waiting_processes:
-            self.batch_waiting_processes[task_id] = []
-        
-        # in case we execute the batch, no need to increase the total num
-        # if case_id in self.batch_waiting_processes[task_id]:
-        #     return
-        
-        self.batch_waiting_processes[task_id].append(case_id)
-        
-        if task_id in self.batch_count:
-            self.batch_count[task_id] += 1
-        else:
-            self.batch_count[task_id] = 1
-        
-
-
-
     def get_event_gateway_choice(self, gateway_element_info: ElementInfo, completed_datetime_prev_event):
         """
         Find which flow will be executed next based on gateway element info
@@ -816,16 +796,17 @@ class BPMNGraph:
         next_e = self.flow_arcs[f_arc][1]
         if self.is_enabled(next_e, p_state):
             if self.element_info[next_e].type == BPMN.TASK and self.is_task_batched(next_e):
+                # wait till the time firing rule is true
+                # TODO: add waiting time
+                self.increase_task_count(next_e, case_id)
+
                 if self.is_batched_task_enabled(next_e):
                     batch_info = BatchInfoForExecution(
                         self.batch_waiting_processes[next_e],
                         self.batch_info)
                     enabled_tasks.append(EnabledTask(next_e, batch_info))
                     self._clear_batch(next_e)
-                else:
-                    # wait till the time firing rule is true
-                    # TODO: add waiting time
-                    self.increase_task_count(next_e, case_id)
+                    
             elif self.element_info[next_e].type in [BPMN.TASK, BPMN.INTERMEDIATE_EVENT]:
                 enabled_tasks.append(EnabledTask(next_e))
             else:

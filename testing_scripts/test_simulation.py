@@ -73,28 +73,17 @@ def test_timer_event_correct_duration_in_sim_logs(assets_path):
     df['end_time'] = pd.to_datetime(df['end_time'], errors='coerce')
 
     only_timer_events = df[df['activity'] == '15m']
-    end_start_diff_for_timer = only_timer_events['end_time'] - only_timer_events['start_time']
-
-    assert only_timer_events.shape[0] == 5, \
-        "The total number of timer events in the log file should be equal to 5"
-
-    expected_timer_timedelta = datetime.timedelta(minutes=15)
-    for diff in end_start_diff_for_timer:
-        assert diff == expected_timer_timedelta, \
-            f"The duration of the timer does not equal to 15 min"
+    expected_task_timedelta = datetime.timedelta(minutes=15)
+    expected_task_count = 5
+    _verify_activity_count_and_duration(only_timer_events, expected_task_count, expected_task_timedelta)
 
     # other events should include only task 
     # with the fixed distribution of 30 minutes
     df = df[df['activity'] != '15m']
-    end_start_diff_for_other_events = df['end_time'] - df['start_time']
-
-    assert df.shape[0] == 5, \
-        "The total number of task events in the log file should be equal to 5"
-
     expected_task_timedelta = datetime.timedelta(minutes=30)
-    for diff in end_start_diff_for_other_events:
-        assert diff == expected_task_timedelta, \
-            f"The duration of the task does not equal to 30 min"
+    expected_task_count = 5
+    _verify_activity_count_and_duration(df, expected_task_count, expected_task_timedelta)
+
 
 def test_timer_event_no_events_in_logs(assets_path):
     """
@@ -139,12 +128,16 @@ def test_timer_event_no_events_in_logs(assets_path):
 
     # events should include only task 
     # with the fixed distribution of 30 minutes
-    end_start_diff_for_other_events = df['end_time'] - df['start_time']
-
-    assert df.shape[0] == 5, \
-        "The total number of task events in the log file should be equal to 5"
-
     expected_task_timedelta = datetime.timedelta(minutes=30)
-    for diff in end_start_diff_for_other_events:
-        assert diff == expected_task_timedelta, \
-            f"The duration of the task does not equal to 30 min"
+    expected_task_count = 5
+    _verify_activity_count_and_duration(df, expected_task_count, expected_task_timedelta)
+
+
+def _verify_activity_count_and_duration(activities, count, expected_activity_timedelta):
+    assert activities.shape[0] == count, \
+        f"The total number of activities in the log file should be equal to {count}"
+    
+    end_start_diff_for_task = activities['end_time'] - activities['start_time']
+    for diff in end_start_diff_for_task:
+        assert diff == expected_activity_timedelta, \
+            f"The duration of the activity does not equal to {expected_activity_timedelta}"
