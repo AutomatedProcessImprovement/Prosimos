@@ -171,8 +171,6 @@ class SimBPMEnv:
                                         full_evt.completed_datetime,
                                         self.sim_setup.resources_map[full_evt.resource_id].resource_name])
 
-            # completed_datetime_for_next_element = full_evt.completed_datetime
-
             completed_at = full_evt.completed_at
             completed_datetime = full_evt.completed_datetime
 
@@ -181,7 +179,6 @@ class SimBPMEnv:
 
             yield completed_at, completed_datetime, p_case
 
-        # return completed_at, completed_datetime, completed_datetime_for_next_element
 
     def execute_event(self, c_event):
         # Handle event types separately (they don't need assigned resource)

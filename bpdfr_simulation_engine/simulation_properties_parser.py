@@ -138,11 +138,15 @@ def parse_batch_processing(batch_processing_json_data):
             firing_rule = FiringRule(parsed_or_rules)
             firing_rules.append(firing_rule)
 
+        duration_distibution = dict()
+        for item in batch_processing["duration_distrib"]:
+            duration_distibution[int(item)] = batch_processing["duration_distrib"][item]
+
         # TODO: "batch_frequency" and "size_distrib" should be added, as well
 
         batch_config[t_id] = BatchConfigPerTask(
             type,
-            batch_processing["duration_distrib"],
+            duration_distibution,
             firing_rules
         )
 

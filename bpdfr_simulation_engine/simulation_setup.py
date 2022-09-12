@@ -2,6 +2,8 @@ import pytz
 import datetime
 from datetime import timedelta
 import ntpath
+from bpdfr_simulation_engine.batching_processing import BatchConfigPerTask
+from typing import Optional
 
 from bpdfr_simulation_engine.control_flow_manager import ProcessState, ElementInfo, BPMN
 from bpdfr_simulation_engine.probability_distributions import generate_number_from
@@ -84,17 +86,11 @@ class SimDiffSetup:
             return val
         else:
             # task executed as a part of the batch
-            curr_batch_info = self.batch_processing.get(task_id, None)
+            curr_batch_info: Optional[BatchConfigPerTask] = self.batch_processing.get(task_id, None)
             if curr_batch_info == None:
                 print(f"WARNING: Could not find info about batch_processing for task {task_id}")
 
-            curr_coef = curr_batch_info.duration_distribution.get(str(num_tasks_in_batch), None)
-
-            if curr_coef is None:
-                # TODO: find the nearest key in case of not matching
-                return val
-
-            return curr_coef * val
+            return curr_batch_info.calculate_ideal_duration(val, num_tasks_in_batch)
 
 
     def real_task_duration(self, task_duration, resource_id, enabled_at):
