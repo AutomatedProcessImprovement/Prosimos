@@ -5,7 +5,7 @@ from pathlib import Path
 import pytz
 import datetime
 from datetime import timedelta
-from bpdfr_simulation_engine.control_flow_manager import BPMN, EVENT_TYPE, EnabledTask
+from bpdfr_simulation_engine.control_flow_manager import BPMN, EVENT_TYPE, CustomDatetimeAndSeconds, EnabledTask
 
 from bpdfr_simulation_engine.file_manager import FileManager
 from bpdfr_simulation_engine.execution_info import Trace, TaskEvent, EnabledEvent
@@ -49,7 +49,8 @@ class SimBPMEnv:
         for p_case in range(0, total_cases):
             p_state = sim_setup.initial_state()
             enabled_datetime = self.simulation_datetime_from(arrival_time)
-            enabled_tasks: list[EnabledTask] = sim_setup.update_process_state(p_case, sim_setup.bpmn_graph.starting_event, p_state, enabled_datetime)
+            enabled_time = CustomDatetimeAndSeconds(arrival_time, enabled_datetime)
+            enabled_tasks: list[EnabledTask] = sim_setup.update_process_state(p_case, sim_setup.bpmn_graph.starting_event, p_state, enabled_time)
             self.all_process_states[p_case] = p_state
             self.log_info.trace_list.append(Trace(p_case, enabled_datetime))
             for task in enabled_tasks:
@@ -70,9 +71,10 @@ class SimBPMEnv:
             for task in executed_tasks:
                 completed_at, completed_datetime, p_case = task
                 p_state = self.all_process_states[p_case]
+                enabled_time = CustomDatetimeAndSeconds(completed_at, completed_datetime)
                 enabled_tasks: list[EnabledTask] = self.sim_setup.update_process_state(
                     p_case, c_event.task_id, self.all_process_states[p_case], 
-                    completed_datetime)
+                    enabled_time)
 
                 for next_task in enabled_tasks:
                     self.events_queue.append_enabled_event(
@@ -89,7 +91,8 @@ class SimBPMEnv:
 
             # Updating the process state. Retrieving/enqueuing enabled tasks, it also schedules the corresponding event
             # s_t = datetime.datetime.now()
-            enabled_tasks: list[EnabledTask] = self.sim_setup.update_process_state(c_event.p_case, c_event.task_id, c_event.p_state, completed_datetime_for_next_element)
+            enabled_time = CustomDatetimeAndSeconds(completed_at, completed_datetime)
+            enabled_tasks: list[EnabledTask] = self.sim_setup.update_process_state(c_event.p_case, c_event.task_id, c_event.p_state, enabled_time)
             # self.time_update_process_state += (datetime.datetime.now() - s_t).total_seconds()
 
             for next_task in enabled_tasks:
@@ -139,13 +142,15 @@ class SimBPMEnv:
         num_tasks_in_batch = len(c_event.batch_info.case_ids)
         self.sim_resources[r_id].allocated_tasks += num_tasks_in_batch
 
-        enabled_at = c_event.enabled_at
-        enabled_datetime = c_event.enabled_datetime
-        for case_id in c_event.batch_info.case_ids:
+        completed_at = 0
+        for (case_id, enabled_time) in c_event.batch_info.case_ids.items():
             p_case = case_id
             task_id = c_event.task_id
+            enabled_at = enabled_time.seconds_from_start
+            enabled_datetime = enabled_time.datetime
+            enabled_batch = c_event.enabled_at
 
-            r_avail_at = max(enabled_at, r_avail_at)
+            r_avail_at = max(enabled_at, r_avail_at, enabled_batch, completed_at)
             avail_datetime = self._datetime_from(r_avail_at)
             is_working, _ = self.sim_setup.get_resource_calendar(r_id).is_working_datetime(avail_datetime)
             if not is_working:
@@ -174,8 +179,8 @@ class SimBPMEnv:
             completed_at = full_evt.completed_at
             completed_datetime = full_evt.completed_datetime
 
-            enabled_at = full_evt.completed_at
-            enabled_datetime = full_evt.completed_datetime
+            # enabled_at = full_evt.completed_at
+            # enabled_datetime = full_evt.completed_datetime
 
             yield completed_at, completed_datetime, p_case
 
@@ -253,6 +258,8 @@ def execute_full_process(bpm_env: SimBPMEnv, total_cases):
         bpm_env.execute_enabled_event(current_event)
         current_event = bpm_env.events_queue.pop_next_event()
 
+    # TODO: validate that we don't have any tasks left in the batch
+
 
 def run_simulation(bpmn_path, json_path, total_cases, stat_out_path=None, log_out_path=None, starting_at=None, is_event_added_to_log=False):
     diffsim_info = SimDiffSetup(bpmn_path, json_path, is_event_added_to_log)
@@ -260,7 +267,7 @@ def run_simulation(bpmn_path, json_path, total_cases, stat_out_path=None, log_ou
     if not diffsim_info:
         return None
 
-    diffsim_info.set_starting_satetime(starting_at if starting_at else pytz.utc.localize(datetime.datetime.now()))
+    diffsim_info.set_starting_datetime(starting_at if starting_at else pytz.utc.localize(datetime.datetime.now()))
 
     if not stat_out_path and not log_out_path:
         stat_out_path = os.path.join(os.path.dirname(__file__), Path("%s.csv" % diffsim_info.process_name))

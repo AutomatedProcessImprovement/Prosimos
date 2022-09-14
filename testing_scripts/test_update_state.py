@@ -24,7 +24,7 @@ def test_not_enabled_event_empty_tasks(assets_path):
         event_distribution, batch_processing)
     
     sim_setup = SimDiffSetup(bpmn_path, json_path, False)
-    sim_setup.set_starting_satetime(pytz.utc.localize(datetime.datetime.now()))
+    sim_setup.set_starting_datetime(pytz.utc.localize(datetime.datetime.now()))
     p_case = 0
     p_state = sim_setup.initial_state()
 
@@ -71,7 +71,7 @@ def test_enabled_first_task_enables_next_one(assets_path):
         event_distribution, batch_processing)
     
     sim_setup = SimDiffSetup(bpmn_path, json_path, False)
-    sim_setup.set_starting_satetime(pytz.utc.localize(datetime.datetime.now()))
+    sim_setup.set_starting_datetime(pytz.utc.localize(datetime.datetime.now()))
     p_case = 0
     p_state = sim_setup.initial_state()
 
@@ -119,7 +119,7 @@ def test_enabled_first_task_token_wait_at_the_or_join(assets_path):
         event_distribution, batch_processing)
     
     sim_setup = SimDiffSetup(bpmn_path, json_path, False)
-    sim_setup.set_starting_satetime(pytz.utc.localize(datetime.datetime.now()))
+    sim_setup.set_starting_datetime(pytz.utc.localize(datetime.datetime.now()))
     p_case = 0
     p_state = sim_setup.initial_state()
 
@@ -164,7 +164,7 @@ def test_update_state_event_gateway_event_happened(assets_path):
         event_distribution, batch_processing)
     
     sim_setup = SimDiffSetup(bpmn_path, json_path, False)
-    sim_setup.set_starting_satetime(pytz.utc.localize(datetime.datetime.now()))
+    sim_setup.set_starting_datetime(pytz.utc.localize(datetime.datetime.now()))
     p_case = 0
     p_state = sim_setup.initial_state()
 
@@ -210,7 +210,7 @@ def test_update_state_event_gateway_upper_limit(assets_path):
         event_distribution, batch_processing)
     
     sim_setup = SimDiffSetup(bpmn_path, json_path, False)
-    sim_setup.set_starting_satetime(pytz.utc.localize(datetime.datetime.now()))
+    sim_setup.set_starting_datetime(pytz.utc.localize(datetime.datetime.now()))
     p_case = 0
     p_state = sim_setup.initial_state()
 
@@ -254,7 +254,7 @@ def test_update_state_terminate_event(assets_path):
         event_distribution, batch_processing)
     
     sim_setup = SimDiffSetup(bpmn_path, json_path, False)
-    sim_setup.set_starting_satetime(pytz.utc.localize(datetime.datetime.now()))
+    sim_setup.set_starting_datetime(pytz.utc.localize(datetime.datetime.now()))
     p_case = 0
     p_state = sim_setup.initial_state()
 

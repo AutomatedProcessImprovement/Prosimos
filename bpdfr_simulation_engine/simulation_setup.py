@@ -96,5 +96,5 @@ class SimDiffSetup:
     def real_task_duration(self, task_duration, resource_id, enabled_at):
         return self.calendars_map[self.resources_map[resource_id].calendar_id].find_idle_time(enabled_at, task_duration)
 
-    def set_starting_satetime(self, new_datetime):
+    def set_starting_datetime(self, new_datetime):
         self.start_datetime = new_datetime

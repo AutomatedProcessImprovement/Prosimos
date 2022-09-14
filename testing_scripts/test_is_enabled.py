@@ -28,7 +28,7 @@ def test_or_gateway_one_token_before_or_true(assets_path):
         event_distribution, batch_processing)
     
     sim_setup = SimDiffSetup(bpmn_path, json_path, False)
-    sim_setup.set_starting_satetime(pytz.utc.localize(datetime.datetime.now()))
+    sim_setup.set_starting_datetime(pytz.utc.localize(datetime.datetime.now()))
     p_state = sim_setup.initial_state()
 
     # Task 1 A -> join inclusive (OR) gateway
@@ -64,7 +64,7 @@ def test_or_gateway_both_tokens_before_or_true(assets_path):
         event_distribution, batch_processing)
     
     sim_setup = SimDiffSetup(bpmn_path, json_path, False)
-    sim_setup.set_starting_satetime(pytz.utc.localize(datetime.datetime.now()))
+    sim_setup.set_starting_datetime(pytz.utc.localize(datetime.datetime.now()))
     p_state = sim_setup.initial_state()
 
     # Task 1 A -> join inclusive (OR) gateway
@@ -104,7 +104,7 @@ def test_or_gateway_one_token_before_xor_false(assets_path):
         event_distribution, batch_processing)
     
     sim_setup = SimDiffSetup(bpmn_path, json_path, False)
-    sim_setup.set_starting_satetime(pytz.utc.localize(datetime.datetime.now()))
+    sim_setup.set_starting_datetime(pytz.utc.localize(datetime.datetime.now()))
     p_state = sim_setup.initial_state()
 
     # Task 1 A -> join inclusive (OR) gateway

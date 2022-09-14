@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import pytest
 import json
+from pandas import testing as tm
 
 from bpdfr_simulation_engine.resource_calendar import parse_datetime
 from bpdfr_simulation_engine.simulation_properties_parser import parse_json_sim_parameters
@@ -77,8 +78,6 @@ def test_seq_batch_count_firing_rule_correct_duration(assets_path):
                                     sim_stats,
                                     sim_logs,
                                     True)
-
-    diff_sim_result.print_simulation_results()
 
     # ====== ASSERT ======
     # verify stats
@@ -162,3 +161,61 @@ def _setup_sim_scenario_file(json_dict, duration_distrib, firing_count):
             }
         ]
     ]
+
+def test_seq_batch_waiting_time_correct(assets_path):
+    # ====== ARRANGE ======
+    model_path = assets_path / 'batch-example-end-task.bpmn'
+    json_path = assets_path / 'batch-example-with-batch.json'
+    sim_stats = assets_path / 'batch_stats.csv'
+    sim_logs = assets_path / 'batch_logs.csv'
+
+    start_string = '2022-06-21 13:22:30.035185+03:00'
+    start_date = parse_datetime(start_string, True)
+
+    # ====== ACT ======
+    _, diff_sim_result = run_diff_res_simulation(start_date,
+                                    6,
+                                    model_path,
+                                    json_path,
+                                    sim_stats,
+                                    sim_logs,
+                                    True)
+
+    # ====== ASSERT ======
+    diff_sim_result.print_simulation_results()
+
+    task_d_sim_result = diff_sim_result.tasks_kpi_map['D']
+    full_act_dur = 120
+    expected_activity_in_batch_duration_sec = full_act_dur * 0.8
+    assert task_d_sim_result.processing_time.avg == expected_activity_in_batch_duration_sec
+
+    # the first task in the batch will wait for the longest
+    # this happens because dur_task_prior_to_batch > dur_task_in_batch (120 > 96)
+    # calculation: duration of the task prior to the batch *   of tasks
+    # since batch is of size 3, one is current, two more is needed to enable the batch execution
+    assert task_d_sim_result.waiting_time.max == full_act_dur * 2
+
+    # the last task in the batch (sorted by case_id) will wait the lowest
+    # this happens because dur_task_prior_to_batch > dur_task_in_batch (120 > 96)
+    assert task_d_sim_result.waiting_time.min == expected_activity_in_batch_duration_sec * 2
+
+    # verify duration in logs
+    df = pd.read_csv(sim_logs)
+    
+    df['enable_time'] = pd.to_datetime(df['enable_time'], errors='coerce')
+    df['start_time'] = pd.to_datetime(df['start_time'], errors='coerce')
+    df['end_time'] = pd.to_datetime(df['end_time'], errors='coerce')
+    
+    logs_d_task = df[df['activity'] == 'D']
+    
+    start_enable_start_diff_for_task = logs_d_task['start_time'] - logs_d_task['enable_time']
+    expected_waiting_times = pd.Series([
+        datetime.timedelta(seconds=full_act_dur * 2),
+        datetime.timedelta(seconds=full_act_dur     + expected_activity_in_batch_duration_sec),
+        datetime.timedelta(seconds=0                + expected_activity_in_batch_duration_sec * 2),
+        datetime.timedelta(seconds=full_act_dur * 2),
+        datetime.timedelta(seconds=full_act_dur     + expected_activity_in_batch_duration_sec),
+        datetime.timedelta(seconds=0                + expected_activity_in_batch_duration_sec * 2)
+    ])
+    
+    tm.assert_series_equal(start_enable_start_diff_for_task, expected_waiting_times, check_index=False)
