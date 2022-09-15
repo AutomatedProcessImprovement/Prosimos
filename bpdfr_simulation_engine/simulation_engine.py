@@ -83,10 +83,10 @@ class SimBPMEnv:
         else:
             if event_element_info.type == BPMN.TASK:
                 # execute not batched task
-                completed_at, completed_datetime, completed_datetime_for_next_element = \
+                completed_at, completed_datetime = \
                     self.execute_task(c_event)
             else:
-                completed_at, completed_datetime, completed_datetime_for_next_element = \
+                completed_at, completed_datetime = \
                     self.execute_event(c_event)
 
             # Updating the process state. Retrieving/enqueuing enabled tasks, it also schedules the corresponding event
@@ -130,12 +130,10 @@ class SimBPMEnv:
                                     full_evt.completed_datetime,
                                     self.sim_setup.resources_map[full_evt.resource_id].resource_name])
 
-        completed_datetime_for_next_element = full_evt.completed_datetime
-
         completed_at = full_evt.completed_at
         completed_datetime = full_evt.completed_datetime
 
-        return completed_at, completed_datetime, completed_datetime_for_next_element
+        return completed_at, completed_datetime
 
     def execute_task_batch(self, c_event: EnabledEvent):
         if c_event.batch_info_exec.is_sequential():
@@ -245,10 +243,8 @@ class SimBPMEnv:
             # all other type should have defined probabilities
             event_duration_seconds = self.sim_setup.bpmn_graph.event_duration(event_element.id)
 
-        completed_datetime_for_next_element = c_event.enabled_datetime + timedelta(seconds=event_duration_seconds)
-
         completed_at = c_event.enabled_at + event_duration_seconds
-        completed_datetime = completed_datetime_for_next_element
+        completed_datetime = c_event.enabled_datetime + timedelta(seconds=event_duration_seconds)
 
         full_evt = TaskEvent.create_event_entity(c_event, completed_at, completed_datetime)
 
@@ -262,7 +258,7 @@ class SimBPMEnv:
                             full_evt.completed_datetime,
                             "No assigned resource"])
 
-        return completed_at, completed_datetime, completed_datetime_for_next_element
+        return completed_at, completed_datetime
 
     def _datetime_from(self, in_seconds):
         return self.simulation_datetime_from(in_seconds) if in_seconds is not None else None

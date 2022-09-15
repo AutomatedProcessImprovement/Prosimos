@@ -1,3 +1,4 @@
+from bpdfr_simulation_engine.control_flow_manager import CustomDatetimeAndSeconds
 from bpdfr_simulation_engine.simulation_properties_parser import parse_json_sim_parameters, parse_simulation_model
 from bpdfr_simulation_engine.simulation_setup import SimDiffSetup
 from test_discovery import assets_path
@@ -89,7 +90,7 @@ def test_enabled_first_task_enables_next_one(assets_path):
     # ====== ASSERT ======
     assert len(result) == 1, "List with enabled tasks should contain one element"
     assert result[0].task_id == "Activity_0mz9221"
-    assert result[0].batch_info == None 
+    assert result[0].batch_info_exec == None 
 
     all_tokens = p_state.tokens
     expected_flows_with_token = ["Flow_1sl476n", "Flow_0vgoazd"]
@@ -131,7 +132,7 @@ def test_enabled_first_task_token_wait_at_the_or_join(assets_path):
 
     # ====== ACT ======
     e_id = "Activity_1uiiyhu"           # id of the 'Task 1 B' activity
-    prev_completed_event_time = datetime.datetime.now(pytz.utc)
+    prev_completed_event_time = CustomDatetimeAndSeconds(0, datetime.datetime.now(pytz.utc))
     result = bpmn_graph.update_process_state(p_case, e_id, p_state, prev_completed_event_time)
 
     # ====== ASSERT ======
@@ -173,14 +174,13 @@ def test_update_state_event_gateway_event_happened(assets_path):
 
     # ====== ACT ======
     e_id = "Gateway_0ntcp3d"            # Event-based gateway split
-    prev_completed_event_time = \
-        datetime.datetime.fromisoformat('2022-08-10T16:05:00') # Wednesday, 16:05
+    prev_completed_event_time = CustomDatetimeAndSeconds(0, datetime.datetime.fromisoformat('2022-08-10T16:05:00')) # Wednesday, 16:05
     result = bpmn_graph.update_process_state(p_case, e_id, p_state, prev_completed_event_time)
 
     # ====== ASSERT ======
     assert len(result) == 1, "List with enabled tasks should contain one element"
     assert result[0].task_id == "Event_1qclhcl"
-    assert result[0].batch_info == None
+    assert result[0].batch_info_exec == None
 
     all_tokens = p_state.tokens
     expected_flows_with_token = ["Flow_0bzfgao"]
@@ -219,14 +219,14 @@ def test_update_state_event_gateway_upper_limit(assets_path):
 
     # ====== ACT ======
     e_id = "Gateway_0ntcp3d"            # Event-based gateway split
-    prev_completed_event_time = \
-        datetime.datetime.fromisoformat('2022-08-05T12:05:00')
+    prev_completed_event_time = CustomDatetimeAndSeconds(0,
+        datetime.datetime.fromisoformat('2022-08-05T12:05:00'))
     result = bpmn_graph.update_process_state(p_case, e_id, p_state, prev_completed_event_time)
 
     # ====== ASSERT ======
     assert len(result) == 1, "List with enabled tasks should contain one element"
     assert result[0].task_id == "Event_0bsdbzb"
-    assert result[0].batch_info == None
+    assert result[0].batch_info_exec == None
 
     all_tokens = p_state.tokens
     expected_flows_with_token = ["Flow_0u4ip3z"]
