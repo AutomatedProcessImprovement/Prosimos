@@ -12,12 +12,12 @@ from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 from testing_scripts.test_simulation import _verify_activity_count_and_duration
 
 distribution = {
-            "1": 0.8,
-            "3": 0.75,
-            "5": 0.6
+    "1": 0.8,
+    "3": 0.75,
+    "5": 0.6
 }
 
-testdata = [
+data_nearest_neighbors = [
     (
         "assets_path", 
         distribution,
@@ -103,7 +103,7 @@ def test_seq_batch_count_firing_rule_correct_duration(assets_path):
     _verify_activity_count_and_duration(logs_d_task, 6, expected_activity_timedelta)
 
 
-@pytest.mark.parametrize("assets_path_fixture,duration_distrib,firing_count,expected_duration_sec", testdata)
+@pytest.mark.parametrize("assets_path_fixture,duration_distrib,firing_count,expected_duration_sec", data_nearest_neighbors)
 def test_batch_count_firing_rule_nearest_neighbor_correct(
     assets_path_fixture, duration_distrib, firing_count, expected_duration_sec, request):
     # ====== ARRANGE ======
@@ -149,18 +149,24 @@ def test_batch_count_firing_rule_nearest_neighbor_correct(
     _verify_activity_count_and_duration(logs_d_task, firing_count, expected_activity_timedelta)
 
 
-def _setup_sim_scenario_file(json_dict, duration_distrib, firing_count):
+def _setup_sim_scenario_file(json_dict, duration_distrib, firing_count = None, batch_type = None):        
     batch_processing = json_dict['batch_processing'][0]
-    batch_processing['duration_distrib'] = duration_distrib
-    batch_processing['firing_rules'] = [
-        [
-            {
-                "attribute": "size",
-                "comparison": "=",
-                "value": firing_count
-            }
+    if batch_type != None:
+        batch_processing['type'] = batch_type
+
+    if duration_distrib != None:
+        batch_processing['duration_distrib'] = duration_distrib
+
+    if firing_count != None:
+        batch_processing['firing_rules'] = [
+            [
+                {
+                    "attribute": "size",
+                    "comparison": "=",
+                    "value": firing_count
+                }
+            ]
         ]
-    ]
 
 def test_seq_batch_waiting_time_correct(assets_path):
     # ====== ARRANGE ======
@@ -216,6 +222,71 @@ def test_seq_batch_waiting_time_correct(assets_path):
         datetime.timedelta(seconds=full_act_dur * 2),
         datetime.timedelta(seconds=full_act_dur     + expected_activity_in_batch_duration_sec),
         datetime.timedelta(seconds=0                + expected_activity_in_batch_duration_sec * 2)
+    ])
+    
+    tm.assert_series_equal(start_enable_start_diff_for_task, expected_waiting_times, check_index=False)
+
+def test_parallel_batch_enable_start_waiting_correct(assets_path):
+    # ====== ARRANGE ======
+    model_path = assets_path / 'batch-example-end-task.bpmn'
+    basic_json_path = assets_path / 'batch-example-with-batch.json'
+    json_path = assets_path / 'batch-example-nearest-coef.json'
+    sim_stats = assets_path / 'batch_stats.csv'
+    sim_logs = assets_path / 'batch_logs.csv'
+
+    start_string = '2022-06-21 13:22:30.035185+03:00'
+    start_date = parse_datetime(start_string, True)
+
+    with open(basic_json_path, 'r') as f:
+        json_dict = json.load(f)
+
+    _setup_sim_scenario_file(json_dict, None, None, "Parallel")
+
+    with open(json_path, 'w+') as json_file:
+        json.dump(json_dict, json_file)
+
+    # ====== ACT ======
+    _, diff_sim_result = run_diff_res_simulation(start_date,
+                                    3, # one batch 
+                                    model_path,
+                                    json_path,
+                                    sim_stats,
+                                    sim_logs)
+
+    # ====== ASSERT ======
+    # verify duration in stats
+    full_act_dur = 120
+    expected_activity_in_batch_duration_sec = full_act_dur * 0.8
+
+    task_d_sim_result = diff_sim_result.tasks_kpi_map['D']
+    assert task_d_sim_result.processing_time.avg == expected_activity_in_batch_duration_sec
+
+    # verify min and max waiting times in logs
+    
+    # the first task in the batch will wait for the longest
+    # calculation: duration of the task prior to the batch * num of tasks
+    # since batch is of size 3, one is current, two more is needed to enable the batch execution
+    assert task_d_sim_result.waiting_time.max == full_act_dur * 2
+
+    # the last task in the batch (sorted by case_id) will wait the lowest
+    # once we finish the prior task to batching, we enable and eventually start the batching
+    # and if resource is available we start straight away
+    assert task_d_sim_result.waiting_time.min == 0
+
+    # verify waiting time in logs
+    df = pd.read_csv(sim_logs)
+    
+    df['enable_time'] = pd.to_datetime(df['enable_time'], errors='coerce')
+    df['start_time'] = pd.to_datetime(df['start_time'], errors='coerce')
+    df['end_time'] = pd.to_datetime(df['end_time'], errors='coerce')
+    
+    logs_d_task = df[df['activity'] == 'D']
+    
+    start_enable_start_diff_for_task = logs_d_task['start_time'] - logs_d_task['enable_time']
+    expected_waiting_times = pd.Series([
+        datetime.timedelta(seconds=full_act_dur * 2),
+        datetime.timedelta(seconds=full_act_dur),
+        datetime.timedelta(seconds=0)
     ])
     
     tm.assert_series_equal(start_enable_start_diff_for_task, expected_waiting_times, check_index=False)

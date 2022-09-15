@@ -8,7 +8,7 @@ from enum import Enum
 import pm4py
 import random
 from pm4py.objects.conversion.process_tree import converter
-from bpdfr_simulation_engine.batching_processing import FiringRule
+from bpdfr_simulation_engine.batching_processing import BATCH_TYPE, FiringRule
 from bpdfr_simulation_engine.probability_distributions import generate_number_from
 from bpdfr_simulation_engine.resource_calendar import str_week_days
 
@@ -18,15 +18,24 @@ seconds_per_unit = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
 
 
 class BatchInfoForExecution:
-    def __init__(self, all_case_ids, batch_info, curr_task_id):
+    def __init__(self, all_case_ids, task_batch_info, curr_task_id):
         self.case_ids = all_case_ids[curr_task_id]
-        self.batch_info = batch_info[curr_task_id]
+        self.task_batch_info = task_batch_info[curr_task_id]
+
+    def is_sequential(self):
+        return self.task_batch_info.type == BATCH_TYPE.SEQUENTIAL
+    
+    def is_concurrent(self):
+        return self.task_batch_info.type == BATCH_TYPE.CONCURRENT
+
+    def is_parallel(self):
+        return self.task_batch_info.type == BATCH_TYPE.PARALLEL
 
 
 class EnabledTask:
-    def __init__(self, task_id, batch_info: BatchInfoForExecution = None):
+    def __init__(self, task_id, batch_info_exec: BatchInfoForExecution = None):
         self.task_id = task_id
-        self.batch_info = batch_info
+        self.batch_info_exec = batch_info_exec
 
 
 class BPMN(Enum):

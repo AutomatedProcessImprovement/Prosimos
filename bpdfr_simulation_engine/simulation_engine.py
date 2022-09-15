@@ -64,7 +64,7 @@ class SimBPMEnv:
 
         event_element_info = self.sim_setup.bpmn_graph.element_info[c_event.task_id]
 
-        if event_element_info.type == BPMN.TASK and c_event.batch_info is not None:
+        if event_element_info.type == BPMN.TASK and c_event.batch_info_exec is not None:
             # execute batched task
             executed_tasks = self.execute_task_batch(c_event)
 
@@ -79,7 +79,7 @@ class SimBPMEnv:
                 for next_task in enabled_tasks:
                     self.events_queue.append_enabled_event(
                         EnabledEvent(p_case, p_state, next_task.task_id, completed_at,
-                                    completed_datetime, next_task.batch_info))
+                                    completed_datetime, next_task.batch_info_exec))
         else:
             if event_element_info.type == BPMN.TASK:
                 # execute not batched task
@@ -98,7 +98,7 @@ class SimBPMEnv:
             for next_task in enabled_tasks:
                 self.events_queue.append_enabled_event(
                     EnabledEvent(c_event.p_case, c_event.p_state, next_task.task_id, completed_at,
-                                completed_datetime, next_task.batch_info))
+                                completed_datetime, next_task.batch_info_exec))
 
     def execute_task(self, c_event: EnabledEvent):
         r_id, r_avail_at = self.resource_queue.pop_resource_for(c_event.task_id)
@@ -138,12 +138,20 @@ class SimBPMEnv:
         return completed_at, completed_datetime, completed_datetime_for_next_element
 
     def execute_task_batch(self, c_event: EnabledEvent):
+        if c_event.batch_info_exec.is_sequential():
+           return self.execute_seq_task_batch(c_event)
+        elif c_event.batch_info_exec.is_parallel():
+            return self.execute_parallel_task_batch(c_event)
+        else:
+            print(f"WARNING: {c_event.batch_info_exec.task_batch_info.type} not supported")
+
+    def execute_seq_task_batch(self, c_event: EnabledEvent):
         r_id, r_avail_at = self.resource_queue.pop_resource_for(c_event.task_id)
-        num_tasks_in_batch = len(c_event.batch_info.case_ids)
+        num_tasks_in_batch = len(c_event.batch_info_exec.case_ids)
         self.sim_resources[r_id].allocated_tasks += num_tasks_in_batch
 
         completed_at = 0
-        for (case_id, enabled_time) in c_event.batch_info.case_ids.items():
+        for (case_id, enabled_time) in c_event.batch_info_exec.case_ids.items():
             p_case = case_id
             task_id = c_event.task_id
             enabled_at = enabled_time.seconds_from_start
@@ -179,11 +187,52 @@ class SimBPMEnv:
             completed_at = full_evt.completed_at
             completed_datetime = full_evt.completed_datetime
 
-            # enabled_at = full_evt.completed_at
-            # enabled_datetime = full_evt.completed_datetime
-
             yield completed_at, completed_datetime, p_case
 
+
+    def execute_parallel_task_batch(self, c_event: EnabledEvent):
+        r_id, r_avail_at = self.resource_queue.pop_resource_for(c_event.task_id)
+        num_tasks_in_batch = len(c_event.batch_info_exec.case_ids)
+        self.sim_resources[r_id].allocated_tasks += num_tasks_in_batch
+
+        enabled_batch = c_event.enabled_at
+
+        r_avail_at = max(r_avail_at, enabled_batch)
+        avail_datetime = self._datetime_from(r_avail_at)
+        is_working, _ = self.sim_setup.get_resource_calendar(r_id).is_working_datetime(avail_datetime)
+        if not is_working:
+            r_avail_at = r_avail_at + self.sim_setup.next_resting_time(r_id, avail_datetime)
+        
+        for (case_id, enabled_time) in c_event.batch_info_exec.case_ids.items():
+            p_case = case_id
+            task_id = c_event.task_id
+            enabled_at = enabled_time.seconds_from_start
+            enabled_datetime = enabled_time.datetime
+
+            full_evt = TaskEvent(p_case, task_id, r_id, r_avail_at, enabled_at,
+                                enabled_datetime, self, num_tasks_in_batch)
+
+            self.log_info.add_event_info(p_case, full_evt, self.sim_setup.resources_map[r_id].cost_per_hour)
+
+            r_next_available = full_evt.completed_at
+
+            if self.sim_resources[r_id].switching_time > 0:
+                r_next_available += self.sim_setup.next_resting_time(r_id, full_evt.completed_datetime)
+
+            self.resource_queue.update_resource_availability(r_id, r_next_available)
+            self.sim_resources[r_id].worked_time += full_evt.ideal_duration
+            
+            self.log_writer.add_csv_row([p_case,
+                                        self.sim_setup.bpmn_graph.element_info[task_id].name,
+                                        full_evt.enabled_datetime,
+                                        full_evt.started_datetime,
+                                        full_evt.completed_datetime,
+                                        self.sim_setup.resources_map[full_evt.resource_id].resource_name])
+
+            completed_at = full_evt.completed_at
+            completed_datetime = full_evt.completed_datetime
+
+            yield completed_at, completed_datetime, p_case
 
     def execute_event(self, c_event):
         # Handle event types separately (they don't need assigned resource)
