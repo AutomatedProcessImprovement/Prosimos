@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import datetime
 import os
 from pathlib import Path
@@ -149,25 +150,6 @@ def test_batch_count_firing_rule_nearest_neighbor_correct(
     _verify_activity_count_and_duration(logs_d_task, firing_count, expected_activity_timedelta)
 
 
-def _setup_sim_scenario_file(json_dict, duration_distrib, firing_count = None, batch_type = None):        
-    batch_processing = json_dict['batch_processing'][0]
-    if batch_type != None:
-        batch_processing['type'] = batch_type
-
-    if duration_distrib != None:
-        batch_processing['duration_distrib'] = duration_distrib
-
-    if firing_count != None:
-        batch_processing['firing_rules'] = [
-            [
-                {
-                    "attribute": "size",
-                    "comparison": "=",
-                    "value": firing_count
-                }
-            ]
-        ]
-
 def test_seq_batch_waiting_time_correct(assets_path):
     # ====== ARRANGE ======
     model_path = assets_path / 'batch-example-end-task.bpmn'
@@ -290,3 +272,98 @@ def test_parallel_batch_enable_start_waiting_correct(assets_path):
     ])
     
     tm.assert_series_equal(start_enable_start_diff_for_task, expected_waiting_times, check_index=False)
+
+
+def test_two_batches_duration_correct(assets_path):
+    # ====== ARRANGE ======
+    model_path = assets_path / 'batch-example-end-task.bpmn'
+    basic_json_path = assets_path / 'batch-example-with-batch.json'
+    json_path = assets_path / 'batch-example-nearest-coef.json'
+    sim_stats = assets_path / 'batch_stats.csv'
+    sim_logs = assets_path / 'batch_logs.csv'
+
+    start_string = '2022-06-21 13:22:30.035185+03:00'
+    start_date = parse_datetime(start_string, True)
+
+    with open(basic_json_path, 'r') as f:
+        json_dict = json.load(f)
+
+    # _setup_sim_scenario_file(json_dict, None, None, "Parallel")
+    _add_batch_task(json_dict)
+
+    with open(json_path, 'w+') as json_file:
+        json.dump(json_dict, json_file)
+
+    # ====== ACT ======
+    _, diff_sim_result = run_diff_res_simulation(start_date,
+                                    3, # one batch 
+                                    model_path,
+                                    json_path,
+                                    sim_stats,
+                                    sim_logs)
+
+    # verify the second batch (the one consisting of activity E) has correct start_time
+    df = pd.read_csv(sim_logs)
+    df['enable_time'] = pd.to_datetime(df['enable_time'], errors='coerce')
+    df['start_time'] = pd.to_datetime(df['start_time'], errors='coerce')
+    df['end_time'] = pd.to_datetime(df['end_time'], errors='coerce')
+
+    grouped_by_case_id = df.groupby(by="case_id")
+    last_d_activity = grouped_by_case_id.get_group(2)
+    last_d_activity_end_time = \
+        last_d_activity[last_d_activity['activity'] == 'D']['end_time'].values[0]
+    for case_id, group in grouped_by_case_id:
+        for row_index, row in group.iterrows():
+            if row['activity'] != 'E':
+                continue
+            
+            curr_start_time = np.datetime64(row['start_time'])
+            expected_e_activity_duration = 120 * 0.5
+            expected_e_activity_delta = \
+                np.timedelta64(int(row['case_id'] * expected_e_activity_duration), 's')
+            expected_start_time = last_d_activity_end_time + expected_e_activity_delta
+            assert curr_start_time == expected_start_time, \
+                f"The row {row_index} for case {case_id} contains incorrect start_time. \
+                    Expected: {expected_start_time}, but was {curr_start_time}"
+
+
+def _add_batch_task(json_dict):
+    batch_processing = json_dict['batch_processing']
+    batch_processing.append(
+      {
+         "task_id": "Activity_0ngxjs9",
+         "type": "Sequential",
+         "duration_distrib": {
+            "3": 0.5
+         },
+         "firing_rules": [
+            [
+               {
+                  "attribute": "size",
+                  "comparison": "=",
+                  "value": 3
+               }
+            ]
+         ]
+      }
+    )
+
+
+def _setup_sim_scenario_file(json_dict, duration_distrib, firing_count = None, batch_type = None):        
+    batch_processing = json_dict['batch_processing'][0]
+    if batch_type != None:
+        batch_processing['type'] = batch_type
+
+    if duration_distrib != None:
+        batch_processing['duration_distrib'] = duration_distrib
+
+    if firing_count != None:
+        batch_processing['firing_rules'] = [
+            [
+                {
+                    "attribute": "size",
+                    "comparison": "=",
+                    "value": firing_count
+                }
+            ]
+        ]
