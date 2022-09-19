@@ -146,6 +146,9 @@ class SimBPMEnv:
     def execute_seq_task_batch(self, c_event: EnabledEvent):
         r_id, r_avail_at = self.resource_queue.pop_resource_for(c_event.task_id)
         num_tasks_in_batch = len(c_event.batch_info_exec.case_ids)
+
+        if num_tasks_in_batch == 0:
+            print("WARNING: Number of tasks in the enabled batch is 0.")
         self.sim_resources[r_id].allocated_tasks += num_tasks_in_batch
 
         completed_at = 0

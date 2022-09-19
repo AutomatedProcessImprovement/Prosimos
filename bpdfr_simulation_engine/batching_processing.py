@@ -26,7 +26,10 @@ class FiringSubRule():
     def is_true(self, element):
         value1 = element[self.variable1]
         return OPERATOR_SYMBOLS[self.operator](value1, self.value2)
-        
+
+    def is_batch_size(self):
+        return self.variable1 == "size"
+
 
 class FiringRule():
     def __init__(self, array_of_subrules):

@@ -4,6 +4,7 @@ from datetime import timedelta
 import sys
 from collections import deque
 from enum import Enum
+from typing import List
 
 import pm4py
 import random
@@ -18,9 +19,10 @@ seconds_per_unit = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
 
 
 class BatchInfoForExecution:
-    def __init__(self, all_case_ids, task_batch_info, curr_task_id):
-        self.case_ids = all_case_ids[curr_task_id]
+    def __init__(self, all_case_ids, task_batch_info, curr_task_id, enabling_rule: FiringRule):
+        self.case_ids = all_case_ids[curr_task_id].copy()
         self.task_batch_info = task_batch_info[curr_task_id]
+        self.enabling_rule = enabling_rule
 
     def is_sequential(self):
         return self.task_batch_info.type == BATCH_TYPE.SEQUENTIAL
@@ -30,6 +32,15 @@ class BatchInfoForExecution:
 
     def is_parallel(self):
         return self.task_batch_info.type == BATCH_TYPE.PARALLEL
+
+    def is_batch_size_included_in_enabled_rule(self):
+        for subrule in self.enabling_rule.rules:
+            is_batch_size_included = subrule.is_batch_size() # "size" in rule
+
+            if is_batch_size_included:
+                return is_batch_size_included, subrule.value2
+
+        return False, None
 
 
 class EnabledTask:
@@ -346,18 +357,24 @@ class BPMNGraph:
 
 
     def is_batched_task_enabled(self, task_id):
+        """
+        Get whether the task could be enabled for the execution.
+        :param task_id: id of the task
+        :return: (is batched task enabled, rule that enables the execution)
+        """
         task_batch_info = self.batch_info.get(task_id, None)
 
         if task_batch_info == None:
             print(f"WARNING: task {task_id} does not have config for batching processing")
             return False
 
-        firing_rules: FiringRule = task_batch_info.firing_rules
+        firing_rules: List[FiringRule] = task_batch_info.firing_rules
 
         size_count = self.batch_count[task_id] if self.batch_count.get(task_id, None) != None else 0
 
         count = {
-            "size": size_count
+            "size": size_count,
+            "waiting_time": 10000
         }
         
         is_batched_task_enabled = False
@@ -366,9 +383,9 @@ class BPMNGraph:
 
             # fast exit if one of the rule is true
             if is_batched_task_enabled:
-                return is_batched_task_enabled
+                return is_batched_task_enabled, rule
 
-        return is_batched_task_enabled
+        return is_batched_task_enabled, None
 
 
     def get_event_gateway_choice(self, gateway_element_info: ElementInfo, completed_datetime_prev_event):
@@ -810,17 +827,17 @@ class BPMNGraph:
         next_e = self.flow_arcs[f_arc][1]
         if self.is_enabled(next_e, p_state):
             if self.element_info[next_e].type == BPMN.TASK and self.is_task_batched(next_e):
-                # wait till the time firing rule is true
-                # TODO: add waiting time
                 self.increase_task_count(next_e, case_id, enabled_time)
 
-                if self.is_batched_task_enabled(next_e):
+                is_enabled, enabling_rule = self.is_batched_task_enabled(next_e)
+                if is_enabled:
                     batch_info = BatchInfoForExecution(
                         self.batch_waiting_processes,
                         self.batch_info,
-                        next_e)
+                        next_e,
+                        enabling_rule)
                     enabled_tasks.append(EnabledTask(next_e, batch_info))
-                    self._clear_batch(next_e)
+                    self._clear_batch(next_e, batch_info)
                     
             elif self.element_info[next_e].type in [BPMN.TASK, BPMN.INTERMEDIATE_EVENT]:
                 enabled_tasks.append(EnabledTask(next_e))
@@ -828,13 +845,29 @@ class BPMNGraph:
                 to_execute.append(next_e)
 
 
-    def _clear_batch(self, next_e):
+    def _clear_batch(self, next_e, batch_info):
         """
         When we passed on the information about the batch for the execution,
         clear that data from here to avoid multiple execution
         """
-        self.batch_waiting_processes[next_e] = dict()
-        self.batch_count[next_e] = 0
+        is_batch_size_included, batch_size = batch_info.is_batch_size_included_in_enabled_rule()
+
+        if is_batch_size_included:
+            # remove first batch_size-element since they are being executed
+            # the rest stays in the queue for being enabled for batch execution
+            curr_index = 0
+            for item_key in list(self.batch_waiting_processes[next_e].keys()):
+                del self.batch_waiting_processes[next_e][item_key]
+                curr_index = curr_index + 1
+
+                if curr_index == batch_size:
+                    # all waiting processes regarding the selected batch was removed
+                    break
+
+            self.batch_count[next_e] = self.batch_count[next_e] - batch_size
+        else:
+            self.batch_waiting_processes[next_e] = dict()
+            self.batch_count[next_e] = 0
 
 
     def increase_task_count(self, task_id, case_id, enabled_time):

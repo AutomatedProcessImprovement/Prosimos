@@ -121,7 +121,7 @@ def test_batch_count_firing_rule_nearest_neighbor_correct(
     with open(basic_json_path, 'r') as f:
         json_dict = json.load(f)
 
-    _setup_sim_scenario_file(json_dict, duration_distrib, firing_count)
+    _setup_sim_scenario_file(json_dict, duration_distrib, firing_count, None, None)
 
     with open(json_path, 'w+') as json_file:
         json.dump(json_dict, json_file)
@@ -222,7 +222,7 @@ def test_parallel_batch_enable_start_waiting_correct(assets_path):
     with open(basic_json_path, 'r') as f:
         json_dict = json.load(f)
 
-    _setup_sim_scenario_file(json_dict, None, None, "Parallel")
+    _setup_sim_scenario_file(json_dict, None, None, "Parallel", None)
 
     with open(json_path, 'w+') as json_file:
         json.dump(json_dict, json_file)
@@ -349,7 +349,7 @@ def _add_batch_task(json_dict):
     )
 
 
-def _setup_sim_scenario_file(json_dict, duration_distrib, firing_count = None, batch_type = None):        
+def _setup_sim_scenario_file(json_dict, duration_distrib, firing_count, batch_type, firing_rules):        
     batch_processing = json_dict['batch_processing'][0]
     if batch_type != None:
         batch_processing['type'] = batch_type
@@ -367,3 +367,6 @@ def _setup_sim_scenario_file(json_dict, duration_distrib, firing_count = None, b
                 }
             ]
         ]
+
+    if firing_rules != None:
+        batch_processing['firing_rules'] = firing_rules
