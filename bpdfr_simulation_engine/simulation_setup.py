@@ -64,6 +64,9 @@ class SimDiffSetup:
     def update_process_state(self, p_case, e_id, p_state, completed_time_prev_event):
         return self.bpmn_graph.update_process_state(p_case, e_id, p_state, completed_time_prev_event)
 
+    def check_and_execute_batch_in_queue(self, started_datetime):
+        return self.bpmn_graph.check_and_execute_batch_in_queue(started_datetime)
+
     def find_arrival_calendar(self):
         # TODO: make sure this 0 as p_case does not break anything
         enabled_tasks = self.update_process_state(0, self.bpmn_graph.starting_event, self.initial_state(), None)

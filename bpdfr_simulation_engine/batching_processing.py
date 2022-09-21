@@ -5,8 +5,8 @@ import sys
 OPERATOR_SYMBOLS = {
     '<': operator.lt,
     '<=': operator.le,
-    '=': operator.eq,
-    '!=': operator.ne,
+    '=': operator.ge,
+    # '!=': operator.ne,
     '>': operator.gt,
     '>=': operator.ge
 }
@@ -24,8 +24,14 @@ class FiringSubRule():
         self.value2 = value2
 
     def is_true(self, element):
-        value1 = element[self.variable1]
-        return OPERATOR_SYMBOLS[self.operator](value1, self.value2)
+        if self.variable1 == "waiting_time":
+            value1_list = element[self.variable1]
+            oldest_in_batch = value1_list[0]
+            
+            return OPERATOR_SYMBOLS[self.operator](oldest_in_batch, self.value2)
+        else:
+            value1 = element[self.variable1]
+            return OPERATOR_SYMBOLS[self.operator](value1, self.value2)
 
     def is_batch_size(self):
         return self.variable1 == "size"
@@ -42,6 +48,31 @@ class FiringRule():
             result = result and rule.is_true(element)
 
         return result
+
+    def _get_batch_size_subrule(self):
+        for rule in self.rules:
+            if rule.is_batch_size():
+                return rule
+        
+        return None
+
+    def get_firing_batch_size(self, current_batch_size):
+        batch_size_subrule = self._get_batch_size_subrule()
+        if batch_size_subrule == None:
+            print("WARNING: Not a size subrule")
+            return current_batch_size
+
+        value2 = batch_size_subrule.value2
+        switcher = {
+            '<': min(current_batch_size, value2 - 1),
+            '<=': min(current_batch_size, value2),
+            '=': value2,
+            '>': current_batch_size if current_batch_size > value2 else 0,
+            '>=': current_batch_size if current_batch_size >= value2 else 0
+        }
+
+        return switcher.get(batch_size_subrule.operator)
+
 
 class BatchConfigPerTask():
     def __init__(self, type, duration_distribution, firing_rules):

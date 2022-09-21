@@ -18,11 +18,27 @@ from bpdfr_simulation_engine.exceptions import InvalidBpmnModelException
 seconds_per_unit = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
 
 
+def get_nearest_abs_day(weekday, from_datetime):
+    completed_datetime_weekday = from_datetime.weekday()
+    timer_weekday = str_week_days.get(weekday)
+    if (timer_weekday > completed_datetime_weekday):
+        add_days = timer_weekday - completed_datetime_weekday
+    else:
+        diff_days = completed_datetime_weekday - timer_weekday
+        add_days = 6 - diff_days
+    
+    new_datetime = from_datetime + timedelta(days=add_days)
+    return new_datetime
+
+
 class BatchInfoForExecution:
     def __init__(self, all_case_ids, task_batch_info, curr_task_id, enabling_rule: FiringRule):
         self.case_ids = all_case_ids[curr_task_id].copy()
         self.task_batch_info = task_batch_info[curr_task_id]
         self.enabling_rule = enabling_rule
+
+        current_batch_size = len(self.case_ids)
+        self.batch_size_to_execute = enabling_rule.get_firing_batch_size(current_batch_size)
 
     def is_sequential(self):
         return self.task_batch_info.type == BATCH_TYPE.SEQUENTIAL
@@ -356,7 +372,7 @@ class BPMNGraph:
         return self.batch_info.get(task_id, None) != None
 
 
-    def is_batched_task_enabled(self, task_id):
+    def is_batched_task_enabled(self, task_id, enabled_at):
         """
         Get whether the task could be enabled for the execution.
         :param task_id: id of the task
@@ -371,10 +387,12 @@ class BPMNGraph:
         firing_rules: List[FiringRule] = task_batch_info.firing_rules
 
         size_count = self.batch_count[task_id] if self.batch_count.get(task_id, None) != None else 0
-
+        # enabled_time_for_every_task_in_batch = [ v for (k, v) in self.batch_waiting_processes[task_id].items() ]
+        waiting_time = [ (enabled_at.datetime - v.datetime).total_seconds() for (k, v) in self.batch_waiting_processes[task_id].items() ] 
+        
         count = {
             "size": size_count,
-            "waiting_time": 10000
+            "waiting_time": waiting_time
         }
         
         is_batched_task_enabled = False
@@ -445,15 +463,7 @@ class BPMNGraph:
             if (timer_duration in str_week_days.keys()):
                 # absolute weekday
                 # e.g., Monday, Sunday
-                completed_datetime_weekday = completed_datetime_prev_event.weekday()
-                timer_weekday = str_week_days.get(timer_duration)
-                if (timer_weekday > completed_datetime_weekday):
-                    add_days = timer_weekday - completed_datetime_weekday
-                else:
-                    diff_days = completed_datetime_weekday - timer_weekday
-                    add_days = 6 - diff_days
-                
-                new_datetime = completed_datetime_prev_event + timedelta(days=add_days)
+                new_datetime = get_nearest_abs_day(timer_duration, completed_datetime_prev_event)
 
             elif (":" in timer_duration):
                 # absolute time
@@ -822,6 +832,8 @@ class BPMNGraph:
         return gateways_branching
 
     def _find_next(self, f_arc, case_id, p_state, enabled_tasks, to_execute, enabled_time):
+        # verify that there is no batch waiting to be executed
+
         p_state.tokens[f_arc] += 1
         p_state.state_mask |= self.arcs_bitset[f_arc]
         next_e = self.flow_arcs[f_arc][1]
@@ -829,7 +841,7 @@ class BPMNGraph:
             if self.element_info[next_e].type == BPMN.TASK and self.is_task_batched(next_e):
                 self.increase_task_count(next_e, case_id, enabled_time)
 
-                is_enabled, enabling_rule = self.is_batched_task_enabled(next_e)
+                is_enabled, enabling_rule = self.is_batched_task_enabled(next_e, enabled_time)
                 if is_enabled:
                     batch_info = BatchInfoForExecution(
                         self.batch_waiting_processes,
@@ -887,6 +899,11 @@ class BPMNGraph:
             self.batch_count[task_id] += 1
         else:
             self.batch_count[task_id] = 1
+
+    def check_and_execute_batch_in_queue(self, started_datetime):
+        for (task_id, task_waiting_processes) in self.batch_waiting_processes.items():
+            for (key, enabled_at) in task_waiting_processes.items():
+                print(key, enabled_at)
 
 
 def discover_bpmn_from_log(log_path, process_name):
