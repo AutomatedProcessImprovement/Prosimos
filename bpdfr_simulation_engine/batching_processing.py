@@ -26,6 +26,11 @@ class FiringSubRule():
     def is_true(self, element):
         if self.variable1 == "waiting_time":
             value1_list = element[self.variable1]
+
+            if len(value1_list) < 2:
+                # not enough to be executed in batch, at least 2 tasks required
+                return False
+
             oldest_in_batch = value1_list[0]
             
             return OPERATOR_SYMBOLS[self.operator](oldest_in_batch, self.value2)
