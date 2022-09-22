@@ -32,13 +32,14 @@ def get_nearest_abs_day(weekday, from_datetime):
 
 
 class BatchInfoForExecution:
-    def __init__(self, all_case_ids, task_batch_info, curr_task_id, enabling_rule: FiringRule):
+    def __init__(self, all_case_ids, task_batch_info, curr_task_id, batch_spec): # enabling_rule: FiringRule):
         self.case_ids = all_case_ids[curr_task_id].copy()
         self.task_batch_info = task_batch_info[curr_task_id]
-        self.enabling_rule = enabling_rule
+        # self.enabling_rule = enabling_rule
 
-        current_batch_size = len(self.case_ids)
-        self.batch_size_to_execute = enabling_rule.get_firing_batch_size(current_batch_size)
+        # current_batch_size = len(self.case_ids)
+        # self.batch_size_to_execute = enabling_rule.get_firing_batch_size(current_batch_size)
+        self.batch_spec = batch_spec
 
     def is_sequential(self):
         return self.task_batch_info.type == BATCH_TYPE.SEQUENTIAL
@@ -387,8 +388,7 @@ class BPMNGraph:
         firing_rules: List[FiringRule] = task_batch_info.firing_rules
 
         size_count = self.batch_count[task_id] if self.batch_count.get(task_id, None) != None else 0
-        # enabled_time_for_every_task_in_batch = [ v for (k, v) in self.batch_waiting_processes[task_id].items() ]
-        waiting_time = [ (enabled_at.datetime - v.datetime).total_seconds() for (k, v) in self.batch_waiting_processes[task_id].items() ] 
+        waiting_time = [ (enabled_at.datetime - v.datetime).total_seconds() for (_, v) in self.batch_waiting_processes[task_id].items() ] 
         
         count = {
             "size": size_count,
@@ -397,11 +397,11 @@ class BPMNGraph:
         
         is_batched_task_enabled = False
         for rule in firing_rules:
-            is_batched_task_enabled = rule.is_true(count)
+            is_batched_task_enabled, batch_spec = rule.is_true(count)
 
             # fast exit if one of the rule is true
             if is_batched_task_enabled:
-                return is_batched_task_enabled, rule
+                return is_batched_task_enabled, batch_spec
 
         return is_batched_task_enabled, None
 
@@ -841,13 +841,13 @@ class BPMNGraph:
             if self.element_info[next_e].type == BPMN.TASK and self.is_task_batched(next_e):
                 self.increase_task_count(next_e, case_id, enabled_time)
 
-                is_enabled, enabling_rule = self.is_batched_task_enabled(next_e, enabled_time)
+                is_enabled, batch_spec = self.is_batched_task_enabled(next_e, enabled_time)
                 if is_enabled:
                     batch_info = BatchInfoForExecution(
                         self.batch_waiting_processes,
                         self.batch_info,
                         next_e,
-                        enabling_rule)
+                        batch_spec)
                     enabled_tasks.append(EnabledTask(next_e, batch_info))
                     self._clear_batch(next_e, batch_info)
                     
@@ -862,9 +862,10 @@ class BPMNGraph:
         When we passed on the information about the batch for the execution,
         clear that data from here to avoid multiple execution
         """
-        is_batch_size_included, batch_size = batch_info.is_batch_size_included_in_enabled_rule()
+        # is_batch_size_included, batch_size = batch_info.is_batch_size_included_in_enabled_rule()
+        (batch_size, _) = batch_info.batch_spec
 
-        if is_batch_size_included:
+        if batch_size != None:
             # remove first batch_size-element since they are being executed
             # the rest stays in the queue for being enabled for batch execution
             curr_index = 0

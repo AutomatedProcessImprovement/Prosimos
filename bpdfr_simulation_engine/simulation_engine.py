@@ -149,13 +149,14 @@ class SimBPMEnv:
             print("WARNING: Number of tasks in the enabled batch is 0.")
 
         all_case_ids = list(c_event.batch_info_exec.case_ids.items())
-        num_tasks_in_batch = c_event.batch_info_exec.batch_size_to_execute
-        chunks = [all_case_ids[i:i+num_tasks_in_batch] for i in range(0, len(all_case_ids), num_tasks_in_batch)] 
+        (num_tasks_in_batch, total_num_batches) = c_event.batch_info_exec.batch_spec
+        chunks = [all_case_ids[i:i+num_tasks_in_batch] for i in range(0, len(all_case_ids), num_tasks_in_batch)]
+        final_chunks = chunks[:total_num_batches]
 
         if c_event.batch_info_exec.is_sequential():
-           return self.execute_seq_task_batch(c_event, chunks, num_tasks_in_batch)
+           return self.execute_seq_task_batch(c_event, final_chunks, num_tasks_in_batch)
         elif c_event.batch_info_exec.is_parallel():
-            return self.execute_parallel_task_batch(c_event, chunks, num_tasks_in_batch)
+            return self.execute_parallel_task_batch(c_event, final_chunks, num_tasks_in_batch)
         else:
             print(f"WARNING: {c_event.batch_info_exec.task_batch_info.type} not supported")
 

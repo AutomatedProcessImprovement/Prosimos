@@ -36,6 +36,12 @@ class FiringSubRule():
             return OPERATOR_SYMBOLS[self.operator](oldest_in_batch, self.value2)
         else:
             value1 = element[self.variable1]
+
+            if self.variable1 == "size" and self.operator in ("<", "<=") \
+                and value1 > self.value2:
+                # edge case: we can break waiting tasks for the batch execution into multiple batches
+                return True
+                
             return OPERATOR_SYMBOLS[self.operator](value1, self.value2)
 
     def is_batch_size(self):
@@ -47,12 +53,29 @@ class FiringRule():
         self.rules = array_of_subrules
 
     def is_true(self, element):
-        result = True
+        is_true_result = True
 
         for rule in self.rules:
-            result = result and rule.is_true(element)
+            is_true_result = is_true_result and rule.is_true(element)
 
-        return result
+        if is_true_result:
+            num_tasks_in_queue = element["size"]
+            total_batch_count = 0
+            num_tasks_in_batch = self.get_firing_batch_size(num_tasks_in_queue)
+
+            if num_tasks_in_queue == num_tasks_in_batch:
+                total_batch_count = total_batch_count + 1
+            else:
+                #TODO: verify the next elements
+                total_batch_count = total_batch_count + 1
+                new_num_tasks = num_tasks_in_queue - num_tasks_in_batch
+                element["size"] = new_num_tasks
+
+                return self.is_true(element)      
+            
+            return True, (num_tasks_in_batch, total_batch_count)
+        
+        return is_true_result, (None, None)
 
     def _get_batch_size_subrule(self):
         for rule in self.rules:
