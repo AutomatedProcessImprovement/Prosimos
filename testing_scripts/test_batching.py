@@ -60,6 +60,22 @@ def assets_path(request) -> Path:
 
     return entry_path
 
+@pytest.mark.skip(reason="used only for testing while developing")
+def test(assets_path):
+    """
+    """
+
+    # ====== ARRANGE ======
+    json_path = assets_path / 'batch_processing_basic.json'
+    
+    _, _, _, _, _, _, batch_processing \
+        = parse_json_sim_parameters(json_path)
+
+    # ====== ACT ======
+    print(batch_processing)
+
+    # ====== ASSERT ======
+
 
 def test_seq_batch_count_firing_rule_correct_duration(assets_path):
     # ====== ARRANGE ======
@@ -275,6 +291,12 @@ def test_parallel_batch_enable_start_waiting_correct(assets_path):
 
 
 def test_two_batches_duration_correct(assets_path):
+    """
+    Input: two tasks are set up in the batch configuration: D and E.
+    Expected: all tasks inside the batches are correctly executed based on the provided configuration.
+    Verified that the start_time of all tasks E inside batch has the correct start_time.
+    """
+
     # ====== ARRANGE ======
     model_path = assets_path / 'batch-example-end-task.bpmn'
     basic_json_path = assets_path / 'batch-example-with-batch.json'
@@ -302,6 +324,8 @@ def test_two_batches_duration_correct(assets_path):
                                     sim_stats,
                                     sim_logs)
 
+    # ====== ASSERT ======
+
     # verify the second batch (the one consisting of activity E) has correct start_time
     df = pd.read_csv(sim_logs)
     df['enable_time'] = pd.to_datetime(df['enable_time'], errors='coerce')
@@ -325,6 +349,140 @@ def test_two_batches_duration_correct(assets_path):
             assert curr_start_time == expected_start_time, \
                 f"The row {row_index} for case {case_id} contains incorrect start_time. \
                     Expected: {expected_start_time}, but was {curr_start_time}"
+
+
+def test_waiting_time_rule_correct_firing(assets_path):
+    """
+    Input: firing rule of waiting time > 200 seconds. 
+    Expected: batch of tasks will be executed once the oldest task in the batch pull will be > 200 seconds.
+    This happens during the 3rd case, so that's when the batch execution is enabled. 
+    Verified the appropriate start_time and end_time (tasks are executed in parallel).
+    """
+
+    # ====== ARRANGE ======
+    model_path = assets_path / 'batch-example-end-task.bpmn'
+    basic_json_path = assets_path / 'batch-example-with-batch.json'
+    json_path = assets_path / 'batch-example-nearest-coef.json'
+    sim_stats = assets_path / 'batch_stats.csv'
+    sim_logs = assets_path / 'batch_logs.csv'
+
+    start_string = '2022-06-21 13:22:30.035185+03:00'
+    start_date = parse_datetime(start_string, True)
+
+    with open(basic_json_path, 'r') as f:
+        json_dict = json.load(f)
+
+    firing_rules = [
+        [
+            {
+                "attribute": "waiting_time",
+                "comparison": ">",
+                "value": 210 # 3.5 minutes
+            }
+        ]
+    ]
+    _setup_sim_scenario_file(json_dict, None, None, "Parallel", firing_rules)
+
+    with open(json_path, 'w+') as json_file:
+        json.dump(json_dict, json_file)
+
+    # ====== ACT ======
+    _, diff_sim_result = run_diff_res_simulation(start_date,
+                                    3, # one batch 
+                                    model_path,
+                                    json_path,
+                                    sim_stats,
+                                    sim_logs)
+
+
+    # ====== ASSERT ======
+
+    # verify that batch was execute right after 8 min of simulation
+    # verify that batch was of size 3 and all tasks have the same start and end date (parallel execution)
+
+    expected_batch_start_time = start_date + datetime.timedelta(minutes=8)
+    expected_batch_end_time = expected_batch_start_time + datetime.timedelta(seconds=96.0) # 80% of the full performance
+
+    df = pd.read_csv(sim_logs)
+    
+    df['enable_time'] = pd.to_datetime(df['enable_time'], errors='coerce')
+    df['start_time'] = pd.to_datetime(df['start_time'], errors='coerce')
+    df['end_time'] = pd.to_datetime(df['end_time'], errors='coerce')
+    
+    logs_d_tasks = df[df['activity'] == 'D']
+
+    expected_start_times = pd.Series([expected_batch_start_time] * 3)
+    expected_end_times = pd.Series([expected_batch_end_time] * 3)
+    
+    tm.assert_series_equal(logs_d_tasks['start_time'], expected_start_times, check_index=False, check_dtype=False, check_names=False)
+    tm.assert_series_equal(logs_d_tasks['end_time'], expected_end_times, check_index=False, check_dtype=False, check_names=False)
+
+
+def test_waiting_time_rule_correct_firing(assets_path):
+    """
+    Input: firing rule of waiting time > 200 seconds. 
+    Expected: batch of tasks will be executed once the oldest task in the batch pull will be > 200 seconds.
+    This happens during the 3rd case, so that's when the batch execution is enabled. 
+    Verified the appropriate start_time and end_time (tasks are executed in parallel).
+    """
+
+    # ====== ARRANGE ======
+    model_path = assets_path / 'batch-example-end-task.bpmn'
+    basic_json_path = assets_path / 'batch-example-with-batch.json'
+    json_path = assets_path / 'batch-example-nearest-coef.json'
+    sim_stats = assets_path / 'batch_stats.csv'
+    sim_logs = assets_path / 'batch_logs.csv'
+
+    start_string = '2022-06-21 13:22:30.035185+03:00'
+    start_date = parse_datetime(start_string, True)
+
+    with open(basic_json_path, 'r') as f:
+        json_dict = json.load(f)
+
+    firing_rules = [
+        [
+            {
+                "attribute": "waiting_time",
+                "comparison": ">",
+                "value": 210 # 3.5 minutes
+            }
+        ]
+    ]
+    _setup_sim_scenario_file(json_dict, None, None, "Parallel", firing_rules)
+
+    with open(json_path, 'w+') as json_file:
+        json.dump(json_dict, json_file)
+
+    # ====== ACT ======
+    _, diff_sim_result = run_diff_res_simulation(start_date,
+                                    3, # one batch 
+                                    model_path,
+                                    json_path,
+                                    sim_stats,
+                                    sim_logs)
+
+
+    # ====== ASSERT ======
+
+    # verify that batch was execute right after 8 min of simulation
+    # verify that batch was of size 3 and all tasks have the same start and end date (parallel execution)
+
+    expected_batch_start_time = start_date + datetime.timedelta(minutes=8)
+    expected_batch_end_time = expected_batch_start_time + datetime.timedelta(seconds=96.0) # 80% of the full performance
+
+    df = pd.read_csv(sim_logs)
+    
+    df['enable_time'] = pd.to_datetime(df['enable_time'], errors='coerce')
+    df['start_time'] = pd.to_datetime(df['start_time'], errors='coerce')
+    df['end_time'] = pd.to_datetime(df['end_time'], errors='coerce')
+    
+    logs_d_tasks = df[df['activity'] == 'D']
+
+    expected_start_times = pd.Series([expected_batch_start_time] * 3)
+    expected_end_times = pd.Series([expected_batch_end_time] * 3)
+    
+    tm.assert_series_equal(logs_d_tasks['start_time'], expected_start_times, check_index=False, check_dtype=False, check_names=False)
+    tm.assert_series_equal(logs_d_tasks['end_time'], expected_end_times, check_index=False, check_dtype=False, check_names=False)
 
 
 def _add_batch_task(json_dict):
