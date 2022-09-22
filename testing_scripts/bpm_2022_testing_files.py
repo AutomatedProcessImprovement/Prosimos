@@ -69,6 +69,7 @@ process_files = {
             'bpmn': './../input_output_files/discovery_input_files/bpmn_models/BPI_Challenge_2012_W_Two_TS.bpmn',
             'json': './../input_output_files/discovery_output_files/json/bpi_2012.json',
             'sim_log': './../input_output_files/discovery_output_files/prosimos_logs/bpi_2012.csv',
+            'demo_stats': './../input_output_files/discovery_output_files/prosimos_logs/bpi_2012_stats.csv',
             'start_datetime': '2011-10-01 11:08:36.700000+03:00',
             'total_cases': 8616,
             'disc_params': [60, 0.5, 0.5, 0.1, True]
@@ -129,6 +130,7 @@ process_files = {
             'bpmn': './../input_output_files/discovery_input_files/bpmn_models/LoanOriginationModel.bpmn',
             'json': './../input_output_files/discovery_output_files/json/loan_SC_LU.json',
             'sim_log': './../input_output_files/discovery_output_files/prosimos_logs/loan_SC_LU.csv',
+            'demo_stats': './../input_output_files/discovery_output_files/prosimos_logs/loan_SC_LU_stats.csv',
             'start_datetime': '2015-03-06 15:47:26+00:00',
             'total_cases': 1000,
             'disc_params': [60, 0.1, 0.6, 0.2, True]
