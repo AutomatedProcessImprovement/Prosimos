@@ -60,22 +60,6 @@ def assets_path(request) -> Path:
 
     return entry_path
 
-@pytest.mark.skip(reason="used only for testing while developing")
-def test(assets_path):
-    """
-    """
-
-    # ====== ARRANGE ======
-    json_path = assets_path / 'batch_processing_basic.json'
-    
-    _, _, _, _, _, _, batch_processing \
-        = parse_json_sim_parameters(json_path)
-
-    # ====== ACT ======
-    print(batch_processing)
-
-    # ====== ASSERT ======
-
 
 def test_seq_batch_count_firing_rule_correct_duration(assets_path):
     # ====== ARRANGE ======

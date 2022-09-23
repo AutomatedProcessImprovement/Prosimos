@@ -62,16 +62,22 @@ class FiringRule():
             num_tasks_in_queue = element["size"]
             total_batch_count = 0
             num_tasks_in_batch = self.get_firing_batch_size(num_tasks_in_queue)
+            total_batch_count = total_batch_count + 1
 
-            if num_tasks_in_queue == num_tasks_in_batch:
-                total_batch_count = total_batch_count + 1
-            else:
-                #TODO: verify the next elements
-                total_batch_count = total_batch_count + 1
+            if num_tasks_in_queue > num_tasks_in_batch:
+                # shift to the next tasks and validate the rule there
                 new_num_tasks = num_tasks_in_queue - num_tasks_in_batch
-                element["size"] = new_num_tasks
 
-                return self.is_true(element)      
+                # adjust the processed batch passed to the 'is_true' method
+                element["size"] = new_num_tasks
+                element['waiting_time'] = element['waiting_time'][num_tasks_in_batch:]
+
+                is_true_iter, (_, total_batch_count_iter) = self.is_true(element)
+                if is_true_iter:
+                    return is_true_result, (num_tasks_in_batch, total_batch_count + total_batch_count_iter)
+                else:
+                    # the next batch of tasks is not enabled for execution
+                    return is_true_result, (num_tasks_in_batch, total_batch_count)
             
             return True, (num_tasks_in_batch, total_batch_count)
         
