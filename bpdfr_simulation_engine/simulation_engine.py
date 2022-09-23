@@ -141,6 +141,13 @@ class SimBPMEnv:
         self.sim_setup.check_and_execute_batch_in_queue(started_datetime)
         # self.sim_setup.
 
+    def _get_chunk(self, batch_spec, curr_index, all_case_ids):
+        """ Return only the part of the all_case_ids that will be executed as a batch """
+        acc_tasks_in_batch = 0
+        for i in range(0, curr_index):
+            acc_tasks_in_batch = acc_tasks_in_batch + batch_spec[i]
+        num_tasks_in_batch = batch_spec[curr_index]
+        return all_case_ids[ acc_tasks_in_batch:acc_tasks_in_batch+num_tasks_in_batch ]
     
     def execute_task_batch(self, c_event: EnabledEvent):
         all_tasks_waiting = len(c_event.batch_info_exec.case_ids)
@@ -149,22 +156,20 @@ class SimBPMEnv:
             print("WARNING: Number of tasks in the enabled batch is 0.")
 
         all_case_ids = list(c_event.batch_info_exec.case_ids.items())
-        (num_tasks_in_batch, total_num_batches) = c_event.batch_info_exec.batch_spec
-        chunks = [all_case_ids[i:i+num_tasks_in_batch] for i in range(0, len(all_case_ids), num_tasks_in_batch)]
-        final_chunks = chunks[:total_num_batches]
+
+        batch_spec = c_event.batch_info_exec.batch_spec
+        chunks = [self._get_chunk(batch_spec, i, all_case_ids) for i in range(0, len(batch_spec))]
 
         if c_event.batch_info_exec.is_sequential():
-           return self.execute_seq_task_batch(c_event, final_chunks, num_tasks_in_batch)
+           return self.execute_seq_task_batch(c_event, chunks)
         elif c_event.batch_info_exec.is_parallel():
-            return self.execute_parallel_task_batch(c_event, final_chunks, num_tasks_in_batch)
+            return self.execute_parallel_task_batch(c_event, chunks)
         else:
             print(f"WARNING: {c_event.batch_info_exec.task_batch_info.type} not supported")
 
-    def execute_seq_task_batch(self, c_event: EnabledEvent, chunks, num_tasks_in_batch):
+    def execute_seq_task_batch(self, c_event: EnabledEvent, chunks):
         for batch_item in chunks:
-            if len(batch_item) != num_tasks_in_batch:
-                # not enough items in the batch to proceed with execution
-                continue
+            num_tasks_in_batch = len(batch_item)
             
             r_id, r_avail_at = self.resource_queue.pop_resource_for(c_event.task_id)
             self.sim_resources[r_id].allocated_tasks += num_tasks_in_batch
@@ -210,8 +215,9 @@ class SimBPMEnv:
                 yield completed_at, completed_datetime, p_case
 
 
-    def execute_parallel_task_batch(self, c_event: EnabledEvent, chunks, num_tasks_in_batch):
+    def execute_parallel_task_batch(self, c_event: EnabledEvent, chunks):
         for batch_item in chunks:
+            num_tasks_in_batch = len(batch_item)
 
             r_id, r_avail_at = self.resource_queue.pop_resource_for(c_event.task_id)
             self.sim_resources[r_id].allocated_tasks += num_tasks_in_batch

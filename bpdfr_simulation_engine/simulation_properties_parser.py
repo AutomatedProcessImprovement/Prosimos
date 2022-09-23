@@ -1,8 +1,9 @@
 import json
+from typing import List
 import xml.etree.ElementTree as ET
 
 from numpy import exp, sqrt, log
-from bpdfr_simulation_engine.batching_processing import BATCH_TYPE, BatchConfigPerTask, FiringRule, FiringSubRule
+from bpdfr_simulation_engine.batching_processing import BATCH_TYPE, BatchConfigPerTask, AndFiringRule, FiringSubRule, OrFiringRule
 
 from bpdfr_simulation_engine.control_flow_manager import EVENT_TYPE, BPMNGraph, ElementInfo, BPMN
 from bpdfr_simulation_engine.resource_calendar import RCalendar, convert_time_unit_from_to, convertion_table, to_seconds
@@ -122,9 +123,9 @@ def parse_batch_processing(batch_processing_json_data):
         t_id = batch_processing["task_id"]
         type = BATCH_TYPE(batch_processing["type"])
 
-        firing_rules = []
+        parsed_or_rules: List[OrFiringRule] = []
         for or_rules in batch_processing["firing_rules"]:
-            parsed_or_rules = []
+            parsed_and_rules: List[FiringSubRule] = []
 
             for and_rule in or_rules:
                 condition = FiringSubRule(
@@ -133,10 +134,12 @@ def parse_batch_processing(batch_processing_json_data):
                     and_rule["value"]
                 )
 
-                parsed_or_rules.append(condition)
+                parsed_and_rules.append(condition)
 
-            firing_rule = FiringRule(parsed_or_rules)
-            firing_rules.append(firing_rule)
+            firing_rule = AndFiringRule(parsed_and_rules)
+            parsed_or_rules.append(firing_rule)
+
+        firing_rules = OrFiringRule(parsed_or_rules)
 
         duration_distibution = dict()
         for item in batch_processing["duration_distrib"]:

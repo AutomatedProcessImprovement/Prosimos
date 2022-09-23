@@ -1,6 +1,7 @@
 from enum import Enum
 import operator
 import sys
+from typing import List
 
 OPERATOR_SYMBOLS = {
     '<': operator.lt,
@@ -37,10 +38,15 @@ class FiringSubRule():
         else:
             value1 = element[self.variable1]
 
-            if self.variable1 == "size" and self.operator in ("<", "<=") \
-                and value1 > self.value2:
-                # edge case: we can break waiting tasks for the batch execution into multiple batches
-                return True
+            if value1 < 2:
+                # not enough to be executed in batch, at least 2 tasks required
+                return False
+
+            if self.variable1 == "size":
+                if self.operator == "<" and value1 >= self.value2 \
+                or (self.operator == "<=" and value1 > self.value2):
+                    # edge case: we can break waiting tasks for the batch execution into multiple batches
+                    return True
                 
             return OPERATOR_SYMBOLS[self.operator](value1, self.value2)
 
@@ -48,11 +54,18 @@ class FiringSubRule():
         return self.variable1 == "size"
 
 
-class FiringRule():
+class AndFiringRule():
     def __init__(self, array_of_subrules):
         self.rules = array_of_subrules
 
     def is_true(self, element):
+        """
+        :param element - object with the next structure { "size": number , "waiting_time": array }. waiting_time is array
+        showing the waiting time of each task in the queue ordered by time insertion (same as ordered by case_id)
+        :return: is_true_result, batch_spec where is_true_result shows whether at least one batch is enabled for the execution
+        and batch_spec shows the specification for the batch execution (array where the length shows the num of batches to be executed
+        and the item in array refers to num of tasks to be executed in this i-batch)
+        """
         is_true_result = True
 
         for rule in self.rules:
@@ -60,9 +73,9 @@ class FiringRule():
 
         if is_true_result:
             num_tasks_in_queue = element["size"]
-            total_batch_count = 0
             num_tasks_in_batch = self.get_firing_batch_size(num_tasks_in_queue)
-            total_batch_count = total_batch_count + 1
+            
+            batch_spec = [num_tasks_in_batch]
 
             if num_tasks_in_queue > num_tasks_in_batch:
                 # shift to the next tasks and validate the rule there
@@ -72,16 +85,16 @@ class FiringRule():
                 element["size"] = new_num_tasks
                 element['waiting_time'] = element['waiting_time'][num_tasks_in_batch:]
 
-                is_true_iter, (_, total_batch_count_iter) = self.is_true(element)
+                is_true_iter, total_batch_count_iter = self.is_true(element)
                 if is_true_iter:
-                    return is_true_result, (num_tasks_in_batch, total_batch_count + total_batch_count_iter)
+                    return is_true_result, batch_spec + total_batch_count_iter
                 else:
                     # the next batch of tasks is not enabled for execution
-                    return is_true_result, (num_tasks_in_batch, total_batch_count)
+                    return is_true_result, batch_spec
             
-            return True, (num_tasks_in_batch, total_batch_count)
+            return True, batch_spec
         
-        return is_true_result, (None, None)
+        return is_true_result, None
 
     def _get_batch_size_subrule(self):
         for rule in self.rules:
@@ -106,6 +119,22 @@ class FiringRule():
         }
 
         return switcher.get(batch_size_subrule.operator)
+
+
+class OrFiringRule():
+    def __init__(self, or_firing_rule_arr: List[AndFiringRule]):
+        self.rules = or_firing_rule_arr
+
+    def is_true(self, spec):
+        is_batched_task_enabled = False
+        for rule in self.rules:
+            is_batched_task_enabled, batch_spec = rule.is_true(spec)
+
+            # fast exit if one of the rule is true
+            if is_batched_task_enabled:
+                return is_batched_task_enabled, batch_spec
+
+        return is_batched_task_enabled, None
 
 
 class BatchConfigPerTask():

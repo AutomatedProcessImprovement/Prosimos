@@ -9,7 +9,7 @@ from typing import List
 import pm4py
 import random
 from pm4py.objects.conversion.process_tree import converter
-from bpdfr_simulation_engine.batching_processing import BATCH_TYPE, FiringRule
+from bpdfr_simulation_engine.batching_processing import BATCH_TYPE, AndFiringRule
 from bpdfr_simulation_engine.probability_distributions import generate_number_from
 from bpdfr_simulation_engine.resource_calendar import str_week_days
 
@@ -32,7 +32,7 @@ def get_nearest_abs_day(weekday, from_datetime):
 
 
 class BatchInfoForExecution:
-    def __init__(self, all_case_ids, task_batch_info, curr_task_id, batch_spec): # enabling_rule: FiringRule):
+    def __init__(self, all_case_ids, task_batch_info, curr_task_id, batch_spec): # enabling_rule: AndFiringRule):
         self.case_ids = all_case_ids[curr_task_id].copy()
         self.task_batch_info = task_batch_info[curr_task_id]
         # self.enabling_rule = enabling_rule
@@ -385,25 +385,17 @@ class BPMNGraph:
             print(f"WARNING: task {task_id} does not have config for batching processing")
             return False
 
-        firing_rules: List[FiringRule] = task_batch_info.firing_rules
+        firing_rules: List[AndFiringRule] = task_batch_info.firing_rules
 
         size_count = self.batch_count[task_id] if self.batch_count.get(task_id, None) != None else 0
         waiting_time = [ (enabled_at.datetime - v.datetime).total_seconds() for (_, v) in self.batch_waiting_processes[task_id].items() ] 
         
-        count = {
+        spec = {
             "size": size_count,
             "waiting_time": waiting_time
         }
-        
-        is_batched_task_enabled = False
-        for rule in firing_rules:
-            is_batched_task_enabled, batch_spec = rule.is_true(count)
 
-            # fast exit if one of the rule is true
-            if is_batched_task_enabled:
-                return is_batched_task_enabled, batch_spec
-
-        return is_batched_task_enabled, None
+        return firing_rules.is_true(spec)
 
 
     def get_event_gateway_choice(self, gateway_element_info: ElementInfo, completed_datetime_prev_event):
@@ -863,24 +855,25 @@ class BPMNGraph:
         clear that data from here to avoid multiple execution
         """
         # is_batch_size_included, batch_size = batch_info.is_batch_size_included_in_enabled_rule()
-        (batch_size, _) = batch_info.batch_spec
+        batch_spec = batch_info.batch_spec
+        
+        for batch_size in batch_spec:
+            if batch_size != None:
+                # remove first batch_size-element since they are being executed
+                # the rest stays in the queue for being enabled for batch execution
+                curr_index = 0
+                for item_key in list(self.batch_waiting_processes[next_e].keys()):
+                    del self.batch_waiting_processes[next_e][item_key]
+                    curr_index = curr_index + 1
 
-        if batch_size != None:
-            # remove first batch_size-element since they are being executed
-            # the rest stays in the queue for being enabled for batch execution
-            curr_index = 0
-            for item_key in list(self.batch_waiting_processes[next_e].keys()):
-                del self.batch_waiting_processes[next_e][item_key]
-                curr_index = curr_index + 1
+                    if curr_index == batch_size:
+                        # all waiting processes regarding the selected batch was removed
+                        break
 
-                if curr_index == batch_size:
-                    # all waiting processes regarding the selected batch was removed
-                    break
-
-            self.batch_count[next_e] = self.batch_count[next_e] - batch_size
-        else:
-            self.batch_waiting_processes[next_e] = dict()
-            self.batch_count[next_e] = 0
+                self.batch_count[next_e] = self.batch_count[next_e] - batch_size
+            else:
+                self.batch_waiting_processes[next_e] = dict()
+                self.batch_count[next_e] = 0
 
 
     def increase_task_count(self, task_id, case_id, enabled_time):
