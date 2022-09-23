@@ -132,7 +132,7 @@ class LogInfo:
         for trace_info in self.trace_list:
             self.compute_execution_times(trace_info, process_kpi)
 
-        return [process_kpi, self.task_exec_info, compute_resource_utilization(bpm_env)]
+        return [process_kpi, self.task_exec_info, compute_resource_utilization(bpm_env), self.started_at, self.ended_at]
 
     def save_start_end_dates(self, stat_fwriter):
         stat_fwriter.writerow(["started_at", str(self.started_at)])
