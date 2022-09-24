@@ -2,15 +2,21 @@ from enum import Enum
 import operator
 import sys
 from typing import List
+from bpdfr_simulation_engine.resource_calendar import int_week_days
 
 OPERATOR_SYMBOLS = {
     '<': operator.lt,
     '<=': operator.le,
-    '=': operator.ge,
-    # '!=': operator.ne,
     '>': operator.gt,
     '>=': operator.ge
 }
+
+
+def _get_operator_symbols(operator_str: str, rule_type: str):
+    eq_operator = operator.eq if rule_type == "week_day" else operator.ge
+    OPERATOR_SYMBOLS["="] = eq_operator
+    return OPERATOR_SYMBOLS[operator_str]
+
 
 class BATCH_TYPE(Enum):
     SEQUENTIAL = 'Sequential'   # one after another
@@ -35,20 +41,25 @@ class FiringSubRule():
             oldest_in_batch = value1_list[0]
             
             return OPERATOR_SYMBOLS[self.operator](oldest_in_batch, self.value2)
-        else:
+        elif self.variable1 == "size":
             value1 = element[self.variable1]
 
             if value1 < 2:
                 # not enough to be executed in batch, at least 2 tasks required
                 return False
 
-            if self.variable1 == "size":
-                if self.operator == "<" and value1 >= self.value2 \
-                or (self.operator == "<=" and value1 > self.value2):
-                    # edge case: we can break waiting tasks for the batch execution into multiple batches
-                    return True
-                
-            return OPERATOR_SYMBOLS[self.operator](value1, self.value2)
+            if self.operator == "<" and value1 >= self.value2 \
+            or (self.operator == "<=" and value1 > self.value2):
+                # edge case: we can break waiting tasks for the batch execution into multiple batches
+                return True
+
+        else: # week_day
+            value1 = element["curr_enabled_at"]
+            curr_week_day_int = value1.weekday()
+            curr_week_day_str = int_week_days.get(curr_week_day_int)
+            operator = _get_operator_symbols(self.operator, self.variable1)
+
+            return operator(curr_week_day_str, self.value2.upper())
 
     def is_batch_size(self):
         return self.variable1 == "size"

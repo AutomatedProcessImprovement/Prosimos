@@ -1,4 +1,6 @@
 import pytest
+from datetime import datetime 
+
 from bpdfr_simulation_engine.batching_processing import AndFiringRule, FiringSubRule, OrFiringRule
 
 
@@ -249,6 +251,50 @@ def test_wt_or_size_rule_correct_enabled_and_batch_size(
     current_exec_status = {
         "size": len(waiting_time_arr),
         "waiting_time": waiting_time_arr
+    }
+
+    # ====== ACT & ASSERT ======
+    (is_true, batch_spec) = rule.is_true(current_exec_status)
+    assert expected_is_true == is_true
+    assert expected_batch_size == batch_spec
+
+
+data_day_week_rules = [
+    (
+        '24/09/22 13:55:26',
+        [ 3600, 3600, 1200, 600, 0 ],
+        ("=", "Monday"),
+        False,
+        None
+    ),
+    (
+        '19/09/22 13:55:26',
+        [ 3600, 3600, 1200, 600, 0 ],
+        ("=", "Monday"),
+        True,
+        [5]
+    ),
+]
+
+@pytest.mark.parametrize(
+    "curr_enabled_at_str, waiting_time_arr, week_day_rule, expected_is_true, expected_batch_size", 
+    data_day_week_rules
+)
+def test_week_day_rule_correct_enabled_and_batch_size(
+    curr_enabled_at_str, waiting_time_arr, week_day_rule, expected_is_true, expected_batch_size):
+
+    # ====== ARRANGE ======
+    (week_day_rule_sign, week_day) = week_day_rule
+    firing_sub_rule_1 = FiringSubRule("week_day", week_day_rule_sign, week_day) 
+    firing_rule_1 = AndFiringRule([ firing_sub_rule_1 ])
+    rule = OrFiringRule([ firing_rule_1 ])
+
+    curr_enabled_at = datetime.strptime(curr_enabled_at_str, '%d/%m/%y %H:%M:%S')
+
+    current_exec_status = {
+        "size": len(waiting_time_arr),
+        "waiting_time": waiting_time_arr,
+        "curr_enabled_at": curr_enabled_at
     }
 
     # ====== ACT & ASSERT ======

@@ -138,6 +138,7 @@ class SimBPMEnv:
 
     
     def check_and_execute_batch_in_queue(self, started_datetime):
+        # TODO: implement and call before every execution of the task
         self.sim_setup.check_and_execute_batch_in_queue(started_datetime)
         # self.sim_setup.
 

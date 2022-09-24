@@ -392,7 +392,8 @@ class BPMNGraph:
         
         spec = {
             "size": size_count,
-            "waiting_time": waiting_time
+            "waiting_time": waiting_time,
+            "current_enabled_time": enabled_at.datetime
         }
 
         return firing_rules.is_true(spec)
