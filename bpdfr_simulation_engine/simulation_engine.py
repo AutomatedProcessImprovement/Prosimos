@@ -63,7 +63,7 @@ class SimBPMEnv:
         self.executed_events += 1
 
         event_element_info = self.sim_setup.bpmn_graph.element_info[c_event.task_id]
-        self.check_and_execute_batch_in_queue(c_event.enabled_at)
+        # self.is_any_batch_enabled(c_event.enabled_at)
 
         if event_element_info.type == BPMN.TASK and c_event.batch_info_exec is not None:
             # execute batched task
@@ -137,10 +137,27 @@ class SimBPMEnv:
         return completed_at, completed_datetime
 
     
-    def check_and_execute_batch_in_queue(self, started_datetime):
+    def is_any_batch_enabled(self, current_event: EnabledEvent):
         # TODO: implement and call before every execution of the task
-        self.sim_setup.check_and_execute_batch_in_queue(started_datetime)
-        # self.sim_setup.
+        enabled_datetime = CustomDatetimeAndSeconds(current_event.enabled_at, current_event.enabled_datetime)
+        enabled_batch_task_ids = self.sim_setup.is_any_batch_enabled(enabled_datetime)
+        if enabled_batch_task_ids != None:
+            for (batch_task_id, batch_info) in enabled_batch_task_ids.items():
+                c_event = EnabledEvent(
+                    current_event.p_case,
+                    current_event.p_state,
+                    batch_task_id,
+                    current_event.enabled_at,
+                    current_event.enabled_datetime,
+                    batch_info
+                )
+
+                self.execute_enabled_event(c_event)
+
+
+    def is_any_unexecuted_batch(self):
+        return self.sim_setup.is_any_unexecuted_batch()
+
 
     def _get_chunk(self, batch_spec, curr_index, all_case_ids):
         """ Return only the part of the all_case_ids that will be executed as a batch """
@@ -169,6 +186,8 @@ class SimBPMEnv:
             print(f"WARNING: {c_event.batch_info_exec.task_batch_info.type} not supported")
 
     def execute_seq_task_batch(self, c_event: EnabledEvent, chunks):
+        start_time_from_rule_seconds = (c_event.batch_info_exec.start_time_from_rule - self.sim_setup.start_datetime).total_seconds()
+
         for batch_item in chunks:
             num_tasks_in_batch = len(batch_item)
             
@@ -184,7 +203,7 @@ class SimBPMEnv:
                 enabled_datetime = enabled_time.datetime
                 enabled_batch = c_event.enabled_at
 
-                r_avail_at = max(enabled_at, r_avail_at, enabled_batch, completed_at)
+                r_avail_at = max(enabled_at, r_avail_at, enabled_batch, completed_at, start_time_from_rule_seconds)
                 avail_datetime = self._datetime_from(r_avail_at)
                 is_working, _ = self.sim_setup.get_resource_calendar(r_id).is_working_datetime(avail_datetime)
                 if not is_working:
@@ -217,15 +236,27 @@ class SimBPMEnv:
 
 
     def execute_parallel_task_batch(self, c_event: EnabledEvent, chunks):
+        task_id = c_event.task_id
+
+        start_time_from_rule_datetime = c_event.batch_info_exec.start_time_from_rule
+        if start_time_from_rule_datetime == None:
+            start_time_from_rule_seconds = 0
+            enabled_batch = c_event.enabled_at
+        else:
+            # edge case: start_time_from_rule overwrite the enabled time from the execution
+            # happens when we entered the day (e.g., Monday) during the time 
+            # waiting for the task execution in the queue
+            start_time_from_rule_seconds = \
+                (c_event.batch_info_exec.start_time_from_rule - self.sim_setup.start_datetime).total_seconds()
+            enabled_batch = 0
+
         for batch_item in chunks:
             num_tasks_in_batch = len(batch_item)
 
-            r_id, r_avail_at = self.resource_queue.pop_resource_for(c_event.task_id)
+            r_id, r_avail_at = self.resource_queue.pop_resource_for(task_id)
             self.sim_resources[r_id].allocated_tasks += num_tasks_in_batch
 
-            enabled_batch = c_event.enabled_at
-
-            r_avail_at = max(r_avail_at, enabled_batch)
+            r_avail_at = max(r_avail_at, enabled_batch, start_time_from_rule_seconds)
             avail_datetime = self._datetime_from(r_avail_at)
             is_working, _ = self.sim_setup.get_resource_calendar(r_id).is_working_datetime(avail_datetime)
             if not is_working:
@@ -233,7 +264,6 @@ class SimBPMEnv:
             
             for (case_id, enabled_time) in batch_item:
                 p_case = case_id
-                task_id = c_event.task_id
                 enabled_at = enabled_time.seconds_from_start
                 enabled_datetime = enabled_time.datetime
 
@@ -331,9 +361,12 @@ def execute_full_process(bpm_env: SimBPMEnv, total_cases):
     #       str(datetime.timedelta(seconds=(datetime.datetime.now() - s_t).total_seconds())))
     current_event = bpm_env.events_queue.pop_next_event()
     while current_event is not None:
+        bpm_env.is_any_batch_enabled(current_event)
         bpm_env.execute_enabled_event(current_event)
         current_event = bpm_env.events_queue.pop_next_event()
 
+    if bpm_env.is_any_unexecuted_batch():
+        print("not executed")
     # TODO: validate that we don't have any tasks left in the batch
 
 

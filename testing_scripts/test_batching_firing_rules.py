@@ -1,5 +1,6 @@
+from pyparsing import enable_diag
 import pytest
-from datetime import datetime 
+from datetime import datetime, timedelta 
 
 from bpdfr_simulation_engine.batching_processing import AndFiringRule, FiringSubRule, OrFiringRule
 
@@ -10,60 +11,72 @@ def test_only_size_eq_correct():
     firing_sub_rule = FiringSubRule("size", "=", 3)
     firing_rules = AndFiringRule([firing_sub_rule])
 
+    # note: enabled_datetimes and curr_enabled_at does not reflect the real situation
+    # not being used for this special use case
     current_exec_status = {
         "size": 3,
-        "waiting_time": 1000
+        "waiting_times": [1000],
+        "enabled_datetimes": [],
+        "curr_enabled_at": datetime.now()
     }
 
     # ====== ACT & ASSERT ======
-    (is_true, _) = firing_rules.is_true(current_exec_status)
+    (is_true, _, _) = firing_rules.is_true(current_exec_status)
     assert True == is_true
 
     current_size = current_exec_status["size"]
-    batch_size = firing_rules.get_firing_batch_size(current_size)
+    batch_size, _ = firing_rules.get_firing_batch_size(current_size, current_exec_status)
     assert batch_size == 3
 
 def test_size_eq_wt_lt_correct():
     # ====== ARRANGE ======
     firing_sub_rule_1 = FiringSubRule("size", "=", 3)
-    firing_sub_rule_2 = FiringSubRule("waiting_time", "<", 3600) # 1 hour
+    firing_sub_rule_2 = FiringSubRule("waiting_times", "<", 3600) # 1 hour
     firing_rules = AndFiringRule([ firing_sub_rule_1, firing_sub_rule_2 ])
 
+    # note: enabled_datetimes and curr_enabled_at does not reflect the real situation
+    # not being used for this special use case
     current_exec_status = {
         "size": 3,
-        "waiting_time": [
+        "waiting_times": [
             120,
             60,
             0
-        ]
+        ], 
+        "enabled_datetimes": [],
+        "curr_enabled_at": datetime.now()
     }
 
     # ====== ACT & ASSERT ======
-    (is_true, _) = firing_rules.is_true(current_exec_status)
+    is_true, _, _ = firing_rules.is_true(current_exec_status)
     assert True == is_true
 
     current_size = current_exec_status["size"]
-    batch_size = firing_rules.get_firing_batch_size(current_size)
+    batch_size, _ = firing_rules.get_firing_batch_size(current_size, current_exec_status)
     assert batch_size == 3
 
 
 def test_size_eq_and_wt_gt_correct():
     # ====== ARRANGE ======
     firing_sub_rule_1 = FiringSubRule("size", "=", 3)
-    firing_sub_rule_2 = FiringSubRule("waiting_time", ">", 3600) # 1 hour
+    firing_sub_rule_2 = FiringSubRule("waiting_times", ">", 3600) # 1 hour
     firing_rules = AndFiringRule([ firing_sub_rule_1, firing_sub_rule_2 ])
 
+    # note: enabled_datetimes and curr_enabled_at does not reflect the real situation
+    # not being used for this special use case
     current_exec_status = {
         "size": 3,
-        "waiting_time": [
+        "waiting_times": [
             120,
             60,
             0
-        ]
+        ],
+        "enabled_datetimes": [],
+        "curr_enabled_at": datetime.now()
     }
 
     # ====== ACT & ASSERT ======
-    (is_true, _) = firing_rules.is_true(current_exec_status)
+    (is_true, _, _) = firing_rules.is_true(current_exec_status)
     assert False == is_true
 
 
@@ -133,16 +146,20 @@ def test_only_waiting_time_rule_correct_enabled_and_batch_size(
     waiting_time_arr, rule_sign, expected_is_true, expected_batch_size):
 
     # ====== ARRANGE ======
-    firing_sub_rule_1 = FiringSubRule("waiting_time", rule_sign, 3600) # 1 hour
+    firing_sub_rule_1 = FiringSubRule("waiting_times", rule_sign, 3600) # 1 hour
     firing_rules = AndFiringRule([ firing_sub_rule_1 ])
 
+    # note: enabled_datetimes and curr_enabled_at does not reflect the real situation
+    # not being used for this special use case
     current_exec_status = {
         "size": len(waiting_time_arr),
-        "waiting_time": waiting_time_arr
+        "waiting_times": waiting_time_arr,
+        "enabled_datetimes": [],
+        "curr_enabled_at": datetime.now()
     }
 
     # ====== ACT & ASSERT ======
-    (is_true, batch_spec) = firing_rules.is_true(current_exec_status)
+    (is_true, batch_spec, _) = firing_rules.is_true(current_exec_status)
     assert expected_is_true == is_true
     assert expected_batch_size == batch_spec
 
@@ -193,16 +210,20 @@ def test_wt_and_size_rules_correct_enabled_and_batch_size(
 
     # ====== ARRANGE ======
     firing_sub_rule_1 = FiringSubRule("size", size_rule_sign, 3) 
-    firing_sub_rule_2 = FiringSubRule("waiting_time", wt_rule_sign, 3600) # 1 hour
+    firing_sub_rule_2 = FiringSubRule("waiting_times", wt_rule_sign, 3600) # 1 hour
     firing_rules = AndFiringRule([ firing_sub_rule_1, firing_sub_rule_2 ])
 
+    # note: enabled_datetimes and curr_enabled_at does not reflect the real situation
+    # not being used for this special use case
     current_exec_status = {
         "size": len(waiting_time_arr),
-        "waiting_time": waiting_time_arr
+        "waiting_times": waiting_time_arr,
+        "enabled_datetimes": [],
+        "curr_enabled_at": datetime.now()
     }
 
     # ====== ACT & ASSERT ======
-    (is_true, batch_spec) = firing_rules.is_true(current_exec_status)
+    (is_true, batch_spec, _) = firing_rules.is_true(current_exec_status)
     assert expected_is_true == is_true
     assert expected_batch_size == batch_spec
 
@@ -243,18 +264,22 @@ def test_wt_or_size_rule_correct_enabled_and_batch_size(
     firing_sub_rule_1 = FiringSubRule("size", size_rule_sign, 3) 
     firing_rule_1 = AndFiringRule([ firing_sub_rule_1 ])
 
-    firing_sub_rule_2 = FiringSubRule("waiting_time", wt_rule_sign, 3600) # 1 hour
+    firing_sub_rule_2 = FiringSubRule("waiting_times", wt_rule_sign, 3600) # 1 hour
     firing_rule_2 = AndFiringRule([ firing_sub_rule_2 ])
 
     rule = OrFiringRule([ firing_rule_1, firing_rule_2 ])
 
+    # note: enabled_datetimes and curr_enabled_at does not reflect the real situation
+    # not being used for this special use case
     current_exec_status = {
         "size": len(waiting_time_arr),
-        "waiting_time": waiting_time_arr
+        "waiting_times": waiting_time_arr,
+        "enabled_datetimes": [],
+        "curr_enabled_at": datetime.now()
     }
 
     # ====== ACT & ASSERT ======
-    (is_true, batch_spec) = rule.is_true(current_exec_status)
+    (is_true, batch_spec, _) = rule.is_true(current_exec_status)
     assert expected_is_true == is_true
     assert expected_batch_size == batch_spec
 
@@ -290,14 +315,16 @@ def test_week_day_rule_correct_enabled_and_batch_size(
     rule = OrFiringRule([ firing_rule_1 ])
 
     curr_enabled_at = datetime.strptime(curr_enabled_at_str, '%d/%m/%y %H:%M:%S')
+    enabled_datetimes = [curr_enabled_at - timedelta(seconds=item) for item in waiting_time_arr ]
 
     current_exec_status = {
         "size": len(waiting_time_arr),
-        "waiting_time": waiting_time_arr,
+        "waiting_times": waiting_time_arr,
+        "enabled_datetimes": enabled_datetimes,
         "curr_enabled_at": curr_enabled_at
     }
 
     # ====== ACT & ASSERT ======
-    (is_true, batch_spec) = rule.is_true(current_exec_status)
+    (is_true, batch_spec, _) = rule.is_true(current_exec_status)
     assert expected_is_true == is_true
     assert expected_batch_size == batch_spec

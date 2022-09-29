@@ -8,7 +8,6 @@ import json
 from pandas import testing as tm
 
 from bpdfr_simulation_engine.resource_calendar import parse_datetime
-from bpdfr_simulation_engine.simulation_properties_parser import parse_json_sim_parameters
 from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 from testing_scripts.test_simulation import _verify_activity_count_and_duration
 
@@ -102,6 +101,21 @@ def test_seq_batch_count_firing_rule_correct_duration(assets_path):
     logs_d_task = df[df['activity'] == 'D']
     expected_activity_timedelta = datetime.timedelta(seconds=96)
     _verify_activity_count_and_duration(logs_d_task, 6, expected_activity_timedelta)
+
+    grouped_by_start_time = logs_d_task.groupby(by="case_id")
+    for start_time, group in grouped_by_start_time:
+        _verify_same_resource_for_batch(group['resource'])
+
+        # for row_index, row in group.iterrows():
+    
+    # last_d_activity = grouped_by_case_id.get_group(2)
+    # last_d_activity_end_time = \
+    #     last_d_activity[last_d_activity['activity'] == 'D']['end_time'].values[0]
+    # for case_id, group in grouped_by_case_id:
+    #     for row_index, row in group.iterrows():
+    #         if row['activity'] != 'E':
+    #             continue
+
 
 
 @pytest.mark.parametrize("assets_path_fixture,duration_distrib,firing_count,expected_duration_sec", data_nearest_neighbors)
@@ -273,6 +287,8 @@ def test_parallel_batch_enable_start_waiting_correct(assets_path):
     
     tm.assert_series_equal(start_enable_start_diff_for_task, expected_waiting_times, check_index=False)
 
+    _verify_same_resource_for_batch(logs_d_task['resource'])
+
 
 def test_two_batches_duration_correct(assets_path):
     """
@@ -359,7 +375,7 @@ def test_waiting_time_rule_correct_firing(assets_path):
     firing_rules = [
         [
             {
-                "attribute": "waiting_time",
+                "attribute": "waiting_times",
                 "comparison": ">",
                 "value": 210 # 3.5 minutes
             }
@@ -400,6 +416,8 @@ def test_waiting_time_rule_correct_firing(assets_path):
     
     tm.assert_series_equal(logs_d_tasks['start_time'], expected_start_times, check_index=False, check_dtype=False, check_names=False)
     tm.assert_series_equal(logs_d_tasks['end_time'], expected_end_times, check_index=False, check_dtype=False, check_names=False)
+
+    _verify_same_resource_for_batch(logs_d_tasks['resource'])
 
 
 def test_waiting_time_rule_correct_firing(assets_path):
@@ -426,7 +444,7 @@ def test_waiting_time_rule_correct_firing(assets_path):
     firing_rules = [
         [
             {
-                "attribute": "waiting_time",
+                "attribute": "waiting_times",
                 "comparison": ">",
                 "value": 210 # 3.5 minutes
             }
@@ -467,6 +485,123 @@ def test_waiting_time_rule_correct_firing(assets_path):
     
     tm.assert_series_equal(logs_d_tasks['start_time'], expected_start_times, check_index=False, check_dtype=False, check_names=False)
     tm.assert_series_equal(logs_d_tasks['end_time'], expected_end_times, check_index=False, check_dtype=False, check_names=False)
+
+    _verify_same_resource_for_batch(logs_d_tasks['resource'])
+
+def test_week_day_correct_firing(assets_path):
+    """
+    """
+
+    # ====== ARRANGE ======
+    model_path = assets_path / 'batch-example-end-task.bpmn'
+    basic_json_path = assets_path / 'batch-example-with-batch.json'
+    json_path = assets_path / 'batch-example-nearest-coef.json'
+    sim_stats = assets_path / 'batch_stats.csv'
+    sim_logs = assets_path / 'batch_logs.csv'
+
+    start_string = '2022-09-26 13:22:30.035185+03:00'
+    start_date = parse_datetime(start_string, True)
+
+    with open(basic_json_path, 'r') as f:
+        json_dict = json.load(f)
+
+    firing_rules = [
+        [
+            {
+                "attribute": "week_day",
+                "comparison": "=",
+                "value": "Monday"
+            }
+        ]
+    ]
+    _setup_sim_scenario_file(json_dict, None, None, "Parallel", firing_rules)
+
+    with open(json_path, 'w+') as json_file:
+        json.dump(json_dict, json_file)
+
+    # ====== ACT ======
+    _, diff_sim_result = run_diff_res_simulation(start_date,
+                                    4, # one batch 
+                                    model_path,
+                                    json_path,
+                                    sim_stats,
+                                    sim_logs)
+
+
+    # ====== ASSERT ======
+    df = pd.read_csv(sim_logs)
+    logs_d_task = df[df['activity'] == 'D']
+    grouped_by_start = logs_d_task.groupby(by='start_time')
+
+    expected_start_time_keys = ['2022-09-26 13:28:30.035185+03:00', '2022-09-26 13:32:30.035185+03:00']
+    grouped_by_start_keys = list(grouped_by_start.groups.keys()) 
+    assert grouped_by_start_keys == expected_start_time_keys, \
+        f"The start_time for batched D tasks differs. Expected: {expected_start_time_keys}, but was {grouped_by_start_keys}"
+
+def test_week_day_different_correct_firing(assets_path):
+    """
+    """
+
+    # ====== ARRANGE ======
+    model_path = assets_path / 'batch-example-end-task.bpmn'
+    basic_json_path = assets_path / 'batch-example-with-batch.json'
+    json_path = assets_path / 'batch-example-nearest-coef.json'
+    sim_stats = assets_path / 'batch_stats.csv'
+    sim_logs = assets_path / 'batch_logs.csv'
+
+    start_string = '2022-09-25 23:40:30.000000+03:00'
+    start_date = parse_datetime(start_string, True)
+
+    with open(basic_json_path, 'r') as f:
+        json_dict = json.load(f)
+
+    firing_rules = [
+        [
+            {
+                "attribute": "week_day",
+                "comparison": "=",
+                "value": "Monday"
+            }
+        ]
+    ]
+    _setup_sim_scenario_file(json_dict, None, None, "Parallel", firing_rules)
+
+    with open(json_path, 'w+') as json_file:
+        json.dump(json_dict, json_file)
+
+    # ====== ACT ======
+    _, diff_sim_result = run_diff_res_simulation(start_date,
+                                    10, # one batch 
+                                    model_path,
+                                    json_path,
+                                    sim_stats,
+                                    sim_logs)
+
+
+    # ====== ASSERT ======
+    df = pd.read_csv(sim_logs)
+    logs_d_task = df[df['activity'] == 'D']
+
+    logs_d_task['start_time'] = pd.to_datetime(logs_d_task['start_time'], errors='coerce')
+
+    # remove miliseconds from time
+    logs_d_task['start_time'] = logs_d_task['start_time'].apply(lambda x: _remove_miliseconds(x))
+    
+    grouped_by_start = logs_d_task.groupby(by='start_time')
+
+    expected_start_time_keys = [
+        '2022-09-26 00:00:00+03:00',
+        '2022-09-26 00:03:36+03:00'
+    ]
+    
+    grouped_by_start_keys = list(grouped_by_start.groups.keys()) 
+    assert grouped_by_start_keys == expected_start_time_keys, \
+        f"The start_time for batched D tasks differs. Expected: {expected_start_time_keys}, but was {grouped_by_start_keys}"
+
+
+def _remove_miliseconds(x: datetime.datetime):
+    dt = datetime.datetime(x.year, x.month, x.day, x.hour, x.minute, x.second, tzinfo=x.tzinfo)
+    return str(dt) # format: "%Y-%m-%d %H:%M:%S.%f%z"
 
 
 def _add_batch_task(json_dict):
@@ -512,3 +647,12 @@ def _setup_sim_scenario_file(json_dict, duration_distrib, firing_count, batch_ty
 
     if firing_rules != None:
         batch_processing['firing_rules'] = firing_rules
+
+
+def _verify_same_resource_for_batch(resource_series):
+    """
+    Make sure that resource_name is equal between each other.
+    This would mean the batch was executed by the same resource.
+    """
+    first_resource_arr = resource_series.to_numpy()
+    return (first_resource_arr[0] == resource_series).all()
