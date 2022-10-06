@@ -1,9 +1,11 @@
 from enum import Enum
-import operator
+import operator as operator
 import sys
+import datetime
 from typing import List
 from datetime import datetime
-from bpdfr_simulation_engine.resource_calendar import int_week_days
+from bpdfr_simulation_engine.resource_calendar import str_week_days
+from bpdfr_simulation_engine.weekday_helper import get_nearest_past_day
 
 
 def _get_operator_symbols(operator_str: str, eq_operator: operator):
@@ -56,8 +58,8 @@ class FiringSubRule():
 
             oldest_in_batch = value1_list[0]
 
-            operator = _get_operator_symbols_eq(self.operator)
-            return operator(oldest_in_batch, self.value2)
+            op = _get_operator_symbols_eq(self.operator)
+            return op(oldest_in_batch, self.value2)
 
         elif self.variable1 == "size":
             value1 = element[self.variable1]
@@ -71,16 +73,31 @@ class FiringSubRule():
                 # edge case: we can break waiting tasks for the batch execution into multiple batches
                 return True
 
-            operator = _get_operator_symbols_ge(self.operator)
-            return operator(value1, self.value2)
+            op = _get_operator_symbols_ge(self.operator)
+            return op(value1, self.value2)
 
         else: # week_day
             value1 = element["curr_enabled_at"]
             curr_week_day_int = value1.weekday()
-            curr_week_day_str = int_week_days.get(curr_week_day_int)
+            # curr_week_day_str = int_week_days.get(curr_week_day_int)
+            rule_value_str = self.value2.upper()
+            rule_value_int = str_week_days[rule_value_str]
 
-            operator = _get_operator_symbols_eq(self.operator)
-            return operator(curr_week_day_str, self.value2.upper())
+            op = _get_operator_symbols_eq(self.operator)
+            is_rule_true = op(curr_week_day_int, rule_value_int)
+            if is_rule_true:
+                # current enabled time is at the specified range
+                return is_rule_true
+            else:
+                spec = {
+                    "size": element["size"],
+                    "waiting_times": element["waiting_times"].copy(),
+                    "enabled_datetimes": element["enabled_datetimes"].copy(),
+                    "curr_enabled_at": element["curr_enabled_at"],
+                    "is_triggered_by_batch": False
+                }
+                enabled_items, _ = self.get_batch_size_relative_time(spec)
+                return enabled_items > 0
 
     def is_batch_size(self):
         return self.variable1 == "size"
@@ -97,22 +114,51 @@ class FiringSubRule():
         return switcher.get(self.operator)
 
     def get_batch_size_relative_time(self, element):
-        enabled_times = element["enabled_datetimes"]
-        prev_task_end_time = element["curr_enabled_at"]
+        curr_enabled_at = element["curr_enabled_at"]
+        rule_value_str = self.value2.upper()
+  
+        enabled_times = element["enabled_datetimes"].copy()
+        curr_enabled_at = element["curr_enabled_at"]
+        rule_nearest_past_day = get_nearest_past_day(rule_value_str, curr_enabled_at)
+            
+        boundary_day = datetime(rule_nearest_past_day.year, rule_nearest_past_day.month, rule_nearest_past_day.day, \
+                        0, 0, 0, rule_nearest_past_day.microsecond, rule_nearest_past_day.tzinfo)
 
-        rule_threshold = datetime(prev_task_end_time.year, prev_task_end_time.month, prev_task_end_time.day, \
-            0, 0, 0, prev_task_end_time.microsecond, prev_task_end_time.tzinfo)
+        if element["is_triggered_by_batch"] and \
+            curr_enabled_at.date() == boundary_day.date():
+                # the first executing task after the boundary date is a batched one
+                # we either found tasks enabled before midnight and execute them
+                # or we execute enabled batched tasks (if any) today
+                op = operator.lt
+                follow_rule = []
+                for time in enabled_times:
+                    if op(time, boundary_day):
+                        follow_rule.append(time)
+
+                if len(follow_rule) > 0:
+                    return len(follow_rule), boundary_day
+                    
+        if element["is_triggered_by_batch"]:
+            boundary_day = curr_enabled_at
+            op = operator.le
+        else:
+            rule_nearest_past_day = get_nearest_past_day(rule_value_str, curr_enabled_at)
+                
+            boundary_day = datetime(rule_nearest_past_day.year, rule_nearest_past_day.month, rule_nearest_past_day.day, \
+                            0, 0, 0, rule_nearest_past_day.microsecond, rule_nearest_past_day.tzinfo)
+            op = operator.lt
+
+        enabled_times = element["enabled_datetimes"].copy()
 
         follow_rule = []
         for time in enabled_times:
-            operator = _get_operator_symbols_lt(self.operator)
-            if operator(time, rule_threshold):
+            if op(time, boundary_day):
                 follow_rule.append(time)
 
         if len(follow_rule) > 0:
-            return len(follow_rule), rule_threshold 
+            return len(follow_rule), boundary_day 
         
-        return len(enabled_times), None
+        return 0, None
 
 
 class AndFiringRule():
@@ -127,9 +173,10 @@ class AndFiringRule():
                 ordered by time insertion (same as ordered by case_id)
             - enabled_datetimes (type: array) shows the datetime of enabling for every task in the queue
             - curr_enabled_at (type: datetime) is the datetime of enabling for the very last task in the queue
-        :return: is_true_result, batch_spec where is_true_result shows whether at least one batch is enabled for the execution
-        and batch_spec shows the specification for the batch execution (array where the length shows the num of batches to be executed
-        and the item in array refers to num of tasks to be executed in this i-batch)
+        :return: is_true_result, batch_spec where:
+            - is_true_result shows whether at least one batch is enabled for the execution
+            - batch_spec shows the specification for the batch execution (array where the length shows the num of batches to be executed
+                and the item in array refers to num of tasks to be executed in this i-batch)
         """
         is_true_result = True
 
@@ -142,6 +189,7 @@ class AndFiringRule():
 
             if num_tasks_in_batch == 0:
                 print("WARNING: Getting batch size for the execution returned to be 0. Verify provided rules.")
+                return False, None, None
             
             batch_spec = [num_tasks_in_batch]
 
@@ -152,10 +200,14 @@ class AndFiringRule():
                 # adjust the processed batch passed to the 'is_true' method
                 element["size"] = new_num_tasks
                 element['waiting_times'] = element['waiting_times'][num_tasks_in_batch:]
+                element['enabled_datetimes'] = element['enabled_datetimes'][num_tasks_in_batch:]
 
                 is_true_iter, total_batch_count_iter, _ = self.is_true(element)
                 if is_true_iter:
-                    return is_true_result, batch_spec + total_batch_count_iter, start_time_from_rule
+                    if total_batch_count_iter != None:
+                        return is_true_result, batch_spec + total_batch_count_iter, start_time_from_rule
+                    
+                    return is_true_result, batch_spec, start_time_from_rule
                 else:
                     # the next batch of tasks is not enabled for execution
                     return is_true_result, batch_spec, start_time_from_rule
@@ -216,10 +268,12 @@ class AndFiringRule():
                 continue
 
             if subrule.variable1 == "waiting_times":
-                expected_enabled_time.append(subrule._get_min_enabled_time())
+                expected_enabled_time.append(subrule._get_min_enabled_time(waiting_times))
 
             # TODO: calculate for week_day rule
             # if subrule.variable1 == "week_day":
+
+        return expected_enabled_time
 
 
 

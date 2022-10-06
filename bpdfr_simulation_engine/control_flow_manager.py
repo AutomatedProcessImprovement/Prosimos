@@ -14,22 +14,9 @@ from bpdfr_simulation_engine.probability_distributions import generate_number_fr
 from bpdfr_simulation_engine.resource_calendar import str_week_days
 
 from bpdfr_simulation_engine.exceptions import InvalidBpmnModelException
+from bpdfr_simulation_engine.weekday_helper import get_nearest_abs_day
 
 seconds_per_unit = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
-
-
-def get_nearest_abs_day(weekday, from_datetime):
-    completed_datetime_weekday = from_datetime.weekday()
-    timer_weekday = str_week_days.get(weekday)
-    if (timer_weekday > completed_datetime_weekday):
-        add_days = timer_weekday - completed_datetime_weekday
-    else:
-        diff_days = completed_datetime_weekday - timer_weekday
-        add_days = 6 - diff_days
-    
-    new_datetime = from_datetime + timedelta(days=add_days)
-    return new_datetime
-
 
 class BatchInfoForExecution:
     def __init__(self, all_case_ids, task_batch_info, curr_task_id, batch_spec, start_time_from_rule):
@@ -398,7 +385,8 @@ class BPMNGraph:
             "size": size_count,
             "waiting_times": waiting_time,
             "enabled_datetimes": [ v.datetime for (_, v) in self.batch_waiting_processes[task_id].items() ],
-            "curr_enabled_at": enabled_at.datetime
+            "curr_enabled_at": enabled_at.datetime,
+            "is_triggered_by_batch": True # specify where from we checking the rule. If not triggered by batch - then we move to midnight time
         }
 
         return firing_rules.is_true(spec)

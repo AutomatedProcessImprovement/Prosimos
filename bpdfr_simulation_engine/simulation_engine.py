@@ -365,8 +365,8 @@ def execute_full_process(bpm_env: SimBPMEnv, total_cases):
         bpm_env.execute_enabled_event(current_event)
         current_event = bpm_env.events_queue.pop_next_event()
 
-    if bpm_env.is_any_unexecuted_batch():
-        print("not executed")
+    # if bpm_env.is_any_unexecuted_batch():
+    #     print("not executed")
     # TODO: validate that we don't have any tasks left in the batch
 
 

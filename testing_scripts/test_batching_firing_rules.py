@@ -17,7 +17,8 @@ def test_only_size_eq_correct():
         "size": 3,
         "waiting_times": [1000],
         "enabled_datetimes": [],
-        "curr_enabled_at": datetime.now()
+        "curr_enabled_at": datetime.now(),
+        "is_triggered_by_batch": False
     }
 
     # ====== ACT & ASSERT ======
@@ -44,7 +45,8 @@ def test_size_eq_wt_lt_correct():
             0
         ], 
         "enabled_datetimes": [],
-        "curr_enabled_at": datetime.now()
+        "curr_enabled_at": datetime.now(),
+        "is_triggered_by_batch": False
     }
 
     # ====== ACT & ASSERT ======
@@ -72,7 +74,8 @@ def test_size_eq_and_wt_gt_correct():
             0
         ],
         "enabled_datetimes": [],
-        "curr_enabled_at": datetime.now()
+        "curr_enabled_at": datetime.now(),
+        "is_triggered_by_batch": False
     }
 
     # ====== ACT & ASSERT ======
@@ -88,7 +91,7 @@ data_only_waiting_time = [
         [ 3600, 3600, 0, 0, 0, 0, 0, 0, 0, 0 ],
         ">=",
         True,
-        [10] #(10, 1)
+        [10]
     ),
     # Rule: waiting time > 3600, 10 tasks waiting for the batch execution.
     # Current state: waiting time is 3600 sec for two oldest tasks waiting for the execution.
@@ -124,7 +127,7 @@ data_only_waiting_time = [
         [ 3600, 1200],
         "<=",
         True,
-        [2] # (2, 1)
+        [2]
     ),
     # Rule: waiting time <= 3600, one task waiting for the batch execution.
     # Current state: waiting time is 3601 sec and 1200 sec appropriately.
@@ -155,7 +158,8 @@ def test_only_waiting_time_rule_correct_enabled_and_batch_size(
         "size": len(waiting_time_arr),
         "waiting_times": waiting_time_arr,
         "enabled_datetimes": [],
-        "curr_enabled_at": datetime.now()
+        "curr_enabled_at": datetime.now(),
+        "is_triggered_by_batch": False
     }
 
     # ====== ACT & ASSERT ======
@@ -174,7 +178,7 @@ data_wt_and_size_rules = [
         "<",
         ">=",
         True,
-        [2] # (2, 1)
+        [2]
     ),
     # Rule: waiting time >= 3600, 10 tasks waiting for the batch execution and size < 3.
     # Current state: waiting time is 3600 sec for two oldest tasks waiting for the execution.
@@ -185,7 +189,7 @@ data_wt_and_size_rules = [
         "<",
         ">=",
         True,
-        [2,2,2] # (2, 3)
+        [2,2,2]
     ),
     # Rule: waiting time >= 3600, 10 tasks waiting for the batch execution and size > 3.
     # Current state: waiting time is 3600 sec for all tasks waiting for the execution.
@@ -196,7 +200,7 @@ data_wt_and_size_rules = [
         ">",
         ">=",
         True,
-        [10] # (10, 1)
+        [10]
     ),
 ]
 
@@ -219,7 +223,8 @@ def test_wt_and_size_rules_correct_enabled_and_batch_size(
         "size": len(waiting_time_arr),
         "waiting_times": waiting_time_arr,
         "enabled_datetimes": [],
-        "curr_enabled_at": datetime.now()
+        "curr_enabled_at": datetime.now(),
+        "is_triggered_by_batch": False
     }
 
     # ====== ACT & ASSERT ======
@@ -275,7 +280,8 @@ def test_wt_or_size_rule_correct_enabled_and_batch_size(
         "size": len(waiting_time_arr),
         "waiting_times": waiting_time_arr,
         "enabled_datetimes": [],
-        "curr_enabled_at": datetime.now()
+        "curr_enabled_at": datetime.now(),
+        "is_triggered_by_batch": False
     }
 
     # ====== ACT & ASSERT ======
@@ -285,28 +291,37 @@ def test_wt_or_size_rule_correct_enabled_and_batch_size(
 
 
 data_day_week_rules = [
+    # Rule: week_day = Monday.
+    # Current state: 5 tasks waiting for the batch execution.
+    # Expected result: firing rule is NOT enabled because current time is Sunday.
     (
         '24/09/22 13:55:26',
         [ 3600, 3600, 1200, 600, 0 ],
         ("=", "Monday"),
         False,
+        None,
         None
     ),
+    # Rule: week_day = Monday.
+    # Current state: 5 tasks waiting for the batch execution: two of them enabled before midnight, another 3 - after.
+    # Expected result: firing rule is enabled because current time is Monday.
+    # Batch execution flow: two tasks (enabled before midnight) is being selected for the execution with start time of Monday midnight.
     (
-        '19/09/22 13:55:26',
+        '19/09/22 00:55:26',
         [ 3600, 3600, 1200, 600, 0 ],
         ("=", "Monday"),
         True,
-        [5]
+        [2],
+        '19/09/2022 00:00:00'
     ),
 ]
 
 @pytest.mark.parametrize(
-    "curr_enabled_at_str, waiting_time_arr, week_day_rule, expected_is_true, expected_batch_size", 
+    "curr_enabled_at_str, waiting_time_arr, week_day_rule, expected_is_true, expected_batch_size, expected_start_time_from_rule", 
     data_day_week_rules
 )
-def test_week_day_rule_correct_enabled_and_batch_size(
-    curr_enabled_at_str, waiting_time_arr, week_day_rule, expected_is_true, expected_batch_size):
+def test_only_week_day_rule_correct_enabled_and_batch_size(
+    curr_enabled_at_str, waiting_time_arr, week_day_rule, expected_is_true, expected_batch_size, expected_start_time_from_rule):
 
     # ====== ARRANGE ======
     (week_day_rule_sign, week_day) = week_day_rule
@@ -321,10 +336,83 @@ def test_week_day_rule_correct_enabled_and_batch_size(
         "size": len(waiting_time_arr),
         "waiting_times": waiting_time_arr,
         "enabled_datetimes": enabled_datetimes,
-        "curr_enabled_at": curr_enabled_at
+        "curr_enabled_at": curr_enabled_at,
+        "is_triggered_by_batch": False
     }
 
     # ====== ACT & ASSERT ======
-    (is_true, batch_spec, _) = rule.is_true(current_exec_status)
+    (is_true, batch_spec, start_time_from_rule) = rule.is_true(current_exec_status)
     assert expected_is_true == is_true
     assert expected_batch_size == batch_spec
+
+    if expected_start_time_from_rule == None:
+        assert expected_start_time_from_rule == start_time_from_rule
+    else:
+        start_dt = start_time_from_rule.strftime("%d/%m/%Y %H:%M:%S")
+        assert expected_start_time_from_rule == start_dt
+
+
+data_multiple_day_week_rules = [
+    # Rule: week_day = Tuesday or  week_day = Sunday.
+    # Current state: 5 tasks waiting for the batch execution.
+    # Expected result: firing rule is NOT enabled because current time is Saturday.
+    (
+        '24/09/22 13:55:26',
+        [ 3600, 3600, 1200, 600, 0 ],
+        "Tuesday",
+        "Sunday",
+        False,
+        None,
+        None
+    ),
+    # Rule: week_day = Monday or week_day = Friday.
+    # Current state: 5 tasks waiting for the batch execution.
+    # Expected result: firing rule is enabled because current time is Monday.
+    # Batch execution flow: two tasks (enabled before midnight) is being selected for the execution with start time of Monday midnight.
+    (
+        '19/09/22 00:55:26',
+        [ 3600, 3600, 1200, 600, 0 ],
+        "Monday",
+        "Friday",
+        True,
+        [2],
+        '19/09/2022 00:00:00'
+    ),
+]
+
+@pytest.mark.parametrize(
+    "curr_enabled_at_str, waiting_time_arr, week_day_1, week_day_2, expected_is_true, expected_batch_size, expected_start_time_from_rule", 
+    data_multiple_day_week_rules
+)
+def test_multiple_week_day_rule_correct_enabled_and_batch_size(
+    curr_enabled_at_str, waiting_time_arr, week_day_1, week_day_2, expected_is_true, expected_batch_size, expected_start_time_from_rule):
+
+    # ====== ARRANGE ======
+    firing_sub_rule_1 = FiringSubRule("week_day", "=", week_day_1)
+    firing_sub_rule_2 = FiringSubRule("week_day", "=", week_day_2) 
+
+    firing_rule_1 = AndFiringRule([ firing_sub_rule_1 ])
+    firing_rule_2 = AndFiringRule([ firing_sub_rule_2 ])
+    rule = OrFiringRule([ firing_rule_1, firing_rule_2 ])
+
+    curr_enabled_at = datetime.strptime(curr_enabled_at_str, '%d/%m/%y %H:%M:%S')
+    enabled_datetimes = [curr_enabled_at - timedelta(seconds=item) for item in waiting_time_arr ]
+
+    current_exec_status = {
+        "size": len(waiting_time_arr),
+        "waiting_times": waiting_time_arr,
+        "enabled_datetimes": enabled_datetimes,
+        "curr_enabled_at": curr_enabled_at,
+        "is_triggered_by_batch": False
+    }
+
+    # ====== ACT & ASSERT ======
+    (is_true, batch_spec, start_time_from_rule) = rule.is_true(current_exec_status)
+    assert expected_is_true == is_true
+    assert expected_batch_size == batch_spec
+
+    if expected_start_time_from_rule == None:
+        assert expected_start_time_from_rule == start_time_from_rule
+    else:
+        start_dt = start_time_from_rule.strftime("%d/%m/%Y %H:%M:%S")
+        assert expected_start_time_from_rule == start_dt

@@ -106,17 +106,6 @@ def test_seq_batch_count_firing_rule_correct_duration(assets_path):
     for start_time, group in grouped_by_start_time:
         _verify_same_resource_for_batch(group['resource'])
 
-        # for row_index, row in group.iterrows():
-    
-    # last_d_activity = grouped_by_case_id.get_group(2)
-    # last_d_activity_end_time = \
-    #     last_d_activity[last_d_activity['activity'] == 'D']['end_time'].values[0]
-    # for case_id, group in grouped_by_case_id:
-    #     for row_index, row in group.iterrows():
-    #         if row['activity'] != 'E':
-    #             continue
-
-
 
 @pytest.mark.parametrize("assets_path_fixture,duration_distrib,firing_count,expected_duration_sec", data_nearest_neighbors)
 def test_batch_count_firing_rule_nearest_neighbor_correct(
@@ -490,6 +479,10 @@ def test_waiting_time_rule_correct_firing(assets_path):
 
 def test_week_day_correct_firing(assets_path):
     """
+    Input:      Firing rule of week_day = Monday. 4 process cases are being generated.
+                All process cases starts and finishes on Monday.
+    Expected:   Batch of tasks with size = 2 will be executed twice immediately when the second one arrives.
+    Verified:   The start_time of the appropriate grouped D task (tasks are executed in parallel).
     """
 
     # ====== ARRANGE ======
@@ -540,6 +533,12 @@ def test_week_day_correct_firing(assets_path):
 
 def test_week_day_different_correct_firing(assets_path):
     """
+    Input:      Firing rule of week_day = Monday. 10 process cases are being generated.
+                The first process case starts on night before Monday (11:40 PM).
+    Expected:   two batches are being executed. 
+                First - at Monday midnight (right when the rule become enabled).
+                Second - once the second task become enabled and batch_size equals 2.
+    Verified:   the start_time of the appropriate grouped D task (tasks are executed in parallel).
     """
 
     # ====== ARRANGE ======
