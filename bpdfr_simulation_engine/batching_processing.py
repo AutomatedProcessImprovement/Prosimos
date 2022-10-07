@@ -135,7 +135,7 @@ class FiringSubRule():
                     if op(time, boundary_day):
                         follow_rule.append(time)
 
-                if len(follow_rule) > 0:
+                if len(follow_rule) > 1:
                     return len(follow_rule), boundary_day
                     
         if element["is_triggered_by_batch"]:
@@ -187,7 +187,7 @@ class AndFiringRule():
             num_tasks_in_queue = element["size"]
             num_tasks_in_batch, start_time_from_rule = self.get_firing_batch_size(num_tasks_in_queue, element)
 
-            if num_tasks_in_batch == 0:
+            if num_tasks_in_batch < 2:
                 print("WARNING: Getting batch size for the execution returned to be 0. Verify provided rules.")
                 return False, None, None
             

@@ -375,7 +375,7 @@ class BPMNGraph:
 
         size_count = self.batch_count[task_id] if self.batch_count.get(task_id, None) != None else 0
 
-        if size_count == 1:
+        if size_count < 2:
             # not enought items for batch execution
             return False, None, None
 
@@ -898,19 +898,22 @@ class BPMNGraph:
     def is_any_batch_enabled(self, started_datetime):
         enabled_task_batch = dict()
         for (task_id, waiting_tasks) in self.batch_waiting_processes.items():
-            if len(waiting_tasks) == 0:
+            if len(waiting_tasks) < 2:
                 # no tasks waiting for batch execution
+                # or number of tasks waiting is not enough (less than 2)
                 continue
 
             is_enabled, batch_spec, start_time_from_rule = self.is_batched_task_enabled(task_id, started_datetime)
             
             if (is_enabled):
-                enabled_task_batch[task_id] = BatchInfoForExecution(
+                batch_info = BatchInfoForExecution(
                     self.batch_waiting_processes,
                     self.batch_info,
                     task_id,
                     batch_spec,
                     start_time_from_rule)
+                enabled_task_batch[task_id] = batch_info
+                self._clear_batch(task_id, batch_info)
 
         return enabled_task_batch
 

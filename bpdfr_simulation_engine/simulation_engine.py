@@ -1,6 +1,7 @@
 import csv
 import os
 from pathlib import Path
+from typing import List
 
 import pytz
 import datetime
@@ -137,10 +138,11 @@ class SimBPMEnv:
         return completed_at, completed_datetime
 
     
-    def is_any_batch_enabled(self, current_event: EnabledEvent):
+    def is_any_batch_enabled(self, current_event: EnabledEvent) -> List[EnabledEvent]:
         # TODO: implement and call before every execution of the task
         enabled_datetime = CustomDatetimeAndSeconds(current_event.enabled_at, current_event.enabled_datetime)
         enabled_batch_task_ids = self.sim_setup.is_any_batch_enabled(enabled_datetime)
+        
         if enabled_batch_task_ids != None:
             for (batch_task_id, batch_info) in enabled_batch_task_ids.items():
                 c_event = EnabledEvent(
@@ -152,7 +154,7 @@ class SimBPMEnv:
                     batch_info
                 )
 
-                self.execute_enabled_event(c_event)
+                self.events_queue.append_enabled_event(c_event)
 
 
     def is_any_unexecuted_batch(self):
@@ -361,8 +363,16 @@ def execute_full_process(bpm_env: SimBPMEnv, total_cases):
     #       str(datetime.timedelta(seconds=(datetime.datetime.now() - s_t).total_seconds())))
     current_event = bpm_env.events_queue.pop_next_event()
     while current_event is not None:
-        bpm_env.is_any_batch_enabled(current_event)
+        # bpm_env.is_any_batch_enabled(current_event)
         bpm_env.execute_enabled_event(current_event)
+
+        # find the next event to be executed
+        # double-check whether there are elements that need to be executed before the start of the event
+        # add founded elements to the queue, if any
+        intermediate_event = bpm_env.events_queue.peek()
+        if intermediate_event != None:
+            bpm_env.is_any_batch_enabled(intermediate_event)
+
         current_event = bpm_env.events_queue.pop_next_event()
 
     # if bpm_env.is_any_unexecuted_batch():
