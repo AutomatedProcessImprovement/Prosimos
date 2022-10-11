@@ -1,6 +1,11 @@
 from datetime import timedelta
 from bpdfr_simulation_engine.resource_calendar import str_week_days
 
+class CustomDatetimeAndSeconds:
+    def __init__(self, seconds_from_start, datetime):
+        self.seconds_from_start = seconds_from_start
+        self.datetime = datetime
+
 def get_nearest_abs_day(weekday, from_datetime):
     """
     Finds nearest day only in the future calendar 
@@ -15,7 +20,7 @@ def get_nearest_abs_day(weekday, from_datetime):
         add_days = timer_weekday - completed_datetime_weekday
     else:
         diff_days = completed_datetime_weekday - timer_weekday
-        add_days = 6 - diff_days
+        add_days = 7 - diff_days
     
     new_datetime = from_datetime + timedelta(days=add_days)
     return new_datetime

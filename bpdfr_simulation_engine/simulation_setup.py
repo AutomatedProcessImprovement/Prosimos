@@ -67,8 +67,8 @@ class SimDiffSetup:
     def is_any_batch_enabled(self, started_datetime):
         return self.bpmn_graph.is_any_batch_enabled(started_datetime)
 
-    def is_any_unexecuted_batch(self):
-        return self.bpmn_graph.is_any_unexecuted_batch()
+    def is_any_unexecuted_batch(self, last_task_enabled_time):
+        return self.bpmn_graph.is_any_unexecuted_batch(last_task_enabled_time)
 
     def find_arrival_calendar(self):
         # TODO: make sure this 0 as p_case does not break anything

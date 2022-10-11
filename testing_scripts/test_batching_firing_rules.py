@@ -314,6 +314,18 @@ data_day_week_rules = [
         [2],
         '19/09/2022 00:00:00'
     ),
+    # Rule: week_day = Monday.
+    # Current state: 5 tasks waiting for the batch execution: two of them enabled before midnight, another 3 - after.
+    # Expected result: firing rule is enabled because current time is Monday.
+    # Batch execution flow: two tasks (enabled before midnight) is being selected for the execution with start time of Monday midnight.
+    (
+        '19/09/22 00:15:00',
+        [ 1200 ],
+        ("=", "Monday"),
+        False,
+        None,
+        None
+    ),
 ]
 
 @pytest.mark.parametrize(
@@ -377,7 +389,7 @@ data_multiple_day_week_rules = [
         True,
         [2],
         '19/09/2022 00:00:00'
-    ),
+    )
 ]
 
 @pytest.mark.parametrize(

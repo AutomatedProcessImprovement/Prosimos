@@ -3,9 +3,9 @@ import operator as operator
 import sys
 import datetime
 from typing import List
-from datetime import datetime
+from datetime import datetime, timedelta
 from bpdfr_simulation_engine.resource_calendar import str_week_days
-from bpdfr_simulation_engine.weekday_helper import get_nearest_past_day
+from bpdfr_simulation_engine.weekday_helper import CustomDatetimeAndSeconds, get_nearest_abs_day, get_nearest_past_day
 
 
 def _get_operator_symbols(operator_str: str, eq_operator: operator):
@@ -102,16 +102,38 @@ class FiringSubRule():
     def is_batch_size(self):
         return self.variable1 == "size"
 
-    def _get_min_enabled_time(self):
-        switcher = {
-            '<': self.value2 - 1,
-            '<=': self.value2,
-            '=': self.value2,
-            '>': self.value2 + 1,
-            '>=': self.value2
+    def _get_min_enabled_time_waiting_time(self, waiting_times, last_task_start_time: CustomDatetimeAndSeconds) -> tuple([int, datetime]):
+        """
+        Get the enabled time for the batch
+        based on the maximum waiting time of the task in the batch 
+        (meaning, for the 'waiting_time' kind of rule)
+        """
+        case_id, oldest_waiting = waiting_times[0]
+        oldest_waiting_time = oldest_waiting.datetime
+        rule_value = self.value2
+
+        min_waiting_time = {
+            '<': min(oldest_waiting_time, rule_value - 1),
+            '<=': min(oldest_waiting_time, rule_value),
+            '=': oldest_waiting_time,
+            '>': oldest_waiting_time if oldest_waiting_time > rule_value else rule_value + 1,
+            '>=': oldest_waiting_time if oldest_waiting_time >= rule_value else rule_value
         }
 
-        return switcher.get(self.operator)
+        # find the minimum waiting time (either from the rule specification or the last waiting_time of the batched task)
+        needed_time_seconds = min_waiting_time.get(self.operator)
+        return case_id, last_task_start_time.datetime + timedelta(needed_time_seconds)
+
+    def _get_min_enabled_time_week_day(self, waiting_times, last_task_start_time) -> tuple([int, datetime]):
+        # find the nearest day of the week (specified in the rule) in the future
+        nearest_abs_day = get_nearest_abs_day(self.value2.upper(), last_task_start_time.datetime)
+
+        # the case_id where batch should start should be equal 
+        # to the oldest batched task added to the queue (= the first element in the array)
+        case_id, _ = waiting_times[0]
+
+        return case_id, nearest_abs_day
+
 
     def get_batch_size_relative_time(self, element):
         curr_enabled_at = element["curr_enabled_at"]
@@ -260,18 +282,19 @@ class AndFiringRule():
         return batch_size, enabled_time
 
 
-    def get_enabled_time(self, waiting_times):
+    def get_enabled_time(self, waiting_times, last_task_enabled_time: CustomDatetimeAndSeconds) -> tuple([int, datetime]):
         expected_enabled_time = []
         for subrule in self.rules:
             if subrule.variable1 == "size":
                 # size does not tell us anything about expected time of batch execution
                 continue
-
-            if subrule.variable1 == "waiting_times":
-                expected_enabled_time.append(subrule._get_min_enabled_time(waiting_times))
-
-            # TODO: calculate for week_day rule
-            # if subrule.variable1 == "week_day":
+            elif subrule.variable1 == "waiting_times":
+                expected_enabled_time.append(subrule._get_min_enabled_time_waiting_time(waiting_times, last_task_enabled_time))
+            elif subrule.variable1 == "week_day":
+                expected_enabled_time.append(subrule._get_min_enabled_time_week_day(waiting_times, last_task_enabled_time)) 
+            else:
+                # no other rule types are being supported
+                continue
 
         return expected_enabled_time
 
@@ -301,16 +324,27 @@ class OrFiringRule():
 
         return is_batched_task_enabled, None, None
     
-    def get_enabled_time(self, waiting_times):
+    def get_enabled_time(self, waiting_times, last_task_enabled_time: CustomDatetimeAndSeconds):
+        """
+        Method is being used to find the enabled time for the batch execution
+        when all activities in the flow were already executed and we need to 
+        execute the batch in the near future.
+        Example:    The last task from all cases was executed on Friday. 
+                    But there are still some activities waiting for the execution on Monday.
+                    This function should return the nearest Monday, midnight time.
+                    So that this batched tasks are being enabled and executed.
+        """
+        
         if len(waiting_times) < 2:
             # not a batch, less than two items in the queue
             return None
 
         enabled_times_per_or_rule = []
         for rule in self.rules:
-            enabled_times_per_or_rule.append(rule.get_enabled_time(waiting_times))
+            enabled_times_per_or_rule = enabled_times_per_or_rule + rule.get_enabled_time(waiting_times, last_task_enabled_time)
 
-        return min(enabled_times_per_or_rule)
+        # find and return the tuple (case_id, enabled_time) by the minimum of enabled_time
+        return min(enabled_times_per_or_rule, key = lambda et: et[1])
 
 
 class BatchConfigPerTask():

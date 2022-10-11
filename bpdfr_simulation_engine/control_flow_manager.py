@@ -14,7 +14,7 @@ from bpdfr_simulation_engine.probability_distributions import generate_number_fr
 from bpdfr_simulation_engine.resource_calendar import str_week_days
 
 from bpdfr_simulation_engine.exceptions import InvalidBpmnModelException
-from bpdfr_simulation_engine.weekday_helper import get_nearest_abs_day
+from bpdfr_simulation_engine.weekday_helper import CustomDatetimeAndSeconds, get_nearest_abs_day
 
 seconds_per_unit = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
 
@@ -33,21 +33,6 @@ class BatchInfoForExecution:
 
     def is_parallel(self):
         return self.task_batch_info.type == BATCH_TYPE.PARALLEL
-
-    # def is_batch_size_included_in_enabled_rule(self):
-    #     for subrule in self.enabling_rule.rules:
-    #         is_batch_size_included = subrule.is_batch_size() # "size" in rule
-
-    #         if is_batch_size_included:
-    #             return is_batch_size_included, subrule.value2
-
-    #     return False, None
-
-
-class CustomDatetimeAndSeconds:
-    def __init__(self, seconds_from_start, datetime):
-        self.seconds_from_start = seconds_from_start
-        self.datetime = datetime
 
 
 class EnabledTask:
@@ -81,7 +66,6 @@ class EVENT_TYPE(Enum):
     SIGNAL = 'SIGNAL'
     TERMINATE = 'TERMINATE'
     UNDEFINED = 'UNDEFINED'
-
 
 
 class ElementInfo:
@@ -391,12 +375,13 @@ class BPMNGraph:
 
         return firing_rules.is_true(spec)
 
-    def get_start_time(self, task_id):
+    def get_start_time(self, task_id, last_task_enabled_time) -> tuple([int, CustomDatetimeAndSeconds]):
         task_batch_info = self.batch_info.get(task_id, None)
         firing_rules: List[AndFiringRule] = task_batch_info.firing_rules
-        enabled_time = firing_rules.get_enabled_time(self.batch_waiting_processes[task_id].items())
+        case_id, enabled_time = firing_rules.get_enabled_time(list(self.batch_waiting_processes[task_id].items()), last_task_enabled_time)
+        enabled_time_obj = CustomDatetimeAndSeconds(0, enabled_time)
 
-        return enabled_time
+        return case_id, enabled_time_obj
 
 
     def get_event_gateway_choice(self, gateway_element_info: ElementInfo, completed_datetime_prev_event):
@@ -917,7 +902,7 @@ class BPMNGraph:
 
         return enabled_task_batch
 
-    def is_any_unexecuted_batch(self):
+    def is_any_unexecuted_batch(self, last_task_enabled_time: CustomDatetimeAndSeconds):
         is_any = self.batch_waiting_processes.items()
 
         if is_any == None:
@@ -929,19 +914,9 @@ class BPMNGraph:
                 # no tasks waiting for batch execution
                 continue
 
-            enabled_time = self.get_start_time(task_id)
-            datetime = CustomDatetimeAndSeconds(None, enabled_time)
-            (is_enabled, batch_spec, start_time_from_rule) = self.is_batched_task_enabled(task_id, datetime)
-            
-            if (is_enabled):
-                enabled_task_batch[task_id] = BatchInfoForExecution(
-                    self.batch_waiting_processes,
-                    self.batch_info,
-                    task_id,
-                    batch_spec,
-                    start_time_from_rule)
+            case_id, enabled_time = self.get_start_time(task_id, last_task_enabled_time)
 
-        return enabled_task_batch
+            yield case_id, enabled_time
 
 
 def discover_bpmn_from_log(log_path, process_name):

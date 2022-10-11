@@ -149,16 +149,34 @@ class SimBPMEnv:
                     current_event.p_case,
                     current_event.p_state,
                     batch_task_id,
-                    current_event.enabled_at,
-                    current_event.enabled_datetime,
+                    current_event.enabled_at, # not being used for batch
+                    current_event.enabled_datetime, # not being used for batch
                     batch_info
                 )
 
                 self.events_queue.append_enabled_event(c_event)
 
 
-    def is_any_unexecuted_batch(self):
-        return self.sim_setup.is_any_unexecuted_batch()
+    def execute_if_any_unexecuted_batch(self, last_task_enabled_time: CustomDatetimeAndSeconds):
+        for case_id, enabled_datetime in self.sim_setup.is_any_unexecuted_batch(last_task_enabled_time):
+            if not enabled_datetime:
+                return
+
+            # mock = CustomDatetimeAndSeconds(0, enabled_datetime)
+            enabled_batch_task_ids = self.sim_setup.is_any_batch_enabled(enabled_datetime)
+            
+            if enabled_batch_task_ids != None:
+                for (batch_task_id, batch_info) in enabled_batch_task_ids.items():
+                    c_event = EnabledEvent(
+                        case_id,
+                        self.all_process_states[case_id],
+                        batch_task_id,
+                        0, # not being used for batch
+                        0, # not being used for batch
+                        batch_info
+                    )
+
+                    self.events_queue.append_enabled_event(c_event)
 
 
     def _get_chunk(self, batch_spec, curr_index, all_case_ids):
@@ -374,10 +392,16 @@ def execute_full_process(bpm_env: SimBPMEnv, total_cases):
             bpm_env.is_any_batch_enabled(intermediate_event)
 
         current_event = bpm_env.events_queue.pop_next_event()
-
-    # if bpm_env.is_any_unexecuted_batch():
-    #     print("not executed")
-    # TODO: validate that we don't have any tasks left in the batch
+        if current_event != None:
+            # save the datetime of the last executed task in the flow
+            last_event_datetime = CustomDatetimeAndSeconds(current_event.enabled_at, current_event.enabled_datetime)
+        else:
+            # we reached the point where all tasks enabled for the execution were executed
+            # add to the events_queue batched tasks if any
+            bpm_env.execute_if_any_unexecuted_batch(last_event_datetime)
+            
+            # verifying whether we still have (batched) tasks to be executed in the future
+            current_event = bpm_env.events_queue.pop_next_event()
 
 
 def run_simulation(bpmn_path, json_path, total_cases, stat_out_path=None, log_out_path=None, starting_at=None, is_event_added_to_log=False):
