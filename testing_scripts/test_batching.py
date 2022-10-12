@@ -596,7 +596,7 @@ def test_week_day_different_correct_firing(assets_path):
 
 def test_two_rules_week_day_correct_start_time(assets_path):
     """
-    Input:      Firing rule of week_day = Monday or week_day = Wednesday. 10 process cases are being generated.
+    Input:      Firing rule of week_day = Monday or week_day = Wednesday. 9 process cases are being generated.
                 The first process case starts on night before Monday (11:40 PM).
                 New process cases arrive every 12 hours.
     Expected:   batches will be executed four times:
@@ -604,7 +604,8 @@ def test_two_rules_week_day_correct_start_time(assets_path):
                 "2022-09-28 00:00:00+03:00": the second rule was enabled, so accumulated activities were executed. 
                 "2022-09-28 23:44:30+03:00": the second executed activity triggered the execution of the batch 
                 "2022-10-03 00:00:00+03:00": the batch was waiting for Monday to start executed accumulated batch activities 
-    Verified:   the start_time of the appropriate grouped D task (tasks are executed in parallel).
+    Verified:   the start_time of the appropriate grouped D task (tasks are executed in parallel)
+                number of activities executed in scope of each batch
     """
 
     # ====== ARRANGE ======
@@ -639,7 +640,7 @@ def test_two_rules_week_day_correct_start_time(assets_path):
 
     # ====== ACT ======
     _, diff_sim_result = run_diff_res_simulation(
-        start_date, 10, model_path, json_path, sim_stats, sim_logs
+        start_date, 9, model_path, json_path, sim_stats, sim_logs
     )
 
     # ====== ASSERT ======
@@ -658,16 +659,98 @@ def test_two_rules_week_day_correct_start_time(assets_path):
     grouped_by_start = logs_d_task.groupby(by="start_time")
 
     expected_start_time_keys = [
-        "2022-09-26 11:44:30+03:00",
-        "2022-09-28 00:00:00+03:00",
-        "2022-09-28 23:44:30+03:00",
-        "2022-10-03 00:00:00+03:00",
+        ("2022-09-26 11:44:30+03:00", 2),
+        ("2022-09-28 00:00:00+03:00", 3),
+        ("2022-09-28 23:44:30+03:00", 2),
+        ("2022-10-03 00:00:00+03:00", 2),
     ]
 
-    grouped_by_start_keys = list(grouped_by_start.groups.keys())
+    grouped_by_start_items = list(map(_get_start_time_and_count, list(grouped_by_start.groups.items())))
     assert (
-        grouped_by_start_keys == expected_start_time_keys
-    ), f"The start_time for batched D tasks differs. Expected: {expected_start_time_keys}, but was {grouped_by_start_keys}"
+        grouped_by_start_items == expected_start_time_keys
+    ), f"The start_time for batched D tasks differs. Expected: {expected_start_time_keys}, but was {grouped_by_start_items}"
+
+
+def _get_start_time_and_count(item):
+    key, value = item
+    return key, len(value)
+
+def test_two_rules_week_day_and_size_correct_start_time(assets_path):
+    """
+    Input:      Firing rule of week_day = Monday or week_day = Wednesday. 9 process cases are being generated.
+                The first process case starts on night before Monday (11:40 PM).
+                New process cases arrive every 12 hours.
+    Expected:   batches will be executed two times:
+                "2022-09-26 23:44:30+03:00":    it's Monday, rule satisfies the batch processing, 
+                                                at midnight there were not enough activities for batch processing
+                                                the third (and last) activity in the batch was enabled at 23:44  
+                "2022-10-03 00:00:00+03:00":    the batch was waiting for Monday to start executed accumulated batch activities
+                                                at this point of time, we already had 6 activities waiting for batch processing
+    Verified:   the start_time of the appropriate grouped D task (tasks are executed in parallel)
+                number of activities executed in scope of each batch
+    """
+
+    # ====== ARRANGE ======
+    model_path = assets_path / "batch-example-end-task.bpmn"
+    basic_json_path = assets_path / "batch-example-with-batch.json"
+    json_path = assets_path / "batch-example-nearest-coef.json"
+    sim_stats = assets_path / "batch_stats.csv"
+    sim_logs = assets_path / "batch_logs.csv"
+
+    start_string = "2022-09-25 23:40:30.000000+03:00"
+    start_date = parse_datetime(start_string, True)
+
+    with open(basic_json_path, "r") as f:
+        json_dict = json.load(f)
+
+    firing_rules = [
+        [
+            {"attribute": "week_day", "comparison": "=", "value": "Monday"},
+            {"attribute": "size", "comparison": ">=", "value": 3}
+        ]
+    ]
+
+    # case arrives every 43200 seconds (= 12 hours)
+    arrival_distr = {
+        "distribution_name": "fix",
+        "distribution_params": [{"value": 43200}, {"value": 0}, {"value": 1}],
+    }
+
+    _setup_sim_scenario_file(json_dict, None, None, "Parallel", firing_rules)
+    _setup_arrival_distribution(json_dict, arrival_distr)
+
+    with open(json_path, "w+") as json_file:
+        json.dump(json_dict, json_file)
+
+    # ====== ACT ======
+    _, diff_sim_result = run_diff_res_simulation(
+        start_date, 9, model_path, json_path, sim_stats, sim_logs
+    )
+
+    # ====== ASSERT ======
+    df = pd.read_csv(sim_logs)
+    logs_d_task = df[df["activity"] == "D"]
+
+    logs_d_task["start_time"] = pd.to_datetime(
+        logs_d_task["start_time"], errors="coerce"
+    )
+
+    # remove miliseconds from time
+    logs_d_task["start_time"] = logs_d_task["start_time"].apply(
+        lambda x: _remove_miliseconds(x)
+    )
+
+    grouped_by_start = logs_d_task.groupby(by="start_time")
+
+    expected_start_time_items = [
+        ("2022-09-26 23:44:30+03:00", 3),
+        ("2022-10-03 00:00:00+03:00", 6)
+    ]
+
+    grouped_by_start_items = list(map(_get_start_time_and_count, list(grouped_by_start.groups.items())))
+    assert (
+        grouped_by_start_items == expected_start_time_items
+    ), f"The start_time for batched D tasks differs. Expected: {expected_start_time_items}, but was {grouped_by_start_items}"
 
 
 def _remove_miliseconds(x: datetime.datetime):

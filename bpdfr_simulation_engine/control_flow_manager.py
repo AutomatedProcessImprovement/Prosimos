@@ -378,10 +378,18 @@ class BPMNGraph:
     def get_start_time(self, task_id, last_task_enabled_time) -> tuple([int, CustomDatetimeAndSeconds]):
         task_batch_info = self.batch_info.get(task_id, None)
         firing_rules: List[AndFiringRule] = task_batch_info.firing_rules
-        case_id, enabled_time = firing_rules.get_enabled_time(list(self.batch_waiting_processes[task_id].items()), last_task_enabled_time)
-        enabled_time_obj = CustomDatetimeAndSeconds(0, enabled_time)
+        case_id_and_enabled_time = firing_rules.get_enabled_time(
+            list(self.batch_waiting_processes[task_id].items()), 
+            last_task_enabled_time
+        )
+        
+        if case_id_and_enabled_time != None:
+            case_id, enabled_time = case_id_and_enabled_time
+            enabled_time_obj = CustomDatetimeAndSeconds(0, enabled_time)
 
-        return case_id, enabled_time_obj
+            return case_id, enabled_time_obj
+
+        return None
 
 
     def get_event_gateway_choice(self, gateway_element_info: ElementInfo, completed_datetime_prev_event):
@@ -908,15 +916,16 @@ class BPMNGraph:
         if is_any == None:
             return None
 
-        enabled_task_batch = dict()
         for (task_id, waiting_tasks) in self.batch_waiting_processes.items():
             if len(waiting_tasks) == 0:
                 # no tasks waiting for batch execution
                 continue
 
-            case_id, enabled_time = self.get_start_time(task_id, last_task_enabled_time)
+            case_id_and_start_time = self.get_start_time(task_id, last_task_enabled_time)
 
-            yield case_id, enabled_time
+            if (case_id_and_start_time != None):
+                case_id, enabled_time = case_id_and_start_time
+                yield case_id, enabled_time
 
 
 def discover_bpmn_from_log(log_path, process_name):
