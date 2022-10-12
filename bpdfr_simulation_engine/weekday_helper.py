@@ -38,7 +38,7 @@ def get_nearest_past_day(weekday, from_datetime):
     timer_weekday = str_week_days.get(weekday)
     if (timer_weekday > completed_datetime_weekday):
         diff_days = timer_weekday - completed_datetime_weekday
-        sub_days = 6 - diff_days
+        sub_days = 7 - diff_days
         new_datetime = from_datetime - timedelta(days=sub_days)
     else:
         diff_days = completed_datetime_weekday - timer_weekday
