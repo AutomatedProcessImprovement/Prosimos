@@ -1,7 +1,6 @@
 from enum import Enum
 import operator as operator
 import sys
-import datetime
 from typing import List
 from datetime import datetime, timedelta
 from bpdfr_simulation_engine.resource_calendar import str_week_days
@@ -76,10 +75,9 @@ class FiringSubRule():
             op = _get_operator_symbols_ge(self.operator)
             return op(value1, self.value2)
 
-        else: # week_day
+        elif self.variable1 == "week_day": # week_day
             value1 = element["curr_enabled_at"]
             curr_week_day_int = value1.weekday()
-            # curr_week_day_str = int_week_days.get(curr_week_day_int)
             rule_value_str = self.value2.upper()
             rule_value_int = str_week_days[rule_value_str]
 
@@ -98,6 +96,29 @@ class FiringSubRule():
                 }
                 enabled_items, _ = self.get_batch_size_relative_time(spec)
                 return enabled_items > 0
+
+        elif self.variable1 == "daily_hour":
+            time1 = element["curr_enabled_at"].time()
+            # in case of equal sign, we use greater or equal to sign
+            # cause we compare it with the enabled time of the task next in the queue
+            # it might be a case that we need to insert this current batch before execution of the next task
+            op = _get_operator_symbols_ge(self.operator)
+            is_rule_true = op(time1, self.value2)
+            if is_rule_true:
+                return True
+            else:
+                # if not true, validate whether there are some cases
+                # that satisfies the rule from the previous day
+                enabled_time = element["curr_enabled_at"]
+                batch_enabled_datetimes = element["enabled_datetimes"]
+                boundary_day = datetime.combine(enabled_time, time1, enabled_time.tzinfo)
+                op = _get_operator_symbols_lt(self.operator)
+                follow_rule = []
+                for time in batch_enabled_datetimes:
+                    if op(time, boundary_day):
+                        follow_rule.append(time)
+            return is_rule_true
+
 
     def is_batch_size(self):
         return self.variable1 == "size"
@@ -140,7 +161,6 @@ class FiringSubRule():
         rule_value_str = self.value2.upper()
   
         enabled_times = element["enabled_datetimes"].copy()
-        curr_enabled_at = element["curr_enabled_at"]
         rule_nearest_past_day = get_nearest_past_day(rule_value_str, curr_enabled_at)
             
         boundary_day = datetime(rule_nearest_past_day.year, rule_nearest_past_day.month, rule_nearest_past_day.day, \
@@ -179,6 +199,32 @@ class FiringSubRule():
 
         if len(follow_rule) > 0:
             return len(follow_rule), boundary_day 
+        
+        return 0, None
+
+    def get_batch_size_by_daily_hour(self, element):
+        curr_enabled_at = element["curr_enabled_at"]
+        enabled_times = element["enabled_datetimes"].copy()
+
+        oldest_in_batch_datetime = enabled_times[0]
+        prev_day_to_oldest = datetime.combine(oldest_in_batch_datetime.date(), 
+            self.value2, oldest_in_batch_datetime.tzinfo)
+
+        one_day_delta = timedelta(days=1)
+        op = operator.lt
+
+        while (prev_day_to_oldest <= curr_enabled_at):
+            follow_rule = []
+            for en_time in enabled_times:
+                if op(en_time, prev_day_to_oldest):
+                    follow_rule.append(en_time)
+
+            if len(follow_rule) > 1:
+                # the first found batch of activities
+                # satisfies the rule and of the size of at least 2 items inside
+                return len(follow_rule), prev_day_to_oldest 
+
+            prev_day_to_oldest += one_day_delta
         
         return 0, None
 
@@ -273,10 +319,12 @@ class AndFiringRule():
                 curr_size = switcher.get(subrule.operator)
             elif subrule.variable1 == "week_day":
                 curr_size, enabled_time = subrule.get_batch_size_relative_time(element)
-            else: # waiting_time rule
+            elif subrule.variable1 == "waiting_time":
                 curr_size = current_batch_size
+            elif subrule.variable1 == "daily_hour":
+                curr_size, enabled_time = subrule.get_batch_size_by_daily_hour(element)
 
-            if curr_size < batch_size:
+            if curr_size < batch_size and curr_size != 0:
                 batch_size = curr_size
 
         return batch_size, enabled_time

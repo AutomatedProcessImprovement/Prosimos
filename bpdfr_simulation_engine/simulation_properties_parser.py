@@ -1,4 +1,5 @@
 import json
+from datetime import time
 from typing import List
 import xml.etree.ElementTree as ET
 
@@ -128,13 +129,13 @@ def parse_batch_processing(batch_processing_json_data):
             parsed_and_rules: List[FiringSubRule] = []
 
             for and_rule in or_rules:
-                condition = FiringSubRule(
+                subrule = create_subrule(
                     and_rule["attribute"],
                     and_rule["comparison"],
                     and_rule["value"]
                 )
 
-                parsed_and_rules.append(condition)
+                parsed_and_rules.append(subrule)
 
             firing_rule = AndFiringRule(parsed_and_rules)
             parsed_or_rules.append(firing_rule)
@@ -154,6 +155,17 @@ def parse_batch_processing(batch_processing_json_data):
         )
 
     return batch_config
+
+
+def create_subrule(attribute, comparison, value):
+    formatted_value = value if attribute != 'daily_hour' \
+        else time(int(value), 0, 0)
+
+    return FiringSubRule(
+        attribute,
+        comparison,
+        formatted_value
+    )
 
 
 # def parse_calendar_from_json(json_data):
