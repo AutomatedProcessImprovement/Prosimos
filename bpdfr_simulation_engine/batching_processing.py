@@ -319,7 +319,7 @@ class AndFiringRule():
                 curr_size = switcher.get(subrule.operator)
             elif subrule.variable1 == "week_day":
                 curr_size, enabled_time = subrule.get_batch_size_relative_time(element)
-            elif subrule.variable1 == "waiting_time":
+            elif subrule.variable1 == "waiting_times":
                 curr_size = current_batch_size
             elif subrule.variable1 == "daily_hour":
                 curr_size, enabled_time = subrule.get_batch_size_by_daily_hour(element)
