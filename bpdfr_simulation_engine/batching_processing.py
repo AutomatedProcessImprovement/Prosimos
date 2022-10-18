@@ -2,7 +2,7 @@ from enum import Enum
 import operator as operator
 import sys
 from typing import List
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 from bpdfr_simulation_engine.resource_calendar import str_week_days
 from bpdfr_simulation_engine.weekday_helper import CustomDatetimeAndSeconds, get_nearest_abs_day, get_nearest_past_day
 
@@ -27,6 +27,8 @@ def _get_operator_symbols_ge(operator_str: str):
 def _get_operator_symbols_lt(operator_str: str):
     return _get_operator_symbols(operator_str, operator.lt)
 
+def _is_greater(op: operator):
+    return op in [operator.ge, operator.gt]
 
 class BATCH_TYPE(Enum):
     SEQUENTIAL = 'Sequential'   # one after another
@@ -109,15 +111,16 @@ class FiringSubRule():
             else:
                 # if not true, validate whether there are some cases
                 # that satisfies the rule from the previous day
-                enabled_time = element["curr_enabled_at"]
-                batch_enabled_datetimes = element["enabled_datetimes"]
-                boundary_day = datetime.combine(enabled_time, time1, enabled_time.tzinfo)
-                op = _get_operator_symbols_lt(self.operator)
-                follow_rule = []
-                for time in batch_enabled_datetimes:
-                    if op(time, boundary_day):
-                        follow_rule.append(time)
-            return is_rule_true
+                batch_size, _ = self.get_batch_size_by_daily_hour(element)
+
+                return batch_size > 1
+                # boundary_day = datetime.combine(enabled_time, time1, enabled_time.tzinfo)
+                # op = _get_operator_symbols_lt(self.operator)
+                # follow_rule = []
+                # for time in batch_enabled_datetimes:
+                #     if op(time, boundary_day):
+                #         follow_rule.append(time)
+            # return is_rule_true
 
 
     def is_batch_size(self):
@@ -206,25 +209,66 @@ class FiringSubRule():
         curr_enabled_at = element["curr_enabled_at"]
         enabled_times = element["enabled_datetimes"].copy()
 
-        oldest_in_batch_datetime = enabled_times[0]
-        prev_day_to_oldest = datetime.combine(oldest_in_batch_datetime.date(), 
-            self.value2, oldest_in_batch_datetime.tzinfo)
-
         one_day_delta = timedelta(days=1)
-        op = operator.lt
+        oldest_in_batch_datetime = enabled_times[0]
 
-        while (prev_day_to_oldest <= curr_enabled_at):
+        op = _get_operator_symbols_eq(self.operator)
+        prev_day_to_oldest_rule_time = datetime.combine(
+            oldest_in_batch_datetime, 
+            self.value2, 
+            oldest_in_batch_datetime.tzinfo)
+
+        final_enabled_time = prev_day_to_oldest_rule_time
+        while (prev_day_to_oldest_rule_time <= curr_enabled_at):
             follow_rule = []
+            start_day = datetime.combine(prev_day_to_oldest_rule_time.date(), time(0, 0, 0), oldest_in_batch_datetime.tzinfo)
+            end_day = datetime.combine(prev_day_to_oldest_rule_time.date(), time(23, 59, 59), oldest_in_batch_datetime.tzinfo)
+
             for en_time in enabled_times:
-                if op(en_time, prev_day_to_oldest):
+                if op == operator.eq:
+                    if en_time <= prev_day_to_oldest_rule_time:
+                        follow_rule.append(en_time)
+                        final_enabled_time = prev_day_to_oldest_rule_time
+
+                elif op(en_time, prev_day_to_oldest_rule_time):
+                    # check whether we have something to execute before moving forward
+                    if len(follow_rule) > 1:
+                        return len(follow_rule), prev_day_to_oldest_rule_time
+
+                    # satisy the condition
+                    # execute as pair of two tasks
+                    if en_time > end_day:
+                        # already in the next day execution
+                        continue
+
+                    if op in [operator.gt, operator.ge] and en_time < start_day:
+                        continue
+                        
                     follow_rule.append(en_time)
+                    if len(follow_rule) == 2:
+                        if op == operator.eq:
+                            final_enabled_time = prev_day_to_oldest_rule_time
+                        else:
+                            final_enabled_time = en_time
+                        break
+                else:
+                    # do not satisfy the condition
+                    # execute when reached the time or midnight
+                    follow_rule.append(en_time)
+                    if op in [operator.lt, operator.le]:
+                        final_enabled_time = datetime.combine(
+                            prev_day_to_oldest_rule_time.date(),
+                            time(0, 0, 0),
+                            prev_day_to_oldest_rule_time.tzinfo)
+                    elif op in [operator.gt, operator.ge, operator.eq]:
+                        final_enabled_time = prev_day_to_oldest_rule_time
 
             if len(follow_rule) > 1:
                 # the first found batch of activities
                 # satisfies the rule and of the size of at least 2 items inside
-                return len(follow_rule), prev_day_to_oldest 
+                return len(follow_rule), final_enabled_time 
 
-            prev_day_to_oldest += one_day_delta
+            prev_day_to_oldest_rule_time += one_day_delta
         
         return 0, None
 
@@ -324,7 +368,7 @@ class AndFiringRule():
             elif subrule.variable1 == "daily_hour":
                 curr_size, enabled_time = subrule.get_batch_size_by_daily_hour(element)
 
-            if curr_size < batch_size and curr_size != 0:
+            if curr_size < batch_size:
                 batch_size = curr_size
 
         return batch_size, enabled_time
