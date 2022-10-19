@@ -159,7 +159,7 @@ def parse_batch_processing(batch_processing_json_data):
 
 def create_subrule(attribute, comparison, value):
     formatted_value = value if attribute != 'daily_hour' \
-        else time(int(value), 0, 0)
+        else time(int(value), 0, 0, 0)
 
     return FiringSubRule(
         attribute,

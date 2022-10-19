@@ -10,6 +10,7 @@ from bpdfr_simulation_engine.control_flow_manager import BPMN, EVENT_TYPE, Custo
 
 from bpdfr_simulation_engine.file_manager import FileManager
 from bpdfr_simulation_engine.execution_info import Trace, TaskEvent, EnabledEvent
+from bpdfr_simulation_engine.resource_calendar import get_string_from_datetime
 from bpdfr_simulation_engine.simulation_queues_ds import PriorityQueue, DiffResourceQueue, EventQueue
 from bpdfr_simulation_engine.simulation_setup import SimDiffSetup
 from bpdfr_simulation_engine.simulation_stats_calculator import LogInfo
@@ -138,19 +139,33 @@ class SimBPMEnv:
         return completed_at, completed_datetime
 
     
-    def is_any_batch_enabled(self, current_event: EnabledEvent) -> List[EnabledEvent]:
-        # TODO: implement and call before every execution of the task
+    def append_any_enabled_batch_tasks(self, current_event: EnabledEvent) -> List[EnabledEvent]:
         enabled_datetime = CustomDatetimeAndSeconds(current_event.enabled_at, current_event.enabled_datetime)
         enabled_batch_task_ids = self.sim_setup.is_any_batch_enabled(enabled_datetime)
         
         if enabled_batch_task_ids != None:
             for (batch_task_id, batch_info) in enabled_batch_task_ids.items():
+                start_time_from_rule = batch_info.start_time_from_rule
+
+                # TODO: cover with additional test cases
+                # when start_time_from_rule > current_event.enabled_datetime
+                
+                if (start_time_from_rule < current_event.enabled_datetime):
+                    # get needed value in seconds according to the 
+                    # already existing pair of seconds and datetime
+                    timedelta_sec = (current_event.enabled_datetime - start_time_from_rule).total_seconds()
+                    enabled_at = current_event.enabled_at - timedelta_sec
+                    enabled_datetime = start_time_from_rule
+                else:
+                    enabled_at = current_event.enabled_at
+                    enabled_datetime = current_event.enabled_datetime
+
                 c_event = EnabledEvent(
                     current_event.p_case,
                     current_event.p_state,
                     batch_task_id,
-                    current_event.enabled_at, # not being used for batch
-                    current_event.enabled_datetime, # not being used for batch
+                    enabled_at, 
+                    enabled_datetime,
                     batch_info
                 )
 
@@ -162,7 +177,6 @@ class SimBPMEnv:
             if not enabled_datetime:
                 return
 
-            # mock = CustomDatetimeAndSeconds(0, enabled_datetime)
             enabled_batch_task_ids = self.sim_setup.is_any_batch_enabled(enabled_datetime)
             
             if enabled_batch_task_ids != None:
@@ -303,7 +317,7 @@ class SimBPMEnv:
                 self.log_writer.add_csv_row([p_case,
                                             self.sim_setup.bpmn_graph.element_info[task_id].name,
                                             full_evt.enabled_datetime,
-                                            full_evt.started_datetime,
+                                            get_string_from_datetime(full_evt.started_datetime),
                                             full_evt.completed_datetime,
                                             self.sim_setup.resources_map[full_evt.resource_id].resource_name])
 
@@ -381,7 +395,6 @@ def execute_full_process(bpm_env: SimBPMEnv, total_cases):
     #       str(datetime.timedelta(seconds=(datetime.datetime.now() - s_t).total_seconds())))
     current_event = bpm_env.events_queue.pop_next_event()
     while current_event is not None:
-        # bpm_env.is_any_batch_enabled(current_event)
         bpm_env.execute_enabled_event(current_event)
 
         # find the next event to be executed
@@ -389,7 +402,7 @@ def execute_full_process(bpm_env: SimBPMEnv, total_cases):
         # add founded elements to the queue, if any
         intermediate_event = bpm_env.events_queue.peek()
         if intermediate_event != None:
-            bpm_env.is_any_batch_enabled(intermediate_event)
+            bpm_env.append_any_enabled_batch_tasks(intermediate_event)
 
         current_event = bpm_env.events_queue.pop_next_event()
         if current_event != None:

@@ -221,8 +221,8 @@ class FiringSubRule():
         final_enabled_time = prev_day_to_oldest_rule_time
         while (prev_day_to_oldest_rule_time <= curr_enabled_at):
             follow_rule = []
-            start_day = datetime.combine(prev_day_to_oldest_rule_time.date(), time(0, 0, 0), oldest_in_batch_datetime.tzinfo)
-            end_day = datetime.combine(prev_day_to_oldest_rule_time.date(), time(23, 59, 59), oldest_in_batch_datetime.tzinfo)
+            start_day = datetime.combine(prev_day_to_oldest_rule_time.date(), time(0, 0, 0, 0), oldest_in_batch_datetime.tzinfo)
+            end_day = datetime.combine(prev_day_to_oldest_rule_time.date(), time(23, 59, 59, 0), oldest_in_batch_datetime.tzinfo)
 
             for en_time in enabled_times:
                 if op == operator.eq:

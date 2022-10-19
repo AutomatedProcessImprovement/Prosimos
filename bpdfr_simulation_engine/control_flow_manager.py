@@ -917,8 +917,9 @@ class BPMNGraph:
             return None
 
         for (task_id, waiting_tasks) in self.batch_waiting_processes.items():
-            if len(waiting_tasks) == 0:
-                # no tasks waiting for batch execution
+            if len(waiting_tasks) < 2:
+                # either no or not enough tasks waiting for batch execution
+                # minimum number of tasks to be executed: 2
                 continue
 
             case_id_and_start_time = self.get_start_time(task_id, last_task_enabled_time)

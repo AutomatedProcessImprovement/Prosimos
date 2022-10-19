@@ -373,6 +373,12 @@ def parse_datetime(time, has_date):
                 pass
     raise ValueError
 
+def get_string_from_datetime(datetime):
+    datetime_without_colon = datetime.strftime("%Y-%m-%d %H:%M:%S.%f%z")
+    return "{0}:{1}".format(
+        datetime_without_colon[:-2],
+        datetime_without_colon[-2:]
+    )
 
 def to_seconds(value, from_unit):
     u_from = from_unit.upper()
