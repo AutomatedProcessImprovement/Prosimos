@@ -146,37 +146,15 @@ def test_daily_hour_every_day_correct_firing(assets_path):
                 The start_time of all logs files is being sorted by ASC.
     """
 
-    # ====== ARRANGE ======
-    model_path = assets_path / "batch-example-end-task.bpmn"
-    basic_json_path = assets_path / "batch-example-with-batch.json"
-    json_path = assets_path / "batch-example-nearest-coef.json"
-    sim_stats = assets_path / "batch_stats.csv"
+    # ====== ARRANGE & ACT ======
     sim_logs = assets_path / "batch_logs.csv"
 
     start_string = "2022-09-26 3:10:30.035185+03:00"
     start_date = parse_datetime(start_string, True)
 
-    with open(basic_json_path, "r") as f:
-        json_dict = json.load(f)
-
     firing_rules = [[{"attribute": "daily_hour", "comparison": ">", "value": "15"}]]
 
-    # case arrives every 14400 seconds (= 4 hours)
-    arrival_distr = {
-        "distribution_name": "fix",
-        "distribution_params": [{"value": 14400}, {"value": 0}, {"value": 1}],
-    }
-
-    _setup_sim_scenario_file(json_dict, None, None, "Parallel", firing_rules)
-    _setup_arrival_distribution(json_dict, arrival_distr)
-
-    with open(json_path, "w+") as json_file:
-        json.dump(json_dict, json_file)
-
-    # ====== ACT ======
-    _, diff_sim_result = run_diff_res_simulation(
-        start_date, 12, model_path, json_path, sim_stats, sim_logs  # one batch
-    )
+    _arrange_and_act(assets_path, firing_rules, start_date, 11)
 
     # ====== ASSERT ======
     df = pd.read_csv(sim_logs)
@@ -213,3 +191,97 @@ def test_daily_hour_every_day_correct_firing(assets_path):
     for _, group in grouped_by_start:
         _verify_same_resource_for_batch(group["resource"])
 
+    # TODO: verify number of tasks inside each batch
+
+def test_daily_hour_every_day_and_size_correct_firing(assets_path):
+    """
+    Input:      Firing rule of daily_hour > 15 and size >= 3. 
+                12 process cases are being generated. A new case arrive every 4 hours.
+                Batched task are executed in parallel.
+    Expected:   Batched task are executed only in the range from 15:00 - 23:59 AND
+                when there are at least 3 items waiting for the batching processing.
+                If batched tasks came before 15:00 (from 00:00 - 23:59),
+                then they wait for 15:00 to be executed.
+    Verified:   The start_time of the appropriate grouped D task.
+                The start_time of all logs files is being sorted by ASC.
+    """
+
+    sim_logs = assets_path / "batch_logs.csv"
+
+    start_string = "2022-09-26 3:10:30.035185+03:00"
+    start_date = parse_datetime(start_string, True)
+    
+    firing_rules = [
+        [
+            {"attribute": "daily_hour", "comparison": ">", "value": "15"},
+            {"attribute": "size", "comparison": ">=", "value": 3}
+        ]
+    ]
+
+    _arrange_and_act(assets_path, firing_rules, start_date, 12)
+
+    # ====== ASSERT ======
+    df = pd.read_csv(sim_logs)
+    logs_d_task = df[df["activity"] == "D"]
+    grouped_by_start = logs_d_task.groupby(by="start_time")
+
+    expected_start_time_keys = [
+        "2022-09-26 15:00:00.000000+03:00",
+        "2022-09-26 23:14:30.035185+03:00",
+        "2022-09-27 15:00:00.000000+03:00",
+        "2022-09-27 23:14:30.035185+03:00",
+    ]
+    grouped_by_start_keys = list(grouped_by_start.groups.keys())
+    assert (
+        grouped_by_start_keys == expected_start_time_keys
+    ), f"The start_time for batched D tasks differs. Expected: {expected_start_time_keys}, but was {grouped_by_start_keys}"
+
+    # verify that column 'start_time' is ordered ascendingly
+    df["start_time"] = pd.to_datetime(df["start_time"], errors="coerce")
+
+    prev_row_value = datetime.min  # naive
+    prev_row_value = datetime.combine(
+        prev_row_value.date(), prev_row_value.time(), tzinfo=start_date.tzinfo
+    )
+
+    for index, row in df.iterrows():
+        assert (
+            prev_row_value <= row["start_time"]
+        ), f"The previous row (idx={index-1}) start_time is bigger than the next one (idx={index}). Rows should be ordered ASC."
+
+        prev_row_value = row["start_time"]
+
+    # verify that the same resource execute the whole batch
+    for _, group in grouped_by_start:
+        _verify_same_resource_for_batch(group["resource"])
+
+    # TODO: verify number of tasks inside each batch
+
+
+def _arrange_and_act(assets_path, firing_rules, start_date, num_cases):
+    # ====== ARRANGE ======
+    model_path = assets_path / "batch-example-end-task.bpmn"
+    basic_json_path = assets_path / "batch-example-with-batch.json"
+    json_path = assets_path / "batch-example-nearest-coef.json"
+    sim_stats = assets_path / "batch_stats.csv"
+    sim_logs = assets_path / "batch_logs.csv"
+
+    with open(basic_json_path, "r") as f:
+        json_dict = json.load(f)
+
+    # case arrives every 14400 seconds (= 4 hours)
+    arrival_distr = {
+        "distribution_name": "fix",
+        "distribution_params": [{"value": 14400}, {"value": 0}, {"value": 1}],
+    }
+
+    _setup_sim_scenario_file(json_dict, None, None, "Parallel", firing_rules)
+    _setup_arrival_distribution(json_dict, arrival_distr)
+
+    with open(json_path, "w+") as json_file:
+        json.dump(json_dict, json_file)
+
+    # ====== ACT ======
+    _, diff_sim_result = run_diff_res_simulation(
+        start_date, num_cases, model_path, json_path, sim_stats, sim_logs
+    )

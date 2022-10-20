@@ -30,8 +30,9 @@ def test_only_size_eq_correct():
 
 def test_size_eq_wt_lt_correct():
     # ====== ARRANGE ======
-    firing_sub_rule_1 = FiringSubRule("size", "=", 3)
-    firing_sub_rule_2 = FiringSubRule("waiting_times", "<", 3600) # 1 hour
+    firing_sub_rule_1 = FiringSubRule("waiting_times", "<", 3600) # 1 hour
+    firing_sub_rule_2 = FiringSubRule("size", "=", 3)
+
     firing_rules = AndFiringRule([ firing_sub_rule_1, firing_sub_rule_2 ])
 
     # note: enabled_datetimes and curr_enabled_at does not reflect the real situation
@@ -59,8 +60,9 @@ def test_size_eq_wt_lt_correct():
 
 def test_size_eq_and_wt_gt_correct():
     # ====== ARRANGE ======
-    firing_sub_rule_1 = FiringSubRule("size", "=", 3)
-    firing_sub_rule_2 = FiringSubRule("waiting_times", ">", 3600) # 1 hour
+    firing_sub_rule_1 = FiringSubRule("waiting_times", ">", 3600) # 1 hour
+    firing_sub_rule_2 = FiringSubRule("size", "=", 3)
+
     firing_rules = AndFiringRule([ firing_sub_rule_1, firing_sub_rule_2 ])
 
     # note: enabled_datetimes and curr_enabled_at does not reflect the real situation
@@ -212,8 +214,10 @@ def test_wt_and_size_rules_correct_enabled_and_batch_size(
     waiting_time_arr, size_rule_sign, wt_rule_sign, expected_is_true, expected_batch_size):
 
     # ====== ARRANGE ======
-    firing_sub_rule_1 = FiringSubRule("size", size_rule_sign, 3) 
-    firing_sub_rule_2 = FiringSubRule("waiting_times", wt_rule_sign, 3600) # 1 hour
+    # NB: rules should be ordered so that size rule is the last one
+    firing_sub_rule_1 = FiringSubRule("waiting_times", wt_rule_sign, 3600) # 1 hour
+    firing_sub_rule_2 = FiringSubRule("size", size_rule_sign, 3)
+
     firing_rules = AndFiringRule([ firing_sub_rule_1, firing_sub_rule_2 ])
 
     # note: enabled_datetimes and curr_enabled_at does not reflect the real situation
@@ -265,10 +269,11 @@ def test_wt_or_size_rule_correct_enabled_and_batch_size(
     waiting_time_arr, size_rule_sign, wt_rule_sign, expected_is_true, expected_batch_size):
 
     # ====== ARRANGE ======
-    firing_sub_rule_1 = FiringSubRule("size", size_rule_sign, 3) 
+    # NB: rules should be ordered so that size rule is the last one
+    firing_sub_rule_1 = FiringSubRule("waiting_times", wt_rule_sign, 3600) # 1 hour
     firing_rule_1 = AndFiringRule([ firing_sub_rule_1 ])
-
-    firing_sub_rule_2 = FiringSubRule("waiting_times", wt_rule_sign, 3600) # 1 hour
+    
+    firing_sub_rule_2 = FiringSubRule("size", size_rule_sign, 3) 
     firing_rule_2 = AndFiringRule([ firing_sub_rule_2 ])
 
     rule = OrFiringRule([ firing_rule_1, firing_rule_2 ])

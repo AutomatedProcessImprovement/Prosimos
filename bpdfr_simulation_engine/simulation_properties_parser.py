@@ -136,6 +136,8 @@ def parse_batch_processing(batch_processing_json_data):
                 )
 
                 parsed_and_rules.append(subrule)
+            
+            _move_size_to_end(parsed_and_rules)
 
             firing_rule = AndFiringRule(parsed_and_rules)
             parsed_or_rules.append(firing_rule)
@@ -180,6 +182,19 @@ def create_subrule(attribute, comparison, value):
 #         r_calendar.compute_cumulative_durations()
 #         calendars_map[r_calendar.calendar_id] = r_calendar
 #     return resources_map, calendars_map
+
+
+def _move_size_to_end(list: List[FiringSubRule]):
+    " Re-order the elements inside list so that size rule is the last one in the sequence "
+    
+    size_index = next((i for i, item in enumerate(list) if item.variable1 == 'size'), -1)
+    last_index = len(list) - 1
+
+    if size_index == -1:
+        # size rule is not on the list of all rules
+        return
+
+    list.insert(last_index, list.pop(size_index))
 
 
 def parse_arrival_branching_probabilities(arrival_json, gateway_json):

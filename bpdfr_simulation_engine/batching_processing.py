@@ -350,7 +350,6 @@ class AndFiringRule():
             curr_size = 0
 
             if subrule.is_batch_size():
-                
                 value2 = subrule.value2
                 switcher = {
                     '<': min(current_batch_size, value2 - 1),
@@ -360,7 +359,23 @@ class AndFiringRule():
                     '>=': current_batch_size if current_batch_size >= value2 else 0
                 }
 
-                curr_size = switcher.get(subrule.operator)
+                batch_size_rule = switcher.get(subrule.operator)
+                
+                if batch_size == 0 or batch_size_rule == 0:
+                    continue
+                
+                rule_operator: operator = _get_operator_symbols_eq(subrule.operator)
+                if rule_operator(batch_size, value2):
+                    # calculated batch_size for previous rules satisfies the size rule
+                    # that means we return the size and datetime of that previosuly rule
+                    # e.g., daily hour rule returned 3 items and 15:00 time, size rule also returned 3 items
+                    # that means the first (daily hour rule) will be returned as a resulted one
+                    return batch_size, enabled_time
+                else:
+                    # calculated batch_size for previous rules does not satisfy the size rule
+                    # that means we return the size and datetime of the size rule which overrides all others
+                    return batch_size_rule, element["curr_enabled_at"]
+            
             elif subrule.variable1 == "week_day":
                 curr_size, enabled_time = subrule.get_batch_size_relative_time(element)
             elif subrule.variable1 == "waiting_times":
