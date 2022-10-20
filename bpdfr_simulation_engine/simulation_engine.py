@@ -126,12 +126,12 @@ class SimBPMEnv:
         self.resource_queue.update_resource_availability(r_id, r_next_available)
         self.sim_resources[r_id].worked_time += full_evt.ideal_duration
         
-        self.log_writer.add_csv_row([c_event.p_case,
+        self.log_writer.add_csv_row(verify_miliseconds([c_event.p_case,
                                     self.sim_setup.bpmn_graph.element_info[c_event.task_id].name,
                                     full_evt.enabled_datetime,
                                     full_evt.started_datetime,
                                     full_evt.completed_datetime,
-                                    self.sim_setup.resources_map[full_evt.resource_id].resource_name])
+                                    self.sim_setup.resources_map[full_evt.resource_id].resource_name]))
 
         completed_at = full_evt.completed_at
         completed_datetime = full_evt.completed_datetime
@@ -256,12 +256,12 @@ class SimBPMEnv:
                 self.resource_queue.update_resource_availability(r_id, r_next_available)
                 self.sim_resources[r_id].worked_time += full_evt.ideal_duration
                 
-                self.log_writer.add_csv_row([p_case,
+                self.log_writer.add_csv_row(verify_miliseconds([p_case,
                                             self.sim_setup.bpmn_graph.element_info[task_id].name,
                                             full_evt.enabled_datetime,
                                             full_evt.started_datetime,
                                             full_evt.completed_datetime,
-                                            self.sim_setup.resources_map[full_evt.resource_id].resource_name])
+                                            self.sim_setup.resources_map[full_evt.resource_id].resource_name]))
 
                 completed_at = full_evt.completed_at
                 completed_datetime = full_evt.completed_datetime
@@ -314,12 +314,12 @@ class SimBPMEnv:
                 self.resource_queue.update_resource_availability(r_id, r_next_available)
                 self.sim_resources[r_id].worked_time += full_evt.ideal_duration
                 
-                self.log_writer.add_csv_row([p_case,
+                self.log_writer.add_csv_row(verify_miliseconds([p_case,
                                             self.sim_setup.bpmn_graph.element_info[task_id].name,
                                             full_evt.enabled_datetime,
-                                            get_string_from_datetime(full_evt.started_datetime),
+                                            full_evt.started_datetime,
                                             full_evt.completed_datetime,
-                                            self.sim_setup.resources_map[full_evt.resource_id].resource_name])
+                                            self.sim_setup.resources_map[full_evt.resource_id].resource_name]))
 
                 completed_at = full_evt.completed_at
                 completed_datetime = full_evt.completed_datetime
@@ -346,12 +346,12 @@ class SimBPMEnv:
         self.log_info.add_event_info(c_event.p_case, full_evt, 0)
 
         if (self.sim_setup.is_event_added_to_log):
-            self.log_writer.add_csv_row([c_event.p_case,
+            self.log_writer.add_csv_row(verify_miliseconds([c_event.p_case,
                             self.sim_setup.bpmn_graph.element_info[c_event.task_id].name,
                             full_evt.enabled_datetime,
                             full_evt.started_datetime,
                             full_evt.completed_datetime,
-                            "No assigned resource"])
+                            "No assigned resource"]))
 
         return completed_at, completed_datetime
 
@@ -461,3 +461,18 @@ def add_simulation_event_log_header(log_fwriter):
     if log_fwriter:
         log_fwriter.writerow([
             'case_id', 'activity', 'enable_time', 'start_time', 'end_time', 'resource', ])
+
+def verify_miliseconds(array):
+    """
+    In case of datetime.microsecond = 0, standard converter does not print microseconds
+    So we force the convertation, so that the datetime format is the same for every datetime in the final file
+    Indexes correspond to the next values:
+        2 - enabled_datetime
+        3 - start_datetime
+        4 - end_datetime
+    """
+    for i in range(2,5):
+        if array[i].microsecond == 0:
+            array[i] = get_string_from_datetime(array[i])
+
+    return array

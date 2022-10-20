@@ -13,6 +13,7 @@ from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 from testing_scripts.test_batching import (
     _setup_arrival_distribution,
     _setup_sim_scenario_file,
+    _verify_same_resource_for_batch,
     assets_path,
 )
 
@@ -208,5 +209,7 @@ def test_daily_hour_every_day_correct_firing(assets_path):
 
         prev_row_value = row["start_time"]
 
-    # TODO: verify that the same resource execute the whole batch
-    # TODO: figure out the microseconds in end_time not being there for batched tasks
+    # verify that the same resource execute the whole batch
+    for _, group in grouped_by_start:
+        _verify_same_resource_for_batch(group["resource"])
+
