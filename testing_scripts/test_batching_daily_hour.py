@@ -11,6 +11,7 @@ from bpdfr_simulation_engine.batching_processing import (
 from bpdfr_simulation_engine.resource_calendar import parse_datetime
 from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 from testing_scripts.test_batching import (
+    _get_start_time_and_count,
     _setup_arrival_distribution,
     _setup_sim_scenario_file,
     _verify_same_resource_for_batch,
@@ -143,6 +144,8 @@ def test_daily_hour_every_day_correct_firing(assets_path):
     Expected:   Batched task are executed only in the range from 15:00 - 23:59.
                 If batched tasks came before 15:00 (from 00:00 - 23:59), then they wait for 15:00 to be executed.
     Verified:   The start_time of the appropriate grouped D task.
+                The number of tasks in every executed batch.
+                The resource which executed the batch is the same for all tasks in the batch.
                 The start_time of all logs files is being sorted by ASC.
     """
 
@@ -162,15 +165,15 @@ def test_daily_hour_every_day_correct_firing(assets_path):
     grouped_by_start = logs_d_task.groupby(by="start_time")
 
     expected_start_time_keys = [
-        "2022-09-26 15:00:00.000000+03:00",
-        "2022-09-26 19:14:30.035185+03:00",
-        "2022-09-27 15:00:00.000000+03:00",
-        "2022-09-27 19:14:30.035185+03:00",
+        ("2022-09-26 15:00:00.000000+03:00", 3),
+        ("2022-09-26 19:14:30.035185+03:00", 2),
+        ("2022-09-27 15:00:00.000000+03:00", 4),
+        ("2022-09-27 19:14:30.035185+03:00", 2)
     ]
-    grouped_by_start_keys = list(grouped_by_start.groups.keys())
+    grouped_by_start_items = list(map(_get_start_time_and_count, list(grouped_by_start.groups.items())))
     assert (
-        grouped_by_start_keys == expected_start_time_keys
-    ), f"The start_time for batched D tasks differs. Expected: {expected_start_time_keys}, but was {grouped_by_start_keys}"
+        grouped_by_start_items == expected_start_time_keys
+    ), f"The start_time for batched D tasks differs. Expected: {expected_start_time_keys}, but was {grouped_by_start_items}"
 
     # verify that column 'start_time' is ordered ascendingly
     df["start_time"] = pd.to_datetime(df["start_time"], errors="coerce")
@@ -203,6 +206,8 @@ def test_daily_hour_every_day_and_size_correct_firing(assets_path):
                 If batched tasks came before 15:00 (from 00:00 - 23:59),
                 then they wait for 15:00 to be executed.
     Verified:   The start_time of the appropriate grouped D task.
+                The number of tasks in every executed batch.
+                The resource which executed the batch is the same for all tasks in the batch.
                 The start_time of all logs files is being sorted by ASC.
     """
 
@@ -226,15 +231,15 @@ def test_daily_hour_every_day_and_size_correct_firing(assets_path):
     grouped_by_start = logs_d_task.groupby(by="start_time")
 
     expected_start_time_keys = [
-        "2022-09-26 15:00:00.000000+03:00",
-        "2022-09-26 23:14:30.035185+03:00",
-        "2022-09-27 15:00:00.000000+03:00",
-        "2022-09-27 23:14:30.035185+03:00",
+        ("2022-09-26 15:00:00.000000+03:00", 3),
+        ("2022-09-26 23:14:30.035185+03:00", 3),
+        ("2022-09-27 15:00:00.000000+03:00", 3),
+        ("2022-09-27 23:14:30.035185+03:00", 3)
     ]
-    grouped_by_start_keys = list(grouped_by_start.groups.keys())
+    grouped_by_start_items = list(map(_get_start_time_and_count, list(grouped_by_start.groups.items())))
     assert (
-        grouped_by_start_keys == expected_start_time_keys
-    ), f"The start_time for batched D tasks differs. Expected: {expected_start_time_keys}, but was {grouped_by_start_keys}"
+        grouped_by_start_items == expected_start_time_keys
+    ), f"The start_time for batched D tasks differs. Expected: {expected_start_time_keys}, but was {grouped_by_start_items}"
 
     # verify that column 'start_time' is ordered ascendingly
     df["start_time"] = pd.to_datetime(df["start_time"], errors="coerce")
