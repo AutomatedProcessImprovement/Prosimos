@@ -7,6 +7,7 @@ from enum import Enum
 
 import pm4py
 import random
+import secrets
 from pm4py.objects.conversion.process_tree import converter
 from bpdfr_simulation_engine.probability_distributions import generate_number_from
 from bpdfr_simulation_engine.resource_calendar import str_week_days
@@ -325,7 +326,7 @@ class BPMNGraph:
 
         # return randomly selected outgoing flow
         # in case of same value for multiple flows
-        return random.choice(res)
+        return secrets.choice(res)
 
     def event_duration(self, event_id):
         """
