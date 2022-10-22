@@ -218,8 +218,8 @@ class FiringSubRule():
             self.value2, 
             oldest_in_batch_datetime.tzinfo)
 
-        final_enabled_time = prev_day_to_oldest_rule_time
-        while (prev_day_to_oldest_rule_time <= curr_enabled_at):
+        final_enabled_time = curr_enabled_at
+        while True:
             follow_rule = []
             start_day = datetime.combine(prev_day_to_oldest_rule_time.date(), time(0, 0, 0, 0), oldest_in_batch_datetime.tzinfo)
             end_day = datetime.combine(prev_day_to_oldest_rule_time.date(), time(23, 59, 59, 0), oldest_in_batch_datetime.tzinfo)
@@ -246,10 +246,7 @@ class FiringSubRule():
                         
                     follow_rule.append(en_time)
                     if len(follow_rule) == 2:
-                        if op == operator.eq:
-                            final_enabled_time = prev_day_to_oldest_rule_time
-                        else:
-                            final_enabled_time = en_time
+                        final_enabled_time = en_time
                         break
                 else:
                     # do not satisfy the condition
@@ -257,11 +254,16 @@ class FiringSubRule():
                     follow_rule.append(en_time)
                     if op in [operator.lt, operator.le]:
                         final_enabled_time = datetime.combine(
-                            prev_day_to_oldest_rule_time.date(),
+                            prev_day_to_oldest_rule_time.date() + timedelta(days=1),
                             time(0, 0, 0),
                             prev_day_to_oldest_rule_time.tzinfo)
                     elif op in [operator.gt, operator.ge, operator.eq]:
                         final_enabled_time = prev_day_to_oldest_rule_time
+
+                if final_enabled_time > element["curr_enabled_at"]:
+                    # final enabled time of the batch cannot be larger then the starting enabled time
+                    # the future batch enablement will be handled later
+                    return 0, None
 
             if len(follow_rule) > 1:
                 # the first found batch of activities
@@ -269,8 +271,11 @@ class FiringSubRule():
                 return len(follow_rule), final_enabled_time 
 
             prev_day_to_oldest_rule_time += one_day_delta
-        
-        return 0, None
+            if (prev_day_to_oldest_rule_time >= curr_enabled_at):
+                if len(follow_rule) > 1:
+                    # the first found batch of activities
+                    # satisfies the rule and of the size of at least 2 items inside
+                    return len(follow_rule), final_enabled_time 
 
 
 class AndFiringRule():
@@ -346,6 +351,7 @@ class AndFiringRule():
         batch_size = sys.maxsize
         enabled_time = element["curr_enabled_at"]
 
+        is_time_forced = False
         for subrule in self.rules:
             curr_size = 0
 
@@ -365,23 +371,26 @@ class AndFiringRule():
                     continue
                 
                 rule_operator: operator = _get_operator_symbols_eq(subrule.operator)
-                if rule_operator(batch_size, value2):
-                    # calculated batch_size for previous rules satisfies the size rule
-                    # that means we return the size and datetime of that previosuly rule
-                    # e.g., daily hour rule returned 3 items and 15:00 time, size rule also returned 3 items
-                    # that means the first (daily hour rule) will be returned as a resulted one
-                    return batch_size, enabled_time
-                else:
-                    # calculated batch_size for previous rules does not satisfy the size rule
-                    # that means we return the size and datetime of the size rule which overrides all others
-                    return batch_size_rule, element["curr_enabled_at"]
+
+                # check whether enabled_time was forced by some prev rule (e.g., daily_hour > 15)
+                # in this case, use that previous time
+                # otherwise, use the datetime when the batched task was enabled
+                enabled_time = enabled_time if is_time_forced else element["curr_enabled_at"]
+
+                # if previously batch_size satisfy the size rule - return it
+                # if not - return the one we've kust calculated with the size rule limitations
+                batch_size = batch_size if rule_operator(batch_size, value2) else batch_size_rule
+                return batch_size, enabled_time
             
             elif subrule.variable1 == "week_day":
                 curr_size, enabled_time = subrule.get_batch_size_relative_time(element)
+                is_time_forced = True
             elif subrule.variable1 == "waiting_times":
                 curr_size = current_batch_size
             elif subrule.variable1 == "daily_hour":
                 curr_size, enabled_time = subrule.get_batch_size_by_daily_hour(element)
+                if enabled_time != None and enabled_time.time() == subrule.value2:
+                    is_time_forced = True
 
             if curr_size < batch_size:
                 batch_size = curr_size

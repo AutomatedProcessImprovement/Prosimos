@@ -1,4 +1,4 @@
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 import json
 import pandas as pd
 import pytest
@@ -55,7 +55,9 @@ data_one_week_day = [
     ),
     # Rule: daily_hour < 15
     # Current state: 5 tasks waiting for the batch execution: three of them enabled before 15.
-    # Expected result: firing rule is enabled at 14:59 because of those three tasks.
+    # Expected result:  Firing rule is enabled at 14:59 because of those three tasks.
+    #                   Only two tasks will be enabled cause they arrived when the rule was enabled.
+    #                   Other two tasks will be enabled at midnight (not covered by this test). 
     (
         "19/09/22 15:05:26",
         [
@@ -67,7 +69,7 @@ data_one_week_day = [
         "<",
         "15",
         True,
-        [2, 2],
+        [2],
         "19/09/2022 09:05:26",
     ),
     (
@@ -136,6 +138,75 @@ def test_daily_hour_rule_correct_enabled_and_batch_size(
         assert expected_start_time_from_rule == start_dt
 
 
+def test_daily_hour_and_week_day_and_size_rule_correct_enabled_and_batch_size(assets_path):
+    """
+    Input:      Firing rules of daily_hour < 12 AND size >= 4 AND week_day IN ["Friday", "Monday"]. 
+                29 process cases are being generated. A new case arrive every 3 hours.
+                Batched task are executed in parallel.
+    Expected:   Batched task are executed only in the range from 00:00 - 11:59.
+                If batched tasks came after 12:00 (from 00:00 - 23:59),
+                then they wait for the next enabled day (Monday or Friday) to be executed.
+    Verified:   The start_time of the appropriate grouped D task.
+                The number of tasks in every executed batch.
+                The resource which executed the batch is the same for all tasks in the batch.
+                The start_time of all logs files is being sorted by ASC.
+    """
+
+    # ====== ARRANGE & ACT ======
+    firing_rules = [
+        [
+            {"attribute": "daily_hour", "comparison": "<", "value": "12"},
+            {"attribute": "size", "comparison": ">=", "value": 4},
+            {"attribute": "week_day", "comparison": "=", "value": "Friday"},
+        ],
+        [
+            {"attribute": "daily_hour", "comparison": "<", "value": "12"},
+            {"attribute": "size", "comparison": ">=", "value": 4},
+            {"attribute": "week_day", "comparison": "=", "value": "Monday"},
+        ]
+    ]
+
+    sim_logs = assets_path / "batch_logs.csv"
+
+    start_string = "2022-09-29 23:45:30.035185+03:00"
+    start_date = parse_datetime(start_string, True)
+
+    _arrange_and_act(assets_path, firing_rules, start_date, 29, 10800)
+
+    # ====== ASSERT ======
+    df = pd.read_csv(sim_logs)
+    logs_d_task = df[df["activity"] == "D"]
+    grouped_by_start = logs_d_task.groupby(by="start_time")
+
+    expected_start_time_keys = [
+        ("2022-09-30 08:49:30.035185+03:00", 4),
+        ("2022-10-03 00:00:00.035185+03:00", 21),
+        ("2022-10-03 11:49:30.035185+03:00", 4)
+    ]
+    grouped_by_start_items = list(map(_get_start_time_and_count, list(grouped_by_start.groups.items())))
+    assert (
+        grouped_by_start_items == expected_start_time_keys
+    ), f"The start_time for batched D tasks differs. Expected: {expected_start_time_keys}, but was {grouped_by_start_items}"
+
+    # verify that the same resource execute the whole batch
+    for _, group in grouped_by_start:
+        _verify_same_resource_for_batch(group["resource"])
+
+    # verify that column 'start_time' is ordered ascendingly
+    df["start_time"] = pd.to_datetime(df["start_time"], errors="coerce")
+
+    prev_row_value = datetime.min  # naive
+    prev_row_value = datetime.combine(
+        prev_row_value.date(), prev_row_value.time(), tzinfo=start_date.tzinfo
+    )
+
+    for index, row in df.iterrows():
+        assert (
+            prev_row_value <= row["start_time"]
+        ), f"The previous row (idx={index-1}) start_time is bigger than the next one (idx={index}). Rows should be ordered ASC."
+
+        prev_row_value = row["start_time"]
+
 def test_daily_hour_every_day_correct_firing(assets_path):
     """
     Input:      Firing rule of daily_hour > 15. 
@@ -157,7 +228,8 @@ def test_daily_hour_every_day_correct_firing(assets_path):
 
     firing_rules = [[{"attribute": "daily_hour", "comparison": ">", "value": "15"}]]
 
-    _arrange_and_act(assets_path, firing_rules, start_date, 11)
+    # 14400 seconds = 4 hours
+    _arrange_and_act(assets_path, firing_rules, start_date, 11, 14400)
 
     # ====== ASSERT ======
     df = pd.read_csv(sim_logs)
@@ -194,9 +266,36 @@ def test_daily_hour_every_day_correct_firing(assets_path):
     for _, group in grouped_by_start:
         _verify_same_resource_for_batch(group["resource"])
 
-    # TODO: verify number of tasks inside each batch
 
-def test_daily_hour_every_day_and_size_correct_firing(assets_path):
+data_hour_every_day_and_size = [
+    (
+        "assets_path", 
+        ">=", 
+        [
+            ("2022-09-26 15:00:00.000000+03:00", 3),
+            ("2022-09-26 23:14:30.035185+03:00", 3),
+            ("2022-09-27 15:00:00.000000+03:00", 3),
+            ("2022-09-27 23:14:30.035185+03:00", 3)
+        ]
+    ),
+    (
+        "assets_path",
+        "<=",
+        [
+            ("2022-09-26 15:00:00.000000+03:00", 3),
+            ("2022-09-26 19:14:30.035185+03:00", 2),
+            ("2022-09-27 15:00:00.000000+03:00", 3),
+            ("2022-09-27 15:14:30.035185+03:00", 2),
+            ("2022-09-27 23:14:30.035185+03:00", 2)
+        ]
+    ),
+]
+
+@pytest.mark.parametrize(
+    "assets_path_fixture, size_rule_sign, expected_start_time_keys",
+    data_hour_every_day_and_size,
+)
+def test_daily_hour_every_day_and_size_correct_firing(assets_path_fixture, size_rule_sign, expected_start_time_keys, request):
     """
     Input:      Firing rule of daily_hour > 15 and size >= 3. 
                 12 process cases are being generated. A new case arrive every 4 hours.
@@ -211,6 +310,8 @@ def test_daily_hour_every_day_and_size_correct_firing(assets_path):
                 The start_time of all logs files is being sorted by ASC.
     """
 
+    # ====== ARRANGE & ACT ======
+    assets_path = request.getfixturevalue(assets_path_fixture)
     sim_logs = assets_path / "batch_logs.csv"
 
     start_string = "2022-09-26 3:10:30.035185+03:00"
@@ -219,23 +320,18 @@ def test_daily_hour_every_day_and_size_correct_firing(assets_path):
     firing_rules = [
         [
             {"attribute": "daily_hour", "comparison": ">", "value": "15"},
-            {"attribute": "size", "comparison": ">=", "value": 3}
+            {"attribute": "size", "comparison": size_rule_sign, "value": 3}
         ]
     ]
 
-    _arrange_and_act(assets_path, firing_rules, start_date, 12)
+    # 14400 seconds = 4 hours
+    _arrange_and_act(assets_path, firing_rules, start_date, 12, 14400)
 
     # ====== ASSERT ======
     df = pd.read_csv(sim_logs)
     logs_d_task = df[df["activity"] == "D"]
     grouped_by_start = logs_d_task.groupby(by="start_time")
 
-    expected_start_time_keys = [
-        ("2022-09-26 15:00:00.000000+03:00", 3),
-        ("2022-09-26 23:14:30.035185+03:00", 3),
-        ("2022-09-27 15:00:00.000000+03:00", 3),
-        ("2022-09-27 23:14:30.035185+03:00", 3)
-    ]
     grouped_by_start_items = list(map(_get_start_time_and_count, list(grouped_by_start.groups.items())))
     assert (
         grouped_by_start_items == expected_start_time_keys
@@ -260,10 +356,8 @@ def test_daily_hour_every_day_and_size_correct_firing(assets_path):
     for _, group in grouped_by_start:
         _verify_same_resource_for_batch(group["resource"])
 
-    # TODO: verify number of tasks inside each batch
 
-
-def _arrange_and_act(assets_path, firing_rules, start_date, num_cases):
+def _arrange_and_act(assets_path, firing_rules, start_date, num_cases, cases_arrival_rate):
     # ====== ARRANGE ======
     model_path = assets_path / "batch-example-end-task.bpmn"
     basic_json_path = assets_path / "batch-example-with-batch.json"
@@ -275,9 +369,10 @@ def _arrange_and_act(assets_path, firing_rules, start_date, num_cases):
         json_dict = json.load(f)
 
     # case arrives every 14400 seconds (= 4 hours)
+    # e.g., 14400 seconds = 4 hours
     arrival_distr = {
         "distribution_name": "fix",
-        "distribution_params": [{"value": 14400}, {"value": 0}, {"value": 1}],
+        "distribution_params": [{"value": cases_arrival_rate}, {"value": 0}, {"value": 1}],
     }
 
     _setup_sim_scenario_file(json_dict, None, None, "Parallel", firing_rules)
