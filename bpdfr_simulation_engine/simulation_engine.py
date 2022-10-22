@@ -184,36 +184,41 @@ def run_simulation(bpmn_path, json_path, total_cases, stat_out_path=None, log_ou
 
     diffsim_info.set_starting_satetime(starting_at if starting_at else pytz.utc.localize(datetime.datetime.now()))
 
-    if not stat_out_path and not log_out_path:
-        stat_out_path = os.path.join(os.path.dirname(__file__), Path("%s.csv" % diffsim_info.process_name))
-    if stat_out_path:
+    # if not stat_out_path and not log_out_path:
+    #     stat_out_path = os.path.join(os.path.dirname(__file__), Path("%s.csv" % diffsim_info.process_name))
+    if stat_out_path is None and log_out_path is None:
+        return run_simpy_simulation(diffsim_info, total_cases, None, None)
+    elif stat_out_path:
         with open(stat_out_path, mode='w', newline='', encoding='utf-8') as stat_csv_file:
             if log_out_path:
                 with open(log_out_path, mode='w', newline='', encoding='utf-8') as log_csv_file:
-                    run_simpy_simulation(diffsim_info, total_cases,
-                                         csv.writer(stat_csv_file, delimiter=',', quotechar='"',
-                                                    quoting=csv.QUOTE_MINIMAL),
-                                         csv.writer(log_csv_file, delimiter=',', quotechar='"',
-                                                    quoting=csv.QUOTE_MINIMAL))
+                    return run_simpy_simulation(diffsim_info, total_cases,
+                                                csv.writer(stat_csv_file, delimiter=',', quotechar='"',
+                                                           quoting=csv.QUOTE_MINIMAL),
+                                                csv.writer(log_csv_file, delimiter=',', quotechar='"',
+                                                           quoting=csv.QUOTE_MINIMAL))
             else:
-                run_simpy_simulation(diffsim_info, total_cases,
-                                     csv.writer(stat_csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL),
-                                     None)
+                return run_simpy_simulation(diffsim_info, total_cases,
+                                            csv.writer(stat_csv_file, delimiter=',', quotechar='"',
+                                                       quoting=csv.QUOTE_MINIMAL), None)
     else:
         with open(log_out_path, mode='w', newline='', encoding='utf-8') as log_csv_file:
-            run_simpy_simulation(diffsim_info, total_cases,
-                                 None,
-                                 csv.writer(log_csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL))
+            return run_simpy_simulation(diffsim_info, total_cases,
+                                        None, csv.writer(log_csv_file, delimiter=',', quotechar='"',
+                                                         quoting=csv.QUOTE_MINIMAL))
 
 
 def run_simpy_simulation(diffsim_info, total_cases, stat_fwriter, log_fwriter):
     bpm_env = SimBPMEnv(diffsim_info, stat_fwriter, log_fwriter)
     add_simulation_event_log_header(log_fwriter)
     execute_full_process(bpm_env, total_cases)
+    if log_fwriter is None and stat_fwriter is None:
+        return bpm_env.log_info.compute_process_kpi(bpm_env)
     if log_fwriter:
         bpm_env.log_writer.force_write()
     if stat_fwriter:
         bpm_env.log_info.save_joint_statistics(bpm_env)
+    return None
 
 
 def add_simulation_event_log_header(log_fwriter):
