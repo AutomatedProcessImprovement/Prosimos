@@ -169,8 +169,8 @@ class Choice:
         selected = list()
         for i in range(0, len(self.candidates_list)):
             if random.choice([True, False], 1, p=[self.probability_list[i], 1 - self.probability_list[i]]):
-                selected.append(self.candidates_list[i])
-        return selected if len(selected) > 0 else [self.get_outgoing_flow()]
+                selected.append((self.candidates_list[i], None))
+        return selected if len(selected) > 0 else [(self.get_outgoing_flow(), None)]
 
 
 def random_uniform(start, end):

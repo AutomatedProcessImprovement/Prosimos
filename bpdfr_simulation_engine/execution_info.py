@@ -5,12 +5,13 @@ from bpdfr_simulation_engine.control_flow_manager import BPMN
 
 
 class EnabledEvent:
-    def __init__(self, p_case, p_state, task_id, enabled_at, enabled_datetime):
+    def __init__(self, p_case, p_state, task_id, enabled_at, enabled_datetime, duration_sec = None):
         self.p_case = p_case
         self.p_state = p_state
         self.task_id = task_id
         self.enabled_datetime = enabled_datetime
         self.enabled_at = enabled_at
+        self.duration_sec = duration_sec # filled only in case of event-based gateway
 
 
 class ProcessInfo:

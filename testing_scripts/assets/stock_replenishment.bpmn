@@ -113,7 +113,7 @@
       <bpmn:messageEventDefinition id="MessageEventDefinition_0hhk9cd" />
     </bpmn:intermediateCatchEvent>
     <bpmn:sequenceFlow id="Flow_0w1dvp7" sourceRef="Gateway_0ntcp3d" targetRef="Event_052kspk" />
-    <bpmn:intermediateCatchEvent id="Event_0bsdbzb" name="Friday, 14:00">
+    <bpmn:intermediateCatchEvent id="Event_0bsdbzb" name="Timer Event">
       <bpmn:incoming>Flow_0u4ip3z</bpmn:incoming>
       <bpmn:outgoing>Flow_0gj8pyg</bpmn:outgoing>
       <bpmn:timerEventDefinition id="TimerEventDefinition_0y32h8a" />
@@ -192,6 +192,19 @@
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_0cmlhwy">
+      <bpmndi:BPMNEdge id="Flow_14zyrni_di" bpmnElement="Flow_14zyrni">
+        <di:waypoint x="1165" y="260" />
+        <di:waypoint x="1232" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1vr7feg_di" bpmnElement="Flow_1vr7feg">
+        <di:waypoint x="1010" y="260" />
+        <di:waypoint x="1115" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0bzfgao_di" bpmnElement="Flow_0bzfgao">
+        <di:waypoint x="590" y="352" />
+        <di:waypoint x="590" y="260" />
+        <di:waypoint x="672" y="260" />
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_0vv3247_di" bpmnElement="Flow_0vv3247">
         <di:waypoint x="1010" y="450" />
         <di:waypoint x="1140" y="450" />
@@ -246,22 +259,9 @@
         <di:waypoint x="615" y="377" />
         <di:waypoint x="672" y="377" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_0bzfgao_di" bpmnElement="Flow_0bzfgao">
-        <di:waypoint x="590" y="352" />
-        <di:waypoint x="590" y="260" />
-        <di:waypoint x="672" y="260" />
-      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_1eqpalq_di" bpmnElement="Flow_1eqpalq">
         <di:waypoint x="218" y="377" />
         <di:waypoint x="270" y="377" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_1vr7feg_di" bpmnElement="Flow_1vr7feg">
-        <di:waypoint x="1010" y="260" />
-        <di:waypoint x="1115" y="260" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_14zyrni_di" bpmnElement="Flow_14zyrni">
-        <di:waypoint x="1165" y="260" />
-        <di:waypoint x="1232" y="260" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
         <dc:Bounds x="182" y="359" width="36" height="36" />
@@ -290,7 +290,7 @@
       <bpmndi:BPMNShape id="Event_0bsdbzb_di" bpmnElement="Event_0bsdbzb">
         <dc:Bounds x="672" y="502" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="658" y="545" width="64" height="14" />
+          <dc:Bounds x="661" y="545" width="59" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Activity_0z0ydqv_di" bpmnElement="Activity_0z0ydqv">

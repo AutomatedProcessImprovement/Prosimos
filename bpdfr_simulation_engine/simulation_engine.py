@@ -50,9 +50,9 @@ class SimBPMEnv:
             enabled_datetime = self.simulation_datetime_from(arrival_time)
             enabled_tasks = sim_setup.update_process_state(sim_setup.bpmn_graph.starting_event, p_state, enabled_datetime)
             self.log_info.trace_list.append(Trace(p_case, enabled_datetime))
-            for task_id in enabled_tasks:
+            for (task_id, duration_sec) in enabled_tasks:
                 self.events_queue.append_arrival_event(EnabledEvent(p_case, p_state, task_id, arrival_time,
-                                                                    enabled_datetime))
+                                                                    enabled_datetime, duration_sec))
             arrival_time += sim_setup.next_arrival_time(enabled_datetime)
 
     def execute_enabled_event(self, c_event: EnabledEvent):
@@ -98,12 +98,7 @@ class SimBPMEnv:
             # Handle event types separately (they don't need assigned resource)
             event_duration_seconds = None
             event_element = self.sim_setup.bpmn_graph.element_info[c_event.task_id]
-            if (event_element.event_type == EVENT_TYPE.TIMER):
-                # parse timer name
-                event_duration_seconds = self.sim_setup.bpmn_graph.parse_timer_duration(event_element, c_event.enabled_datetime)
-            else:
-                # all other type should have defined probabilities
-                event_duration_seconds = self.sim_setup.bpmn_graph.event_duration(event_element.id)
+            event_duration_seconds = self.sim_setup.bpmn_graph.event_duration(event_element.id)
 
             completed_datetime_for_next_element = c_event.enabled_datetime + timedelta(seconds=event_duration_seconds)
 
@@ -127,10 +122,10 @@ class SimBPMEnv:
         enabled_tasks = self.sim_setup.update_process_state(c_event.task_id, c_event.p_state, completed_datetime_for_next_element)
         # self.time_update_process_state += (datetime.datetime.now() - s_t).total_seconds()
 
-        for next_task in enabled_tasks:
+        for next_task, duration_sec in enabled_tasks:
             self.events_queue.append_enabled_event(
                 EnabledEvent(c_event.p_case, c_event.p_state, next_task, completed_at,
-                             completed_datetime))
+                             completed_datetime, duration_sec))
 
     def _datetime_from(self, in_seconds):
         return self.simulation_datetime_from(in_seconds) if in_seconds is not None else None
