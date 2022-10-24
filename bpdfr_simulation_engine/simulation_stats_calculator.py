@@ -50,6 +50,15 @@ class KPIMap:
         self.cost = KPIInfo()
 
 
+class ResourceKPI:
+    def __init__(self, r_profile, task_allocated, available_time, worked_time, utilization):
+        self.r_profile = r_profile
+        self.task_allocated = task_allocated
+        self.available_time = available_time
+        self.worked_time = worked_time
+        self.utilization = utilization
+
+
 class LogInfo:
     def __init__(self, sim_setup: SimDiffSetup):
         self.started_at = pytz.UTC.localize(datetime.datetime.max)
@@ -116,10 +125,17 @@ class LogInfo:
 
     def save_joint_statistics(self, bpm_env):
         self.save_start_end_dates(bpm_env.stat_fwriter)
-        compute_resource_utilization(bpm_env)
+        save_resource_utilization(bpm_env)
         self.compute_individual_task_stats(bpm_env.stat_fwriter)
         bpm_env.stat_fwriter.writerow([""])
         self.compute_full_simulation_statistics(bpm_env.stat_fwriter)
+
+    def compute_process_kpi(self, bpm_env):
+        process_kpi = KPIMap()
+        for trace_info in self.trace_list:
+            self.compute_execution_times(trace_info, process_kpi)
+
+        return [process_kpi, self.task_exec_info, compute_resource_utilization(bpm_env), self.started_at, self.ended_at]
 
     def save_start_end_dates(self, stat_fwriter):
         stat_fwriter.writerow(["started_at", str(self.started_at)])
@@ -177,10 +193,8 @@ class LogInfo:
 
 
 def compute_resource_utilization(bpm_env):
-    stat_fwriter = bpm_env.stat_fwriter
-    stat_fwriter.writerow(['Resource Utilization'])
-    stat_fwriter.writerow(['Resource ID', 'Resource name', 'Utilization Ratio', 'Tasks Allocated',
-                           'Worked Time (seconds)', 'Available Time (seconds)', 'Pool ID', 'Pool name'])
+    compute_resorce_availability(bpm_env)
+    resource_info = dict()
 
     available_time = dict()
     started_at = bpm_env.log_info.started_at
@@ -191,8 +205,23 @@ def compute_resource_utilization(bpm_env):
             available_time[calendar_info.calendar_id] = calendar_info.find_working_time(started_at, completed_at)
         bpm_env.sim_resources[r_id].available_time = available_time[calendar_info.calendar_id]
 
-    for r_id in bpm_env.sim_resources:
+        resource_info[r_id] = ResourceKPI(bpm_env.sim_setup.resources_map[r_id],
+                                          bpm_env.sim_resources[r_id].allocated_tasks,
+                                          bpm_env.sim_resources[r_id].worked_time,
+                                          bpm_env.sim_resources[r_id].available_time,
+                                          bpm_env.get_utilization_for(r_id))
+    return resource_info
 
+
+def save_resource_utilization(bpm_env):
+    stat_fwriter = bpm_env.stat_fwriter
+    stat_fwriter.writerow(['Resource Utilization'])
+    stat_fwriter.writerow(['Resource ID', 'Resource name', 'Utilization Ratio', 'Tasks Allocated',
+                           'Worked Time (seconds)', 'Available Time (seconds)', 'Pool ID', 'Pool name'])
+
+    compute_resorce_availability(bpm_env)
+
+    for r_id in bpm_env.sim_resources:
         r_utilization = bpm_env.get_utilization_for(r_id)
         r_info = bpm_env.sim_setup.resources_map[r_id]
         stat_fwriter.writerow([r_id,
@@ -205,6 +234,17 @@ def compute_resource_utilization(bpm_env):
                                r_info.pool_info.pool_name])
 
     stat_fwriter.writerow([""])
+
+
+def compute_resorce_availability(bpm_env):
+    available_time = dict()
+    started_at = bpm_env.log_info.started_at
+    completed_at = bpm_env.log_info.ended_at
+    for r_id in bpm_env.sim_setup.resources_map:
+        calendar_info = bpm_env.sim_setup.get_resource_calendar(r_id)
+        if calendar_info.calendar_id not in available_time:
+            available_time[calendar_info.calendar_id] = calendar_info.find_working_time(started_at, completed_at)
+        bpm_env.sim_resources[r_id].available_time = available_time[calendar_info.calendar_id]
 
 
 def update_min_max(trace_info, duration_array, case_duration):

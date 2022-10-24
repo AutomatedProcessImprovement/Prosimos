@@ -8,6 +8,7 @@ from typing import List
 
 import pm4py
 import random
+import secrets
 from pm4py.objects.conversion.process_tree import converter
 from bpdfr_simulation_engine.batching_processing import BATCH_TYPE, AndFiringRule
 from bpdfr_simulation_engine.probability_distributions import generate_number_from
@@ -318,17 +319,19 @@ class BPMNGraph:
                     if p_state.tokens[in_flow] > 0:
                         p_state.tokens[in_flow] -= 1
                         p_state.state_mask &= ~self.arcs_bitset[in_flow]
-            f_arcs = e_info.outgoing_flows
+            flows = e_info.outgoing_flows
+            f_arcs = [(flow, None) for flow in flows]
 
             if len(f_arcs) > 1:
                 if e_info.type is BPMN.EXCLUSIVE_GATEWAY:
-                    f_arcs = [self.element_probability[e_info.id].get_outgoing_flow()]
+                    f_arcs = [(self.element_probability[e_info.id].get_outgoing_flow(), None)]
                 elif e_info.type is BPMN.EVENT_BASED_GATEWAY:
                     f_arcs = [self.get_event_gateway_choice(e_info, completed_datetime_prev_event.datetime)]
                 else:
                     if e_info.type in \
                         [BPMN.TASK, BPMN.PARALLEL_GATEWAY, BPMN.START_EVENT, BPMN.INTERMEDIATE_EVENT]:
-                        f_arcs = copy.deepcopy(e_info.outgoing_flows)
+                        flows = copy.deepcopy(e_info.outgoing_flows)
+                        f_arcs = [(flow, None) for flow in flows]
                     elif e_info.type is BPMN.INCLUSIVE_GATEWAY:
                         f_arcs = self.element_probability[e_info.id].get_multiple_flows()
                 random.shuffle(f_arcs)
@@ -403,20 +406,14 @@ class BPMNGraph:
         all_gateway_choices = dict()
         for outgoing_flow in gateway_element_info.outgoing_flows:
             event_id = self.flow_arcs[outgoing_flow][1]
-            event_element = self.element_info[event_id]
-            if (event_element.event_type == EVENT_TYPE.TIMER):
-                # parse timer name
-                all_gateway_choices[outgoing_flow] = self.parse_timer_duration(event_element, completed_datetime_prev_event)
-            else:
-                # all other type should have defined probabilities
-                all_gateway_choices[outgoing_flow] = self.event_duration(event_id)
+            all_gateway_choices[outgoing_flow] = self.event_duration(event_id)
         
         min_value = min(all_gateway_choices.values())
-        res = [key for key, value in all_gateway_choices.items() if value == min_value]
+        res = [(key, value) for key, value in all_gateway_choices.items() if value == min_value]
 
         # return randomly selected outgoing flow
         # in case of same value for multiple flows
-        return random.choice(res)
+        return secrets.choice(res)
 
 
     def event_duration(self, event_id):
@@ -431,50 +428,6 @@ class BPMNGraph:
                                    distribution["distribution_params"]
         )
         return val
-
-
-    def parse_timer_duration(self, timer_element_info, completed_datetime_prev_event):
-        """
-        Parse timer's name.
-        Accepted time format: 10s|10m|10h|10d|10w
-
-        :param timer_element_info: object of type ElementInfo with event_type TIMER
-        :param completed_datetime_prev_event: datetime of the previously finished event
-                                              (used for event-based gateway)
-        """
-        timer_duration_arr = timer_element_info.name.upper().split(", ")
-        add_days = None
-        new_datetime = None
-        for timer_duration in timer_duration_arr:
-            if (timer_duration in str_week_days.keys()):
-                # absolute weekday
-                # e.g., Monday, Sunday
-                new_datetime = get_nearest_abs_day(timer_duration, completed_datetime_prev_event)
-
-            elif (":" in timer_duration):
-                # absolute time
-                # e.g., 10:12, 21:30, 19:10
-                time = datetime.datetime.strptime(timer_duration, '%H:%M').time()
-
-                if (add_days != None):
-                    # weekday and time combination
-                    new_datetime = new_datetime.replace(hour=time.hour, minute=time.minute, second=time.second)
-                else:
-                    if (completed_datetime_prev_event.time() > time):
-                        # next day
-                        next_day = completed_datetime_prev_event + timedelta(days=1)
-                        new_datetime = next_day.replace(hour=time.hour, minute=time.minute, second=time.second)
-                    else:
-                        new_datetime = completed_datetime_prev_event.replace(hour=time.hour, minute=time.minute, second=time.second)
-
-            else:
-                # relative time span
-                # e.g., 10m, 10h, 10d, 10w
-                units = timer_duration[-1].lower()
-                return int(timer_duration[:-1]) * seconds_per_unit[units]
-
-        delta = new_datetime - completed_datetime_prev_event
-        return delta.seconds
 
 
     def reply_trace(self, task_sequence, f_arcs_frequency, post_p=True, trace=None):
@@ -817,9 +770,9 @@ class BPMNGraph:
                 gateways_branching[e_id] = flow_arc_probability
         return gateways_branching
 
-    def _find_next(self, f_arc, case_id, p_state, enabled_tasks, to_execute, enabled_time: CustomDatetimeAndSeconds):
+    def _find_next(self, f_arc_and_duration, case_id, p_state, enabled_tasks, to_execute, enabled_time: CustomDatetimeAndSeconds):
         # verify that there is no batch waiting to be executed
-
+        f_arc, duration_sec = f_arc_and_duration
         p_state.tokens[f_arc] += 1
         p_state.state_mask |= self.arcs_bitset[f_arc]
         next_e = self.flow_arcs[f_arc][1]
@@ -829,7 +782,7 @@ class BPMNGraph:
                 self.move_batch_to_enabled(next_e, enabled_time, enabled_tasks)
                     
             elif self.element_info[next_e].type in [BPMN.TASK, BPMN.INTERMEDIATE_EVENT]:
-                enabled_tasks.append(EnabledTask(next_e))
+                enabled_tasks.append((EnabledTask(next_e), duration_sec))
             else:
                 to_execute.append(next_e)
 
@@ -843,7 +796,7 @@ class BPMNGraph:
                 task_id,
                 batch_spec,
                 start_time_from_rule)
-            enabled_tasks.append(EnabledTask(task_id, batch_info))
+            enabled_tasks.append((EnabledTask(task_id, batch_info), None))
             self._clear_batch(task_id, batch_info)
 
     def _clear_batch(self, next_e, batch_info):
