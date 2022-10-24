@@ -295,11 +295,12 @@ def _setup_sim_scenario_file(json_path, event_distr):
 
 def test_update_state_terminate_event(assets_path):
     """
-    Input: two tokens executing in parallel due to the parallel gateway.
-    'Handle order response' activity was executed and, as result, token is now at 'Flow_14zyrni'.
+    Input:      Two tokens executing in parallel due to the parallel gateway.
+                Both parallel flows were already executed
+                and token is now at 'Flow_14zyrni' (OR gateway -> 'Request processed' event)
     
-    Output: update_process_state of the enabled event triggers the Terminate event.
-    All tokens should be nullified as this is the end of the process.
+    Output:     update_process_state of the enabled event ('Event_06aw5gs') triggers the Terminate event.
+                All tokens should be nullified as this is the end of the process.
     """
 
     # ====== ARRANGE ======
@@ -316,13 +317,14 @@ def test_update_state_terminate_event(assets_path):
     sim_setup.set_starting_satetime(pytz.utc.localize(datetime.datetime.now()))
     p_state = sim_setup.initial_state()
 
-    # 'Order response received'         -> 'Handle order response'
+    # OR gateway (the last one)     -> 'Request processed' event
     p_state.add_token("Flow_14zyrni")
 
+    # this token here is for purpose of validating that all tokens got nullified in the end
     p_state.add_token("Flow_1jwj934")
-    
+
     # ====== ACT ======
-    e_id = "Event_06aw5gs"            # 'Handle order response' activity
+    e_id = "Event_06aw5gs"            # 'Request processed' terminate event
     prev_completed_event_time = \
         datetime.datetime.fromisoformat('2022-08-05T12:05:00')
     result = bpmn_graph.update_process_state(e_id, p_state, prev_completed_event_time)

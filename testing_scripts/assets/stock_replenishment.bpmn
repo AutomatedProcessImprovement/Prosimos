@@ -181,14 +181,19 @@
     <bpmn:sequenceFlow id="Flow_0sk3upa" sourceRef="Activity_1nciabu" targetRef="Gateway_04tj5u3" />
     <bpmn:sequenceFlow id="Flow_0vv3247" sourceRef="Activity_1x2vtcg" targetRef="Gateway_04tj5u3" />
     <bpmn:sequenceFlow id="Flow_0bzfgao" sourceRef="Gateway_0ntcp3d" targetRef="Event_1qclhcl" />
-    <bpmn:exclusiveGateway id="Gateway_04tj5u3">
-      <bpmn:incoming>Flow_1vr7feg</bpmn:incoming>
-      <bpmn:incoming>Flow_0sk3upa</bpmn:incoming>
-      <bpmn:incoming>Flow_0vv3247</bpmn:incoming>
-      <bpmn:outgoing>Flow_14zyrni</bpmn:outgoing>
-    </bpmn:exclusiveGateway>
     <bpmn:sequenceFlow id="Flow_1vr7feg" sourceRef="Activity_0z0ydqv" targetRef="Gateway_04tj5u3" />
     <bpmn:sequenceFlow id="Flow_14zyrni" sourceRef="Gateway_04tj5u3" targetRef="Event_06aw5gs" />
+    <bpmn:inclusiveGateway id="Gateway_04tj5u3">
+      <bpmn:extensionElements>
+        <ap:img />
+        <ap:icon />
+        <ap:icons />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0sk3upa</bpmn:incoming>
+      <bpmn:incoming>Flow_0vv3247</bpmn:incoming>
+      <bpmn:incoming>Flow_1vr7feg</bpmn:incoming>
+      <bpmn:outgoing>Flow_14zyrni</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_0cmlhwy">
@@ -320,7 +325,7 @@
           <dc:Bounds x="1296" y="253" width="51" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Gateway_04tj5u3_di" bpmnElement="Gateway_04tj5u3" isMarkerVisible="true">
+      <bpmndi:BPMNShape id="Gateway_1mh7rjf_di" bpmnElement="Gateway_04tj5u3">
         <dc:Bounds x="1115" y="235" width="50" height="50" />
       </bpmndi:BPMNShape>
     </bpmndi:BPMNPlane>
