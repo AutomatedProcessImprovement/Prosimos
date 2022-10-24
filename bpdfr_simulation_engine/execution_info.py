@@ -1,11 +1,30 @@
 import datetime
 import pytz
 
+from bpdfr_simulation_engine.control_flow_manager import BPMN
+
+
+class EnabledEvent:
+    def __init__(self, p_case, p_state, task_id, enabled_at, enabled_datetime, duration_sec = None):
+        self.p_case = p_case
+        self.p_state = p_state
+        self.task_id = task_id
+        self.enabled_datetime = enabled_datetime
+        self.enabled_at = enabled_at
+        self.duration_sec = duration_sec # filled only in case of event-based gateway
+
+
+class ProcessInfo:
+    def __init__(self):
+        self.traces = dict()
+        self.resource_profiles = dict()
+
 
 class TaskEvent:
     def __init__(self, p_case, task_id, resource_id, resource_available_at=None, enabled_at=None, enabled_datetime=None, bpm_env=None):
         self.p_case = p_case  # ID of the current trace, i.e., index of the trace in log_info list
         self.task_id = task_id  # Name of the task related to the current event
+        self.type = BPMN.TASK # showing whether it's task or event
         self.resource_id = resource_id  # ID of the resource performing to the event
         self.waiting_time = None
         self.processing_time = None
@@ -50,7 +69,28 @@ class TaskEvent:
             self.completed_at = None
             self.idle_time = None
 
+    @classmethod
+    def create_event_entity(cls, c_event: EnabledEvent, ended_at, ended_datetime):
+        cls.p_case = c_event.p_case  # ID of the current trace, i.e., index of the trace in log_info list
+        cls.task_id = c_event.task_id  # Name of the task related to the current event
+        cls.type = BPMN.INTERMEDIATE_EVENT
+        cls.enabled_at = c_event.enabled_at
+        cls.enabled_datetime = c_event.enabled_datetime
+        cls.started_at = c_event.enabled_at
+        cls.started_datetime = c_event.enabled_datetime
+        cls.completed_at = ended_at
+        cls.completed_datetime = ended_datetime
+        cls.idle_time = 0.0
+        cls.waiting_time = 0.0
+        cls.idle_cycle_time = 0.0
+        cls.idle_processing_time = 0.0
+        cls.cycle_time = 0.0
+        cls.processing_time = 0.0
+
+        return cls
+
     def update_enabling_times(self, enabled_at):
+        # what's the use case ?
         if self.started_at is None or enabled_at > self.started_at:
             raise Exception("Task ENABLED after STARTED")
         self.enabled_at = enabled_at
@@ -113,18 +153,3 @@ class Trace:
                 filtered_events += 2
         self.event_list = filtered_list
         return filtered_events
-
-
-class EnabledEvent:
-    def __init__(self, p_case, p_state, task_id, enabled_at, enabled_datetime):
-        self.p_case = p_case
-        self.p_state = p_state
-        self.task_id = task_id
-        self.enabled_datetime = enabled_datetime
-        self.enabled_at = enabled_at
-
-
-class ProcessInfo:
-    def __init__(self):
-        self.traces = dict()
-        self.resource_profiles = dict()

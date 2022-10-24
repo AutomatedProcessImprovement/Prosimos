@@ -1,30 +1,55 @@
 import copy
+import datetime
+from datetime import timedelta
 import sys
 from collections import deque
 from enum import Enum
 
 import pm4py
 import random
+import secrets
 from pm4py.objects.conversion.process_tree import converter
+from bpdfr_simulation_engine.probability_distributions import generate_number_from
+from bpdfr_simulation_engine.resource_calendar import str_week_days
 
 from bpdfr_simulation_engine.exceptions import InvalidBpmnModelException
+
+seconds_per_unit = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
 
 
 class BPMN(Enum):
     TASK = 'TASK'
     START_EVENT = 'START-EVENT'
     END_EVENT = 'END-EVENT',
+    INTERMEDIATE_EVENT = 'INTERMEDIATE_EVENT',
     EXCLUSIVE_GATEWAY = 'EXCLUSIVE-GATEWAY'
     INCLUSIVE_GATEWAY = 'INCLUSIVE-GATEWAY'
     PARALLEL_GATEWAY = 'PARALLEL-GATEWAY'
+    EVENT_BASED_GATEWAY = 'EVENT-BASED-GATEWAY'
+    UNDEFINED = 'UNDEFINED'
+
+    @classmethod
+    def is_event(cls, type):
+        if (type in [cls.START_EVENT, cls.END_EVENT, cls.INTERMEDIATE_EVENT]):
+            return True
+        else:
+            return False
+
+class EVENT_TYPE(Enum):
+    MESSAGE = 'MESSAGE'
+    TIMER = 'TIMER'
+    LINK = 'LINK'
+    SIGNAL = 'SIGNAL'
+    TERMINATE = 'TERMINATE'
     UNDEFINED = 'UNDEFINED'
 
 
 class ElementInfo:
-    def __init__(self, element_type, element_id, element_name):
+    def __init__(self, element_type, element_id, element_name, event_type):
         self.id = element_id
         self.name = element_name
         self.type = element_type
+        self.event_type = event_type
         self.incoming_flows = list()
         self.outgoing_flows = list()
 
@@ -35,10 +60,13 @@ class ElementInfo:
         return len(self.incoming_flows) > 1
 
     def is_gateway(self):
-        return self.type in [BPMN.EXCLUSIVE_GATEWAY, BPMN.PARALLEL_GATEWAY, BPMN.INCLUSIVE_GATEWAY]
+        return self.type in [BPMN.EXCLUSIVE_GATEWAY, BPMN.PARALLEL_GATEWAY, BPMN.INCLUSIVE_GATEWAY, BPMN.EVENT_BASED_GATEWAY]
 
     def is_start_or_end_event(self):
         return self.type in [BPMN.START_EVENT, BPMN.END_EVENT]
+    
+    def is_event(self):
+        return self.type in [BPMN.START_EVENT, BPMN.END_EVENT, BPMN.INTERMEDIATE_EVENT]
 
 
 class ProcessState:
@@ -59,6 +87,10 @@ class ProcessState:
         if self.has_token(flow_id):
             self.tokens[flow_id] = 0
             self.state_mask &= ~self.arcs_bitset[flow_id]
+
+    def remove_all_tokens_on_terminate(self):
+        for token in self.tokens:
+            self.remove_token(token)
 
     def has_token(self, flow_id):
         return flow_id in self.tokens and self.tokens[flow_id] > 0
@@ -90,10 +122,12 @@ class BPMNGraph:
         self.closest_distance = None
         self.decision_flows_sortest_path = None
         self._c_trace = None
+        self.event_distribution = None
 
-    def set_element_probabilities(self, element_probability, task_resource_probability):
+    def set_element_probabilities(self, element_probability, task_resource_probability, event_distribution):
         self.element_probability = element_probability
         self.task_resource_probability = task_resource_probability
+        self.event_distribution = event_distribution
 
     def add_bpmn_element(self, element_id, element_info):
         if element_info.type == BPMN.START_EVENT:
@@ -108,7 +142,7 @@ class BPMNGraph:
     def add_flow_arc(self, flow_id, source_id, target_id):
         for node_id in [source_id, target_id]:
             if node_id not in self.element_info:
-                self.element_info[node_id] = ElementInfo(BPMN.UNDEFINED, node_id, node_id)
+                self.element_info[node_id] = ElementInfo(BPMN.UNDEFINED, node_id, node_id, None)
         self.element_info[source_id].outgoing_flows.append(flow_id)
         self.element_info[target_id].incoming_flows.append(flow_id)
         self.flow_arcs[flow_id] = [source_id, target_id]
@@ -197,12 +231,12 @@ class BPMNGraph:
         if e_id == self.starting_event:
             return True
         e_info = self.element_info[e_id]
-        if e_info.type in [BPMN.TASK, BPMN.END_EVENT, BPMN.PARALLEL_GATEWAY]:
+        if e_info.type in [BPMN.TASK, BPMN.END_EVENT, BPMN.PARALLEL_GATEWAY, BPMN.INTERMEDIATE_EVENT]:
             for f_arc in e_info.incoming_flows:
                 if p_state.tokens[f_arc] < 1:
                     return False
             return True
-        elif e_info.type == BPMN.EXCLUSIVE_GATEWAY:
+        elif e_info.type in [BPMN.EXCLUSIVE_GATEWAY, BPMN.EVENT_BASED_GATEWAY]:
             for f_arc in e_info.incoming_flows:
                 if p_state.tokens[f_arc] > 0:
                     return True
@@ -227,25 +261,39 @@ class BPMNGraph:
                 return False
         return False
 
-    def update_process_state(self, e_id, p_state):
+    def update_process_state(self, e_id, p_state, completed_datetime_prev_event):
+        """
+        :param completed_time_prev_event: datetime of the completion of the previous event
+                                          which equals to enabled time for current event
+        """
         if not self.is_enabled(e_id, p_state):
             return []
         enabled_tasks = list()
         to_execute = [e_id]
         current = 0
         while current < len(to_execute):
-            e_info = self.element_info[to_execute[current]]
-            for in_flow in e_info.incoming_flows:
-                if p_state.tokens[in_flow] > 0:
-                    p_state.tokens[in_flow] -= 1
-                    p_state.state_mask &= ~self.arcs_bitset[in_flow]
-            f_arcs = e_info.outgoing_flows
+            e_info: ElementInfo = self.element_info[to_execute[current]]
+            if e_info.type == BPMN.END_EVENT and e_info.event_type == EVENT_TYPE.TERMINATE:
+                """ Terminate End Event detected"""
+                p_state.remove_all_tokens_on_terminate()
+            else:
+                for in_flow in e_info.incoming_flows:
+                    if p_state.tokens[in_flow] > 0:
+                        p_state.tokens[in_flow] -= 1
+                        p_state.state_mask &= ~self.arcs_bitset[in_flow]
+            flows = e_info.outgoing_flows
+            f_arcs = [(flow, None) for flow in flows]
+
             if len(f_arcs) > 1:
                 if e_info.type is BPMN.EXCLUSIVE_GATEWAY:
-                    f_arcs = [self.element_probability[e_info.id].get_outgoing_flow()]
+                    f_arcs = [(self.element_probability[e_info.id].get_outgoing_flow(), None)]
+                elif e_info.type is BPMN.EVENT_BASED_GATEWAY:
+                    f_arcs = [self.get_event_gateway_choice(e_info, completed_datetime_prev_event)]
                 else:
-                    if e_info.type in [BPMN.TASK, BPMN.PARALLEL_GATEWAY, BPMN.START_EVENT]:
-                        f_arcs = copy.deepcopy(e_info.outgoing_flows)
+                    if e_info.type in \
+                        [BPMN.TASK, BPMN.PARALLEL_GATEWAY, BPMN.START_EVENT, BPMN.INTERMEDIATE_EVENT]:
+                        flows = copy.deepcopy(e_info.outgoing_flows)
+                        f_arcs = [(flow, None) for flow in flows]
                     elif e_info.type is BPMN.INCLUSIVE_GATEWAY:
                         f_arcs = self.element_probability[e_info.id].get_multiple_flows()
                 random.shuffle(f_arcs)
@@ -255,6 +303,40 @@ class BPMNGraph:
         if len(enabled_tasks) > 1:
             random.shuffle(enabled_tasks)
         return enabled_tasks
+
+    def get_event_gateway_choice(self, gateway_element_info: ElementInfo, completed_datetime_prev_event):
+        """
+        Find which flow will be executed next based on gateway element info
+
+        :param gateway_element_info: object of type ElementInfo which is gateway
+        :param completed_datetime_prev_event: datetime of the previously finished event
+        :return: flow name that will be executed
+        """
+        all_gateway_choices = dict()
+        for outgoing_flow in gateway_element_info.outgoing_flows:
+            event_id = self.flow_arcs[outgoing_flow][1]
+            all_gateway_choices[outgoing_flow] = self.event_duration(event_id)
+        
+        min_value = min(all_gateway_choices.values())
+        res = [(key, value) for key, value in all_gateway_choices.items() if value == min_value]
+
+        # return randomly selected outgoing flow
+        # in case of same value for multiple flows
+        return secrets.choice(res)
+
+    def event_duration(self, event_id):
+        """
+        Find event duration of all types except TIMER
+
+        :event_id: id of the event element
+        :return: duration in seconds 
+        """
+        distribution = self.event_distribution[event_id]
+        val = generate_number_from(distribution["distribution_name"],
+                                   distribution["distribution_params"]
+        )
+        return val
+
 
     def reply_trace(self, task_sequence, f_arcs_frequency, post_p=True, trace=None):
         self._c_trace = trace
@@ -596,13 +678,14 @@ class BPMNGraph:
                 gateways_branching[e_id] = flow_arc_probability
         return gateways_branching
 
-    def _find_next(self, f_arc, p_state, enabled_tasks, to_execute):
+    def _find_next(self, f_arc_and_duration, p_state, enabled_tasks, to_execute):
+        f_arc, duration_sec = f_arc_and_duration
         p_state.tokens[f_arc] += 1
         p_state.state_mask |= self.arcs_bitset[f_arc]
         next_e = self.flow_arcs[f_arc][1]
         if self.is_enabled(next_e, p_state):
-            if self.element_info[next_e].type == BPMN.TASK:
-                enabled_tasks.append(next_e)
+            if self.element_info[next_e].type in [BPMN.TASK, BPMN.INTERMEDIATE_EVENT]:
+                enabled_tasks.append((next_e, duration_sec))
             else:
                 to_execute.append(next_e)
 

@@ -473,8 +473,9 @@ def validate_and_get_resource(event, bpmn_graph: BPMNGraph):
     if element is None:
         raise InvalidLogFileException(f"Cannot load details about activity '{task_name}' (element_id: {el_id})")
 
-    if element.is_start_or_end_event() and is_event_resource_empty(event):
+    if element.is_event() and is_event_resource_empty(event):
         # handling BIMP version of log file (with fake activities for start and end events)
+        # and also case for intermediate events when we do not need assigned resource
         return task_name
     else:
         if element.type == BPMN.TASK and is_event_resource_empty(event):
@@ -712,7 +713,10 @@ def discover_resource_calendars(calendar_factory, task_resource_events, min_conf
                 if calendar_factory.task_coverage(task_name) >= min_support:
                     break
 
-        coverage_map[task_name] = task_event_covered_freq[task_name] / task_event_freq[task_name]
+        if (task_event_covered_freq[task_name] != 0 and task_event_freq[task_name] != 0):
+            coverage_map[task_name] = task_event_covered_freq[task_name] / task_event_freq[task_name]
+        else:
+            coverage_map[task_name] = 0
         pools_json[task_name]["resource_list"] = resource_list
 
     return resource_calendars, task_resources, joint_resource_events, pools_json, coverage_map

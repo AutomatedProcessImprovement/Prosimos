@@ -10,17 +10,20 @@ from bpdfr_simulation_engine.simulation_properties_parser import parse_simulatio
 
 
 class SimDiffSetup:
-    def __init__(self, bpmn_path, json_path):
+    def __init__(self, bpmn_path, json_path, is_event_added_to_log):
         self.process_name = ntpath.basename(bpmn_path).split(".")[0]
         self.start_datetime = datetime.datetime.now(pytz.utc)
 
-        self.resources_map, self.calendars_map, self.element_probability, self.task_resource, self.arrival_calendar \
+        self.resources_map, self.calendars_map, self.element_probability, self.task_resource, self.arrival_calendar, \
+            self.event_distibution \
             = parse_json_sim_parameters(json_path)
 
         self.bpmn_graph = parse_simulation_model(bpmn_path)
-        self.bpmn_graph.set_element_probabilities(self.element_probability, self.task_resource)
+        self.bpmn_graph.set_element_probabilities(self.element_probability, self.task_resource, self.event_distibution)
         if not self.arrival_calendar:
             self.arrival_calendar = self.find_arrival_calendar()
+
+        self.is_event_added_to_log = is_event_added_to_log
 
     def verify_simulation_input(self):
         for e_id in self.bpmn_graph.element_info:
@@ -55,11 +58,11 @@ class SimDiffSetup:
     def is_enabled(self, e_id, p_state):
         return self.bpmn_graph.is_enabled(e_id, p_state)
 
-    def update_process_state(self, e_id, p_state):
-        return self.bpmn_graph.update_process_state(e_id, p_state)
+    def update_process_state(self, e_id, p_state, completed_time_prev_event):
+        return self.bpmn_graph.update_process_state(e_id, p_state, completed_time_prev_event)
 
     def find_arrival_calendar(self):
-        enabled_tasks = self.update_process_state(self.bpmn_graph.starting_event, self.initial_state())
+        enabled_tasks = self.update_process_state(self.bpmn_graph.starting_event, self.initial_state(), None)
         starter_resources = set()
         arrival_calendar = RCalendar("arrival_calendar")
         for task_id in enabled_tasks:

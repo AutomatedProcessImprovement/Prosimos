@@ -3,7 +3,7 @@ import xml.etree.ElementTree as ET
 
 from numpy import exp, sqrt, log
 
-from bpdfr_simulation_engine.control_flow_manager import BPMNGraph, ElementInfo, BPMN
+from bpdfr_simulation_engine.control_flow_manager import EVENT_TYPE, BPMNGraph, ElementInfo, BPMN
 from bpdfr_simulation_engine.resource_calendar import RCalendar, convert_time_unit_from_to, convertion_table, to_seconds
 from bpdfr_simulation_engine.resource_profile import ResourceProfile, PoolInfo
 from bpdfr_simulation_engine.probability_distributions import *
@@ -24,8 +24,9 @@ def parse_json_sim_parameters(json_path):
         element_distribution = parse_arrival_branching_probabilities(json_data["arrival_time_distribution"],
                                                                      json_data["gateway_branching_probabilities"])
         arrival_calendar = parse_arrival_calendar(json_data)
+        event_distibution = parse_event_distribution(json_data["event_distribution"])
 
-        return resources_map, calendars_map, element_distribution, task_resource_distribution, arrival_calendar
+        return resources_map, calendars_map, element_distribution, task_resource_distribution, arrival_calendar, event_distibution
 
 
 # def parse_pool_info(json_data, resources_map):
@@ -86,6 +87,29 @@ def parse_task_resource_distributions(json_data):
     return task_resource_distribution
 
 
+def parse_event_distribution(event_json_data):
+    """
+    Parse "event_distribution" section of json data
+    """
+    event_distibution = dict()
+
+    for event_info in event_json_data:
+        e_id = event_info["event_id"]
+
+        if e_id not in event_distibution:
+            event_distibution[e_id] = dict()
+            dist_params = []
+
+            for param_info in event_info["distribution_params"]:
+                dist_params.append(float(param_info["value"]))
+            
+            event_distibution[e_id] = {
+                "distribution_name": event_info["distribution_name"],
+                "distribution_params": dist_params
+            }
+
+    return event_distibution
+
 # def parse_calendar_from_json(json_data):
 #     resources_map = dict()
 #     calendars_map = dict()
@@ -130,7 +154,9 @@ def parse_simulation_model(bpmn_path):
                   'xmlns:endEvent': BPMN.END_EVENT,
                   'xmlns:exclusiveGateway': BPMN.EXCLUSIVE_GATEWAY,
                   'xmlns:parallelGateway': BPMN.PARALLEL_GATEWAY,
-                  'xmlns:inclusiveGateway': BPMN.INCLUSIVE_GATEWAY}
+                  'xmlns:inclusiveGateway': BPMN.INCLUSIVE_GATEWAY,
+                  'xmlns:eventBasedGateway': BPMN.EVENT_BASED_GATEWAY,
+                  'xmlns:intermediateCatchEvent': BPMN.INTERMEDIATE_EVENT}
 
     bpmn_graph = BPMNGraph()
     elements_map = dict()
@@ -140,7 +166,11 @@ def parse_simulation_model(bpmn_path):
                 name = bpmn_element.attrib["name"] \
                     if "name" in bpmn_element.attrib and len(bpmn_element.attrib["name"]) > 0 \
                     else bpmn_element.attrib["id"]
-                e_info = ElementInfo(to_extract[xmlns_key], bpmn_element.attrib["id"], name)
+                elem_general_type: BPMN = to_extract[xmlns_key]
+                
+                event_type = _get_event_type_from_element(name, bpmn_element) if BPMN.is_event(elem_general_type) else None
+                e_info = ElementInfo(elem_general_type, bpmn_element.attrib["id"], name, event_type)
+
                 bpmn_graph.add_bpmn_element(bpmn_element.attrib["id"], e_info)
                 elements_map[e_info.id] = {'in': 0, 'out': 0, 'info': e_info}
 
@@ -186,9 +216,30 @@ def parse_simulation_model(bpmn_path):
     bpmn_graph.validate_model()
     return bpmn_graph
 
+def _get_event_type_from_element(name: str, bpmn_element):
+    children = bpmn_element.getchildren()
+
+    for child in children:
+        if "EventDefinition" in child.tag:
+            # tag example: '{http://www.omg.org/spec/BPMN/20100524/MODEL}timerEventDefinition'
+            type_name = child.tag.split("}")[1]
+            switcher = {
+                'timerEventDefinition': EVENT_TYPE.TIMER,
+                'messageEventDefinition': EVENT_TYPE.MESSAGE,
+                'linkEventDefinition': EVENT_TYPE.LINK,
+                'signalEventDefinition': EVENT_TYPE.SIGNAL,
+                'terminateEventDefinition': EVENT_TYPE.TERMINATE
+            }
+
+            event_type = switcher.get(type_name, EVENT_TYPE.UNDEFINED)
+            if (event_type == EVENT_TYPE.UNDEFINED):
+                print(f"WARNING: {name} event has an undefined event type")
+
+            return event_type
+
 
 def _add_fake_gateway(bpmn_graph, g_id, g_type, t_id, e_map, in_front=True):
-    bpmn_graph.add_bpmn_element(g_id, ElementInfo(g_type, g_id, g_id))
+    bpmn_graph.add_bpmn_element(g_id, ElementInfo(g_type, g_id, g_id, None))
     if in_front:
         bpmn_graph.add_flow_arc('%s_%s' % (g_id, t_id), g_id, t_id)
     else:

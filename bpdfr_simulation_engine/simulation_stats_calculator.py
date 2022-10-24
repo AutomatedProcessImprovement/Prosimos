@@ -1,6 +1,7 @@
 import sys
 import datetime
 import pytz
+from bpdfr_simulation_engine.control_flow_manager import BPMN
 
 from bpdfr_simulation_engine.resource_calendar import Interval
 
@@ -83,10 +84,12 @@ class LogInfo:
         waiting_intervals = list()
         real_work_intervals = list()
         for event_info in trace_info.event_list:
-            r_calendar = self.sim_setup.calendars_map[self.sim_setup.resources_map[event_info.resource_id].calendar_id]
+            if (event_info.type == BPMN.TASK):
+                r_calendar = self.sim_setup.calendars_map[self.sim_setup.resources_map[event_info.resource_id].calendar_id]
 
-            r_calendar.remove_idle_times(event_info.started_datetime, event_info.completed_datetime,
-                                         real_work_intervals)
+                r_calendar.remove_idle_times(event_info.started_datetime, event_info.completed_datetime,
+                                            real_work_intervals)
+                                            
             processing_intervals.append(Interval(event_info.started_datetime, event_info.completed_datetime))
             waiting_intervals.append(Interval(event_info.enabled_datetime, event_info.started_datetime))
 
