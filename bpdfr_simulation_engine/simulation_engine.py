@@ -55,10 +55,10 @@ class SimBPMEnv:
             enabled_tasks = sim_setup.update_process_state(p_case, sim_setup.bpmn_graph.starting_event, p_state, enabled_time)
             self.all_process_states[p_case] = p_state
             self.log_info.trace_list.append(Trace(p_case, enabled_datetime))
-            for (task, duration_sec) in enabled_tasks:
+            for task in enabled_tasks:
                 task_id = task.task_id
                 self.events_queue.append_arrival_event(EnabledEvent(p_case, p_state, task_id, arrival_time,
-                                                                    enabled_datetime, task.batch_info_exec, duration_sec))
+                                                                    enabled_datetime, task.batch_info_exec, task.duration_sec))
             arrival_time += sim_setup.next_arrival_time(enabled_datetime)
 
     def execute_enabled_event(self, c_event: EnabledEvent):
@@ -79,10 +79,10 @@ class SimBPMEnv:
                     p_case, c_event.task_id, self.all_process_states[p_case], 
                     enabled_time)
 
-                for (next_task, duration_sec) in enabled_tasks:
+                for next_task in enabled_tasks:
                     self.events_queue.append_enabled_event(
                         EnabledEvent(p_case, p_state, next_task.task_id, completed_at,
-                                    completed_datetime, next_task.batch_info_exec, duration_sec))
+                                    completed_datetime, next_task.batch_info_exec, next_task.duration_sec))
         else:
             if event_element_info.type == BPMN.TASK:
                 # execute not batched task
@@ -98,10 +98,10 @@ class SimBPMEnv:
             enabled_tasks = self.sim_setup.update_process_state(c_event.p_case, c_event.task_id, c_event.p_state, enabled_time)
             # self.time_update_process_state += (datetime.datetime.now() - s_t).total_seconds()
 
-            for next_task, duration_sec in enabled_tasks:
+            for next_task in enabled_tasks:
                 self.events_queue.append_enabled_event(
                     EnabledEvent(c_event.p_case, c_event.p_state, next_task.task_id, completed_at,
-                                completed_datetime, next_task.batch_info_exec, duration_sec))
+                                completed_datetime, next_task.batch_info_exec, next_task.duration_sec))
 
     def execute_task(self, c_event: EnabledEvent):
         r_id, r_avail_at = self.resource_queue.pop_resource_for(c_event.task_id)
