@@ -1,4 +1,4 @@
-from datetime import datetime, time, timedelta
+from datetime import datetime, time
 import json
 import pandas as pd
 import pytest
@@ -14,6 +14,7 @@ from testing_scripts.test_batching import (
     _get_start_time_and_count,
     _setup_arrival_distribution,
     _setup_sim_scenario_file,
+    _verify_logs_ordered_asc,
     _verify_same_resource_for_batch,
     assets_path,
 )
@@ -193,19 +194,8 @@ def test_daily_hour_and_week_day_and_size_rule_correct_enabled_and_batch_size(as
         _verify_same_resource_for_batch(group["resource"])
 
     # verify that column 'start_time' is ordered ascendingly
-    df["start_time"] = pd.to_datetime(df["start_time"], errors="coerce")
+    _verify_logs_ordered_asc(df, start_date.tzinfo)
 
-    prev_row_value = datetime.min  # naive
-    prev_row_value = datetime.combine(
-        prev_row_value.date(), prev_row_value.time(), tzinfo=start_date.tzinfo
-    )
-
-    for index, row in df.iterrows():
-        assert (
-            prev_row_value <= row["start_time"]
-        ), f"The previous row (idx={index-1}) start_time is bigger than the next one (idx={index}). Rows should be ordered ASC."
-
-        prev_row_value = row["start_time"]
 
 def test_daily_hour_every_day_correct_firing(assets_path):
     """
@@ -248,19 +238,7 @@ def test_daily_hour_every_day_correct_firing(assets_path):
     ), f"The start_time for batched D tasks differs. Expected: {expected_start_time_keys}, but was {grouped_by_start_items}"
 
     # verify that column 'start_time' is ordered ascendingly
-    df["start_time"] = pd.to_datetime(df["start_time"], errors="coerce")
-
-    prev_row_value = datetime.min  # naive
-    prev_row_value = datetime.combine(
-        prev_row_value.date(), prev_row_value.time(), tzinfo=start_date.tzinfo
-    )
-
-    for index, row in df.iterrows():
-        assert (
-            prev_row_value <= row["start_time"]
-        ), f"The previous row (idx={index-1}) start_time is bigger than the next one (idx={index}). Rows should be ordered ASC."
-
-        prev_row_value = row["start_time"]
+    _verify_logs_ordered_asc(df, start_date.tzinfo)
 
     # verify that the same resource execute the whole batch
     for _, group in grouped_by_start:
@@ -338,23 +316,7 @@ def test_daily_hour_every_day_and_size_correct_firing(assets_path_fixture, size_
     ), f"The start_time for batched D tasks differs. Expected: {expected_start_time_keys}, but was {grouped_by_start_items}"
 
     # verify that column 'start_time' is ordered ascendingly
-    df["start_time"] = pd.to_datetime(df["start_time"], errors="coerce")
-
-    prev_row_value = datetime.min  # naive
-    prev_row_value = datetime.combine(
-        prev_row_value.date(), prev_row_value.time(), tzinfo=start_date.tzinfo
-    )
-
-    for index, row in df.iterrows():
-        assert (
-            prev_row_value <= row["start_time"]
-        ), f"The previous row (idx={index-1}) start_time is bigger than the next one (idx={index}). Rows should be ordered ASC."
-
-        prev_row_value = row["start_time"]
-
-    # verify that the same resource execute the whole batch
-    for _, group in grouped_by_start:
-        _verify_same_resource_for_batch(group["resource"])
+    _verify_logs_ordered_asc(df, start_date.tzinfo)
 
 
 def _arrange_and_act(assets_path, firing_rules, start_date, num_cases, cases_arrival_rate):

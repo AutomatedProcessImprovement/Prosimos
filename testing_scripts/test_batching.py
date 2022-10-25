@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-import datetime
+from datetime import datetime, timedelta
 import os
 from pathlib import Path
 import pytest
@@ -80,7 +80,7 @@ def test_seq_batch_count_firing_rule_correct_duration(assets_path):
     # verify that there are 6 instances of D activity executed
     # and that theirs duration is exactly 96 seconds
     logs_d_task = df[df["activity"] == "D"]
-    expected_activity_timedelta = datetime.timedelta(seconds=96)
+    expected_activity_timedelta = timedelta(seconds=96)
     _verify_activity_count_and_duration(logs_d_task, 6, expected_activity_timedelta)
 
     grouped_by_start_time = logs_d_task.groupby(by="case_id")
@@ -131,7 +131,7 @@ def test_batch_count_firing_rule_nearest_neighbor_correct(
     df["end_time"] = pd.to_datetime(df["end_time"], errors="coerce")
 
     logs_d_task = df[df["activity"] == "D"]
-    expected_activity_timedelta = datetime.timedelta(seconds=expected_duration_sec)
+    expected_activity_timedelta = timedelta(seconds=expected_duration_sec)
     _verify_activity_count_and_duration(
         logs_d_task, firing_count, expected_activity_timedelta
     )
@@ -189,16 +189,16 @@ def test_seq_batch_waiting_time_correct(assets_path):
     )
     expected_waiting_times = pd.Series(
         [
-            datetime.timedelta(seconds=full_act_dur * 2),
-            datetime.timedelta(
+            timedelta(seconds=full_act_dur * 2),
+            timedelta(
                 seconds=full_act_dur + expected_activity_in_batch_duration_sec
             ),
-            datetime.timedelta(seconds=0 + expected_activity_in_batch_duration_sec * 2),
-            datetime.timedelta(seconds=full_act_dur * 2),
-            datetime.timedelta(
+            timedelta(seconds=0 + expected_activity_in_batch_duration_sec * 2),
+            timedelta(seconds=full_act_dur * 2),
+            timedelta(
                 seconds=full_act_dur + expected_activity_in_batch_duration_sec
             ),
-            datetime.timedelta(seconds=0 + expected_activity_in_batch_duration_sec * 2),
+            timedelta(seconds=0 + expected_activity_in_batch_duration_sec * 2),
         ]
     )
 
@@ -267,9 +267,9 @@ def test_parallel_batch_enable_start_waiting_correct(assets_path):
     )
     expected_waiting_times = pd.Series(
         [
-            datetime.timedelta(seconds=full_act_dur * 2),
-            datetime.timedelta(seconds=full_act_dur),
-            datetime.timedelta(seconds=0),
+            timedelta(seconds=full_act_dur * 2),
+            timedelta(seconds=full_act_dur),
+            timedelta(seconds=0),
         ]
     )
 
@@ -380,8 +380,8 @@ def test_waiting_time_rule_correct_firing(assets_path):
     # verify that batch was execute right after 8 min of simulation
     # verify that batch was of size 3 and all tasks have the same start and end date (parallel execution)
 
-    expected_batch_start_time = start_date + datetime.timedelta(minutes=8)
-    expected_batch_end_time = expected_batch_start_time + datetime.timedelta(
+    expected_batch_start_time = start_date + timedelta(minutes=8)
+    expected_batch_end_time = expected_batch_start_time + timedelta(
         seconds=96.0
     )  # 80% of the full performance
 
@@ -453,8 +453,8 @@ def test_waiting_time_rule_correct_firing(assets_path):
     # verify that batch was execute right after 8 min of simulation
     # verify that batch was of size 3 and all tasks have the same start and end date (parallel execution)
 
-    expected_batch_start_time = start_date + datetime.timedelta(minutes=8)
-    expected_batch_end_time = expected_batch_start_time + datetime.timedelta(
+    expected_batch_start_time = start_date + timedelta(minutes=8)
+    expected_batch_end_time = expected_batch_start_time + timedelta(
         seconds=96.0
     )  # 80% of the full performance
 
@@ -753,8 +753,8 @@ def test_two_rules_week_day_and_size_correct_start_time(assets_path):
     ), f"The start_time for batched D tasks differs. Expected: {expected_start_time_items}, but was {grouped_by_start_items}"
 
 
-def _remove_miliseconds(x: datetime.datetime):
-    dt = datetime.datetime(
+def _remove_miliseconds(x: datetime):
+    dt = datetime(
         x.year, x.month, x.day, x.hour, x.minute, x.second, tzinfo=x.tzinfo
     )
     return str(dt)  # format: "%Y-%m-%d %H:%M:%S.%f%z"
@@ -803,3 +803,20 @@ def _verify_same_resource_for_batch(resource_series):
     """
     first_resource_arr = resource_series.to_numpy()
     return (first_resource_arr[0] == resource_series).all()
+
+def _verify_logs_ordered_asc(df, tzinfo):
+    """ Verify that column 'start_time' is ordered ascendingly """
+
+    df["start_time"] = pd.to_datetime(df["start_time"], errors="coerce")
+
+    prev_row_value = datetime.min  # naive
+    prev_row_value = datetime.combine(
+        prev_row_value.date(), prev_row_value.time(), tzinfo=tzinfo
+    )
+
+    for index, row in df.iterrows():
+        assert (
+            prev_row_value <= row["start_time"]
+        ), f"The previous row (idx={index-1}) start_time is bigger than the next one (idx={index}). Rows should be ordered ASC."
+
+        prev_row_value = row["start_time"]
