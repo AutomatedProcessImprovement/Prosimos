@@ -37,9 +37,13 @@ class BatchInfoForExecution:
 
 
 class EnabledTask:
-    def __init__(self, task_id, batch_info_exec: BatchInfoForExecution = None):
+    def __init__(self, task_id, batch_info_exec: BatchInfoForExecution = None, duration_sec = None):
         self.task_id = task_id
         self.batch_info_exec = batch_info_exec
+        
+        # is filled only for event-based gateways
+        # (when we already know the duration at the control flow step)
+        self.duration_sec = duration_sec
 
 
 class BPMN(Enum):
@@ -782,7 +786,7 @@ class BPMNGraph:
                 self.move_batch_to_enabled(next_e, enabled_time, enabled_tasks)
                     
             elif self.element_info[next_e].type in [BPMN.TASK, BPMN.INTERMEDIATE_EVENT]:
-                enabled_tasks.append((EnabledTask(next_e), duration_sec))
+                enabled_tasks.append(EnabledTask(next_e, None, duration_sec))
             else:
                 to_execute.append(next_e)
 
@@ -796,7 +800,7 @@ class BPMNGraph:
                 task_id,
                 batch_spec,
                 start_time_from_rule)
-            enabled_tasks.append((EnabledTask(task_id, batch_info), None))
+            enabled_tasks.append((EnabledTask(task_id, batch_info)))
             self._clear_batch(task_id, batch_info)
 
     def _clear_batch(self, next_e, batch_info):

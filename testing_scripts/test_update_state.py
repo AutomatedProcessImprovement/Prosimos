@@ -91,11 +91,11 @@ def test_enabled_first_task_enables_next_one(assets_path):
 
     # ====== ASSERT ======
     assert len(result) == 1, "List with enabled tasks should contain one element"
-    expected_task_desc = EnabledTask("Activity_0mz9221", None)
-    actual_task, actual_duration = result[0]
-    assert actual_task.task_id == expected_task_desc.task_id
-    assert actual_task.batch_info_exec == expected_task_desc.batch_info_exec
-    assert actual_duration == None
+    
+    expected_task_desc = EnabledTask("Activity_0mz9221", None, None)
+    assert result[0].task_id == expected_task_desc.task_id
+    assert result[0].batch_info_exec == expected_task_desc.batch_info_exec
+    assert result[0].duration_sec == expected_task_desc.duration_sec
 
     all_tokens = p_state.tokens
     expected_flows_with_token = ["Flow_1sl476n", "Flow_0vgoazd"]
@@ -196,10 +196,7 @@ data_event_gateway_choice = [
                 ]
             }
         ],
-        (
-            EnabledTask("Event_1qclhcl"),
-            10800.0
-        ),
+        EnabledTask("Event_1qclhcl", None, 10800.0),
         ["Flow_0bzfgao"],
         "assets_path"
     ),
@@ -248,10 +245,7 @@ data_event_gateway_choice = [
                 }
             ]
         }],
-        (
-            EnabledTask("Event_0bsdbzb"),
-            10800.0
-        ),
+        EnabledTask("Event_0bsdbzb", None, 10800.0),
         ["Flow_0u4ip3z"],
         "assets_path"
     )
@@ -294,12 +288,10 @@ def test_update_state_event_gateway_event_happened(
     # ====== ASSERT ======
     assert len(result) == 1, "List with enabled tasks should contain one element"
 
-    # verify the correctness of the event_id and that duration of the event is 3 hours (10800 seconds)
-    actual_task, actual_duration = result[0]
-    expected_task, expected_duration = expected_update_process
-    assert actual_task.task_id == expected_task.task_id
-    assert actual_task.batch_info_exec == expected_task.batch_info_exec
-    assert actual_duration == expected_duration
+    # verify the correctness of the received result from update_process_state
+    assert result[0].task_id == expected_update_process.task_id
+    assert result[0].batch_info_exec == expected_update_process.batch_info_exec
+    assert result[0].duration_sec == expected_update_process.duration_sec
 
     all_tokens = p_state.tokens
     verify_flow_tokens(all_tokens, expected_flows_with_token)
