@@ -208,7 +208,7 @@ def run_simpy_simulation(diffsim_info, total_cases, stat_fwriter, log_fwriter):
     add_simulation_event_log_header(log_fwriter)
     execute_full_process(bpm_env, total_cases)
     if log_fwriter is None and stat_fwriter is None:
-        return bpm_env.log_info.compute_process_kpi(bpm_env)
+        return bpm_env.log_info.compute_process_kpi(bpm_env), bpm_env.log_info
     if log_fwriter:
         bpm_env.log_writer.force_write()
     if stat_fwriter:
