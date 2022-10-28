@@ -197,6 +197,74 @@ def test_daily_hour_and_week_day_and_size_rule_correct_enabled_and_batch_size(as
     _verify_logs_ordered_asc(df, start_date.tzinfo)
 
 
+
+def test_2_daily_hour_and_week_day_and_size_rule_correct_enabled_and_batch_size(assets_path):
+    """
+    Input:      Firing rules of daily_hour < 12 AND size >= 4 AND week_day IN ["Friday", "Monday"]. 
+                29 process cases are being generated. A new case arrive every 3 hours.
+                Batched task are executed in parallel.
+    Expected:   Batched task are executed only in the range from 00:00 - 11:59.
+                If batched tasks came after 12:00 (from 00:00 - 23:59),
+                then they wait for the next enabled day (Monday or Friday) to be executed.
+    Verified:   The start_time of the appropriate grouped D task.
+                The number of tasks in every executed batch.
+                The resource which executed the batch is the same for all tasks in the batch.
+                The start_time of all logs files is being sorted by ASC.
+    """
+
+    # ====== ARRANGE & ACT ======
+    firing_rules = [
+        [
+            {"attribute": "daily_hour", "comparison": ">", "value": "12"},
+            {"attribute": "size", "comparison": "<=", "value": 6},
+            {"attribute": "week_day", "comparison": "=", "value": "Friday"},
+        ],
+        [
+            {"attribute": "daily_hour", "comparison": ">", "value": "12"},
+            {"attribute": "size", "comparison": "<=", "value": 6},
+            {"attribute": "week_day", "comparison": "=", "value": "Monday"},
+        ]
+    ]
+
+    sim_logs = assets_path / "batch_logs.csv"
+
+    start_string = "2022-09-29 23:45:30.035185+03:00"
+    start_date = parse_datetime(start_string, True)
+
+    _arrange_and_act(assets_path, firing_rules, start_date, 29, 10800)
+
+    # ====== ASSERT ======
+    df = pd.read_csv(sim_logs)
+    logs_d_task = df[df["activity"] == "D"]
+    # group by two columns because we have firing of multiple batches at the same datetime
+    grouped_by_start = logs_d_task.groupby(by=["start_time", "resource"])
+
+    expected_start_time_keys = [
+        ("2022-09-30 12:00:00.000000+03:00", 5),
+        ("2022-09-30 17:49:30.035185+03:00", 2),
+        ("2022-09-30 23:49:30.035185+03:00", 2),
+        ("2022-10-03 12:00:00.000000+03:00", 6),
+        ("2022-10-03 12:00:00.000000+03:00", 6),
+        ("2022-10-03 12:00:00.000000+03:00", 6),
+        ("2022-10-03 12:00:00.000000+03:00", 2),
+    ]
+    grouped_by_start_items = list(map(_get_start_time_and_count_final, list(grouped_by_start.groups.items())))
+    assert (
+        grouped_by_start_items == expected_start_time_keys
+    ), f"The start_time for batched D tasks differs. Expected: {expected_start_time_keys}, but was {grouped_by_start_items}"
+
+    # verify that the same resource execute the whole batch
+    for _, group in grouped_by_start:
+        _verify_same_resource_for_batch(group["resource"])
+
+    # verify that column 'start_time' is ordered ascendingly
+    _verify_logs_ordered_asc(df, start_date.tzinfo)
+
+def _get_start_time_and_count_final(item):
+    key, value = _get_start_time_and_count(item)
+    key_start_time, key_resource = key
+    return key_start_time, value
+
 def test_daily_hour_every_day_correct_firing(assets_path):
     """
     Input:      Firing rule of daily_hour > 15. 

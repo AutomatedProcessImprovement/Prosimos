@@ -185,16 +185,24 @@ def create_subrule(attribute, comparison, value):
 
 
 def _move_size_to_end(list: List[FiringSubRule]):
-    " Re-order the elements inside list so that size rule is the last one in the sequence "
-    
-    size_index = next((i for i, item in enumerate(list) if item.variable1 == 'size'), -1)
+    """
+    Re-order the elements inside list so that:
+        1) size rule is the last one in the sequence
+        2) week_day rule is the second item from the end
+    """
+
+    _move_to_end("daily_hour", list)
+    _move_to_end("size", list)
+
+def _move_to_end(rule_name: str, list):
+    rule_index = next((i for i, item in enumerate(list) if item.variable1 == rule_name), -1)
     last_index = len(list) - 1
 
-    if size_index == -1:
+    if rule_index == -1:
         # size rule is not on the list of all rules
         return
 
-    list.insert(last_index, list.pop(size_index))
+    list.insert(last_index, list.pop(rule_index))
 
 
 def parse_arrival_branching_probabilities(arrival_json, gateway_json):
