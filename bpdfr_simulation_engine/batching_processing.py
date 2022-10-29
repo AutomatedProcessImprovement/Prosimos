@@ -96,6 +96,23 @@ class FiringSubRule():
             is_rule_true = op(time1, self.value2)
             return is_rule_true
 
+        elif self.variable1 == "ready_wt":
+            last_enabled_datetime = element["enabled_datetimes"][-1]
+            curr_enabled_datetime = element["curr_enabled_at"]
+            op = _get_operator_symbols_ge(self.operator)
+
+            ready_wt_sec = (curr_enabled_datetime - last_enabled_datetime).seconds
+            is_rule_true = op(ready_wt_sec, self.value2)
+           
+            if is_rule_true == False:
+                # edge case
+                # check if the last waiting time does not exceed the limit
+                # if yes, we can rollback its enabled time so the batch is activated in that case
+                if op in [operator.le, operator.lt] and ready_wt_sec >= self.value2:
+                    return True
+
+            return is_rule_true
+
 
     def is_batch_size(self):
         return self.variable1 == "size"
@@ -284,7 +301,7 @@ class FiringSubRule():
                     # the future batch enablement will be handled later
                     return 0, None
 
-            res_len, res_time = _return_with_validation(follow_rule, final_enabled_time)
+            res_len, res_time = _return_with_validation_arr(follow_rule, final_enabled_time)
             if res_len != 0:
                 return res_len, res_time
 
@@ -296,16 +313,62 @@ class FiringSubRule():
             # go to the next iteration
             prev_day_to_oldest_rule_time += one_day_delta
             if prev_day_to_oldest_rule_time > curr_enabled_at:
-                # we do not want to 
-                return _return_with_validation(follow_rule, final_enabled_time)
+                # return batches of at least size of 2
+                return _return_with_validation_arr(follow_rule, final_enabled_time)
+
+    def get_batch_size_by_ready_wt(self, element):
+        curr_enabled_datetime = element["curr_enabled_at"]
+        op = _get_operator_symbols_ge(self.operator)
+        enabled_datetimes_len = len(element["enabled_datetimes"])
+
+        batch_size = 0
+        batch_enabled_time = None
+        # iterate through every two items in enabled_times
+        for en_time_index in range(0, enabled_datetimes_len, 2):
+            second_el_in_pair = en_time_index + 1
+            if second_el_in_pair >= enabled_datetimes_len:
+                break
+
+            curr_iter_en_time = element["enabled_datetimes"][second_el_in_pair]
+            diff = (curr_enabled_datetime - curr_iter_en_time).seconds
+            is_batch_enabled = op(diff, self.value2)
+            if not is_batch_enabled and \
+                op in [operator.le, operator.lt] and \
+                    diff >= self.value2:
+                    is_batch_enabled = True
+
+            if not is_batch_enabled:
+                break
+
+            batch_size = 2
+            if op in [operator.le, operator.lt]:
+                batch_enabled_time = curr_iter_en_time
+            elif op in [operator.eq, operator.ge]:
+                batch_enabled_time = curr_iter_en_time + timedelta(seconds=self.value2)
+            else: # op == operator.gt
+                batch_enabled_time = curr_iter_en_time + timedelta(seconds=self.value2 + 1)
+
+            if batch_enabled_time > curr_enabled_datetime:
+                # batch_enabled_time is in the future
+                # will be handled later (due to insertion in the log file)
+                return 0, None
+
+            return batch_size, batch_enabled_time
+        
+        return _return_with_validation(batch_size, batch_enabled_time)
 
 
-def _return_with_validation(arr_follow_rule, enabled_time):
+def _return_with_validation_arr(arr_follow_rule, enabled_time):
     " Validate whether the length of the arr_follow_rule (batch) is at least of 2"
-    if len(arr_follow_rule) > 1:
+    return _return_with_validation(len(arr_follow_rule), enabled_time)
+
+
+def _return_with_validation(length, enabled_time):
+    " Validate whether the length is at least of 2"
+    if length > 1:
         # the first found batch of activities
         # satisfies the rule and of the size of at least 2 items inside
-        return len(arr_follow_rule), enabled_time 
+        return length, enabled_time 
     else:
         return 0, None
 
@@ -471,6 +534,11 @@ class AndFiringRule():
                     is_time_forced = True
                 else:
                     is_time_forced = False
+            elif subrule.variable1 == "ready_wt":
+                curr_size, enabled_time = subrule.get_batch_size_by_ready_wt(element)
+                if curr_size < 2:
+                    batch_size = 0
+                    break
 
             if curr_size < batch_size:
                 batch_size = curr_size
