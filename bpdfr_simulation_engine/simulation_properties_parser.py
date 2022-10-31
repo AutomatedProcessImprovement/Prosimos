@@ -160,6 +160,17 @@ def parse_batch_processing(batch_processing_json_data):
 
 
 def create_subrule(attribute, comparison, value):
+    formatted_value = value
+    if attribute == 'daily_hour':
+        formatted_value = time(int(value), 0, 0, 0)
+    
+    if attribute == 'ready_wt':
+        if comparison == '<':
+            comparison == '>'
+            formatted_value = value - 2
+        elif comparison == '<=':
+            comparison == '>='
+
     formatted_value = value if attribute != 'daily_hour' \
         else time(int(value), 0, 0, 0)
 

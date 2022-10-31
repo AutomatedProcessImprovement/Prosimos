@@ -1,53 +1,74 @@
 import pytest
 from datetime import datetime, time
+import pandas as pd
 
 from bpdfr_simulation_engine.batching_processing import AndFiringRule, FiringSubRule, OrFiringRule
-
+from bpdfr_simulation_engine.resource_calendar import parse_datetime
+from testing_scripts.test_batching import (
+    _get_start_time_and_count,
+    _verify_logs_ordered_asc,
+    _verify_same_resource_for_batch,
+    assets_path
+)
+from testing_scripts.test_batching_daily_hour import _arrange_and_act
+from testing_scripts.test_batching import (
+    _get_start_time_and_count,
+    _setup_arrival_distribution,
+    _setup_sim_scenario_file,
+    _verify_logs_ordered_asc,
+    _verify_same_resource_for_batch,
+    assets_path,
+)
 data_one_week_day = [
     # Rule:             ready_wt < 3600 (3600 seconds = 1 hour)
+    #                   (it's being parsed to ready_wt > 3598, cause it should be fired last_item_en_time + 3599)
     # Current state:    4 tasks waiting for the batch execution.
-    # Expected result:  firing rule is enabled for the first pair of waiting items.
-    #                   enabled time of the batch equals to the enabled time of the second item in the pair
-    #                   (since that enabled time satisfies the rule)
+    #                   difference between each of them is not > 3598
+    # Expected result:  firing rule is enabled at the time we check for enabled time 
+    #                   enabled time of the batch equals to the enabled time of the last item in the batch + 3598 
+    #                   (value dictated by rule)
     (
-        "19/09/22 14:05:26",
+        "19/09/22 14:35:26",
         [
             "19/09/22 12:00:26",
             "19/09/22 12:30:26",
             "19/09/22 13:00:26",
             "19/09/22 13:30:26",
         ],
-        "<",
-        3600, # one hour
+        ">",    # "<"   - in the json file
+        3598,   # 3600  - in the json file
         True,
-        [2, 2],
-        "19/09/2022 12:30:26",
+        [4],
+        "19/09/2022 14:30:25",
     ),
     # Rule:             ready_wt > 3600 (3600 seconds = 1 hour)
-    # Current state:    4 tasks waiting for the batch execution.
+    # Current state:    5 tasks waiting for the batch execution.
     # Expected result:  Firing rule is enabled for the all items and this equals to two batches to be executed.
-    #                   Enabled time of the batch equals to the enabled time of the second item in the first pair
-    #                   (meaning, to the minimum datetime from all enabled batches).
+    #                   Enabled time of the batch equals to the enabled time of the last item in each batch
+    #                   (meaning, to the maximum datetime from all enabled batches).
+    #                   There is difference between two activities (3d and 4th) which exceeds one hour limit,
+    #                   so that's what triggers the first batch to be enabled. 
     #                   Verify that enabled_time of the batch is one second after the datetime forced by the rule.
     (
         "19/09/22 14:05:26",
         [
-            "19/09/22 11:00:26",
-            "19/09/22 11:30:26",
+            "19/09/22 10:00:26",
+            "19/09/22 10:00:26",
+            "19/09/22 10:30:26",
             "19/09/22 12:00:26",
             "19/09/22 12:30:26",
         ],
         ">",
         3600, # one hour
         True,
-        [2, 2],
-        "19/09/2022 12:30:27",
+        [3, 2],
+        "19/09/2022 11:30:27",
     ),
     # Rule:             ready_wt >= 3600 (3600 seconds = 1 hour)
     # Current state:    4 tasks waiting for the batch execution.
-    # Expected result:  Firing rule is enabled for the all items and this equals to two batches to be executed.
-    #                   Enabled time of the batch equals to the enabled time of the second item in the first pair
-    #                   (meaning, to the minimum datetime from all enabled batches).
+    # Expected result:  Firing rule is enabled for the all items and this equals to one batch enabled.
+    #                   All activities have difference of less than one hour,
+    #                   that's why the rule were not satisfied at that point somewhere.
     #                   Verify that enabled_time of the batch equals exactly to the datetime forced by the rule.
     (
         "19/09/22 14:05:26",
@@ -60,8 +81,8 @@ data_one_week_day = [
         ">=",
         3600, # one hour
         True,
-        [2, 2],
-        "19/09/2022 12:30:26",
+        [4],
+        "19/09/2022 13:30:26",
     ),
     # Rule:             ready_wt > 3600 (3600 seconds = 1 hour)
     # Current state:    3 tasks waiting for the batch execution.
@@ -86,7 +107,7 @@ data_one_week_day = [
     "curr_enabled_at_str, enabled_datetimes, sign_ready_wt, ready_wt_value_sec, expected_is_true, expected_batch_size, expected_start_time_from_rule",
     data_one_week_day,
 )
-def test_ready_wt_rule_correct_enabled_and_batch_size(
+def test_ready_wt_rule_correct_is_true(
     curr_enabled_at_str,
     enabled_datetimes,
     sign_ready_wt,
