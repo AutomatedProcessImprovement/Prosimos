@@ -149,3 +149,54 @@ def test_ready_wt_rule_correct_is_true(
     else:
         start_dt = start_time_from_rule.strftime("%d/%m/%Y %H:%M:%S")
         assert expected_start_time_from_rule == start_dt
+
+def test_ready_wt_greater_equal_correct_enabled_and_batch_size(assets_path):
+    """
+    Input:      Firing rule: ready_wt > 18000 sec (5 hours)
+                6 process cases are being generated. A new case arrive every 3 hours.
+                Batched task are executed in parallel.
+    Expected:   Batched task are executed only when the difference between newly arrived 
+                and the previous one exceeds the range of 5 hours.
+                Since we generate 6 new cases with the arrival case of 3 hours,
+                the batch will not get executed during the generation of those cases.
+                Batch of 6 activities will be enabled after 5 hours of the last arrived activity
+                (the one which supposed to be in the batch).
+    Verified:   The start_time of the appropriate grouped D task.
+                The number of tasks in every executed batch.
+                The resource which executed the batch is the same for all tasks in the batch.
+                The start_time of all logs files is being sorted by ASC.
+    """
+
+    # ====== ARRANGE & ACT ======
+    firing_rules = [
+        [
+            {"attribute": "ready_wt", "comparison": ">", "value": 18000} # 5 hours
+        ]
+    ]
+
+    sim_logs = assets_path / "batch_logs.csv"
+
+    start_string = "2022-09-29 23:45:30.035185+03:00"
+    start_date = parse_datetime(start_string, True)
+
+    _arrange_and_act(assets_path, firing_rules, start_date, 6, 10800) # 3 hours - arrival rate
+
+    # ====== ASSERT ======
+    df = pd.read_csv(sim_logs)
+    logs_d_task = df[df["activity"] == "D"]
+    grouped_by_start = logs_d_task.groupby(by="start_time")
+
+    expected_start_time_keys = [
+        ("2022-09-30 19:49:31.035185+03:00", 6)
+    ]
+    grouped_by_start_items = list(map(_get_start_time_and_count, list(grouped_by_start.groups.items())))
+    assert (
+        grouped_by_start_items == expected_start_time_keys
+    ), f"The start_time for batched D tasks differs. Expected: {expected_start_time_keys}, but was {grouped_by_start_items}"
+
+    # verify that the same resource execute the whole batch
+    for _, group in grouped_by_start:
+        _verify_same_resource_for_batch(group["resource"])
+
+    # verify that column 'start_time' is ordered ascendingly
+    _verify_logs_ordered_asc(df, start_date.tzinfo)

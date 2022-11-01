@@ -188,19 +188,21 @@ class FiringSubRule():
 
 
     def _get_min_enabled_time_ready_wt(self, case_id_and_enabled_times, last_task_start_time: CustomDatetimeAndSeconds) -> tuple([int, datetime]):
-        waiting_times = [ (last_task_start_time - v.datetime).total_seconds() for (_, v) in case_id_and_enabled_times ] 
+        last_task_start_datetime = last_task_start_time.datetime
+        waiting_times = [ (last_task_start_datetime - v.datetime).total_seconds() for (_, v) in case_id_and_enabled_times ] 
 
         draft_element = {
             "size": len(case_id_and_enabled_times),
             "waiting_times": waiting_times ,
             "enabled_datetimes": [ v.datetime for (_, v) in case_id_and_enabled_times ],
-            "curr_enabled_at": last_task_start_time,
+            "curr_enabled_at": last_task_start_datetime,
             "is_triggered_by_batch": False,
         }
 
-        _, enabled_time = self.get_batch_size_by_ready_wt(draft_element)
+        _, en_time = self.get_batch_size_by_ready_wt(draft_element)
+        case_id, _ = case_id_and_enabled_times[0]
 
-        return enabled_time
+        return case_id, en_time
 
 
     def get_batch_size_relative_time(self, element):
@@ -623,8 +625,7 @@ class AndFiringRule():
                 expected_enabled_time.append(en_case_and_time)
                 week_day_date = en_time.date()
             elif subrule.variable1 == "daily_hour":
-                en_case_and_time = subrule._get_min_enabled_time_daily_hour(waiting_times, last_task_enabled_time)
-                en_case, en_time = en_case_and_time
+                en_case, en_time = subrule._get_min_enabled_time_daily_hour(waiting_times, last_task_enabled_time)
                 if week_day_date != None:
                     en_time = datetime.combine(
                         week_day_date,
@@ -632,7 +633,9 @@ class AndFiringRule():
                         en_time.tzinfo
                     )
                 expected_enabled_time.append((en_case, en_time))
-            # TODO: add _get_min_enabled_time_ready_wt
+            elif subrule.variable1 == 'ready_wt':
+                en_case_and_time = subrule._get_min_enabled_time_ready_wt(waiting_times, last_task_enabled_time)
+                expected_enabled_time.append(en_case_and_time)
             else:
                 # no other rule types are being supported
                 continue
