@@ -166,13 +166,10 @@ def create_subrule(attribute, comparison, value):
     
     if attribute == 'ready_wt':
         if comparison == '<':
-            comparison == '>'
+            comparison = '>'
             formatted_value = value - 2
         elif comparison == '<=':
             comparison == '>='
-
-    formatted_value = value if attribute != 'daily_hour' \
-        else time(int(value), 0, 0, 0)
 
     return FiringSubRule(
         attribute,

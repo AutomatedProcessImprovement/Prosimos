@@ -19,6 +19,7 @@ from testing_scripts.test_batching import (
     _verify_same_resource_for_batch,
     assets_path,
 )
+
 data_one_week_day = [
     # Rule:             ready_wt < 3600 (3600 seconds = 1 hour)
     #                   (it's being parsed to ready_wt > 3598, cause it should be fired last_item_en_time + 3599)
@@ -150,10 +151,43 @@ def test_ready_wt_rule_correct_is_true(
         start_dt = start_time_from_rule.strftime("%d/%m/%Y %H:%M:%S")
         assert expected_start_time_from_rule == start_dt
 
-def test_ready_wt_greater_equal_correct_enabled_and_batch_size(assets_path):
+data_whole_sim_one_batch = [
+    # Input:    Firing rule: ready_wt > 18000 sec (5 hours)
+    # Expected: Waiting for collecting all activities where ready_wt is < 5 hours.
+    #           Enablind the batch the moment when we surpass the limitation of 5 hours.
+    #           This equals to the last enabled time + 5 hours 1 sec.
+    (
+        ">",
+        18000,   # 5 hours  - in the json file
+        [
+            ("2022-09-30 19:49:31.035185+03:00", 6)
+        ],
+        "assets_path"
+    ),
+    # Input:    Firing rule: ready_wt < 18000 sec (5 hours)
+    # Expected: Waiting for collecting all activities where ready_wt is < 5 hours.
+    #           Enablind the batch the moment when we are about to surpass the limitation of 5 hours.
+    #           This equals to the last enabled time + 04:59:59 
+    (
+        "<",
+        18000,   # 5 hours  - in the json file
+        [
+            ("2022-09-30 19:49:29.035185+03:00", 6)
+        ],
+        "assets_path"
+    ),
+]
+
+@pytest.mark.parametrize(
+    "sign_ready_wt, ready_wt_value_sec, expected_start_time_keys, assets_path_fixture",
+    data_whole_sim_one_batch,
+)
+def test_ready_wt_greater_equal_correct_enabled_and_batch_size(
+    sign_ready_wt, ready_wt_value_sec,
+    expected_start_time_keys, assets_path_fixture, request
+):
     """
-    Input:      Firing rule: ready_wt > 18000 sec (5 hours)
-                6 process cases are being generated. A new case arrive every 3 hours.
+    Input:      6 process cases are being generated. A new case arrive every 3 hours.
                 Batched task are executed in parallel.
     Expected:   Batched task are executed only when the difference between newly arrived 
                 and the previous one exceeds the range of 5 hours.
@@ -168,9 +202,10 @@ def test_ready_wt_greater_equal_correct_enabled_and_batch_size(assets_path):
     """
 
     # ====== ARRANGE & ACT ======
+    assets_path = request.getfixturevalue(assets_path_fixture)
     firing_rules = [
         [
-            {"attribute": "ready_wt", "comparison": ">", "value": 18000} # 5 hours
+            {"attribute": "ready_wt", "comparison": sign_ready_wt, "value": ready_wt_value_sec}
         ]
     ]
 
@@ -186,9 +221,6 @@ def test_ready_wt_greater_equal_correct_enabled_and_batch_size(assets_path):
     logs_d_task = df[df["activity"] == "D"]
     grouped_by_start = logs_d_task.groupby(by="start_time")
 
-    expected_start_time_keys = [
-        ("2022-09-30 19:49:31.035185+03:00", 6)
-    ]
     grouped_by_start_items = list(map(_get_start_time_and_count, list(grouped_by_start.groups.items())))
     assert (
         grouped_by_start_items == expected_start_time_keys
