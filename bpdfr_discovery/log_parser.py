@@ -443,7 +443,7 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
         "arrival_time_calendar": json_arrival_calendar,
         "gateway_branching_probabilities": gateways_branching,
         "task_resource_distribution": map_task_id_from_names(task_resource_dist, bpmn_graph.from_name),
-        "resource_calendars": res_json_calendar,
+        "resource_calendars": res_json_calendar
     }
     save_prosimos_json(to_save, out_f_path)
     return [map_task_id_from_names(pools_json, bpmn_graph.from_name),
