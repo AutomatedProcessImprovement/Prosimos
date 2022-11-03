@@ -387,7 +387,8 @@ class BPMNGraph:
         firing_rules: List[AndFiringRule] = task_batch_info.firing_rules
         case_id_and_enabled_time = firing_rules.get_enabled_time(
             list(self.batch_waiting_processes[task_id].items()), 
-            last_task_enabled_time
+            last_task_enabled_time,
+            True
         )
         
         if case_id_and_enabled_time != None:

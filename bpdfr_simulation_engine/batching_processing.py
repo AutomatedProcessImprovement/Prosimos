@@ -3,6 +3,7 @@ import operator as operator
 import sys
 from typing import List
 from datetime import datetime, time, timedelta
+
 from bpdfr_simulation_engine.resource_calendar import str_week_days
 from bpdfr_simulation_engine.weekday_helper import CustomDatetimeAndSeconds, get_nearest_abs_day, get_nearest_past_day
 
@@ -187,7 +188,7 @@ class FiringSubRule():
         return case_id, nearest_enabled_datetime
 
 
-    def _get_min_enabled_time_ready_wt(self, case_id_and_enabled_times, last_task_start_time: CustomDatetimeAndSeconds) -> tuple([int, datetime]):
+    def _get_min_enabled_time_ready_wt(self, case_id_and_enabled_times, last_task_start_time: CustomDatetimeAndSeconds, is_in_future: bool) -> tuple([int, datetime]):
         last_task_start_datetime = last_task_start_time.datetime
         waiting_times = [ (last_task_start_datetime - v.datetime).total_seconds() for (_, v) in case_id_and_enabled_times ] 
 
@@ -199,7 +200,7 @@ class FiringSubRule():
             "is_triggered_by_batch": False,
         }
 
-        _, en_time = self.get_batch_size_by_ready_wt(draft_element)
+        _, en_time = self.get_batch_size_by_ready_wt(draft_element, is_in_future)
         case_id, _ = case_id_and_enabled_times[0]
 
         return case_id, en_time
@@ -335,7 +336,7 @@ class FiringSubRule():
                 # return batches of at least size of 2
                 return _return_with_validation_arr(follow_rule, final_enabled_time)
 
-    def get_batch_size_by_ready_wt(self, element):
+    def get_batch_size_by_ready_wt(self, element, is_in_future: bool = False):
         curr_enabled_datetime = element["curr_enabled_at"]
         op = _get_operator_symbols_ge(self.operator)
         enabled_datetimes = element["enabled_datetimes"]
@@ -374,7 +375,7 @@ class FiringSubRule():
             batch_enabled_time = self._get_enabled_time_for_ready_wt_rule(prev_item, op)
             prev_item = item
 
-            if batch_enabled_time > curr_enabled_datetime:
+            if batch_enabled_time > curr_enabled_datetime and not is_in_future:
                 # batch_enabled_time is in the future
                 # will be handled later (due to insertion in the log file)
                 return 0, None
@@ -610,7 +611,7 @@ class AndFiringRule():
         return batch_size, enabled_time
 
 
-    def get_enabled_time(self, waiting_times, last_task_enabled_time: CustomDatetimeAndSeconds) -> tuple([int, datetime]):
+    def get_enabled_time(self, waiting_times, last_task_enabled_time: CustomDatetimeAndSeconds, is_in_future: bool = False) -> tuple([int, datetime]):
         expected_enabled_time = []
         week_day_date = None
         for subrule in self.rules:
@@ -634,7 +635,7 @@ class AndFiringRule():
                     )
                 expected_enabled_time.append((en_case, en_time))
             elif subrule.variable1 == 'ready_wt':
-                en_case_and_time = subrule._get_min_enabled_time_ready_wt(waiting_times, last_task_enabled_time)
+                en_case_and_time = subrule._get_min_enabled_time_ready_wt(waiting_times, last_task_enabled_time, is_in_future)
                 expected_enabled_time.append(en_case_and_time)
             else:
                 # no other rule types are being supported
@@ -668,8 +669,9 @@ class OrFiringRule():
 
         return is_batched_task_enabled, None, None
     
-    def get_enabled_time(self, waiting_times, last_task_enabled_time: CustomDatetimeAndSeconds):
+    def get_enabled_time(self, waiting_times, last_task_enabled_time: CustomDatetimeAndSeconds, is_in_future: bool = False):
         """
+        :param: is_in_future: whether the returned datetime could be in the future
         Method is being used to find the enabled time for the batch execution
         when all activities in the flow were already executed and we need to 
         execute the batch in the near future.
@@ -685,7 +687,7 @@ class OrFiringRule():
 
         enabled_times_per_or_rule = []
         for rule in self.rules:
-            per_rule = rule.get_enabled_time(waiting_times, last_task_enabled_time)
+            per_rule = rule.get_enabled_time(waiting_times, last_task_enabled_time, is_in_future)
             if len(per_rule) > 0:
                 # find the max time 
                 # cause that's the one that satisfies the set of rules
