@@ -50,7 +50,7 @@ class PriorityQueue:
 
     def peek(self):
         """ Return the lowest priority task (without removing it from the queue)"""
-        while self.pq:
+        if len(self.pq) > 0:
             all_enteries = nsmallest(1, self.pq)
             priority, _, task = all_enteries[0]
             return task, priority
