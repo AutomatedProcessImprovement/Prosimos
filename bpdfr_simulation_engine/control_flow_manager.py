@@ -366,8 +366,8 @@ class BPMNGraph:
 
         size_count = self.batch_count[task_id] if self.batch_count.get(task_id, None) != None else 0
 
-        if size_count < 2:
-            # not enought items for batch execution
+        if not firing_rules.is_batch_size_enough_for_exec(size_count): #size_count < 2:
+            # not enough items for batch execution
             return False, None, None
 
         waiting_time = [ (enabled_at.datetime - v.datetime).total_seconds() for (_, v) in self.batch_waiting_processes[task_id].items() ] 
@@ -382,18 +382,21 @@ class BPMNGraph:
 
         return firing_rules.is_true(spec)
 
-    def get_start_time(self, task_id, last_task_enabled_time) -> tuple([int, CustomDatetimeAndSeconds]):
+    def get_start_time(self, task_id, last_task_enabled_time) -> tuple([int, int, CustomDatetimeAndSeconds]):
         task_batch_info = self.batch_info.get(task_id, None)
         firing_rules: List[AndFiringRule] = task_batch_info.firing_rules
-        case_id_and_enabled_time = firing_rules.get_enabled_time(
-            list(self.batch_waiting_processes[task_id].items()), 
+        enabled_times = list(self.batch_waiting_processes[task_id].items())
+        batch_enabled_time = firing_rules.get_enabled_time(
+            enabled_times, 
             last_task_enabled_time,
             True
         )
         
-        if case_id_and_enabled_time != None:
-            case_id, enabled_time = case_id_and_enabled_time
+        if batch_enabled_time != None:
+            enabled_time = batch_enabled_time
+
             enabled_time_obj = CustomDatetimeAndSeconds(0, enabled_time)
+            case_id, _ = enabled_times[0]
 
             return case_id, enabled_time_obj
 
@@ -802,16 +805,13 @@ class BPMNGraph:
                 batch_spec,
                 start_time_from_rule)
             enabled_tasks.append((EnabledTask(task_id, batch_info)))
-            self._clear_batch(task_id, batch_info)
+            self._clear_batch(task_id, batch_spec)
 
-    def _clear_batch(self, next_e, batch_info):
+    def _clear_batch(self, next_e, batch_spec):
         """
         When we passed on the information about the batch for the execution,
         clear that data from here to avoid multiple execution
         """
-        # is_batch_size_included, batch_size = batch_info.is_batch_size_included_in_enabled_rule()
-        batch_spec = batch_info.batch_spec
-        
         for batch_size in batch_spec:
             if batch_size != None:
                 # remove first batch_size-element since they are being executed
@@ -849,9 +849,10 @@ class BPMNGraph:
     def is_any_batch_enabled(self, started_datetime):
         enabled_task_batch = dict()
         for (task_id, waiting_tasks) in self.batch_waiting_processes.items():
-            if len(waiting_tasks) < 2:
+            if not self.batch_info[task_id].firing_rules.is_batch_size_enough_for_exec(len(waiting_tasks)):
                 # no tasks waiting for batch execution
                 # or number of tasks waiting is not enough (less than 2)
+                # exception "ready_wt" rule can execute task one
                 continue
 
             is_enabled, batch_spec, start_time_from_rule = self.is_batched_task_enabled(task_id, started_datetime)
@@ -864,7 +865,7 @@ class BPMNGraph:
                     batch_spec,
                     start_time_from_rule)
                 enabled_task_batch[task_id] = batch_info
-                self._clear_batch(task_id, batch_info)
+                self._clear_batch(task_id, batch_spec)
 
         return enabled_task_batch
 
@@ -875,7 +876,7 @@ class BPMNGraph:
             return None
 
         for (task_id, waiting_tasks) in self.batch_waiting_processes.items():
-            if len(waiting_tasks) < 2:
+            if not self.batch_info[task_id].firing_rules.is_batch_size_enough_for_exec(len(waiting_tasks)):
                 # either no or not enough tasks waiting for batch execution
                 # minimum number of tasks to be executed: 2
                 continue
@@ -883,8 +884,7 @@ class BPMNGraph:
             case_id_and_start_time = self.get_start_time(task_id, last_task_enabled_time)
 
             if (case_id_and_start_time != None):
-                case_id, enabled_time = case_id_and_start_time
-                yield case_id, enabled_time
+                yield case_id_and_start_time
 
 
 def discover_bpmn_from_log(log_path, process_name):

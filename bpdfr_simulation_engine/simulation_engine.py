@@ -185,8 +185,8 @@ class SimBPMEnv:
                         case_id,
                         self.all_process_states[case_id],
                         batch_task_id,
-                        0, # not being used for batch
-                        0, # not being used for batch
+                        self.simulation_at_from_datetime(batch_info.start_time_from_rule),
+                        batch_info.start_time_from_rule,
                         batch_info
                     )
 
@@ -355,6 +355,10 @@ class SimBPMEnv:
 
     def simulation_datetime_from(self, simpy_time):
         return self.sim_setup.start_datetime + timedelta(seconds=simpy_time)
+
+    def simulation_at_from_datetime(self, datetime):
+        td = datetime - self.sim_setup.start_datetime
+        return td.seconds
 
     def get_utilization_for(self, resource_id):
         if self.sim_resources[resource_id].available_time == 0:

@@ -44,10 +44,16 @@ class FiringSubRule():
         self.operator = operator
         self.value2 = value2
 
+    def is_batch_size_enough(self, batch_size):
+        if self.variable1 == "ready_wt":
+            return batch_size > 0
+        else:
+            return batch_size > 1
+
     def is_true(self, element):
         queue_size = element["size"]
 
-        if queue_size < 2:
+        if not self.is_batch_size_enough(queue_size):
             # not enough to be executed in batch, at least 2 tasks required
             return False
 
@@ -124,7 +130,7 @@ class FiringSubRule():
         based on the maximum waiting time of the task in the batch 
         (meaning, for the 'waiting_time' kind of rule)
         """
-        case_id, oldest_waiting = waiting_times[0]
+        _, oldest_waiting = waiting_times[0]
         oldest_waiting_time = oldest_waiting.datetime
         rule_value = self.value2
 
@@ -138,9 +144,9 @@ class FiringSubRule():
 
         # find the minimum waiting time (either from the rule specification or the last waiting_time of the batched task)
         needed_time_seconds = min_waiting_time.get(self.operator)
-        return case_id, last_task_start_time.datetime + timedelta(needed_time_seconds)
+        return last_task_start_time.datetime + timedelta(needed_time_seconds)
 
-    def _get_min_enabled_time_week_day(self, waiting_times, last_task_start_time: CustomDatetimeAndSeconds) -> tuple([int, datetime]):
+    def _get_min_enabled_time_week_day(self, last_task_start_time: CustomDatetimeAndSeconds) -> tuple([int, datetime]):
         if self._is_current_date_enabled(last_task_start_time.datetime):
             # if current day satisfies the rule - return it
             nearest_abs_day = last_task_start_time.datetime
@@ -154,11 +160,7 @@ class FiringSubRule():
             nearest_abs_day.tzinfo
         )
 
-        # the case_id where batch should start should be equal 
-        # to the oldest batched task added to the queue (= the first element in the array)
-        case_id, _ = waiting_times[0]
-
-        return case_id, nearest_day_midnight
+        return nearest_day_midnight
 
     def _is_current_date_enabled(self, current_date):
         """ Verify whether current date satisfies the rule """
@@ -166,7 +168,7 @@ class FiringSubRule():
         timer_weekday = str_week_days.get(self.value2.upper())
         return completed_datetime_weekday == timer_weekday
 
-    def _get_min_enabled_time_daily_hour(self, waiting_times, last_task_start_time: CustomDatetimeAndSeconds) -> tuple([int, datetime]):
+    def _get_min_enabled_time_daily_hour(self, last_task_start_time: CustomDatetimeAndSeconds) -> tuple([int, datetime]):
         last_task_start_datetime = last_task_start_time.datetime
         if self.operator in [operator.lt, operator.le, operator.eq]:
             boundary_time = time(0, 0, 0)
@@ -181,11 +183,7 @@ class FiringSubRule():
             last_task_start_datetime.tzinfo
         )
 
-        # the case_id where batch should start should be equal 
-        # to the oldest batched task added to the queue (= the first element in the array)
-        case_id, _ = waiting_times[0]
-
-        return case_id, nearest_enabled_datetime
+        return nearest_enabled_datetime
 
 
     def _get_min_enabled_time_ready_wt(self, case_id_and_enabled_times, last_task_start_time: CustomDatetimeAndSeconds, is_in_future: bool) -> tuple([int, datetime]):
@@ -201,9 +199,8 @@ class FiringSubRule():
         }
 
         _, en_time = self.get_batch_size_by_ready_wt(draft_element, is_in_future)
-        case_id, _ = case_id_and_enabled_times[0]
 
-        return case_id, en_time
+        return en_time
 
 
     def get_batch_size_relative_time(self, element):
@@ -321,7 +318,7 @@ class FiringSubRule():
                     # the future batch enablement will be handled later
                     return 0, None
 
-            res_len, res_time = _return_with_validation_arr(follow_rule, final_enabled_time)
+            res_len, res_time = self._return_with_validation_arr(follow_rule, final_enabled_time)
             if res_len != 0:
                 return res_len, res_time
 
@@ -334,7 +331,7 @@ class FiringSubRule():
             prev_day_to_oldest_rule_time += one_day_delta
             if prev_day_to_oldest_rule_time > curr_enabled_at:
                 # return batches of at least size of 2
-                return _return_with_validation_arr(follow_rule, final_enabled_time)
+                return self._return_with_validation_arr(follow_rule, final_enabled_time)
 
     def get_batch_size_by_ready_wt(self, element, is_in_future: bool = False):
         curr_enabled_datetime = element["curr_enabled_at"]
@@ -344,10 +341,8 @@ class FiringSubRule():
 
         batch_size = 0
         batch_enabled_time = None
-        # iterate through every two items in enabled_times
-
         prev_item = None
-        # for en_time_index in range(0, enabled_datetimes_len, 1):
+
         for en_time_index, item in enumerate(enabled_datetimes):
             if en_time_index == 0:
                 # not enough elements to compare
@@ -371,7 +366,6 @@ class FiringSubRule():
             # return everything that came before the last element we compared with
             batch_size = en_time_index # index reflects the number of items that satisfies the rule
             
-            # last_item_in_batch = prev_item
             batch_enabled_time = self._get_enabled_time_for_ready_wt_rule(prev_item, op)
             prev_item = item
 
@@ -395,42 +389,53 @@ class FiringSubRule():
             # return everything that came before the last element we compared with
             batch_size = enabled_datetimes_len
             batch_enabled_time = self._get_enabled_time_for_ready_wt_rule(prev_item, op)
-            # prev_item = item
 
-        return _return_with_validation(batch_size, batch_enabled_time)
+        return self._return_with_validation(batch_size, batch_enabled_time)
 
     def _get_enabled_time_for_ready_wt_rule(self, last_item_in_batch, op):
-        # last_item_in_batch = prev_item
-        # prev_item = item 
         if op in [operator.le, operator.lt]:
             # should not happen
             # cause during parsing, we change this type of rule to the one > or >=
             batch_enabled_time = last_item_in_batch - timedelta(seconds=self.value2 + 1)
         elif op in [operator.eq, operator.ge]:
             batch_enabled_time = last_item_in_batch + timedelta(seconds=self.value2)
-        else: # op == operator.gt
+        elif op == operator.gt:
             batch_enabled_time = last_item_in_batch + timedelta(seconds=self.value2 + 1)
 
         return batch_enabled_time
 
 
-def _return_with_validation_arr(arr_follow_rule, enabled_time):
-    " Validate whether the length of the arr_follow_rule (batch) is at least of 2"
-    return _return_with_validation(len(arr_follow_rule), enabled_time)
+    def _return_with_validation_arr(self, arr_follow_rule, enabled_time):
+        " Validate whether the length of the arr_follow_rule (batch) is at least of 2"
+        return self._return_with_validation(len(arr_follow_rule), enabled_time)
 
 
-def _return_with_validation(length, enabled_time):
-    " Validate whether the length is at least of 2"
-    if length > 1:
-        # the first found batch of activities
-        # satisfies the rule and of the size of at least 2 items inside
-        return length, enabled_time 
-    else:
-        return 0, None
+    def _return_with_validation(self, length, enabled_time):
+        """
+        Validate whether the length is at least of 2.
+        Exception: ready_wt rule allows to return one item.
+        """
+        if self.is_batch_size_enough(length):
+            # the first found batch of activities
+            # satisfies the rule and of the size of at least 2 items inside
+            return length, enabled_time 
+        else:
+            return 0, None
 
 class AndFiringRule():
     def __init__(self, array_of_subrules: List[FiringSubRule]):
         self.rules = array_of_subrules
+
+    def _has_ready_wt_rule(self):
+        for rule in self.rules:
+            if rule.variable1 == "ready_wt":
+                return True
+        
+        return False
+
+    def is_batch_size_enough_for_exec(self, batch_size_res: int):
+        return True if batch_size_res > 0 and self._has_ready_wt_rule() \
+            else batch_size_res > 1
 
     def is_true(self, element):
         """
@@ -458,16 +463,16 @@ class AndFiringRule():
                 "waiting_times": element["waiting_times"].copy(),
                 "enabled_datetimes": element["enabled_datetimes"].copy(),
                 "curr_enabled_at": element["curr_enabled_at"],
-                "is_triggered_by_batch": False
+                "is_triggered_by_batch": False,
             }
             batch_size_res, _ = self.get_firing_batch_size(draft_element["size"], draft_element)
-            is_true_result = batch_size_res > 1
+            is_true_result = self.is_batch_size_enough_for_exec(batch_size_res)
 
         if is_true_result:
             num_tasks_in_queue = element["size"]
             num_tasks_in_batch, start_time_from_rule = self.get_firing_batch_size(num_tasks_in_queue, element)
 
-            if num_tasks_in_batch < 2:
+            if not self.is_batch_size_enough_for_exec(num_tasks_in_batch): # num_tasks_in_batch < 2:
                 print("WARNING: Getting batch size for the execution returned to be 0. Verify provided rules.")
                 return False, None, None
             
@@ -495,20 +500,6 @@ class AndFiringRule():
             return True, batch_spec, start_time_from_rule
         
         return is_true_result, None, None
-
-    def _get_batch_size_subrule(self):
-        for rule in self.rules:
-            if rule.is_batch_size():
-                return rule
-        
-        return None
-
-    def _get_week_day_subrule(self):
-        for rule in self.rules:
-            if rule.variable1 == "week_day":
-                return rule
-        
-        return None
 
     def get_firing_batch_size(self, current_batch_size, element):
         batch_size = sys.maxsize
@@ -557,7 +548,6 @@ class AndFiringRule():
                 return batch_size, enabled_time
             
             elif subrule.variable1 == "week_day":
-                # prev_enabled_time = enabled_time
                 curr_size, enabled_time = subrule.get_batch_size_relative_time(element)
                 if curr_size < 2:
                     batch_size = 0
@@ -593,7 +583,7 @@ class AndFiringRule():
                     is_time_forced = False
             elif subrule.variable1 == "ready_wt":
                 curr_size, enabled_time = subrule.get_batch_size_by_ready_wt(element)
-                if curr_size < 2:
+                if curr_size < 1:
                     batch_size = 0
                     break
 
@@ -619,24 +609,24 @@ class AndFiringRule():
                 # size does not tell us anything about expected time of batch execution
                 continue
             elif subrule.variable1 == "waiting_times":
-                expected_enabled_time.append(subrule._get_min_enabled_time_waiting_time(waiting_times, last_task_enabled_time))
+                en_time = subrule._get_min_enabled_time_waiting_time(waiting_times, last_task_enabled_time)
+                expected_enabled_time.append(en_time)
             elif subrule.variable1 == "week_day":
-                en_case_and_time = subrule._get_min_enabled_time_week_day(waiting_times, last_task_enabled_time)
-                _, en_time = en_case_and_time
-                expected_enabled_time.append(en_case_and_time)
+                en_time = subrule._get_min_enabled_time_week_day(last_task_enabled_time)
+                expected_enabled_time.append(en_time)
                 week_day_date = en_time.date()
             elif subrule.variable1 == "daily_hour":
-                en_case, en_time = subrule._get_min_enabled_time_daily_hour(waiting_times, last_task_enabled_time)
+                en_time = subrule._get_min_enabled_time_daily_hour(last_task_enabled_time)
                 if week_day_date != None:
                     en_time = datetime.combine(
                         week_day_date,
                         en_time.time(),
                         en_time.tzinfo
                     )
-                expected_enabled_time.append((en_case, en_time))
+                expected_enabled_time.append(en_time)
             elif subrule.variable1 == 'ready_wt':
-                en_case_and_time = subrule._get_min_enabled_time_ready_wt(waiting_times, last_task_enabled_time, is_in_future)
-                expected_enabled_time.append(en_case_and_time)
+                en_time = subrule._get_min_enabled_time_ready_wt(waiting_times, last_task_enabled_time, is_in_future)
+                expected_enabled_time.append(en_time)
             else:
                 # no other rule types are being supported
                 continue
@@ -648,6 +638,18 @@ class AndFiringRule():
 class OrFiringRule():
     def __init__(self, or_firing_rule_arr):
         self.rules = or_firing_rule_arr
+
+    def is_ready_wt_rule_present(self):
+        for orRule in self.rules:
+            is_present = orRule._has_ready_wt_rule()
+            if is_present:
+                return is_present
+        
+        return False
+
+    def is_batch_size_enough_for_exec(self, batch_size):
+        return True if batch_size > 0 and self.is_ready_wt_rule_present \
+            else batch_size > 1
 
     def is_true(self, spec):
         """
@@ -681,7 +683,7 @@ class OrFiringRule():
                     So that this batched tasks are being enabled and executed.
         """
         
-        if len(waiting_times) < 2:
+        if not self.is_batch_size_enough_for_exec(len(waiting_times)):
             # not a batch, less than two items in the queue
             return None
 
@@ -691,7 +693,7 @@ class OrFiringRule():
             if len(per_rule) > 0:
                 # find the max time 
                 # cause that's the one that satisfies the set of rules
-                selected_enabled_time = max(per_rule, key = lambda et: et[1])
+                selected_enabled_time = max(per_rule)
                 enabled_times_per_or_rule = enabled_times_per_or_rule + [selected_enabled_time]
 
         if len(enabled_times_per_or_rule) == 0:
@@ -700,7 +702,7 @@ class OrFiringRule():
 
         # find and return the tuple (case_id, enabled_time) by the minimum of enabled_time
         # meaning the fastest time when one of the rule matches
-        return min(enabled_times_per_or_rule, key = lambda et: et[1])
+        return min(enabled_times_per_or_rule)
 
 
 class BatchConfigPerTask():

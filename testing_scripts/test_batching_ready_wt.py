@@ -1,22 +1,15 @@
 import pytest
-from datetime import datetime, time
+from datetime import datetime
 import pandas as pd
 
 from bpdfr_simulation_engine.batching_processing import AndFiringRule, FiringSubRule, OrFiringRule
 from bpdfr_simulation_engine.resource_calendar import parse_datetime
 from testing_scripts.test_batching import (
-    _get_start_time_and_count,
     _verify_logs_ordered_asc,
-    _verify_same_resource_for_batch,
-    assets_path
 )
-from testing_scripts.test_batching_daily_hour import _arrange_and_act
+from testing_scripts.test_batching_daily_hour import _arrange_and_act_base
 from testing_scripts.test_batching import (
-    _get_start_time_and_count,
-    _setup_arrival_distribution,
-    _setup_sim_scenario_file,
     _verify_logs_ordered_asc,
-    _verify_same_resource_for_batch,
     assets_path,
 )
 
@@ -104,6 +97,7 @@ data_one_week_day = [
     ),
 ]
 
+
 @pytest.mark.parametrize(
     "curr_enabled_at_str, enabled_datetimes, sign_ready_wt, ready_wt_value_sec, expected_is_true, expected_batch_size, expected_start_time_from_rule",
     data_one_week_day,
@@ -178,14 +172,8 @@ data_whole_sim_one_batch = [
     ),
 ]
 
-@pytest.mark.parametrize(
-    "sign_ready_wt, ready_wt_value_sec, expected_start_time_keys, assets_path_fixture",
-    data_whole_sim_one_batch,
-)
-def test_ready_wt_greater_equal_correct_enabled_and_batch_size(
-    sign_ready_wt, ready_wt_value_sec,
-    expected_start_time_keys, assets_path_fixture, request
-):
+@pytest.mark.parametrize('execution_number', range(5))
+def test_2(execution_number, assets_path):
     """
     Input:      6 process cases are being generated. A new case arrive every 3 hours.
                 Batched task are executed in parallel.
@@ -202,10 +190,9 @@ def test_ready_wt_greater_equal_correct_enabled_and_batch_size(
     """
 
     # ====== ARRANGE & ACT ======
-    assets_path = request.getfixturevalue(assets_path_fixture)
     firing_rules = [
         [
-            {"attribute": "ready_wt", "comparison": sign_ready_wt, "value": ready_wt_value_sec}
+            {"attribute": "ready_wt", "comparison": "<", "value": 7200}, # 2 hours
         ]
     ]
 
@@ -214,21 +201,82 @@ def test_ready_wt_greater_equal_correct_enabled_and_batch_size(
     start_string = "2022-09-29 23:45:30.035185+03:00"
     start_date = parse_datetime(start_string, True)
 
-    _arrange_and_act(assets_path, firing_rules, start_date, 6, 10800) # 3 hours - arrival rate
+    total_num_cases = 10
+    _arrange_and_act_exp(assets_path, firing_rules, start_date, total_num_cases)
 
     # ====== ASSERT ======
     df = pd.read_csv(sim_logs)
+    df["enable_time"] = pd.to_datetime(df["start_time"], errors="coerce")
     logs_d_task = df[df["activity"] == "D"]
-    grouped_by_start = logs_d_task.groupby(by="start_time")
+    grouped_by_start_and_resource = logs_d_task.groupby(by=["start_time", "resource"])
 
-    grouped_by_start_items = list(map(_get_start_time_and_count, list(grouped_by_start.groups.items())))
-    assert (
-        grouped_by_start_items == expected_start_time_keys
-    ), f"The start_time for batched D tasks differs. Expected: {expected_start_time_keys}, but was {grouped_by_start_items}"
+    prev_row_value = None
+    total_count_activities = 0
 
-    # verify that the same resource execute the whole batch
-    for _, group in grouped_by_start:
-        _verify_same_resource_for_batch(group["resource"])
+    # verify time distance between tasks inside the batch is less
+    # than the one specified in the rule (2 hours)
+    for _, group in grouped_by_start_and_resource:
+        for index, row in group.iterrows():
+            total_count_activities += 1
+            if prev_row_value == None:
+                prev_row_value = row["enable_time"]
+                continue
+        
+            diff = (row["enable_time"] - prev_row_value).seconds
+            assert (
+                diff < 7200,
+            ), f"The diff between two rows {index} and {index-1} does not follow the rule. \
+                    Expected 7200 sec, but was {diff}"
+
+            prev_row_value = row["enable_time"]
+
+    assert total_count_activities == total_num_cases, \
+        f"Total number of batched activites should be equal to total num of generated use cases. \
+            Expected {total_num_cases}, but was {total_count_activities}"
+
+    # verify that distance between pair of batch
+    # is greater that the one specified in the rule (2 hours)
+    first_last_enable_times = pd \
+        .concat([
+            grouped_by_start_and_resource.head(1),
+            grouped_by_start_and_resource.tail(1)
+        ]) \
+        .reset_index(drop=True)
+
+    prev_row_enable_time = None
+    for index, item in first_last_enable_times.iterrows():
+        # verify that enabled and start time are not equal
+        # since we should wait at least two hours
+        assert ( 
+            item["enable_time"] != item["start_time"]
+        ), f"The enable_time and start_time should not be equal (row {index+2})."
+
+        if index in [0, 1]:
+            prev_row_enable_time = item["enable_time"]
+            continue
+
+        diff = (item["enable_time"] - prev_row_enable_time).seconds
+        
+        assert (
+            diff > 7200,
+        ), f"The diff between two rows {index+2} and {index+1} does not follow the rule. \
+                Expected greater than 7200 sec, but was {diff}"
+        
+        prev_row_enable_time = item["enable_time"]
 
     # verify that column 'start_time' is ordered ascendingly
     _verify_logs_ordered_asc(df, start_date.tzinfo)
+
+
+def _arrange_and_act_exp(assets_path, firing_rules, start_date, num_cases):
+    arrival_distr = {
+        "distribution_name": "expon",
+        "distribution_params": [
+            { "value": 0 },
+            { "value": 7200.0 },
+            { "value": 0.0 },
+            { "value": 100000.0 },
+        ]
+    }
+
+    _arrange_and_act_base(assets_path, firing_rules, start_date, num_cases, arrival_distr)

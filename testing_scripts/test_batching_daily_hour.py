@@ -388,6 +388,17 @@ def test_daily_hour_every_day_and_size_correct_firing(assets_path_fixture, size_
 
 
 def _arrange_and_act(assets_path, firing_rules, start_date, num_cases, cases_arrival_rate):
+    # case arrives every 14400 seconds (= 4 hours)
+    # e.g., 14400 seconds = 4 hours
+    arrival_distr = {
+        "distribution_name": "fix",
+        "distribution_params": [{"value": cases_arrival_rate}, {"value": 0}, {"value": 1}],
+    }
+
+    _arrange_and_act_base(assets_path, firing_rules, start_date, num_cases, arrival_distr)
+    
+
+def _arrange_and_act_base(assets_path, firing_rules, start_date, num_cases, arrival_distr):
     # ====== ARRANGE ======
     model_path = assets_path / "batch-example-end-task.bpmn"
     basic_json_path = assets_path / "batch-example-with-batch.json"
@@ -397,13 +408,6 @@ def _arrange_and_act(assets_path, firing_rules, start_date, num_cases, cases_arr
 
     with open(basic_json_path, "r") as f:
         json_dict = json.load(f)
-
-    # case arrives every 14400 seconds (= 4 hours)
-    # e.g., 14400 seconds = 4 hours
-    arrival_distr = {
-        "distribution_name": "fix",
-        "distribution_params": [{"value": cases_arrival_rate}, {"value": 0}, {"value": 1}],
-    }
 
     _setup_sim_scenario_file(json_dict, None, None, "Parallel", firing_rules)
     _setup_arrival_distribution(json_dict, arrival_distr)
