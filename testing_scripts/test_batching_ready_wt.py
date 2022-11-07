@@ -7,7 +7,7 @@ from bpdfr_simulation_engine.resource_calendar import parse_datetime
 from testing_scripts.test_batching import (
     _verify_logs_ordered_asc,
 )
-from testing_scripts.test_batching_daily_hour import _arrange_and_act_base
+from testing_scripts.test_batching_daily_hour import _arrange_and_act_base, _get_current_exec_status
 from testing_scripts.test_batching import (
     _verify_logs_ordered_asc,
     assets_path,
@@ -117,22 +117,8 @@ def test_ready_wt_rule_correct_is_true(
         "ready_wt", sign_ready_wt, ready_wt_value_sec
     )
 
-    firing_rule_1 = AndFiringRule([firing_sub_rule_1])
-    rule = OrFiringRule([firing_rule_1])
+    rule, current_exec_status = _get_current_exec_status(firing_sub_rule_1, curr_enabled_at_str, enabled_datetimes)
 
-    curr_enabled_at = datetime.strptime(curr_enabled_at_str, "%d/%m/%y %H:%M:%S")
-    enabled_datetimes = [
-        datetime.strptime(item, "%d/%m/%y %H:%M:%S") for item in enabled_datetimes
-    ]
-    waiting_time_arr = [curr_enabled_at - item for item in enabled_datetimes]
-
-    current_exec_status = {
-        "size": len(waiting_time_arr),
-        "waiting_times": waiting_time_arr,
-        "enabled_datetimes": enabled_datetimes,
-        "curr_enabled_at": curr_enabled_at,
-        "is_triggered_by_batch": False,
-    }
 
     # ====== ACT & ASSERT ======
     (is_true, batch_spec, start_time_from_rule) = rule.is_true(current_exec_status)

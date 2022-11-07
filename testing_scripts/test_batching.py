@@ -11,7 +11,12 @@ from bpdfr_simulation_engine.resource_calendar import parse_datetime
 from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 from testing_scripts.test_simulation import _verify_activity_count_and_duration
 
-distribution = {"1": 0.8, "3": 0.75, "5": 0.6}
+distribution                = {"1": 0.8, "3": 0.75, "5": 0.6}
+MODEL_FILENAME              = "batch-example-end-task.bpmn"
+JSON_FILENAME               = "batch-example-with-batch.json"
+SIM_STATS_FILENAME          = "batch_stats.csv"
+SIM_LOGS_FILENAME           = "batch_logs.csv"
+JSON_NEAREST_COEF_FILENAME  = "batch-example-nearest-coef.json"
 
 data_nearest_neighbors = [
     ("assets_path", distribution, 4, 120 * 0.75),
@@ -30,9 +35,9 @@ def assets_path(request) -> Path:
 
     def teardown():
         output_paths = [
-            entry_path / "batch_stats.csv",
-            entry_path / "batch_logs.csv",
-            entry_path / "batch-example-nearest-coef.json",
+            entry_path / SIM_STATS_FILENAME,
+            entry_path / SIM_LOGS_FILENAME,
+            entry_path / JSON_NEAREST_COEF_FILENAME,
         ]
         for output_path in output_paths:
             if output_path.exists():
@@ -45,10 +50,10 @@ def assets_path(request) -> Path:
 
 def test_seq_batch_count_firing_rule_correct_duration(assets_path):
     # ====== ARRANGE ======
-    model_path = assets_path / "batch-example-end-task.bpmn"
-    json_path = assets_path / "batch-example-with-batch.json"
-    sim_stats = assets_path / "batch_stats.csv"
-    sim_logs = assets_path / "batch_logs.csv"
+    model_path = assets_path / MODEL_FILENAME
+    json_path = assets_path / JSON_FILENAME
+    sim_stats = assets_path / SIM_STATS_FILENAME
+    sim_logs = assets_path / SIM_LOGS_FILENAME
 
     start_string = "2022-06-21 13:22:30.035185+03:00"
     start_date = parse_datetime(start_string, True)
@@ -97,11 +102,11 @@ def test_batch_count_firing_rule_nearest_neighbor_correct(
 ):
     # ====== ARRANGE ======
     assets_path = request.getfixturevalue(assets_path_fixture)
-    model_path = assets_path / "batch-example-end-task.bpmn"
-    basic_json_path = assets_path / "batch-example-with-batch.json"
-    json_path = assets_path / "batch-example-nearest-coef.json"
-    sim_stats = assets_path / "batch_stats.csv"
-    sim_logs = assets_path / "batch_logs.csv"
+    model_path = assets_path / MODEL_FILENAME
+    basic_json_path = assets_path / JSON_FILENAME
+    json_path = assets_path / JSON_NEAREST_COEF_FILENAME
+    sim_stats = assets_path / SIM_STATS_FILENAME
+    sim_logs = assets_path / SIM_LOGS_FILENAME
 
     start_string = "2022-06-21 13:22:30.035185+03:00"
     start_date = parse_datetime(start_string, True)
@@ -139,10 +144,10 @@ def test_batch_count_firing_rule_nearest_neighbor_correct(
 
 def test_seq_batch_waiting_time_correct(assets_path):
     # ====== ARRANGE ======
-    model_path = assets_path / "batch-example-end-task.bpmn"
-    json_path = assets_path / "batch-example-with-batch.json"
-    sim_stats = assets_path / "batch_stats.csv"
-    sim_logs = assets_path / "batch_logs.csv"
+    model_path = assets_path / MODEL_FILENAME
+    json_path = assets_path / JSON_FILENAME
+    sim_stats = assets_path / SIM_STATS_FILENAME
+    sim_logs = assets_path / SIM_LOGS_FILENAME
 
     start_string = "2022-06-21 13:22:30.035185+03:00"
     start_date = parse_datetime(start_string, True)
@@ -209,11 +214,11 @@ def test_seq_batch_waiting_time_correct(assets_path):
 
 def test_parallel_batch_enable_start_waiting_correct(assets_path):
     # ====== ARRANGE ======
-    model_path = assets_path / "batch-example-end-task.bpmn"
-    basic_json_path = assets_path / "batch-example-with-batch.json"
-    json_path = assets_path / "batch-example-nearest-coef.json"
-    sim_stats = assets_path / "batch_stats.csv"
-    sim_logs = assets_path / "batch_logs.csv"
+    model_path = assets_path / MODEL_FILENAME
+    basic_json_path = assets_path / JSON_FILENAME
+    json_path = assets_path / JSON_NEAREST_COEF_FILENAME
+    sim_stats = assets_path / SIM_STATS_FILENAME
+    sim_logs = assets_path / SIM_LOGS_FILENAME
 
     start_string = "2022-06-21 13:22:30.035185+03:00"
     start_date = parse_datetime(start_string, True)
@@ -288,11 +293,11 @@ def test_two_batches_duration_correct(assets_path):
     """
 
     # ====== ARRANGE ======
-    model_path = assets_path / "batch-example-end-task.bpmn"
-    basic_json_path = assets_path / "batch-example-with-batch.json"
-    json_path = assets_path / "batch-example-nearest-coef.json"
-    sim_stats = assets_path / "batch_stats.csv"
-    sim_logs = assets_path / "batch_logs.csv"
+    model_path = assets_path / MODEL_FILENAME
+    basic_json_path = assets_path / JSON_FILENAME
+    json_path = assets_path / JSON_NEAREST_COEF_FILENAME
+    sim_stats = assets_path / SIM_STATS_FILENAME
+    sim_logs = assets_path / SIM_LOGS_FILENAME
 
     start_string = "2022-06-21 13:22:30.035185+03:00"
     start_date = parse_datetime(start_string, True)
@@ -350,11 +355,11 @@ def test_waiting_time_rule_correct_firing(assets_path):
     """
 
     # ====== ARRANGE ======
-    model_path = assets_path / "batch-example-end-task.bpmn"
-    basic_json_path = assets_path / "batch-example-with-batch.json"
-    json_path = assets_path / "batch-example-nearest-coef.json"
-    sim_stats = assets_path / "batch_stats.csv"
-    sim_logs = assets_path / "batch_logs.csv"
+    model_path = assets_path / MODEL_FILENAME
+    basic_json_path = assets_path / JSON_FILENAME
+    json_path = assets_path / JSON_NEAREST_COEF_FILENAME
+    sim_stats = assets_path / SIM_STATS_FILENAME
+    sim_logs = assets_path / SIM_LOGS_FILENAME
 
     start_string = "2022-06-21 13:22:30.035185+03:00"
     start_date = parse_datetime(start_string, True)
@@ -423,11 +428,11 @@ def test_week_day_correct_firing(assets_path):
     """
 
     # ====== ARRANGE ======
-    model_path = assets_path / "batch-example-end-task.bpmn"
-    basic_json_path = assets_path / "batch-example-with-batch.json"
-    json_path = assets_path / "batch-example-nearest-coef.json"
-    sim_stats = assets_path / "batch_stats.csv"
-    sim_logs = assets_path / "batch_logs.csv"
+    model_path = assets_path / MODEL_FILENAME
+    basic_json_path = assets_path / JSON_FILENAME
+    json_path = assets_path / JSON_NEAREST_COEF_FILENAME
+    sim_stats = assets_path / SIM_STATS_FILENAME
+    sim_logs = assets_path / SIM_LOGS_FILENAME
 
     start_string = "2022-09-26 13:22:30.035185+03:00"
     start_date = parse_datetime(start_string, True)
@@ -472,11 +477,11 @@ def test_week_day_different_correct_firing(assets_path):
     """
 
     # ====== ARRANGE ======
-    model_path = assets_path / "batch-example-end-task.bpmn"
-    basic_json_path = assets_path / "batch-example-with-batch.json"
-    json_path = assets_path / "batch-example-nearest-coef.json"
-    sim_stats = assets_path / "batch_stats.csv"
-    sim_logs = assets_path / "batch_logs.csv"
+    model_path = assets_path / MODEL_FILENAME
+    basic_json_path = assets_path / JSON_FILENAME
+    json_path = assets_path / JSON_NEAREST_COEF_FILENAME
+    sim_stats = assets_path / SIM_STATS_FILENAME
+    sim_logs = assets_path / SIM_LOGS_FILENAME
 
     start_string = "2022-09-25 23:40:30.000000+03:00"
     start_date = parse_datetime(start_string, True)
@@ -536,11 +541,11 @@ def test_two_rules_week_day_correct_start_time(assets_path):
     """
 
     # ====== ARRANGE ======
-    model_path = assets_path / "batch-example-end-task.bpmn"
-    basic_json_path = assets_path / "batch-example-with-batch.json"
-    json_path = assets_path / "batch-example-nearest-coef.json"
-    sim_stats = assets_path / "batch_stats.csv"
-    sim_logs = assets_path / "batch_logs.csv"
+    model_path = assets_path / MODEL_FILENAME
+    basic_json_path = assets_path / JSON_FILENAME
+    json_path = assets_path / JSON_NEAREST_COEF_FILENAME
+    sim_stats = assets_path / SIM_STATS_FILENAME
+    sim_logs = assets_path / SIM_LOGS_FILENAME
 
     start_string = "2022-09-25 23:40:30.000000+03:00"
     start_date = parse_datetime(start_string, True)
@@ -618,11 +623,11 @@ def test_two_rules_week_day_and_size_correct_start_time(assets_path):
     """
 
     # ====== ARRANGE ======
-    model_path = assets_path / "batch-example-end-task.bpmn"
-    basic_json_path = assets_path / "batch-example-with-batch.json"
-    json_path = assets_path / "batch-example-nearest-coef.json"
-    sim_stats = assets_path / "batch_stats.csv"
-    sim_logs = assets_path / "batch_logs.csv"
+    model_path = assets_path / MODEL_FILENAME
+    basic_json_path = assets_path / JSON_FILENAME
+    json_path = assets_path / JSON_NEAREST_COEF_FILENAME
+    sim_stats = assets_path / SIM_STATS_FILENAME
+    sim_logs = assets_path / SIM_LOGS_FILENAME
 
     start_string = "2022-09-25 23:40:30.000000+03:00"
     start_date = parse_datetime(start_string, True)

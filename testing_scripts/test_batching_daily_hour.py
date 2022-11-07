@@ -19,6 +19,8 @@ from testing_scripts.test_batching import (
     assets_path,
 )
 
+BATCH_LOGS_CSV_FILENAME = "batch_logs.csv"
+
 data_one_week_day = [
     # Rule: daily_hour > 15
     # Current state: 5 tasks waiting for the batch execution: three of them enabled before 15.
@@ -110,22 +112,7 @@ def test_daily_hour_rule_correct_enabled_and_batch_size(
         "daily_hour", sign_daily_hour_1, time(int(daily_hour_1), 0, 0)
     )
 
-    firing_rule_1 = AndFiringRule([firing_sub_rule_1])
-    rule = OrFiringRule([firing_rule_1])
-
-    curr_enabled_at = datetime.strptime(curr_enabled_at_str, "%d/%m/%y %H:%M:%S")
-    enabled_datetimes = [
-        datetime.strptime(item, "%d/%m/%y %H:%M:%S") for item in enabled_datetimes
-    ]
-    waiting_time_arr = [curr_enabled_at - item for item in enabled_datetimes]
-
-    current_exec_status = {
-        "size": len(waiting_time_arr),
-        "waiting_times": waiting_time_arr,
-        "enabled_datetimes": enabled_datetimes,
-        "curr_enabled_at": curr_enabled_at,
-        "is_triggered_by_batch": False,
-    }
+    rule, current_exec_status = _get_current_exec_status(firing_sub_rule_1, curr_enabled_at_str, enabled_datetimes)
 
     # ====== ACT & ASSERT ======
     (is_true, batch_spec, start_time_from_rule) = rule.is_true(current_exec_status)
@@ -167,7 +154,7 @@ def test_daily_hour_and_week_day_and_size_rule_correct_enabled_and_batch_size(as
         ]
     ]
 
-    sim_logs = assets_path / "batch_logs.csv"
+    sim_logs = assets_path / BATCH_LOGS_CSV_FILENAME
 
     start_string = "2022-09-29 23:45:30.035185+03:00"
     start_date = parse_datetime(start_string, True)
@@ -226,7 +213,7 @@ def test_2_daily_hour_and_week_day_and_size_rule_correct_enabled_and_batch_size(
         ]
     ]
 
-    sim_logs = assets_path / "batch_logs.csv"
+    sim_logs = assets_path / BATCH_LOGS_CSV_FILENAME
 
     start_string = "2022-09-29 23:45:30.035185+03:00"
     start_date = parse_datetime(start_string, True)
@@ -279,7 +266,7 @@ def test_daily_hour_every_day_correct_firing(assets_path):
     """
 
     # ====== ARRANGE & ACT ======
-    sim_logs = assets_path / "batch_logs.csv"
+    sim_logs = assets_path / BATCH_LOGS_CSV_FILENAME
 
     start_string = "2022-09-26 3:10:30.035185+03:00"
     start_date = parse_datetime(start_string, True)
@@ -358,7 +345,7 @@ def test_daily_hour_every_day_and_size_correct_firing(assets_path_fixture, size_
 
     # ====== ARRANGE & ACT ======
     assets_path = request.getfixturevalue(assets_path_fixture)
-    sim_logs = assets_path / "batch_logs.csv"
+    sim_logs = assets_path / BATCH_LOGS_CSV_FILENAME
 
     start_string = "2022-09-26 3:10:30.035185+03:00"
     start_date = parse_datetime(start_string, True)
@@ -404,7 +391,7 @@ def _arrange_and_act_base(assets_path, firing_rules, start_date, num_cases, arri
     basic_json_path = assets_path / "batch-example-with-batch.json"
     json_path = assets_path / "batch-example-nearest-coef.json"
     sim_stats = assets_path / "batch_stats.csv"
-    sim_logs = assets_path / "batch_logs.csv"
+    sim_logs = assets_path / BATCH_LOGS_CSV_FILENAME
 
     with open(basic_json_path, "r") as f:
         json_dict = json.load(f)
@@ -419,3 +406,23 @@ def _arrange_and_act_base(assets_path, firing_rules, start_date, num_cases, arri
     _, diff_sim_result = run_diff_res_simulation(
         start_date, num_cases, model_path, json_path, sim_stats, sim_logs
     )
+
+def _get_current_exec_status(firing_sub_rule_1, curr_enabled_at_str, enabled_datetimes):
+    firing_rule_1 = AndFiringRule([firing_sub_rule_1])
+    rule = OrFiringRule([firing_rule_1])
+
+    curr_enabled_at = datetime.strptime(curr_enabled_at_str, "%d/%m/%y %H:%M:%S")
+    enabled_datetimes = [
+        datetime.strptime(item, "%d/%m/%y %H:%M:%S") for item in enabled_datetimes
+    ]
+    waiting_time_arr = [curr_enabled_at - item for item in enabled_datetimes]
+
+    current_exec_status = {
+        "size": len(waiting_time_arr),
+        "waiting_times": waiting_time_arr,
+        "enabled_datetimes": enabled_datetimes,
+        "curr_enabled_at": curr_enabled_at,
+        "is_triggered_by_batch": False,
+    }
+
+    return rule, current_exec_status

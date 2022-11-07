@@ -134,19 +134,6 @@ def test_timer_event_no_events_in_logs(assets_path):
     _verify_activity_count_and_duration(df, expected_task_count, expected_task_timedelta)
 
 
-# def _verify_activity_count_and_duration(activities, count, expected_activity_timedelta):
-#     assert activities.shape[0] == count, \
-#         f"The total number of activities in the log file should be equal to {count}"
-    
-#     end_start_diff_for_task = activities['end_time'] - activities['start_time']
-#     for diff in end_start_diff_for_task:
-#         assert diff == expected_activity_timedelta, \
-#             f"The duration of the activity does not equal to {expected_activity_timedelta}"
-#     expected_task_timedelta = datetime.timedelta(minutes=30)
-#     for diff in end_start_diff_for_other_events:
-#         assert diff == expected_task_timedelta, \
-#             f"The duration of the task does not equal to 30 min"
-
 def test_event_based_gateway_correct(assets_path):
     """
     Input:      BPMN model consists timer event and event-based gateway.
@@ -235,17 +222,6 @@ def test_event_based_gateway_correct(assets_path):
     only_four_h_events = df[df['activity'] == '4h']
     _verify_activity_count_and_duration(only_four_h_events, 5, expected_timer_timedelta)
 
-# def _verify_event_count_and_duration(df, event_name, expected_occurences, expected_timer_timedelta):
-#     only_timer_events = df[df['activity'] == event_name]
-#     end_start_diff_for_timer = only_timer_events['end_time'] - only_timer_events['start_time']
-
-#     assert only_timer_events.shape[0] == expected_occurences, \
-#         "The total number of timer events in the log file should be equal to {expected_occurences}"
-
-#     for diff in end_start_diff_for_timer:
-#         assert diff == expected_timer_timedelta, \
-#             f"The duration of the timer does not equal to {expected_timer_timedelta}"
-        
 
 def _verify_activity_count_and_duration(activities, count, expected_activity_timedelta):
     assert activities.shape[0] == count, \

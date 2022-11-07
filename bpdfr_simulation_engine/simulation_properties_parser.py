@@ -122,7 +122,7 @@ def parse_batch_processing(batch_processing_json_data):
 
     for batch_processing in batch_processing_json_data:
         t_id = batch_processing["task_id"]
-        type = BATCH_TYPE(batch_processing["type"])
+        batch_type = BATCH_TYPE(batch_processing["type"])
 
         parsed_or_rules: List[OrFiringRule] = []
         for or_rules in batch_processing["firing_rules"]:
@@ -151,7 +151,7 @@ def parse_batch_processing(batch_processing_json_data):
         # TODO: "batch_frequency" and "size_distrib" should be added, as well
 
         batch_config[t_id] = BatchConfigPerTask(
-            type,
+            batch_type,
             duration_distibution,
             firing_rules
         )
