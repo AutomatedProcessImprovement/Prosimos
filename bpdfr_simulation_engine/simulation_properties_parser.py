@@ -169,7 +169,7 @@ def create_subrule(attribute, comparison, value):
             comparison = '>'
             formatted_value = value - 2
         elif comparison == '<=':
-            comparison == '>='
+            comparison = '>='
 
     return FiringSubRule(
         attribute,
