@@ -437,6 +437,32 @@ class AndFiringRule():
         return True if batch_size_res > 0 and self._has_ready_wt_rule() \
             else batch_size_res > 1
 
+    def get_valid_after_parsing(self): # is_valid_after_parsing(self):
+        if not self._has_ready_wt_rule():
+            return True
+
+        ready_wt_rule_operator = [rule.operator for rule in self.rules if rule.variable1 == "ready_wt"]
+        is_high_boundary = any(op in ["<", "<="] for op in ready_wt_rule_operator)
+
+        if len(ready_wt_rule_operator) == 1:
+            if is_high_boundary:
+                # change internally sign for the valid rule
+                parsed_rule = self.rules[0]
+                new_sign = ">" if parsed_rule.operator == "<" else "<="
+                self.rules = [
+                    FiringSubRule(parsed_rule.variable1, new_sign, parsed_rule.value2)
+                ]
+            else:
+                # defining only lower bound is not valid
+                self.rules = None
+        elif len(ready_wt_rule_operator) == 2:
+            is_low_boundary = any(op in [">", ">="] for op in ready_wt_rule_operator)
+            if not (is_low_boundary and is_high_boundary):
+                # both boundaries (low and high one) should exist
+                self.rules = None
+
+        return self.rules
+
     def is_true(self, element):
         """
         :param element - dictionary with the next structure:
@@ -626,7 +652,8 @@ class AndFiringRule():
                 expected_enabled_time.append(en_time)
             elif subrule.variable1 == 'ready_wt':
                 en_time = subrule._get_min_enabled_time_ready_wt(waiting_times, last_task_enabled_time, is_in_future)
-                expected_enabled_time.append(en_time)
+                if en_time != None:
+                    expected_enabled_time.append(en_time)
             else:
                 # no other rule types are being supported
                 continue

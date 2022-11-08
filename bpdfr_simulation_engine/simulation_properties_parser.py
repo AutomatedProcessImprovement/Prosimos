@@ -132,7 +132,7 @@ def parse_batch_processing(batch_processing_json_data):
                 subrule = create_subrule(
                     and_rule["attribute"],
                     and_rule["comparison"],
-                    and_rule["value"]
+                    and_rule["value"] 
                 )
 
                 parsed_and_rules.append(subrule)
@@ -140,6 +140,12 @@ def parse_batch_processing(batch_processing_json_data):
             _move_size_to_end(parsed_and_rules)
 
             firing_rule = AndFiringRule(parsed_and_rules)
+
+            valid_rules = firing_rule.get_valid_after_parsing()
+            if valid_rules == None:
+                print("WARNING: invalid rule")
+                raise Exception
+
             parsed_or_rules.append(firing_rule)
 
         firing_rules = OrFiringRule(parsed_or_rules)
@@ -163,13 +169,6 @@ def create_subrule(attribute, comparison, value):
     formatted_value = value
     if attribute == 'daily_hour':
         formatted_value = time(int(value), 0, 0, 0)
-    
-    if attribute == 'ready_wt':
-        if comparison == '<':
-            comparison = '>'
-            formatted_value = value - 2
-        elif comparison == '<=':
-            comparison = '>='
 
     return FiringSubRule(
         attribute,
