@@ -111,8 +111,10 @@ def test_daily_hour_rule_correct_enabled_and_batch_size(
     firing_sub_rule_1 = FiringSubRule(
         "daily_hour", sign_daily_hour_1, time(int(daily_hour_1), 0, 0)
     )
+    firing_rule_1 = AndFiringRule([firing_sub_rule_1])
+    rule = OrFiringRule([firing_rule_1])
 
-    rule, current_exec_status = _get_current_exec_status(firing_sub_rule_1, curr_enabled_at_str, enabled_datetimes)
+    current_exec_status = _get_current_exec_status(curr_enabled_at_str, enabled_datetimes)
 
     # ====== ACT & ASSERT ======
     (is_true, batch_spec, start_time_from_rule) = rule.is_true(current_exec_status)
@@ -407,10 +409,7 @@ def _arrange_and_act_base(assets_path, firing_rules, start_date, num_cases, arri
         start_date, num_cases, model_path, json_path, sim_stats, sim_logs
     )
 
-def _get_current_exec_status(firing_sub_rule_1, curr_enabled_at_str, enabled_datetimes):
-    firing_rule_1 = AndFiringRule([firing_sub_rule_1])
-    rule = OrFiringRule([firing_rule_1])
-
+def _get_current_exec_status(curr_enabled_at_str, enabled_datetimes):
     curr_enabled_at = datetime.strptime(curr_enabled_at_str, "%d/%m/%y %H:%M:%S")
     enabled_datetimes = [
         datetime.strptime(item, "%d/%m/%y %H:%M:%S") for item in enabled_datetimes
@@ -425,4 +424,4 @@ def _get_current_exec_status(firing_sub_rule_1, curr_enabled_at_str, enabled_dat
         "is_triggered_by_batch": False,
     }
 
-    return rule, current_exec_status
+    return current_exec_status

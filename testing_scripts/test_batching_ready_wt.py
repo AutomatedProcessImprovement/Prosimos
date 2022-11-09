@@ -1,5 +1,4 @@
 import pytest
-from datetime import datetime
 import pandas as pd
 
 from bpdfr_simulation_engine.batching_processing import AndFiringRule, FiringSubRule, OrFiringRule
@@ -116,9 +115,10 @@ def test_ready_wt_rule_correct_is_true(
     firing_sub_rule_1 = FiringSubRule(
         "ready_wt", sign_ready_wt, ready_wt_value_sec
     )
+    firing_rule_1 = AndFiringRule([firing_sub_rule_1])
+    rule = OrFiringRule([firing_rule_1])
 
-    rule, current_exec_status = _get_current_exec_status(firing_sub_rule_1, curr_enabled_at_str, enabled_datetimes)
-
+    current_exec_status = _get_current_exec_status(curr_enabled_at_str, enabled_datetimes)
 
     # ====== ACT & ASSERT ======
     (is_true, batch_spec, start_time_from_rule) = rule.is_true(current_exec_status)
@@ -131,35 +131,8 @@ def test_ready_wt_rule_correct_is_true(
         start_dt = start_time_from_rule.strftime("%d/%m/%Y %H:%M:%S")
         assert expected_start_time_from_rule == start_dt
 
-data_whole_sim_one_batch = [
-    # Input:    Firing rule: ready_wt > 18000 sec (5 hours)
-    # Expected: Waiting for collecting all activities where ready_wt is < 5 hours.
-    #           Enablind the batch the moment when we surpass the limitation of 5 hours.
-    #           This equals to the last enabled time + 5 hours 1 sec.
-    (
-        ">",
-        18000,   # 5 hours  - in the json file
-        [
-            ("2022-09-30 19:49:31.035185+03:00", 6)
-        ],
-        "assets_path"
-    ),
-    # Input:    Firing rule: ready_wt < 18000 sec (5 hours)
-    # Expected: Waiting for collecting all activities where ready_wt is < 5 hours.
-    #           Enablind the batch the moment when we are about to surpass the limitation of 5 hours.
-    #           This equals to the last enabled time + 04:59:59 
-    (
-        "<",
-        18000,   # 5 hours  - in the json file
-        [
-            ("2022-09-30 19:49:29.035185+03:00", 6)
-        ],
-        "assets_path"
-    ),
-]
-
 @pytest.mark.parametrize('execution_number', range(5))
-def test_2(execution_number, assets_path):
+def test_only_high_boundary_correct_distance_between_batches_and_inside(execution_number, assets_path):
     """
     Input:      6 process cases are being generated. A new case arrive every 3 hours.
                 Batched task are executed in parallel.
@@ -252,6 +225,87 @@ def test_2(execution_number, assets_path):
 
     # verify that column 'start_time' is ordered ascendingly
     _verify_logs_ordered_asc(df, start_date.tzinfo)
+
+
+data_range = [
+    (
+        "19/09/22 14:35:26",
+        [
+            "19/09/22 12:00:26",
+            "19/09/22 12:30:26",
+            "19/09/22 13:00:26",
+            "19/09/22 13:30:26",
+        ],
+        (">", 3600),
+        ("<", 7200),
+        True,
+        [4],
+        "19/09/2022 14:30:27"
+    ),
+    (
+        "19/09/22 13:35:26",
+        [
+            "19/09/22 12:00:26",
+        ],
+        (">", 3600),
+        ("<", 7200),
+        False,
+        None,
+        None,
+    ),
+    (
+        "19/09/22 14:35:26",
+        [
+            "19/09/22 12:00:26",
+        ],
+        (">", 3600),
+        ("<", 7200),
+        True,
+        [1],
+        "19/09/2022 14:00:25"
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "curr_enabled_at_str, enabled_datetimes, first_rule, second_rule, expected_is_true, expected_batch_size, expected_start_time_from_rule",
+    data_range,
+)
+def test_range_correct_is_true(
+    curr_enabled_at_str,
+    enabled_datetimes,
+    first_rule,
+    second_rule,
+    expected_is_true,
+    expected_batch_size,
+    expected_start_time_from_rule
+):
+
+    # ====== ARRANGE ======
+    fr_sign, fr_value = first_rule
+    sr_sign, sr_value = second_rule
+
+    firing_sub_rule_1 = FiringSubRule(
+        "ready_wt", fr_sign, fr_value
+    )
+    firing_sub_rule_2 = FiringSubRule(
+        "ready_wt", sr_sign, sr_value
+    )
+    firing_rule_1 = AndFiringRule([firing_sub_rule_1, firing_sub_rule_2])
+    rule = OrFiringRule([firing_rule_1])
+
+    current_exec_status = _get_current_exec_status(curr_enabled_at_str, enabled_datetimes)
+
+    # ====== ACT & ASSERT ======
+    (is_true, batch_spec, start_time_from_rule) = rule.is_true(current_exec_status)
+    assert expected_is_true == is_true
+    assert expected_batch_size == batch_spec
+
+    if expected_start_time_from_rule == None:
+        assert expected_start_time_from_rule == start_time_from_rule
+    else:
+        start_dt = start_time_from_rule.strftime("%d/%m/%Y %H:%M:%S")
+        assert expected_start_time_from_rule == start_dt
 
 
 def _arrange_and_act_exp(assets_path, firing_rules, start_date, num_cases):
