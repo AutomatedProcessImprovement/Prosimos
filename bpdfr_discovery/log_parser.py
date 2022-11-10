@@ -279,7 +279,7 @@ def parse_csv(log_path):
 
 
 def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_confidence, min_support,
-                       min_participation, fit_calendar, use_observed_arrival_times=False, is_csv=False, min_bin=50):
+                       min_participation, fit_calendar, is_csv=False, min_bin=50, use_observed_arrival_times=False):
     print('Discovery Params: Conf: %.2f, Supp: %.2f, R. Part: %.2f, Adj. Cal: %s'
           % (min_confidence, min_support, min_participation, str(fit_calendar)))
     bpmn_graph, log_traces = parse_and_validate_input(log_path, bpmn_path, minutes_x_granule, min_confidence,
@@ -788,7 +788,7 @@ def discover_arrival_calendar(initial_events, minutes_x_granule, min_confidence,
     return arrival_calendar['arrival']
 
 
-def discover_arrival_time_distribution(initial_events, arrival_calendar, use_observed_arrival_times):
+def discover_arrival_time_distribution(initial_events, arrival_calendar, use_observed_arrival_times=False):
     # print("Discovering Arrival-Time Distribution ...")
     arrival = list()
     for case_id in initial_events:
