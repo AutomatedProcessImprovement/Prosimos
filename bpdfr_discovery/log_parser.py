@@ -279,7 +279,7 @@ def parse_csv(log_path):
 
 
 def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_confidence, min_support,
-                       min_participation, fit_calendar, is_csv=False, min_bin=50):
+                       min_participation, fit_calendar, use_observed_arrival_times=False, is_csv=False, min_bin=50):
     print('Discovery Params: Conf: %.2f, Supp: %.2f, R. Part: %.2f, Adj. Cal: %s'
           % (min_confidence, min_support, min_participation, str(fit_calendar)))
     bpmn_graph, log_traces = parse_and_validate_input(log_path, bpmn_path, minutes_x_granule, min_confidence,
@@ -423,7 +423,7 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
     json_arrival_calendar = arrival_calendar.to_json()
 
     # # (3) Discovering Arrival Time Distribution
-    arrival_time_dist = discover_arrival_time_distribution(initial_events, arrival_calendar)
+    arrival_time_dist = discover_arrival_time_distribution(initial_events, arrival_calendar, use_observed_arrival_times)
 
     # # (4) Discovering Task Duration Distributions per resource
     task_resource_dist = discover_resource_task_duration_distribution(task_resource_events, res_calendars,
@@ -788,7 +788,7 @@ def discover_arrival_calendar(initial_events, minutes_x_granule, min_confidence,
     return arrival_calendar['arrival']
 
 
-def discover_arrival_time_distribution(initial_events, arrival_calendar):
+def discover_arrival_time_distribution(initial_events, arrival_calendar, use_observed_arrival_times):
     # print("Discovering Arrival-Time Distribution ...")
     arrival = list()
     for case_id in initial_events:
@@ -804,7 +804,14 @@ def discover_arrival_time_distribution(initial_events, arrival_calendar):
     if print_info:
         print("In Calendar Event Ratio: %.2f" % (len(arrival) / len(initial_events)))
         print('---------------------------------------------------')
-    return best_fit_distribution(durations)
+    # If we want to use the observed arrival times instead of fitting them to a distribution
+    if use_observed_arrival_times:
+        # The arrival distribution is "histogram_sampling" and we save the observations
+        arrival_distribution = {"distribution_name": "histogram_sampling", "observations": durations}
+    else:
+        # Otherwise, find the best fitting distribution
+        arrival_distribution = best_fit_distribution(durations)
+    return arrival_distribution
 
 
 def discover_aggregated_task_distributions(task_events, fit_cal, res_calendar: RCalendar):
