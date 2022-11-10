@@ -40,7 +40,7 @@
 #         p_cases = process_files[model_name]["total_cases"]
 #
 #     for i in range(0, 5):
-#         run_diff_res_simulation(parse_datetime(start_datetime, True), p_cases, bpmn_path, json_path, None, sim_log_path)
+#         run_diff_res_simulation(start_datetime, True, p_cases, bpmn_path, json_path, None, sim_log_path)
 #
 #
 # def discover_from_xes_log(model_name):

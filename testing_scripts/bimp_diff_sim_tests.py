@@ -1,7 +1,6 @@
 import datetime
 import os
 
-from bpdfr_simulation_engine.resource_calendar import parse_datetime
 from bpdfr_simulation_engine.simulation_engine import run_simulation
 from bpdfr_simulation_engine.simulation_properties_parser import parse_qbp_simulation_process
 from bpdfr_simulation_engine.simulation_stats import load_bimp_simulation_results, load_diff_simulation_results
@@ -85,7 +84,7 @@ def main():
                             '%sbimp_%s_%d_stats.csv' % (output_dir_path, model_name, p_cases),
                             '%sbimp_%s_%d_log.csv' % (output_dir_path, model_name, p_cases))
 
-        diff_sim_result = run_diff_res_simulation(parse_datetime(experiment_models[model_name]['start_datetime'], True),
+        diff_sim_result = run_diff_res_simulation(experiment_models[model_name]['start_datetime'],
                                                   p_cases,
                                                   experiment_models[model_name]["bpmn"],
                                                   experiment_models[model_name]["json"],
