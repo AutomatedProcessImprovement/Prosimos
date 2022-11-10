@@ -23,7 +23,7 @@ Once all the dependencies all installed, open a terminal and from the root folde
                                          --total_cases <Number of process instances to simulate>
                                          --log_out_path <(Optional) Path to the CSV file to save the statistics/metrics after running the simulations>
                                          --stat_out_path <(Optional) Path to the CSV file to save the event-log of the simulation>
-                                         --starting_at <(Optional) Date-time of the first process case in the simulation>
+                                         --starting_at <(Optional) Date-time of the first process case in the simulation as a string. For example, 2022-06-21T13:22:30.035185+03:00>
 
 The last three parameters are optional. 
 If none of the output file paths **_stat_out_path_** and **_log_out_path_** are provided, then **_stat_out_path_** is used by default, and the statistics file generated in the current directory. 

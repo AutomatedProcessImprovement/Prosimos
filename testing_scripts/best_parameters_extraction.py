@@ -7,7 +7,7 @@ import pytz
 from bpdfr_discovery.log_parser import sort_by_completion_times, discover_arrival_calendar, discover_arrival_time_distribution, discover_resource_calendars, \
     discover_resource_task_duration_distribution, map_task_id_from_names
 from bpdfr_simulation_engine.execution_info import Trace
-from bpdfr_simulation_engine.resource_calendar import CalendarFactory, parse_datetime
+from bpdfr_simulation_engine.resource_calendar import CalendarFactory
 from bpdfr_simulation_engine.simulation_properties_parser import parse_simulation_model
 from pm4py.objects.log.importer.xes import importer as xes_importer
 
@@ -176,7 +176,7 @@ def compute_median_simulation_emd(model_name, p_cases, bpmn_path, json_path, rea
 
     while i < 5:
         # try:
-        sim_duration, _ = run_diff_res_simulation(parse_datetime(process_files[model_name]['start_datetime'], True),
+        sim_duration, _ = run_diff_res_simulation(process_files[model_name]['start_datetime'],
                                                   p_cases, bpmn_path, json_path, None, sim_log_path)
 
         simulated_log = read_and_preprocess_log(sim_log_path)
