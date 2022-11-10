@@ -124,6 +124,8 @@ def evaluate_distribution_function(distribution_name, params):
         return params[0]
     elif distribution_name == 'default':
         return numpy.random.uniform(params[0], params[1])
+    elif distribution_name == "histogram_sampling":
+        return random.choice(params)
 
     arg = params[:-4]
     loc = params[-4]

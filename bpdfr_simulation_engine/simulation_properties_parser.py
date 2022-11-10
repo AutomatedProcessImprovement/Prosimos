@@ -103,7 +103,7 @@ def parse_event_distribution(event_json_data):
 
             for param_info in event_info["distribution_params"]:
                 dist_params.append(float(param_info["value"]))
-            
+
             event_distibution[e_id] = {
                 "distribution_name": event_info["distribution_name"],
                 "distribution_params": dist_params
@@ -129,8 +129,15 @@ def parse_arrival_branching_probabilities(arrival_json, gateway_json):
     element_distribution = dict()
 
     dist_params = []
-    for param_info in arrival_json["distribution_params"]:
-        dist_params.append(float(param_info["value"]))
+    if arrival_json["distribution_name"] == "histogram_sampling":
+        # Custom distribution: we expect a list of inter-arrival interval values (floats),
+        # prosimos will take randomly a value from this list each time it needs a new
+        # observation, so the output will follow (if the sample is big enough) the same
+        # "unknown distribution" than the specified data.
+        dist_params = arrival_json["observations"]
+    else:
+        for param_info in arrival_json["distribution_params"]:
+            dist_params.append(float(param_info["value"]))
     element_distribution['arrivalTime'] = {"distribution_name": arrival_json["distribution_name"],
                                            "distribution_params": dist_params}
 
@@ -168,7 +175,7 @@ def parse_simulation_model(bpmn_path):
                     if "name" in bpmn_element.attrib and len(bpmn_element.attrib["name"]) > 0 \
                     else bpmn_element.attrib["id"]
                 elem_general_type: BPMN = to_extract[xmlns_key]
-                
+
                 event_type = _get_event_type_from_element(name, bpmn_element) if BPMN.is_event(elem_general_type) else None
                 e_info = ElementInfo(elem_general_type, bpmn_element.attrib["id"], name, event_type)
 
