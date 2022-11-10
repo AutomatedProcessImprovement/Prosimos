@@ -11,6 +11,7 @@ from bpdfr_simulation_engine.control_flow_manager import BPMN, EVENT_TYPE, Custo
 from bpdfr_simulation_engine.file_manager import FileManager
 from bpdfr_simulation_engine.execution_info import Trace, TaskEvent, EnabledEvent
 from bpdfr_simulation_engine.resource_calendar import get_string_from_datetime
+from bpdfr_simulation_engine.resource_calendar import parse_datetime
 from bpdfr_simulation_engine.simulation_queues_ds import PriorityQueue, DiffResourceQueue, EventQueue
 from bpdfr_simulation_engine.simulation_setup import SimDiffSetup
 from bpdfr_simulation_engine.simulation_stats_calculator import LogInfo
@@ -412,7 +413,8 @@ def run_simulation(bpmn_path, json_path, total_cases, stat_out_path=None, log_ou
     if not diffsim_info:
         return None
 
-    diffsim_info.set_starting_datetime(starting_at if starting_at else pytz.utc.localize(datetime.datetime.now()))
+    starting_at_datetime = parse_datetime(starting_at, True)
+    diffsim_info.set_starting_datetime(starting_at_datetime if starting_at_datetime else pytz.utc.localize(datetime.datetime.now()))
 
     # if not stat_out_path and not log_out_path:
     #     stat_out_path = os.path.join(os.path.dirname(__file__), Path("%s.csv" % diffsim_info.process_name))
@@ -443,7 +445,7 @@ def run_simpy_simulation(diffsim_info, total_cases, stat_fwriter, log_fwriter):
     add_simulation_event_log_header(log_fwriter)
     execute_full_process(bpm_env, total_cases)
     if log_fwriter is None and stat_fwriter is None:
-        return bpm_env.log_info.compute_process_kpi(bpm_env)
+        return bpm_env.log_info.compute_process_kpi(bpm_env), bpm_env.log_info
     if log_fwriter:
         bpm_env.log_writer.force_write()
     if stat_fwriter:

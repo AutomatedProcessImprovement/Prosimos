@@ -27,8 +27,10 @@ def parse_json_sim_parameters(json_path):
         element_distribution = parse_arrival_branching_probabilities(json_data["arrival_time_distribution"],
                                                                      json_data["gateway_branching_probabilities"])
         arrival_calendar = parse_arrival_calendar(json_data)
-        event_distibution = parse_event_distribution(json_data["event_distribution"])
+        event_distibution = parse_event_distribution(json_data["event_distribution"]) \
+            if "event_distribution" in json_data else dict()
         batch_processing = parse_batch_processing(json_data["batch_processing"])
+
 
         return resources_map, calendars_map, element_distribution, task_resource_distribution, arrival_calendar, event_distibution, batch_processing
 
@@ -304,8 +306,10 @@ def parse_simulation_model(bpmn_path):
     bpmn_graph.validate_model()
     return bpmn_graph
 
+
 def _get_event_type_from_element(name: str, bpmn_element):
-    children = bpmn_element.getchildren()
+    #children = bpmn_element.getchildren()
+    children = list(bpmn_element)
 
     for child in children:
         if "EventDefinition" in child.tag:

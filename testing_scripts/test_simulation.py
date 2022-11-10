@@ -49,10 +49,9 @@ def test_timer_event_correct_duration_in_sim_logs(assets_path):
     sim_logs = assets_path / 'timer_with_task_logs.csv'
 
     start_string = '2022-06-21 13:22:30.035185+03:00'
-    start_date = parse_datetime(start_string, True)
 
     # ====== ACT ======
-    _, _ = run_diff_res_simulation(start_date,
+    _, _ = run_diff_res_simulation(start_string,
                                     5,
                                     model_path,
                                     json_path,
@@ -103,10 +102,9 @@ def test_timer_event_no_events_in_logs(assets_path):
     sim_logs = assets_path / 'timer_with_task_logs.csv'
 
     start_string = '2022-06-21 13:22:30.035185+03:00'
-    start_date = parse_datetime(start_string, True)
 
     # ====== ACT ======
-    _, _ = run_diff_res_simulation(start_date,
+    _, _ = run_diff_res_simulation(start_string,
                                     5,
                                     model_path,
                                     json_path,
@@ -191,10 +189,9 @@ def test_event_based_gateway_correct(assets_path):
     _setup_sim_scenario_file(json_path, event_distr_array)
 
     start_string = '2022-06-21 13:22:30.035185+03:00'
-    start_date = parse_datetime(start_string, True)
 
     # ====== ACT ======
-    _, _ = run_diff_res_simulation(start_date,
+    _, _ = run_diff_res_simulation(start_string,
                                     5,
                                     model_path,
                                     json_path,
