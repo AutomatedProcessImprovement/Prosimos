@@ -159,9 +159,8 @@ def test_daily_hour_and_week_day_and_size_rule_correct_enabled_and_batch_size(as
     sim_logs = assets_path / BATCH_LOGS_CSV_FILENAME
 
     start_string = "2022-09-29 23:45:30.035185+03:00"
-    start_date = parse_datetime(start_string, True)
 
-    _arrange_and_act(assets_path, firing_rules, start_date, 29, 10800)
+    _arrange_and_act(assets_path, firing_rules, start_string, 29, 10800)
 
     # ====== ASSERT ======
     df = pd.read_csv(sim_logs)
@@ -183,6 +182,7 @@ def test_daily_hour_and_week_day_and_size_rule_correct_enabled_and_batch_size(as
         _verify_same_resource_for_batch(group["resource"])
 
     # verify that column 'start_time' is ordered ascendingly
+    start_date = parse_datetime(start_string, True)
     _verify_logs_ordered_asc(df, start_date.tzinfo)
 
 
@@ -218,9 +218,8 @@ def test_2_daily_hour_and_week_day_and_size_rule_correct_enabled_and_batch_size(
     sim_logs = assets_path / BATCH_LOGS_CSV_FILENAME
 
     start_string = "2022-09-29 23:45:30.035185+03:00"
-    start_date = parse_datetime(start_string, True)
 
-    _arrange_and_act(assets_path, firing_rules, start_date, 29, 10800)
+    _arrange_and_act(assets_path, firing_rules, start_string, 29, 10800)
 
     # ====== ASSERT ======
     df = pd.read_csv(sim_logs)
@@ -247,6 +246,7 @@ def test_2_daily_hour_and_week_day_and_size_rule_correct_enabled_and_batch_size(
         _verify_same_resource_for_batch(group["resource"])
 
     # verify that column 'start_time' is ordered ascendingly
+    start_date = parse_datetime(start_string, True)
     _verify_logs_ordered_asc(df, start_date.tzinfo)
 
 def _get_start_time_and_count_final(item):
@@ -271,12 +271,11 @@ def test_daily_hour_every_day_correct_firing(assets_path):
     sim_logs = assets_path / BATCH_LOGS_CSV_FILENAME
 
     start_string = "2022-09-26 3:10:30.035185+03:00"
-    start_date = parse_datetime(start_string, True)
 
     firing_rules = [[{"attribute": "daily_hour", "comparison": ">", "value": "15"}]]
 
     # 14400 seconds = 4 hours
-    _arrange_and_act(assets_path, firing_rules, start_date, 11, 14400)
+    _arrange_and_act(assets_path, firing_rules, start_string, 11, 14400)
 
     # ====== ASSERT ======
     df = pd.read_csv(sim_logs)
@@ -295,6 +294,7 @@ def test_daily_hour_every_day_correct_firing(assets_path):
     ), f"The start_time for batched D tasks differs. Expected: {expected_start_time_keys}, but was {grouped_by_start_items}"
 
     # verify that column 'start_time' is ordered ascendingly
+    start_date = parse_datetime(start_string, True)
     _verify_logs_ordered_asc(df, start_date.tzinfo)
 
     # verify that the same resource execute the whole batch
@@ -350,7 +350,6 @@ def test_daily_hour_every_day_and_size_correct_firing(assets_path_fixture, size_
     sim_logs = assets_path / BATCH_LOGS_CSV_FILENAME
 
     start_string = "2022-09-26 3:10:30.035185+03:00"
-    start_date = parse_datetime(start_string, True)
     
     firing_rules = [
         [
@@ -360,7 +359,7 @@ def test_daily_hour_every_day_and_size_correct_firing(assets_path_fixture, size_
     ]
 
     # 14400 seconds = 4 hours
-    _arrange_and_act(assets_path, firing_rules, start_date, 12, 14400)
+    _arrange_and_act(assets_path, firing_rules, start_string, 12, 14400)
 
     # ====== ASSERT ======
     df = pd.read_csv(sim_logs)
@@ -373,6 +372,7 @@ def test_daily_hour_every_day_and_size_correct_firing(assets_path_fixture, size_
     ), f"The start_time for batched D tasks differs. Expected: {expected_start_time_keys}, but was {grouped_by_start_items}"
 
     # verify that column 'start_time' is ordered ascendingly
+    start_date = parse_datetime(start_string, True)
     _verify_logs_ordered_asc(df, start_date.tzinfo)
 
 

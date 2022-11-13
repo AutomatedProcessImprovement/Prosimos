@@ -56,11 +56,10 @@ def test_seq_batch_count_firing_rule_correct_duration(assets_path):
     sim_logs = assets_path / SIM_LOGS_FILENAME
 
     start_string = "2022-06-21 13:22:30.035185+03:00"
-    start_date = parse_datetime(start_string, True)
 
     # ====== ACT ======
     _, diff_sim_result = run_diff_res_simulation(
-        start_date, 6, model_path, json_path, sim_stats, sim_logs, True
+        start_string, 6, model_path, json_path, sim_stats, sim_logs, True
     )
 
     # ====== ASSERT ======
@@ -109,7 +108,6 @@ def test_batch_count_firing_rule_nearest_neighbor_correct(
     sim_logs = assets_path / SIM_LOGS_FILENAME
 
     start_string = "2022-06-21 13:22:30.035185+03:00"
-    start_date = parse_datetime(start_string, True)
 
     with open(basic_json_path, "r") as f:
         json_dict = json.load(f)
@@ -121,7 +119,7 @@ def test_batch_count_firing_rule_nearest_neighbor_correct(
 
     # ====== ACT ======
     _, diff_sim_result = run_diff_res_simulation(
-        start_date, firing_count, model_path, json_path, sim_stats, sim_logs
+        start_string, firing_count, model_path, json_path, sim_stats, sim_logs
     )
 
     # ====== ASSERT ======
@@ -150,11 +148,10 @@ def test_seq_batch_waiting_time_correct(assets_path):
     sim_logs = assets_path / SIM_LOGS_FILENAME
 
     start_string = "2022-06-21 13:22:30.035185+03:00"
-    start_date = parse_datetime(start_string, True)
 
     # ====== ACT ======
     _, diff_sim_result = run_diff_res_simulation(
-        start_date, 6, model_path, json_path, sim_stats, sim_logs, True
+        start_string, 6, model_path, json_path, sim_stats, sim_logs, True
     )
 
     # ====== ASSERT ======
@@ -221,7 +218,6 @@ def test_parallel_batch_enable_start_waiting_correct(assets_path):
     sim_logs = assets_path / SIM_LOGS_FILENAME
 
     start_string = "2022-06-21 13:22:30.035185+03:00"
-    start_date = parse_datetime(start_string, True)
 
     with open(basic_json_path, "r") as f:
         json_dict = json.load(f)
@@ -233,7 +229,7 @@ def test_parallel_batch_enable_start_waiting_correct(assets_path):
 
     # ====== ACT ======
     _, diff_sim_result = run_diff_res_simulation(
-        start_date, 3, model_path, json_path, sim_stats, sim_logs  # one batch
+        start_string, 3, model_path, json_path, sim_stats, sim_logs  # one batch
     )
 
     # ====== ASSERT ======
@@ -300,7 +296,6 @@ def test_two_batches_duration_correct(assets_path):
     sim_logs = assets_path / SIM_LOGS_FILENAME
 
     start_string = "2022-06-21 13:22:30.035185+03:00"
-    start_date = parse_datetime(start_string, True)
 
     with open(basic_json_path, "r") as f:
         json_dict = json.load(f)
@@ -313,7 +308,7 @@ def test_two_batches_duration_correct(assets_path):
 
     # ====== ACT ======
     _, diff_sim_result = run_diff_res_simulation(
-        start_date, 3, model_path, json_path, sim_stats, sim_logs  # one batch
+        start_string, 3, model_path, json_path, sim_stats, sim_logs  # one batch
     )
 
     # ====== ASSERT ======
@@ -362,7 +357,6 @@ def test_waiting_time_rule_correct_firing(assets_path):
     sim_logs = assets_path / SIM_LOGS_FILENAME
 
     start_string = "2022-06-21 13:22:30.035185+03:00"
-    start_date = parse_datetime(start_string, True)
 
     with open(basic_json_path, "r") as f:
         json_dict = json.load(f)
@@ -377,14 +371,15 @@ def test_waiting_time_rule_correct_firing(assets_path):
 
     # ====== ACT ======
     _, diff_sim_result = run_diff_res_simulation(
-        start_date, 3, model_path, json_path, sim_stats, sim_logs  # one batch
+        start_string, 3, model_path, json_path, sim_stats, sim_logs  # one batch
     )
 
     # ====== ASSERT ======
 
     # verify that batch was execute right after 8 min of simulation
     # verify that batch was of size 3 and all tasks have the same start and end date (parallel execution)
-
+    
+    start_date = parse_datetime(start_string, True)
     expected_batch_start_time = start_date + timedelta(minutes=8)
     expected_batch_end_time = expected_batch_start_time + timedelta(
         seconds=96.0
@@ -435,7 +430,6 @@ def test_week_day_correct_firing(assets_path):
     sim_logs = assets_path / SIM_LOGS_FILENAME
 
     start_string = "2022-09-26 13:22:30.035185+03:00"
-    start_date = parse_datetime(start_string, True)
 
     with open(basic_json_path, "r") as f:
         json_dict = json.load(f)
@@ -448,7 +442,7 @@ def test_week_day_correct_firing(assets_path):
 
     # ====== ACT ======
     _, diff_sim_result = run_diff_res_simulation(
-        start_date, 4, model_path, json_path, sim_stats, sim_logs  # one batch
+        start_string, 4, model_path, json_path, sim_stats, sim_logs  # one batch
     )
 
     # ====== ASSERT ======
@@ -484,7 +478,6 @@ def test_week_day_different_correct_firing(assets_path):
     sim_logs = assets_path / SIM_LOGS_FILENAME
 
     start_string = "2022-09-25 23:40:30.000000+03:00"
-    start_date = parse_datetime(start_string, True)
 
     with open(basic_json_path, "r") as f:
         json_dict = json.load(f)
@@ -497,7 +490,7 @@ def test_week_day_different_correct_firing(assets_path):
 
     # ====== ACT ======
     _, diff_sim_result = run_diff_res_simulation(
-        start_date, 10, model_path, json_path, sim_stats, sim_logs  # one batch
+        start_string, 10, model_path, json_path, sim_stats, sim_logs  # one batch
     )
 
     # ====== ASSERT ======
@@ -548,7 +541,6 @@ def test_two_rules_week_day_correct_start_time(assets_path):
     sim_logs = assets_path / SIM_LOGS_FILENAME
 
     start_string = "2022-09-25 23:40:30.000000+03:00"
-    start_date = parse_datetime(start_string, True)
 
     with open(basic_json_path, "r") as f:
         json_dict = json.load(f)
@@ -572,7 +564,7 @@ def test_two_rules_week_day_correct_start_time(assets_path):
 
     # ====== ACT ======
     _, diff_sim_result = run_diff_res_simulation(
-        start_date, 9, model_path, json_path, sim_stats, sim_logs
+        start_string, 9, model_path, json_path, sim_stats, sim_logs
     )
 
     # ====== ASSERT ======
@@ -630,7 +622,6 @@ def test_two_rules_week_day_and_size_correct_start_time(assets_path):
     sim_logs = assets_path / SIM_LOGS_FILENAME
 
     start_string = "2022-09-25 23:40:30.000000+03:00"
-    start_date = parse_datetime(start_string, True)
 
     with open(basic_json_path, "r") as f:
         json_dict = json.load(f)
@@ -656,7 +647,7 @@ def test_two_rules_week_day_and_size_correct_start_time(assets_path):
 
     # ====== ACT ======
     _, diff_sim_result = run_diff_res_simulation(
-        start_date, 9, model_path, json_path, sim_stats, sim_logs
+        start_string, 9, model_path, json_path, sim_stats, sim_logs
     )
 
     # ====== ASSERT ======
@@ -734,7 +725,9 @@ def _verify_same_resource_for_batch(resource_series):
     This would mean the batch was executed by the same resource.
     """
     first_resource_arr = resource_series.to_numpy()
-    return (first_resource_arr[0] == resource_series).all()
+    assert (first_resource_arr[0] == resource_series).all(), \
+        f"Assigned resource to the tasks inside the batch should be equal. \
+            {resource_series} does not satisfy the requirement."
 
 def _verify_logs_ordered_asc(df, tzinfo):
     """ Verify that column 'start_time' is ordered ascendingly """

@@ -5,12 +5,16 @@ from bpdfr_simulation_engine.batching_processing import AndFiringRule, FiringSub
 from bpdfr_simulation_engine.resource_calendar import parse_datetime
 from testing_scripts.test_batching import (
     _verify_logs_ordered_asc,
+    _verify_same_resource_for_batch,
 )
 from testing_scripts.test_batching_daily_hour import _arrange_and_act_base, _get_current_exec_status
 from testing_scripts.test_batching import (
     _verify_logs_ordered_asc,
     assets_path,
 )
+
+TWO_HOURS_IN_SEC = 7200
+THREE_HOURS_IN_SEC = 10800
 
 data_one_week_day = [
     # Rule:             ready_wt < 3600 (3600 seconds = 1 hour)
@@ -28,8 +32,8 @@ data_one_week_day = [
             "19/09/22 13:00:26",
             "19/09/22 13:30:26",
         ],
-        ">",    # "<"   - in the json file
-        3598,   # 3600  - in the json file
+        "<",
+        3600,
         True,
         [4],
         "19/09/2022 14:30:25",
@@ -116,6 +120,7 @@ def test_ready_wt_rule_correct_is_true(
         "ready_wt", sign_ready_wt, ready_wt_value_sec
     )
     firing_rule_1 = AndFiringRule([firing_sub_rule_1])
+    firing_rule_1.init_ready_wt_boundaries_if_any()
     rule = OrFiringRule([firing_rule_1])
 
     current_exec_status = _get_current_exec_status(curr_enabled_at_str, enabled_datetimes)
@@ -151,7 +156,7 @@ def test_only_high_boundary_correct_distance_between_batches_and_inside(executio
     # ====== ARRANGE & ACT ======
     firing_rules = [
         [
-            {"attribute": "ready_wt", "comparison": "<", "value": 7200}, # 2 hours
+            {"attribute": "ready_wt", "comparison": "<", "value": TWO_HOURS_IN_SEC}, # 2 hours
         ]
     ]
 
@@ -161,7 +166,7 @@ def test_only_high_boundary_correct_distance_between_batches_and_inside(executio
     start_date = parse_datetime(start_string, True)
 
     total_num_cases = 10
-    _arrange_and_act_exp(assets_path, firing_rules, start_date, total_num_cases)
+    _arrange_and_act_exp(assets_path, firing_rules, start_string, total_num_cases)
 
     # ====== ASSERT ======
     df = pd.read_csv(sim_logs)
@@ -183,9 +188,9 @@ def test_only_high_boundary_correct_distance_between_batches_and_inside(executio
         
             diff = (row["enable_time"] - prev_row_value).seconds
             assert (
-                diff < 7200,
+                diff < TWO_HOURS_IN_SEC,
             ), f"The diff between two rows {index} and {index-1} does not follow the rule. \
-                    Expected 7200 sec, but was {diff}"
+                    Expected TWO_HOURS_IN_SEC sec, but was {diff}"
 
             prev_row_value = row["enable_time"]
 
@@ -217,9 +222,9 @@ def test_only_high_boundary_correct_distance_between_batches_and_inside(executio
         diff = (item["enable_time"] - prev_row_enable_time).seconds
         
         assert (
-            diff > 7200,
+            diff > TWO_HOURS_IN_SEC,
         ), f"The diff between two rows {index+2} and {index+1} does not follow the rule. \
-                Expected greater than 7200 sec, but was {diff}"
+                Expected greater than {TWO_HOURS_IN_SEC} sec, but was {diff}"
         
         prev_row_enable_time = item["enable_time"]
 
@@ -229,40 +234,53 @@ def test_only_high_boundary_correct_distance_between_batches_and_inside(executio
 
 data_range = [
     (
-        "19/09/22 14:35:26",
+        "19/09/22 15:35:26",
         [
             "19/09/22 12:00:26",
             "19/09/22 12:30:26",
             "19/09/22 13:00:26",
             "19/09/22 13:30:26",
         ],
-        (">", 3600),
-        ("<", 7200),
+        (">", TWO_HOURS_IN_SEC),
+        ("<", THREE_HOURS_IN_SEC),
         True,
         [4],
-        "19/09/2022 14:30:27"
-    ),
-    (
-        "19/09/22 13:35:26",
-        [
-            "19/09/22 12:00:26",
-        ],
-        (">", 3600),
-        ("<", 7200),
-        False,
-        None,
-        None,
+        "19/09/2022 15:30:27"
     ),
     (
         "19/09/22 14:35:26",
         [
             "19/09/22 12:00:26",
         ],
-        (">", 3600),
-        ("<", 7200),
+        (">", TWO_HOURS_IN_SEC),
+        ("<", THREE_HOURS_IN_SEC),
+        False,
+        None,
+        None,
+    ),
+    (
+        "19/09/22 15:35:26",
+        [
+            "19/09/22 12:00:26",
+        ],
+        (">", TWO_HOURS_IN_SEC),
+        ("<", THREE_HOURS_IN_SEC),
         True,
         [1],
-        "19/09/2022 14:00:25"
+        "19/09/2022 15:00:25"
+    ),
+    (
+        "19/09/22 21:15:26",
+        [
+            "19/09/22 12:00:26",
+            "19/09/22 14:45:26",
+            "19/09/22 17:30:26",
+        ],
+        (">", TWO_HOURS_IN_SEC),
+        ("<", THREE_HOURS_IN_SEC),
+        True,
+        [2, 1],
+        "19/09/2022 16:45:27"
     ),
 ]
 
@@ -292,6 +310,7 @@ def test_range_correct_is_true(
         "ready_wt", sr_sign, sr_value
     )
     firing_rule_1 = AndFiringRule([firing_sub_rule_1, firing_sub_rule_2])
+    firing_rule_1.init_ready_wt_boundaries_if_any()
     rule = OrFiringRule([firing_rule_1])
 
     current_exec_status = _get_current_exec_status(curr_enabled_at_str, enabled_datetimes)
@@ -307,6 +326,110 @@ def test_range_correct_is_true(
         start_dt = start_time_from_rule.strftime("%d/%m/%Y %H:%M:%S")
         assert expected_start_time_from_rule == start_dt
 
+
+@pytest.mark.parametrize('execution_number', range(5))
+def test_range_correct_distance_between_batches_and_inside(execution_number, assets_path):
+    # ====== ARRANGE & ACT ======
+    firing_rules = [
+        [
+            {"attribute": "ready_wt", "comparison": ">", "value": TWO_HOURS_IN_SEC},
+            {"attribute": "ready_wt", "comparison": "<", "value": THREE_HOURS_IN_SEC},
+        ]
+    ]
+
+    sim_logs = assets_path / "batch_logs.csv"
+
+    start_string = "2022-09-29 23:45:30.035185+03:00"
+    start_date = parse_datetime(start_string, True)
+
+    total_num_cases = 20
+    _arrange_and_act_exp(assets_path, firing_rules, start_string, total_num_cases)
+
+    # ====== ASSERT ======
+    df = pd.read_csv(sim_logs)
+    df["enable_time"] = pd.to_datetime(df["enable_time"], errors="coerce")
+    df["start_time"] = pd.to_datetime(df["start_time"], errors="coerce")
+
+    logs_d_task = df[df["activity"] == "D"]
+
+    grouped_by_start_and_resource = logs_d_task.groupby(by=["start_time", "resource"])
+
+    # verify time distance between tasks inside the batch is less
+    # than the one specified in the rule (2 hours)
+    _verify_distance_inside_batch(grouped_by_start_and_resource, TWO_HOURS_IN_SEC, total_num_cases)
+
+    # verify that the same resource execute the whole batch
+    grouped_by_start = logs_d_task.groupby(by=["start_time"])
+    for _, group in grouped_by_start:
+        _verify_same_resource_for_batch(group["resource"])
+
+    # verify that difference between start and enable time is taken from 
+    # the high boundary for batch with one item 
+    batches_with_one_task = grouped_by_start_and_resource.filter(lambda x: len(x) == 1)
+    for index, item in batches_with_one_task.iterrows():
+        difference = (item['start_time'] - item['enable_time']).seconds
+        expected_difference = THREE_HOURS_IN_SEC - 1
+        assert difference == expected_difference, \
+            f"For batches with one task, the difference between start_date and end_date \
+                should be equal to {expected_difference}, but was {difference}"
+
+    # verify that distance between pair of batch
+    # is greater that the one specified in the rule (2 hours)
+    _verify_distance_ouside_batch(grouped_by_start_and_resource, TWO_HOURS_IN_SEC, THREE_HOURS_IN_SEC)
+
+    # verify that column 'start_time' is ordered ascendingly
+    _verify_logs_ordered_asc(df, start_date.tzinfo)
+
+def _verify_distance_inside_batch(grouped_by_start_and_resource, upper_limit, total_num_cases):
+    total_count_activities = 0
+    prev_row_value = None
+
+    for _, group in grouped_by_start_and_resource:
+        for index, row in group.iterrows():
+            total_count_activities += 1
+            if prev_row_value == None:
+                prev_row_value = row["enable_time"]
+                continue
+        
+            diff = (row["enable_time"] - prev_row_value).seconds
+            assert (
+                diff < upper_limit,
+            ), f"The diff between two rows {index} and {index-1} does not follow the rule. \
+                    Expected TWO_HOURS_IN_SEC sec, but was {diff}"
+
+            prev_row_value = row["enable_time"]
+
+    assert total_count_activities == total_num_cases, \
+        f"Total number of batched activites should be equal to total num of generated use cases. \
+            Expected {total_num_cases}, but was {total_count_activities}"
+
+
+def _verify_distance_ouside_batch(grouped_by_start_and_resource, low_boundary, high_boundary):
+    first_last_enable_times = grouped_by_start_and_resource \
+        .agg(['first', 'last']) \
+        .stack() \
+        .reset_index()
+
+    prev_row_enable_time = first_last_enable_times["enable_time"][1]
+    for index, item in first_last_enable_times.iloc[2:].iterrows():
+        if index % 2 != 0:
+            prev_row_enable_time = item["enable_time"]
+            continue
+
+        # verify that enabled and start time are not equal
+        # since we should wait at least two hours
+        assert ( 
+            item["enable_time"] != item["start_time"]
+        ), f"The enable_time and start_time should not be equal (row {index+2})."
+
+        diff = (item["enable_time"] - prev_row_enable_time).seconds
+        
+        assert (
+            low_boundary < diff > high_boundary,
+        ), f"The diff between two rows {index+2} and {index+1} does not follow the rule. \
+                Expected between {low_boundary} and {high_boundary}, but was {diff}"
+        
+        prev_row_enable_time = item["enable_time"]
 
 def _arrange_and_act_exp(assets_path, firing_rules, start_date, num_cases):
     arrival_distr = {

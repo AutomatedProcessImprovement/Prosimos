@@ -143,11 +143,7 @@ def parse_batch_processing(batch_processing_json_data):
 
             firing_rule = AndFiringRule(parsed_and_rules)
 
-            valid_rules = firing_rule.get_valid_after_parsing()
-            if valid_rules == None:
-                print("WARNING: invalid rule")
-                raise Exception
-
+            firing_rule.init_ready_wt_boundaries_if_any()
             parsed_or_rules.append(firing_rule)
 
         firing_rules = OrFiringRule(parsed_or_rules)
