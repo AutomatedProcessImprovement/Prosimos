@@ -554,7 +554,7 @@ class AndFiringRule():
                 
                 if batch_size > current_batch_size or \
                     enabled_time > initial_curr_enabled_at:
-                    # 1) we do not have enought items in the batch to satisfy the rule
+                    # 1) we do not have enough items in the batch to satisfy the rule
                     # or
                     # 2) enabled_time is in the future and will be handled later
                     return 0, None

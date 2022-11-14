@@ -13,6 +13,7 @@ from testing_scripts.test_batching import (
     assets_path,
 )
 
+ONE_HOUR_IN_SEC = 3600
 TWO_HOURS_IN_SEC = 7200
 THREE_HOURS_IN_SEC = 10800
 
@@ -33,7 +34,7 @@ data_one_week_day = [
             "19/09/22 13:30:26",
         ],
         "<",
-        3600,
+        ONE_HOUR_IN_SEC,
         True,
         [4],
         "19/09/2022 14:30:25",
@@ -56,7 +57,7 @@ data_one_week_day = [
             "19/09/22 12:30:26",
         ],
         ">",
-        3600, # one hour
+        ONE_HOUR_IN_SEC,
         True,
         [3, 2],
         "19/09/2022 11:30:27",
@@ -76,7 +77,7 @@ data_one_week_day = [
             "19/09/22 12:30:26",
         ],
         ">=",
-        3600, # one hour
+        ONE_HOUR_IN_SEC,
         True,
         [4],
         "19/09/2022 13:30:26",
@@ -93,7 +94,7 @@ data_one_week_day = [
             "19/09/22 12:30:26",
         ],
         ">",
-        3600, # one hour
+        ONE_HOUR_IN_SEC,
         False,
         None,
         None,
@@ -156,7 +157,7 @@ def test_only_high_boundary_correct_distance_between_batches_and_inside(executio
     # ====== ARRANGE & ACT ======
     firing_rules = [
         [
-            {"attribute": "ready_wt", "comparison": "<", "value": TWO_HOURS_IN_SEC}, # 2 hours
+            {"attribute": "ready_wt", "comparison": "<", "value": TWO_HOURS_IN_SEC},
         ]
     ]
 
@@ -174,59 +175,13 @@ def test_only_high_boundary_correct_distance_between_batches_and_inside(executio
     logs_d_task = df[df["activity"] == "D"]
     grouped_by_start_and_resource = logs_d_task.groupby(by=["start_time", "resource"])
 
-    prev_row_value = None
-    total_count_activities = 0
-
     # verify time distance between tasks inside the batch is less
     # than the one specified in the rule (2 hours)
-    for _, group in grouped_by_start_and_resource:
-        for index, row in group.iterrows():
-            total_count_activities += 1
-            if prev_row_value == None:
-                prev_row_value = row["enable_time"]
-                continue
-        
-            diff = (row["enable_time"] - prev_row_value).seconds
-            assert (
-                diff < TWO_HOURS_IN_SEC,
-            ), f"The diff between two rows {index} and {index-1} does not follow the rule. \
-                    Expected TWO_HOURS_IN_SEC sec, but was {diff}"
-
-            prev_row_value = row["enable_time"]
-
-    assert total_count_activities == total_num_cases, \
-        f"Total number of batched activites should be equal to total num of generated use cases. \
-            Expected {total_num_cases}, but was {total_count_activities}"
+    _verify_distance_inside_batch(grouped_by_start_and_resource, TWO_HOURS_IN_SEC, total_num_cases)
 
     # verify that distance between pair of batch
     # is greater that the one specified in the rule (2 hours)
-    first_last_enable_times = pd \
-        .concat([
-            grouped_by_start_and_resource.head(1),
-            grouped_by_start_and_resource.tail(1)
-        ]) \
-        .reset_index(drop=True)
-
-    prev_row_enable_time = None
-    for index, item in first_last_enable_times.iterrows():
-        # verify that enabled and start time are not equal
-        # since we should wait at least two hours
-        assert ( 
-            item["enable_time"] != item["start_time"]
-        ), f"The enable_time and start_time should not be equal (row {index+2})."
-
-        if index in [0, 1]:
-            prev_row_enable_time = item["enable_time"]
-            continue
-
-        diff = (item["enable_time"] - prev_row_enable_time).seconds
-        
-        assert (
-            diff > TWO_HOURS_IN_SEC,
-        ), f"The diff between two rows {index+2} and {index+1} does not follow the rule. \
-                Expected greater than {TWO_HOURS_IN_SEC} sec, but was {diff}"
-        
-        prev_row_enable_time = item["enable_time"]
+    _verify_distance_outside_batch(grouped_by_start_and_resource, TWO_HOURS_IN_SEC)
 
     # verify that column 'start_time' is ordered ascendingly
     _verify_logs_ordered_asc(df, start_date.tzinfo)
@@ -375,7 +330,7 @@ def test_range_correct_distance_between_batches_and_inside(execution_number, ass
 
     # verify that distance between pair of batch
     # is greater that the one specified in the rule (2 hours)
-    _verify_distance_ouside_batch(grouped_by_start_and_resource, TWO_HOURS_IN_SEC, THREE_HOURS_IN_SEC)
+    _verify_distance_outside_batch(grouped_by_start_and_resource, TWO_HOURS_IN_SEC)
 
     # verify that column 'start_time' is ordered ascendingly
     _verify_logs_ordered_asc(df, start_date.tzinfo)
@@ -404,7 +359,7 @@ def _verify_distance_inside_batch(grouped_by_start_and_resource, upper_limit, to
             Expected {total_num_cases}, but was {total_count_activities}"
 
 
-def _verify_distance_ouside_batch(grouped_by_start_and_resource, low_boundary, high_boundary):
+def _verify_distance_outside_batch(grouped_by_start_and_resource, low_boundary):
     first_last_enable_times = grouped_by_start_and_resource \
         .agg(['first', 'last']) \
         .stack() \
@@ -425,9 +380,9 @@ def _verify_distance_ouside_batch(grouped_by_start_and_resource, low_boundary, h
         diff = (item["enable_time"] - prev_row_enable_time).seconds
         
         assert (
-            low_boundary < diff > high_boundary,
+            diff > low_boundary,
         ), f"The diff between two rows {index+2} and {index+1} does not follow the rule. \
-                Expected between {low_boundary} and {high_boundary}, but was {diff}"
+                Expected greater than {low_boundary}, but was {diff}"
         
         prev_row_enable_time = item["enable_time"]
 
