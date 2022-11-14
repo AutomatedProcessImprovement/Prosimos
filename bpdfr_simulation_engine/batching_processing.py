@@ -640,7 +640,7 @@ class AndFiringRule():
                         en_time.tzinfo
                     )
                 expected_enabled_time.append(en_time)
-            elif subrule.variable1 == "daily_hour":
+            elif subrule.variable1 == "ready_wt":
                 # was calculated previously
                 continue
             else:
