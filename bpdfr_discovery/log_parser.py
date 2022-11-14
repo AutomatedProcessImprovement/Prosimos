@@ -588,14 +588,19 @@ def save_prosimos_json(to_save, file_path):
         })
 
     arrival_dist_params = []
-    for d_param in to_save["arrival_time_distribution"]["distribution_params"]:
-        arrival_dist_params.append({
-            "value": d_param
-        })
+    if "distribution_params" in to_save["arrival_time_distribution"]:
+        for d_param in to_save["arrival_time_distribution"]["distribution_params"]:
+            arrival_dist_params.append({
+                "value": d_param
+            })
+    observations = to_save["arrival_time_distribution"]["observations"] \
+        if "observations" in to_save["arrival_time_distribution"] else {}
     arrival_time_distribution = {
         "distribution_name": to_save["arrival_time_distribution"]["distribution_name"],
-        "distribution_params": arrival_dist_params
+        "distribution_params": arrival_dist_params,
+        "observations": observations
     }
+    
     with open(file_path, 'w') as file_writter:
         json.dump({
             "resource_profiles": resource_profiles,
