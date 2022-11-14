@@ -18,13 +18,33 @@ TWO_HOURS_IN_SEC = 7200
 THREE_HOURS_IN_SEC = 10800
 
 data_one_week_day = [
-    # Rule:             ready_wt < 3600 (3600 seconds = 1 hour)
-    #                   (it's being parsed to ready_wt > 3598, cause it should be fired last_item_en_time + 3599)
+    # Rule:             ready_wt = 3600 (3600 seconds = 1 hour)
     # Current state:    4 tasks waiting for the batch execution.
-    #                   difference between each of them is not > 3598
+    #                   difference between each of them is less than 3600
     # Expected result:  firing rule is enabled at the time we check for enabled time 
-    #                   enabled time of the batch equals to the enabled time of the last item in the batch + 3598 
-    #                   (value dictated by rule)
+    #                   enabled time of the batch equals to the enabled time of the last item in the batch + 3600
+    #                   (value dictated by rule, equal sign)
+    (
+        "19/09/22 14:35:26",
+        [
+            "19/09/22 12:00:26",
+            "19/09/22 12:30:26",
+            "19/09/22 13:00:26",
+            "19/09/22 13:30:26",
+        ],
+        "=",
+        ONE_HOUR_IN_SEC,
+        True,
+        [4],
+        "19/09/2022 14:30:26",
+    ),
+    # Rule:             ready_wt < 3600 (3600 seconds = 1 hour)
+    # Current state:    4 tasks waiting for the batch execution.
+    #                   difference between each of them is less than 1 hour
+    #                   in order to be classified as batch - at least two items should be combined together
+    # Expected result:  firing rule is enabled at the time we have two items needed for batch execution
+    #                   enabled time of the batch equals to the enabled time of the last item in the batch
+    #                   (second in the queue) 
     (
         "19/09/22 14:35:26",
         [
@@ -36,56 +56,46 @@ data_one_week_day = [
         "<",
         ONE_HOUR_IN_SEC,
         True,
-        [4],
-        "19/09/2022 14:30:25",
+        [2, 2],
+        "19/09/2022 12:30:26",
     ),
-    # Rule:             ready_wt > 3600 (3600 seconds = 1 hour)
-    # Current state:    5 tasks waiting for the batch execution.
-    # Expected result:  Firing rule is enabled for the all items and this equals to two batches to be executed.
-    #                   Enabled time of the batch equals to the enabled time of the last item in each batch
-    #                   (meaning, to the maximum datetime from all enabled batches).
-    #                   There is difference between two activities (3d and 4th) which exceeds one hour limit,
-    #                   so that's what triggers the first batch to be enabled. 
-    #                   Verify that enabled_time of the batch is one second after the datetime forced by the rule.
+    # Rule:             ready_wt <= 3600 (3600 seconds = 1 hour)
+    # Current state:    One task waiting for the batch execution.
+    #                   Current point in the time is already past two hours after enabled time of the task.
+    # Expected result:  The process wait for the new case to arrive at most for one hour.
+    #                   No batch execution, the item is executed alone with the start time of its enabled_time + one hour.
     (
         "19/09/22 14:05:26",
         [
-            "19/09/22 10:00:26",
-            "19/09/22 10:00:26",
-            "19/09/22 10:30:26",
             "19/09/22 12:00:26",
-            "19/09/22 12:30:26",
         ],
-        ">",
+        "<=",
         ONE_HOUR_IN_SEC,
         True,
-        [3, 2],
-        "19/09/2022 11:30:27",
+        [1],
+        "19/09/2022 13:00:26",
     ),
-    # Rule:             ready_wt >= 3600 (3600 seconds = 1 hour)
-    # Current state:    4 tasks waiting for the batch execution.
-    # Expected result:  Firing rule is enabled for the all items and this equals to one batch enabled.
-    #                   All activities have difference of less than one hour,
-    #                   that's why the rule were not satisfied at that point somewhere.
-    #                   Verify that enabled_time of the batch equals exactly to the datetime forced by the rule.
+    # Rule:             ready_wt <= 3600 (3600 seconds = 1 hour)
+    # Current state:    One task waiting for the batch execution.
+    #                   Current point in the time is already past two hours after enabled time of the task.
+    # Expected result:  The process wait for the new case to arrive at most for one hour.
+    #                   No batch execution, the item is executed alone with the start time of its enabled_time + one hour.
     (
         "19/09/22 14:05:26",
         [
-            "19/09/22 11:00:26",
-            "19/09/22 11:30:26",
             "19/09/22 12:00:26",
-            "19/09/22 12:30:26",
         ],
-        ">=",
+        "<",
         ONE_HOUR_IN_SEC,
         True,
-        [4],
-        "19/09/2022 13:30:26",
+        [1],
+        "19/09/2022 13:00:25",
     ),
-    # Rule:             ready_wt > 3600 (3600 seconds = 1 hour)
+    # Rule:             ready_wt = 3600 (3600 seconds = 1 hour)
     # Current state:    3 tasks waiting for the batch execution.
     # Expected result:  Firing rule is not enabled since no items
-    #                   waiting for batch execution satisfies the rule.
+    #                   waiting for batch execution satisfies the rule
+    #                   (we still have hald an hour to receive a new item).
     (
         "19/09/22 13:00:26",
         [
@@ -93,7 +103,7 @@ data_one_week_day = [
             "19/09/22 12:15:26",
             "19/09/22 12:30:26",
         ],
-        ">",
+        "=",
         ONE_HOUR_IN_SEC,
         False,
         None,

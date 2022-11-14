@@ -341,6 +341,9 @@ class AndFiringRule():
         self.ready_wt_boundaries = None
 
     def init_ready_wt_boundaries_if_any(self):
+        if not self._has_ready_wt_rule():
+            return 
+
         low_boundary = None 
         high_boundary = None
         for rule in self.rules:
@@ -349,20 +352,20 @@ class AndFiringRule():
                     high_boundary = rule.value2
                     low_boundary = rule.value2
                 elif rule.operator == '<':
+                    low_boundary = 0 if low_boundary == None else low_boundary
                     high_boundary = rule.value2 - 1
                 elif rule.operator == '<=':
+                    low_boundary = 0 if low_boundary == None else low_boundary
                     high_boundary = rule.value2
                 elif rule.operator == '>':
                     low_boundary = rule.value2 + 1
                 elif rule.operator == '>=':
                     low_boundary = rule.value2
 
-        if low_boundary == None:
-            # case when we have only '<' sign
-            low_boundary = high_boundary
+        if low_boundary == None or high_boundary == None:
+            raise Exception("Invalid range of ready_wt rule")
 
         self.ready_wt_boundaries = low_boundary, high_boundary
-        # TODO: clarify which cases are invalid: with only < or only > sign
 
 
     def _has_ready_wt_rule(self):
