@@ -389,7 +389,6 @@ class BPMNGraph:
         batch_enabled_time = firing_rules.get_enabled_time(
             enabled_times, 
             last_task_enabled_time,
-            True
         )
         
         if batch_enabled_time != None:

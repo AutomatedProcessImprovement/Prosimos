@@ -38,6 +38,14 @@ class BATCH_TYPE(Enum):
     PARALLEL = 'Parallel'       # tasks are being executed simultaneously
 
 
+class RULE_TYPE(Enum):
+    READY_WT = "ready_wt"
+    LARGE_WT = "large_wt"
+    DAILY_HOUR = "daily_hour"
+    WEEK_DAY = "week_day"
+    SIZE = "size"
+
+
 class FiringSubRule():
     def __init__(self, variable1: str, operator: str, value2: str):
         self.variable1 = variable1
@@ -45,7 +53,7 @@ class FiringSubRule():
         self.value2 = value2
 
     def is_batch_size_enough(self, batch_size):
-        if self.variable1 == "ready_wt":
+        if RULE_TYPE(self.variable1) in [RULE_TYPE.LARGE_WT, RULE_TYPE.READY_WT]:
             return batch_size > 0
         else:
             return batch_size > 1
@@ -57,8 +65,8 @@ class FiringSubRule():
             # not enough to be executed in batch, at least 2 tasks required
             return False
 
-        if self.variable1 == "waiting_times":
-            value1_list = element[self.variable1]
+        if self.variable1 == "large_wt":
+            value1_list = element["waiting_times"]
 
             if len(value1_list) < 2:
                 # not enough to be executed in batch, at least 2 tasks required
@@ -123,28 +131,6 @@ class FiringSubRule():
 
     def is_batch_size(self):
         return self.variable1 == "size"
-
-    def _get_min_enabled_time_waiting_time(self, waiting_times, last_task_start_time: CustomDatetimeAndSeconds) -> tuple([int, datetime]):
-        """
-        Get the enabled time for the batch
-        based on the maximum waiting time of the task in the batch 
-        (meaning, for the 'waiting_time' kind of rule)
-        """
-        _, oldest_waiting = waiting_times[0]
-        oldest_waiting_time = oldest_waiting.datetime
-        rule_value = self.value2
-
-        min_waiting_time = {
-            '<': min(oldest_waiting_time, rule_value - 1),
-            '<=': min(oldest_waiting_time, rule_value),
-            '=': oldest_waiting_time,
-            '>': oldest_waiting_time if oldest_waiting_time > rule_value else rule_value + 1,
-            '>=': oldest_waiting_time if oldest_waiting_time >= rule_value else rule_value
-        }
-
-        # find the minimum waiting time (either from the rule specification or the last waiting_time of the batched task)
-        needed_time_seconds = min_waiting_time.get(self.operator)
-        return last_task_start_time.datetime + timedelta(needed_time_seconds)
 
     def _get_min_enabled_time_week_day(self, last_task_start_time: CustomDatetimeAndSeconds) -> tuple([int, datetime]):
         if self._is_current_date_enabled(last_task_start_time.datetime):
@@ -339,15 +325,43 @@ class AndFiringRule():
     def __init__(self, array_of_subrules: List[FiringSubRule]):
         self.rules = array_of_subrules
         self.ready_wt_boundaries = None
+        self.large_wt_boundaries = None
 
-    def init_ready_wt_boundaries_if_any(self):
-        if not self._has_ready_wt_rule():
+    def _has_rule(self, rule_name: List[RULE_TYPE]):
+        rule_values = map(lambda x: x.value, rule_name)
+        for rule in self.rules:
+            if rule.variable1 in rule_values:
+                return True
+        
+        return False
+
+
+    def init_boundaries(self):
+        self._init_ready_wt_boundaries_if_any()
+        self._init_large_wt_boundaries_if_any()
+
+
+    def _init_ready_wt_boundaries_if_any(self):
+        rule_type: RULE_TYPE = RULE_TYPE.READY_WT
+        if not self._has_rule([rule_type]):
             return 
 
+        self.ready_wt_boundaries = self._get_low_and_high_boundaries(rule_type)
+
+
+    def _init_large_wt_boundaries_if_any(self):
+        rule_type: RULE_TYPE = RULE_TYPE.LARGE_WT
+        if not self._has_rule([rule_type]):
+            return 
+
+        self.large_wt_boundaries = self._get_low_and_high_boundaries(rule_type)
+
+
+    def _get_low_and_high_boundaries(self, rule_name: RULE_TYPE):
         low_boundary = None 
         high_boundary = None
         for rule in self.rules:
-            if rule.variable1 == "ready_wt":
+            if rule.variable1 == rule_name.value:
                 if rule.operator == '=':
                     high_boundary = rule.value2
                     low_boundary = rule.value2
@@ -365,19 +379,11 @@ class AndFiringRule():
         if low_boundary == None or high_boundary == None:
             raise Exception("Invalid range of ready_wt rule")
 
-        self.ready_wt_boundaries = low_boundary, high_boundary
-
-
-    def _has_ready_wt_rule(self):
-        for rule in self.rules:
-            if rule.variable1 == "ready_wt":
-                return True
-        
-        return False
+        return low_boundary, high_boundary
 
 
     def get_ready_wt(self, element):
-        if not self._has_ready_wt_rule():
+        if not self._has_rule([RULE_TYPE.READY_WT]):
             # no ready_wt rules
             return None
 
@@ -394,7 +400,7 @@ class AndFiringRule():
             if item < prev_item and len(enabled_datetimes) == 1:
                 # one item in the future
                 # happens when no new cases will arrive 
-                return en_time_index, _get_enabled_time_for_ready_wt_rule(prev_item, operator.gt, high_boundary)
+                return en_time_index, _get_enabled_time_for_wt_rule(prev_item, operator.gt, high_boundary)
 
             diff = (item - prev_item).seconds
             is_batch_enabled_low = diff < low_boundary
@@ -408,21 +414,77 @@ class AndFiringRule():
                     # lower boundary is not fulfilled anymore
                     # we have at least two items in the batch, so enable the batch
                     # else we wait for the new task till the high boundary is reached
-                    return en_time_index, _get_enabled_time_for_ready_wt_rule(prev_item, operator.ge, low_boundary)
+                    return en_time_index, _get_enabled_time_for_wt_rule(prev_item, operator.ge, low_boundary)
             
             is_batch_enabled_high = diff > high_boundary
             if is_batch_enabled_high:
                 # waiting time exceeds the higher boundary
                 # stop waiting, enable the batch with one task
-                return en_time_index, _get_enabled_time_for_ready_wt_rule(prev_item, operator.le, high_boundary)
+                return en_time_index, _get_enabled_time_for_wt_rule(prev_item, operator.le, high_boundary)
 
             prev_item = item
 
         return 0, None
 
+    def get_large_wt(self, element):
+        if not self._has_rule([RULE_TYPE.LARGE_WT]):
+            # no large_wt rules
+            return None
 
-    def _get_min_enabled_time_ready_wt(self, case_id_and_enabled_times,
-        last_task_start_time: CustomDatetimeAndSeconds) -> tuple([int, datetime]):
+        low_boundary, high_boundary = self.large_wt_boundaries
+
+        curr_enabled_datetime = element["curr_enabled_at"]
+        enabled_datetimes = element["enabled_datetimes"]
+
+        first_item = enabled_datetimes[0]
+        enabled_dt_with_curr_enabled = enabled_datetimes.copy()
+        enabled_dt_with_curr_enabled.append(curr_enabled_datetime)
+
+        result = 0, None
+        prev_item = first_item
+        list_len = len(enabled_dt_with_curr_enabled)
+        for en_time_index, item in enumerate(enabled_dt_with_curr_enabled[1:], 1):
+            diff = (item - first_item).seconds
+            is_batch_enabled_low = diff > low_boundary
+            
+            if not is_batch_enabled_low:
+                if en_time_index == list_len - 1:
+                    # last item of the evaluation
+                    # this will enable the batch in the future
+                    result = en_time_index, _get_enabled_time_for_wt_rule(first_item, operator.ge, low_boundary)
+                    break
+
+                prev_item = item
+                continue
+
+            is_batch_enabled_high = diff > high_boundary
+
+            if not is_batch_enabled_high and en_time_index < 2:
+                # wait for the second item in the batch
+                # or reaching the high_boundary
+                prev_item = item
+                continue
+
+            if is_batch_enabled_high and en_time_index == 1:
+                return en_time_index, _get_enabled_time_for_wt_rule(first_item, operator.gt, high_boundary)
+
+            low_boundary_date = first_item + timedelta(seconds=low_boundary)
+            high_boundary_date = first_item + timedelta(seconds=high_boundary)
+
+            if prev_item <= low_boundary_date:
+                # wait for at least the lowest possible date
+                return en_time_index, _get_enabled_time_for_wt_rule(first_item, operator.ge, low_boundary)
+            elif low_boundary_date <= prev_item <= high_boundary_date:
+                # enabled time of the task = enabled time of the batch
+                return en_time_index, prev_item
+            else: # higher than the highest boundary
+                return en_time_index, _get_enabled_time_for_wt_rule(first_item, operator.gt, high_boundary)
+        
+        return result # 0, None
+
+
+    def _get_min_enabled_time_waiting_time(self, case_id_and_enabled_times,
+        last_task_start_time: CustomDatetimeAndSeconds, rule_type: RULE_TYPE) -> tuple([int, datetime]):
         
         last_task_start_datetime = last_task_start_time.datetime
         waiting_times = [ (last_task_start_datetime - v.datetime).total_seconds() for (_, v) in case_id_and_enabled_times ] 
@@ -435,17 +497,19 @@ class AndFiringRule():
             "is_triggered_by_batch": False,
         }
 
-        ready_wt_res = self.get_ready_wt(draft_element)
+        wt_res = self.get_ready_wt(draft_element) \
+            if rule_type == RULE_TYPE.READY_WT else self.get_large_wt(draft_element)
 
-        if ready_wt_res == None:
+        if wt_res == None:
             return None
         else:
-            _, en_time = ready_wt_res
+            _, en_time = wt_res
             return en_time
 
 
     def is_batch_size_enough_for_exec(self, batch_size_res: int):
-        return True if batch_size_res > 0 and self._has_ready_wt_rule() \
+        return True if batch_size_res > 0 \
+            and self._has_rule([RULE_TYPE.READY_WT, RULE_TYPE.LARGE_WT]) \
             else batch_size_res > 1
 
 
@@ -484,7 +548,7 @@ class AndFiringRule():
             num_tasks_in_queue = element["size"]
             num_tasks_in_batch, start_time_from_rule = self.get_firing_batch_size(num_tasks_in_queue, element)
 
-            if not self.is_batch_size_enough_for_exec(num_tasks_in_batch): # num_tasks_in_batch < 2:
+            if not self.is_batch_size_enough_for_exec(num_tasks_in_batch):
                 print("WARNING: Getting batch size for the execution returned to be 0. Verify provided rules.")
                 return False, None, None
             
@@ -521,6 +585,12 @@ class AndFiringRule():
         ready_wt_result = self.get_ready_wt(element)
         if ready_wt_result != None:
             batch_size, enabled_time = ready_wt_result
+
+        large_wt_result = self.get_large_wt(element)
+        if large_wt_result != None:
+            batch_size, enabled_time = large_wt_result
+
+        #TODO: what if ready_wt and large_wt are together
 
         is_time_forced = False
 
@@ -570,14 +640,6 @@ class AndFiringRule():
                     batch_size = 0
                     break
                 is_time_forced = True
-            elif subrule.variable1 == "waiting_times":
-                oldest_element = element["waiting_times"][0]
-                rule_operator: operator = _get_operator_symbols_eq(subrule.operator)
-                value2 = subrule.value2
-                if rule_operator(oldest_element, value2):
-                    curr_size = current_batch_size
-                else:
-                    curr_size = 0
             elif subrule.variable1 == "daily_hour":
                 only_one_date = False
                 if is_time_forced:
@@ -600,6 +662,8 @@ class AndFiringRule():
                     is_time_forced = False
             elif subrule.variable1 == "ready_wt":
                 continue
+            elif subrule.variable1 == "large_wt":
+                continue
 
             if curr_size < batch_size:
                 batch_size = curr_size
@@ -615,21 +679,19 @@ class AndFiringRule():
         return batch_size, enabled_time
 
 
-    def get_enabled_time(self, waiting_times, last_task_enabled_time: CustomDatetimeAndSeconds, is_in_future: bool = False) -> tuple([int, datetime]):
+    def get_enabled_time(self, waiting_times, last_task_enabled_time: CustomDatetimeAndSeconds) -> tuple([int, datetime]):
         expected_enabled_time = []
         week_day_date = None
 
-        en_time = self._get_min_enabled_time_ready_wt(waiting_times, last_task_enabled_time)
-        if en_time != None:
-            expected_enabled_time.append(en_time)
+        for rule in [RULE_TYPE.READY_WT, RULE_TYPE.LARGE_WT]:
+            en_time = self._get_min_enabled_time_waiting_time(waiting_times, last_task_enabled_time, rule)
+            if en_time != None:
+                expected_enabled_time.append(en_time)
         
         for subrule in self.rules:
             if subrule.variable1 == "size":
                 # size does not tell us anything about expected time of batch execution
                 continue
-            elif subrule.variable1 == "waiting_times":
-                en_time = subrule._get_min_enabled_time_waiting_time(waiting_times, last_task_enabled_time)
-                expected_enabled_time.append(en_time)
             elif subrule.variable1 == "week_day":
                 en_time = subrule._get_min_enabled_time_week_day(last_task_enabled_time)
                 expected_enabled_time.append(en_time)
@@ -643,6 +705,9 @@ class AndFiringRule():
                         en_time.tzinfo
                     )
                 expected_enabled_time.append(en_time)
+            elif subrule.variable1 == "large_wt":
+                # was calculated previously
+                continue
             elif subrule.variable1 == "ready_wt":
                 # was calculated previously
                 continue
@@ -651,7 +716,6 @@ class AndFiringRule():
                 continue
 
         return expected_enabled_time
-
 
 
 class OrFiringRule():
@@ -690,7 +754,7 @@ class OrFiringRule():
 
         return is_batched_task_enabled, None, None
     
-    def get_enabled_time(self, waiting_times, last_task_enabled_time: CustomDatetimeAndSeconds, is_in_future: bool = False):
+    def get_enabled_time(self, waiting_times, last_task_enabled_time: CustomDatetimeAndSeconds):
         """
         :param: is_in_future: whether the returned datetime could be in the future
         Method is being used to find the enabled time for the batch execution
@@ -708,7 +772,7 @@ class OrFiringRule():
 
         enabled_times_per_or_rule = []
         for rule in self.rules:
-            per_rule = rule.get_enabled_time(waiting_times, last_task_enabled_time, is_in_future)
+            per_rule = rule.get_enabled_time(waiting_times, last_task_enabled_time)
             if len(per_rule) > 0:
                 # find the max time 
                 # cause that's the one that satisfies the set of rules
@@ -724,7 +788,7 @@ class OrFiringRule():
         return min(enabled_times_per_or_rule)
 
 
-def _get_enabled_time_for_ready_wt_rule(last_item_in_batch, op, boundary_value):
+def _get_enabled_time_for_wt_rule(last_item_in_batch, op, boundary_value):
     if op in [operator.lt]:
         batch_enabled_time = last_item_in_batch + timedelta(seconds=boundary_value - 1)
     elif op in [operator.eq, operator.ge, operator.le]:

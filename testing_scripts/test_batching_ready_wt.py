@@ -131,7 +131,7 @@ def test_ready_wt_rule_correct_is_true(
         "ready_wt", sign_ready_wt, ready_wt_value_sec
     )
     firing_rule_1 = AndFiringRule([firing_sub_rule_1])
-    firing_rule_1.init_ready_wt_boundaries_if_any()
+    firing_rule_1.init_boundaries()
     rule = OrFiringRule([firing_rule_1])
 
     current_exec_status = _get_current_exec_status(curr_enabled_at_str, enabled_datetimes)
@@ -263,7 +263,6 @@ def test_range_correct_is_true(
     expected_batch_size,
     expected_start_time_from_rule
 ):
-
     # ====== ARRANGE ======
     fr_sign, fr_value = first_rule
     sr_sign, sr_value = second_rule
@@ -275,21 +274,11 @@ def test_range_correct_is_true(
         "ready_wt", sr_sign, sr_value
     )
     firing_rule_1 = AndFiringRule([firing_sub_rule_1, firing_sub_rule_2])
-    firing_rule_1.init_ready_wt_boundaries_if_any()
+    firing_rule_1.init_boundaries()
     rule = OrFiringRule([firing_rule_1])
 
-    current_exec_status = _get_current_exec_status(curr_enabled_at_str, enabled_datetimes)
-
-    # ====== ACT & ASSERT ======
-    (is_true, batch_spec, start_time_from_rule) = rule.is_true(current_exec_status)
-    assert expected_is_true == is_true
-    assert expected_batch_size == batch_spec
-
-    if expected_start_time_from_rule == None:
-        assert expected_start_time_from_rule == start_time_from_rule
-    else:
-        start_dt = start_time_from_rule.strftime("%d/%m/%Y %H:%M:%S")
-        assert expected_start_time_from_rule == start_dt
+    _test_range_basic(rule, curr_enabled_at_str, enabled_datetimes, expected_is_true,
+        expected_batch_size, expected_start_time_from_rule)
 
 
 @pytest.mark.parametrize('execution_number', range(5))
@@ -408,3 +397,19 @@ def _arrange_and_act_exp(assets_path, firing_rules, start_date, num_cases):
     }
 
     _arrange_and_act_base(assets_path, firing_rules, start_date, num_cases, arrival_distr)
+
+
+def _test_range_basic(rule: OrFiringRule, curr_enabled_at_str, enabled_datetimes, expected_is_true, expected_batch_size, expected_start_time_from_rule ):
+    # ====== ARRANGE ======
+    current_exec_status = _get_current_exec_status(curr_enabled_at_str, enabled_datetimes)
+
+    # ====== ACT & ASSERT ======
+    (is_true, batch_spec, start_time_from_rule) = rule.is_true(current_exec_status)
+    assert expected_is_true == is_true
+    assert expected_batch_size == batch_spec
+
+    if expected_start_time_from_rule == None:
+        assert expected_start_time_from_rule == start_time_from_rule
+    else:
+        start_dt = start_time_from_rule.strftime("%d/%m/%Y %H:%M:%S")
+        assert expected_start_time_from_rule == start_dt

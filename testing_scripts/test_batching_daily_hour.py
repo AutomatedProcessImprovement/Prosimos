@@ -414,7 +414,7 @@ def _get_current_exec_status(curr_enabled_at_str, enabled_datetimes):
     enabled_datetimes = [
         datetime.strptime(item, "%d/%m/%y %H:%M:%S") for item in enabled_datetimes
     ]
-    waiting_time_arr = [curr_enabled_at - item for item in enabled_datetimes]
+    waiting_time_arr = [(curr_enabled_at - item).total_seconds() for item in enabled_datetimes]
 
     current_exec_status = {
         "size": len(waiting_time_arr),
