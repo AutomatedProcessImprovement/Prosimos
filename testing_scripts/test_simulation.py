@@ -4,7 +4,6 @@ import pandas as pd
 
 import datetime
 from pathlib import Path
-from bpdfr_simulation_engine.resource_calendar import parse_datetime
 
 from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 from testing_scripts.test_update_state import _setup_sim_scenario_file

@@ -1,6 +1,4 @@
 import copy
-import datetime
-from datetime import timedelta
 import sys
 from collections import deque
 from enum import Enum
@@ -12,10 +10,9 @@ import secrets
 from pm4py.objects.conversion.process_tree import converter
 from bpdfr_simulation_engine.batching_processing import BATCH_TYPE, AndFiringRule
 from bpdfr_simulation_engine.probability_distributions import generate_number_from
-from bpdfr_simulation_engine.resource_calendar import str_week_days
 
 from bpdfr_simulation_engine.exceptions import InvalidBpmnModelException
-from bpdfr_simulation_engine.weekday_helper import CustomDatetimeAndSeconds, get_nearest_abs_day
+from bpdfr_simulation_engine.weekday_helper import CustomDatetimeAndSeconds
 
 seconds_per_unit = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
 
@@ -845,26 +842,18 @@ class BPMNGraph:
         else:
             self.batch_count[task_id] = 1
 
-    def is_any_batch_enabled(self, started_datetime):
+    def is_any_batch_enabled(self, started_datetime: CustomDatetimeAndSeconds):
         enabled_task_batch = dict()
         for (task_id, waiting_tasks) in self.batch_waiting_processes.items():
-            if not self.batch_info[task_id].firing_rules.is_batch_size_enough_for_exec(len(waiting_tasks)):
-                # no tasks waiting for batch execution
-                # or number of tasks waiting is not enough (less than 2)
-                # exception "ready_wt" rule can execute task one
+            if len(waiting_tasks) == 0:
                 continue
 
+            # finding the date in the future when rule will be satisfied
             is_enabled, batch_spec, start_time_from_rule = self.is_batched_task_enabled(task_id, started_datetime)
-            
-            if (is_enabled):
-                batch_info = BatchInfoForExecution(
-                    self.batch_waiting_processes,
-                    self.batch_info,
-                    task_id,
-                    batch_spec,
-                    start_time_from_rule)
-                enabled_task_batch[task_id] = batch_info
-                self._clear_batch(task_id, batch_spec)
+            if is_enabled:
+                enabled_task_batch[task_id] = self.create_batch_info_and_clear_from_queue(
+                    task_id, batch_spec, start_time_from_rule
+                )
 
         return enabled_task_batch
 
@@ -885,6 +874,55 @@ class BPMNGraph:
             if (case_id_and_start_time != None):
                 yield case_id_and_start_time
 
+
+    def get_invalid_batches_if_any(self, current_point_of_time):
+        enabled_task_batch = dict()
+        for (task_id, waiting_tasks) in self.batch_waiting_processes.items():
+            num_tasks_wait_batch = len(waiting_tasks)
+            if num_tasks_wait_batch == 0:
+                continue
+            
+            if self.is_or_rule_invalid(waiting_tasks, task_id, num_tasks_wait_batch, current_point_of_time):
+                # if the rule become invlaid, we execute everything we have
+                # invalid = the one that cannot be satisfied in the future anymore
+                # this method is being called only in case it is the end of all simulated cases
+                waiting_tasks_len = len(waiting_tasks)
+                batch_spec = [waiting_tasks_len]
+
+                # in case last executed task was the one that triggers batch exec
+                # we need to take the enabled_time of the last task in this batch
+                # as start_time for the whole batch
+                last_added_key = list(waiting_tasks.keys())[-1]
+                last_task_in_batch_start = waiting_tasks[last_added_key].datetime
+                start_time_from_rule = max(current_point_of_time.datetime, last_task_in_batch_start)
+                enabled_task_batch[task_id] = self.create_batch_info_and_clear_from_queue(
+                    task_id, batch_spec, start_time_from_rule
+                )
+                continue
+        
+        return enabled_task_batch
+
+    def create_batch_info_and_clear_from_queue(self, task_id: str, batch_spec, start_time_from_rule):
+        batch_info = BatchInfoForExecution(
+            self.batch_waiting_processes,
+            self.batch_info,
+            task_id,
+            batch_spec,
+            start_time_from_rule)
+
+        self._clear_batch(task_id, batch_spec)
+        return batch_info
+
+    def is_or_rule_invalid(self, waiting_tasks, task_id: str, num_tasks_wait_batch: int, current_point_of_time: CustomDatetimeAndSeconds):
+        all_keys = list(waiting_tasks.keys())
+        
+        first_key = all_keys[0]
+        first_wt = (current_point_of_time.datetime - waiting_tasks[first_key].datetime).seconds
+
+        last_key = all_keys[-1]
+        last_wt = (current_point_of_time.datetime - waiting_tasks[last_key].datetime).seconds
+
+        return self.batch_info[task_id].firing_rules.is_invalid_end(num_tasks_wait_batch, first_wt, last_wt)
 
 def discover_bpmn_from_log(log_path, process_name):
     log = pm4py.read_xes(log_path)

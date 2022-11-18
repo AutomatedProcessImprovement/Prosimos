@@ -7,7 +7,6 @@ import pytest
 import json
 from pandas import testing as tm
 
-from bpdfr_simulation_engine.resource_calendar import parse_datetime
 from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 from testing_scripts.test_simulation import _verify_activity_count_and_duration
 

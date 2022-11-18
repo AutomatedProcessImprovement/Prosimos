@@ -189,11 +189,11 @@ def test_daily_hour_and_week_day_and_size_rule_correct_enabled_and_batch_size(as
 
 def test_2_daily_hour_and_week_day_and_size_rule_correct_enabled_and_batch_size(assets_path):
     """
-    Input:      Firing rules of daily_hour < 12 AND size >= 4 AND week_day IN ["Friday", "Monday"]. 
+    Input:      Firing rules of daily_hour > 12 AND size <= 6 AND week_day IN ["Friday", "Monday"]. 
                 29 process cases are being generated. A new case arrive every 3 hours.
                 Batched task are executed in parallel.
     Expected:   Batched task are executed only in the range from 00:00 - 11:59.
-                If batched tasks came after 12:00 (from 00:00 - 23:59),
+                If batched tasks came before 12:00 (from 00:00 - 12:00),
                 then they wait for the next enabled day (Monday or Friday) to be executed.
     Verified:   The start_time of the appropriate grouped D task.
                 The number of tasks in every executed batch.
@@ -251,7 +251,7 @@ def test_2_daily_hour_and_week_day_and_size_rule_correct_enabled_and_batch_size(
 
 def _get_start_time_and_count_final(item):
     key, value = _get_start_time_and_count(item)
-    key_start_time, key_resource = key
+    key_start_time, _ = key
     return key_start_time, value
 
 def test_daily_hour_every_day_correct_firing(assets_path):

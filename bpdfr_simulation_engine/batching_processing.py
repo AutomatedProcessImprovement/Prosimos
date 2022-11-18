@@ -321,6 +321,26 @@ class FiringSubRule():
             return 0, None
 
 
+    def is_invalid_end(self, curr_batch_size, last_wt):
+        is_invalid = False
+
+        if RULE_TYPE(self.variable1) == RULE_TYPE.SIZE:
+            # there is no way we will increment the number of tasks waiting for the batch exec
+            # cause we are at the end of simulated cases
+            if self.operator in ['=', '>=']:
+                is_invalid = curr_batch_size < self.value2
+            elif self.operator == '>':
+                is_invalid = curr_batch_size <= self.value2
+        elif RULE_TYPE(self.variable1) == RULE_TYPE.READY_WT:
+            # if we surpass the upper limit of waiting_time,
+            # this will not be changed in the future cause we will not receive a new item
+            # and thus ready_wt value will not be reset
+            _, high_boundary = self.ready_wt_boundaries
+            is_invalid = last_wt > high_boundary
+
+        return is_invalid
+
+
 class AndFiringRule():
     def __init__(self, array_of_subrules: List[FiringSubRule]):
         self.rules = array_of_subrules
@@ -328,7 +348,7 @@ class AndFiringRule():
         self.large_wt_boundaries = None
 
     def _has_rule(self, rule_name: List[RULE_TYPE]):
-        rule_values = map(lambda x: x.value, rule_name)
+        rule_values = list(map(lambda x: x.value, rule_name))
         for rule in self.rules:
             if rule.variable1 in rule_values:
                 return True
@@ -718,13 +738,59 @@ class AndFiringRule():
         return expected_enabled_time
 
 
+    def is_invalid(self, first_item_wt):
+        """
+        Verify whether the rule is invalid in the middle of simulation
+        invalid rule = one that will never become satisfied in the future
+        """
+        is_simple_rule_invalid = False
+
+        for rule in self.rules:
+            if RULE_TYPE(rule.variable1) == RULE_TYPE.LARGE_WT:
+                # the rule is invalid when we surpass the higher boundary of the large waiting time
+                # cause the difference will only increase in the future
+                _, high_boundary = self.large_wt_boundaries
+                is_simple_rule_invalid = first_item_wt > high_boundary
+
+            if is_simple_rule_invalid:
+                # if at least one of the simple rule is invalid,
+                # all complex rule is invalid
+                return True
+
+
+    def is_invalid_end(self, curr_batch_size, first_wt, last_wt):
+        is_invalid = False
+        
+        for simple_rule in self.rules:
+            is_invalid = simple_rule.is_invalid_end(curr_batch_size, last_wt)
+
+            if is_invalid:
+                break
+
+        if not is_invalid:
+            # if there are no specific end violations
+            # we check whether there are normal violations
+            # "normal" = those which can happen in the middle of simulation
+            is_invalid = self.is_invalid(first_wt)
+
+        return is_invalid
+
+
 class OrFiringRule():
     def __init__(self, or_firing_rule_arr):
         self.rules = or_firing_rule_arr
 
     def is_ready_wt_rule_present(self):
-        for orRule in self.rules:
-            is_present = orRule._has_ready_wt_rule()
+        for or_rule in self.rules:
+            is_present = or_rule._has_ready_wt_rule()
+            if is_present:
+                return is_present
+        
+        return False
+
+    def is_size_rule_present(self):
+        for and_rule in self.rules:
+            is_present = and_rule._has_rule([RULE_TYPE.SIZE])
             if is_present:
                 return is_present
         
@@ -752,11 +818,41 @@ class OrFiringRule():
             if is_batched_task_enabled:
                 return is_batched_task_enabled, batch_spec, start_time
 
+        # no enabled batches, check whether rule is invalid
+        # if yes, batch is triggered straight away
+        first_wt = spec["waiting_times"][0]
+        if rule.is_invalid(first_wt):
+            # in case rule is invalid,
+            # we trigger the batch execution straight away with all tasks waiting for the batch exec
+            # and "current" moment of time we have
+            return True, [spec["size"]], spec["curr_enabled_at"]
+        
         return is_batched_task_enabled, None, None
+
+
+    def is_invalid_end(self, num_tasks, first_wt, ready_wt):
+        """
+        Check whether items waiting for batch execution might be satisfied in the future (valid for further processing)
+        or they are invalid (one part of the AND rule could not be satisfied in the future at all)
+        :param num_tasks: number of tasks waiting for batch execution
+        :param first_wt: waiting time of the first item (current_point_in_time - first_item.enable_time).seconds
+        :param ready_wt: waiting time of the last task in the batch queue
+        :return: whether the rule is invalid
+        :rtype: boolean
+        """
+        is_invalid = False
+        
+        for and_rule in self.rules:
+            is_invalid = and_rule.is_invalid_end(num_tasks, first_wt, ready_wt)
+
+            if is_invalid:
+                return True
+
+        return is_invalid
     
+
     def get_enabled_time(self, waiting_times, last_task_enabled_time: CustomDatetimeAndSeconds):
         """
-        :param: is_in_future: whether the returned datetime could be in the future
         Method is being used to find the enabled time for the batch execution
         when all activities in the flow were already executed and we need to 
         execute the batch in the near future.

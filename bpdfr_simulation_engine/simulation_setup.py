@@ -67,6 +67,9 @@ class SimDiffSetup:
     def is_any_batch_enabled(self, started_datetime):
         return self.bpmn_graph.is_any_batch_enabled(started_datetime)
 
+    def get_invalid_batches_if_any(self, current_point_of_time):
+        return self.bpmn_graph.get_invalid_batches_if_any(current_point_of_time)
+
     def is_any_unexecuted_batch(self, last_task_enabled_time):
         return self.bpmn_graph.is_any_unexecuted_batch(last_task_enabled_time)
 

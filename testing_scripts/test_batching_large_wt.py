@@ -1,18 +1,14 @@
-from datetime import datetime, timedelta
-import json
-from unittest import expectedFailure
+from datetime import timedelta
 
 import pandas as pd
 import pytest
 from bpdfr_simulation_engine.batching_processing import AndFiringRule, FiringSubRule, OrFiringRule
 from bpdfr_simulation_engine.resource_calendar import parse_datetime
-from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 
 from testing_scripts.test_batching import (
-    MODEL_FILENAME, JSON_FILENAME, JSON_NEAREST_COEF_FILENAME, SIM_STATS_FILENAME, SIM_LOGS_FILENAME, 
-    _setup_sim_scenario_file, _verify_logs_ordered_asc, _verify_same_resource_for_batch, assets_path
+    SIM_LOGS_FILENAME, 
+    _verify_logs_ordered_asc, _verify_same_resource_for_batch, assets_path
 )
-from pandas import testing as tm
 
 from testing_scripts.test_batching_daily_hour import _get_current_exec_status
 from testing_scripts.test_batching_ready_wt import _arrange_and_act_exp, _test_range_basic
