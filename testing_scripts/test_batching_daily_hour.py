@@ -191,6 +191,34 @@ data_dh_wd_s = [
             ("2022-10-03 12:00:00.000000+03:00", 6),
             ("2022-10-03 12:00:00.000000+03:00", 2),
         ]
+    ),
+    # Input:      Firing rules of daily_hour > 13 AND daily_hour < 21 AND size <= 6 AND week_day = "Friday". 
+    #             29 process cases are being generated. A new case arrive every 3 hours.
+    #             Batched task are executed in parallel.
+    # Expected:   Batched task are executed only in the range from 13:00 - 21:00.
+    #             If batched tasks came before 13:00 (from 00:00 - 13:00) or after 21:00,
+    #             then they wait for the next enabled time period to be executed.
+    # Verified:   The start_time of the appropriate grouped D task.
+    #             The number of tasks in every executed batch.
+    #             The resource which executed the batch is the same for all tasks in the batch.
+    #             The start_time of all logs files is being sorted by ASC.
+    (
+        [
+            [
+                {"attribute": "daily_hour", "comparison": ">", "value": "13"},
+                {"attribute": "daily_hour", "comparison": "<", "value": "21"},
+                {"attribute": "size", "comparison": "<=", "value": 6},
+                {"attribute": "week_day", "comparison": "=", "value": "Friday"},
+            ]
+        ],
+        [
+            ("2022-09-30 13:00:00.000000+03:00", 5),
+            ("2022-09-30 17:49:30.035185+03:00", 2),
+            ("2022-10-07 13:00:00.000000+03:00", 4),
+            ("2022-10-07 13:00:00.000000+03:00", 6),
+            ("2022-10-07 13:00:00.000000+03:00", 6),
+            ("2022-10-07 13:00:00.000000+03:00", 6)
+        ]
     )
 ]
 

@@ -3,7 +3,7 @@ import operator as operator
 from random import choices
 import sys
 from typing import List
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from bpdfr_simulation_engine.exceptions import InvalidRuleDefinition
 
 from bpdfr_simulation_engine.resource_calendar import str_week_days
@@ -59,6 +59,10 @@ class FiringSubRule():
             return batch_size > 0
         else:
             return batch_size > 1
+
+    def _get_new_time(self, diff_timedelta, op: operator):
+        curr_datetime = datetime.combine(date.today(), self.value2)
+        return op(curr_datetime, diff_timedelta).time() 
 
     def is_true(self, element):
         queue_size = element["size"]
@@ -220,7 +224,7 @@ class FiringSubRule():
         
         return 0, None
 
-    def get_batch_size_by_daily_hour(self, element, only_one_date = False):
+    def get_batch_size_by_daily_hour(self, element, only_one_date, range):
         """
         only_one_date: no loops, you just check whether some batch could be enabled at this current datetime
         """
@@ -243,8 +247,9 @@ class FiringSubRule():
         final_enabled_time = curr_enabled_at
         while True:
             follow_rule = []
-            start_day = datetime.combine(prev_day_to_oldest_rule_time.date(), time(0, 0, 0, 0), oldest_in_batch_datetime.tzinfo)
-            end_day = datetime.combine(prev_day_to_oldest_rule_time.date(), time(23, 59, 59, 0), oldest_in_batch_datetime.tzinfo)
+            start_time, end_time = range
+            start_day = datetime.combine(prev_day_to_oldest_rule_time.date(), start_time, oldest_in_batch_datetime.tzinfo)
+            end_day = datetime.combine(prev_day_to_oldest_rule_time.date(), end_time, oldest_in_batch_datetime.tzinfo)
 
             for en_time in enabled_times:
                 if op == operator.eq:
@@ -348,6 +353,7 @@ class AndFiringRule():
         self.rules = array_of_subrules
         self.ready_wt_boundaries = None
         self.large_wt_boundaries = None
+        self.daily_hour_range = (time(0,0,0,0), time(23,59,59,0))
 
     
     def _has_rule(self, rule_name: List[RULE_TYPE]):
@@ -362,6 +368,7 @@ class AndFiringRule():
     def init_boundaries(self):
         self._init_ready_wt_boundaries_if_any()
         self._init_large_wt_boundaries_if_any()
+        self._init_daily_hour_range_if_any()
 
 
     def _init_ready_wt_boundaries_if_any(self):
@@ -369,7 +376,7 @@ class AndFiringRule():
         if not self._has_rule([rule_type]):
             return 
 
-        self.ready_wt_boundaries = self._get_low_and_high_boundaries(rule_type)
+        self.ready_wt_boundaries = self._get_low_and_high_boundaries(rule_type, 1)
 
 
     def _init_large_wt_boundaries_if_any(self):
@@ -377,7 +384,14 @@ class AndFiringRule():
         if not self._has_rule([rule_type]):
             return 
 
-        self.large_wt_boundaries = self._get_low_and_high_boundaries(rule_type)
+        self.large_wt_boundaries = self._get_low_and_high_boundaries(rule_type, 1)
+
+    def _init_daily_hour_range_if_any(self):
+        rule_type: RULE_TYPE = RULE_TYPE.DAILY_HOUR
+        if not self._has_rule([rule_type]):
+            return 
+
+        self.daily_hour_range = self._get_low_and_high_boundaries(rule_type, timedelta(seconds=1), False)
 
 
     def validate(self):
@@ -395,9 +409,12 @@ class AndFiringRule():
             raise InvalidRuleDefinition("Only one or two subrules of DAILY_HOUR type is allowed inside AND rule.")
 
 
-    def _get_low_and_high_boundaries(self, rule_name: RULE_TYPE):
-        low_boundary = None 
-        high_boundary = None
+    def _get_low_and_high_boundaries(self, rule_name: RULE_TYPE, diff_units, is_validated = True):
+        if isinstance(diff_units, timedelta):
+            low_boundary, high_boundary = self.daily_hour_range
+        else:
+            low_boundary, high_boundary = (None, None)
+
         for rule in self.rules:
             if rule.variable1 == rule_name.value:
                 if rule.operator == '=':
@@ -405,17 +422,25 @@ class AndFiringRule():
                     low_boundary = rule.value2
                 elif rule.operator == '<':
                     low_boundary = 0 if low_boundary == None else low_boundary
-                    high_boundary = rule.value2 - 1
+                    if isinstance(diff_units, timedelta):
+                        # subtract 1 second
+                        high_boundary = rule._get_new_time(diff_units, operator.sub)
+                    else:
+                        high_boundary = rule.value2 - diff_units
                 elif rule.operator == '<=':
                     low_boundary = 0 if low_boundary == None else low_boundary
                     high_boundary = rule.value2
                 elif rule.operator == '>':
-                    low_boundary = rule.value2 + 1
+                    if isinstance(diff_units, timedelta):
+                        # add 1 second
+                        low_boundary = rule._get_new_time(diff_units, operator.add) 
+                    else:
+                        low_boundary = rule.value2 + diff_units
                 elif rule.operator == '>=':
                     low_boundary = rule.value2
 
         if low_boundary == None or high_boundary == None:
-            raise Exception("Invalid range of ready_wt rule")
+            raise Exception(f"Invalid range of {rule_name.value} rule")
 
         return low_boundary, high_boundary
 
@@ -686,7 +711,7 @@ class AndFiringRule():
                     element["curr_enabled_at"] = enabled_time
                     only_one_date = True
                 
-                curr_size, enabled_time = subrule.get_batch_size_by_daily_hour(element, only_one_date)
+                curr_size, enabled_time = subrule.get_batch_size_by_daily_hour(element, only_one_date, self.daily_hour_range)
                 if curr_size < 2:
                     batch_size = 0
                     break
