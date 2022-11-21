@@ -1,3 +1,4 @@
+from functools import reduce
 import json
 from datetime import time
 from typing import List
@@ -7,7 +8,7 @@ from numpy import exp, sqrt, log
 from bpdfr_simulation_engine.batching_processing import BATCH_TYPE, BatchConfigPerTask, AndFiringRule, FiringSubRule, OrFiringRule
 
 from bpdfr_simulation_engine.control_flow_manager import EVENT_TYPE, BPMNGraph, ElementInfo, BPMN
-from bpdfr_simulation_engine.resource_calendar import RCalendar, convert_time_unit_from_to, convertion_table, to_seconds
+from bpdfr_simulation_engine.resource_calendar import RCalendar
 from bpdfr_simulation_engine.resource_profile import ResourceProfile, PoolInfo
 from bpdfr_simulation_engine.probability_distributions import *
 
@@ -152,15 +153,33 @@ def parse_batch_processing(batch_processing_json_data):
         for item in batch_processing["duration_distrib"]:
             duration_distibution[int(item)] = batch_processing["duration_distrib"][item]
 
-        # TODO: "batch_frequency" and "size_distrib" should be added, as well
+        # TODO: "batch_frequency" should be added, as well
+        size_distrib = batch_processing["size_distrib"]
+        possible_options, probabilities = parse_size_distrib(size_distrib)
 
         batch_config[t_id] = BatchConfigPerTask(
             batch_type,
             duration_distibution,
-            firing_rules
+            firing_rules,
+            possible_options,
+            probabilities 
         )
 
     return batch_config
+
+
+def parse_size_distrib(size_distrib):
+    if len(size_distrib) == 0:
+        return {}, {}
+
+    possible_options = []
+    probabilities = []
+    all_sum = reduce(lambda x, y: x+y, size_distrib.values())
+    for key, item in size_distrib.items():
+        possible_options.append(int(key))
+        probabilities.append(item/all_sum)
+
+    return possible_options, probabilities
 
 
 def create_subrule(attribute, comparison, value):

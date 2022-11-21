@@ -1,5 +1,6 @@
 from enum import Enum
 import operator as operator
+from random import choices
 import sys
 from typing import List
 from datetime import datetime, time, timedelta
@@ -515,6 +516,7 @@ class AndFiringRule():
             "enabled_datetimes": [ v.datetime for (_, v) in case_id_and_enabled_times ],
             "curr_enabled_at": last_task_start_datetime,
             "is_triggered_by_batch": False,
+            "is_only_one_batch_return": False
         }
 
         wt_res = self.get_ready_wt(draft_element) \
@@ -560,6 +562,7 @@ class AndFiringRule():
                 "enabled_datetimes": element["enabled_datetimes"].copy(),
                 "curr_enabled_at": element["curr_enabled_at"],
                 "is_triggered_by_batch": False,
+                "is_only_one_batch_return": False
             }
             batch_size_res, _ = self.get_firing_batch_size(draft_element["size"], draft_element)
             is_true_result = self.is_batch_size_enough_for_exec(batch_size_res)
@@ -704,14 +707,16 @@ class AndFiringRule():
         week_day_date = None
 
         for rule in [RULE_TYPE.READY_WT, RULE_TYPE.LARGE_WT]:
+            if not self._has_rule([rule]):
+                continue
+
             en_time = self._get_min_enabled_time_waiting_time(waiting_times, last_task_enabled_time, rule)
             if en_time != None:
                 expected_enabled_time.append(en_time)
         
         for subrule in self.rules:
             if subrule.variable1 == "size":
-                # size does not tell us anything about expected time of batch execution
-                continue
+                expected_enabled_time.append(last_task_enabled_time.datetime)
             elif subrule.variable1 == "week_day":
                 en_time = subrule._get_min_enabled_time_week_day(last_task_enabled_time)
                 expected_enabled_time.append(en_time)
@@ -896,11 +901,34 @@ def _get_enabled_time_for_wt_rule(last_item_in_batch, op, boundary_value):
 
 
 class BatchConfigPerTask():
-    def __init__(self, type, duration_distribution, firing_rules):
+    def __init__(self, type, duration_distribution, firing_rules, possible_options, probabilities):
         self.type = type
         self.duration_distribution = duration_distribution
         self.sorted_duration_distribution = sorted(duration_distribution)
         self.firing_rules = firing_rules
+        self.possible_options = possible_options
+        self.probabilities = probabilities
+
+        self.update_firing_rules_from_distr()
+
+    def are_rules_discovered(self):
+        """ Verify whether rules were initially defined.
+        Otherwise, we generate size rule dynamically. """
+        return len(self.possible_options) == 0
+
+    def update_firing_rules_from_distr(self):
+        if len(self.possible_options) == 0:
+            return
+
+        self.firing_rules = OrFiringRule(or_firing_rule_arr=[
+            AndFiringRule(array_of_subrules=[
+                FiringSubRule("size", "=", self.get_batch_size())
+            ])
+        ])
+
+    def get_batch_size(self):
+        one_item_list = choices(self.possible_options, self.probabilities)
+        return one_item_list[0]
 
     def calculate_ideal_duration(self, initial_duration, num_tasks_in_batch):
         curr_coef = self.duration_distribution.get(num_tasks_in_batch, None)

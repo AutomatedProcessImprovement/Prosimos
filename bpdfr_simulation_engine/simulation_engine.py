@@ -178,11 +178,15 @@ class SimBPMEnv:
                 return
 
             enabled_batch_task_ids = self.sim_setup.is_any_batch_enabled(enabled_datetime)
-            invalid_batches = self.sim_setup.get_invalid_batches_if_any(last_task_enabled_time)
-            if invalid_batches != None:
-                for key, item in invalid_batches.items():
-                    if key not in enabled_batch_task_ids:
-                        enabled_batch_task_ids[key] = item
+            
+            if not len(enabled_batch_task_ids):
+                # no rules were satisfied
+                # check whether there are some invalid rules
+                invalid_batches = self.sim_setup.get_invalid_batches_if_any(last_task_enabled_time)
+                if invalid_batches != None:
+                    for key, item in invalid_batches.items():
+                        if key not in enabled_batch_task_ids:
+                            enabled_batch_task_ids[key] = item
 
             if enabled_batch_task_ids != None:
                 for (batch_task_id, batch_info) in enabled_batch_task_ids.items():

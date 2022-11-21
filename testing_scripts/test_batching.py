@@ -111,7 +111,7 @@ def test_batch_count_firing_rule_nearest_neighbor_correct(
     with open(basic_json_path, "r") as f:
         json_dict = json.load(f)
 
-    _setup_sim_scenario_file(json_dict, duration_distrib, firing_count, None, None)
+    _setup_sim_scenario_file(json_dict, duration_distrib, firing_count, None, None, {})
 
     with open(json_path, "w+") as json_file:
         json.dump(json_dict, json_file)
@@ -221,7 +221,7 @@ def test_parallel_batch_enable_start_waiting_correct(assets_path):
     with open(basic_json_path, "r") as f:
         json_dict = json.load(f)
 
-    _setup_sim_scenario_file(json_dict, None, None, "Parallel", None)
+    _setup_sim_scenario_file(json_dict, None, None, "Parallel", None, {})
 
     with open(json_path, "w+") as json_file:
         json.dump(json_dict, json_file)
@@ -299,7 +299,7 @@ def test_two_batches_duration_correct(assets_path):
     with open(basic_json_path, "r") as f:
         json_dict = json.load(f)
 
-    # _setup_sim_scenario_file(json_dict, None, None, "Parallel")
+    _setup_sim_scenario_file(json_dict, None, None, "Parallel", None, {})
     _add_batch_task(json_dict)
 
     with open(json_path, "w+") as json_file:
@@ -362,7 +362,7 @@ def test_week_day_correct_firing(assets_path):
         json_dict = json.load(f)
 
     firing_rules = [[{"attribute": "week_day", "comparison": "=", "value": "Monday"}]]
-    _setup_sim_scenario_file(json_dict, None, None, "Parallel", firing_rules)
+    _setup_sim_scenario_file(json_dict, None, None, "Parallel", firing_rules, {})
 
     with open(json_path, "w+") as json_file:
         json.dump(json_dict, json_file)
@@ -410,7 +410,7 @@ def test_week_day_different_correct_firing(assets_path):
         json_dict = json.load(f)
 
     firing_rules = [[{"attribute": "week_day", "comparison": "=", "value": "Monday"}]]
-    _setup_sim_scenario_file(json_dict, None, None, "Parallel", firing_rules)
+    _setup_sim_scenario_file(json_dict, None, None, "Parallel", firing_rules, {})
 
     with open(json_path, "w+") as json_file:
         json.dump(json_dict, json_file)
@@ -483,7 +483,7 @@ def test_two_rules_week_day_correct_start_time(assets_path):
         "distribution_params": [{"value": 43200}, {"value": 0}, {"value": 1}],
     }
 
-    _setup_sim_scenario_file(json_dict, None, None, "Parallel", firing_rules)
+    _setup_sim_scenario_file(json_dict, None, None, "Parallel", firing_rules, {})
     _setup_arrival_distribution(json_dict, arrival_distr)
 
     with open(json_path, "w+") as json_file:
@@ -515,15 +515,15 @@ def test_two_rules_week_day_correct_start_time(assets_path):
         ("2022-09-28 23:44:30+03:00", 2),
         ("2022-10-03 00:00:00+03:00", 2),
     ]
-
-    grouped_by_start_items = list(map(_get_start_time_and_count, list(grouped_by_start.groups.items())))
-    assert (
-        grouped_by_start_items == expected_start_time_keys
-    ), f"The start_time for batched D tasks differs. Expected: {expected_start_time_keys}, but was {grouped_by_start_items}"
+    _verify_start_time_num_tasks(grouped_by_start, expected_start_time_keys)
 
 
 def _get_start_time_and_count(item):
     key, value = item
+    if isinstance(key, tuple):
+        # take the first value of the tuple
+        # should be start_time
+        key, _ = key
     return key, len(value)
 
 def test_two_rules_week_day_and_size_correct_start_time(assets_path):
@@ -566,7 +566,7 @@ def test_two_rules_week_day_and_size_correct_start_time(assets_path):
         "distribution_params": [{"value": 43200}, {"value": 0}, {"value": 1}],
     }
 
-    _setup_sim_scenario_file(json_dict, None, None, "Parallel", firing_rules)
+    _setup_sim_scenario_file(json_dict, None, None, "Parallel", firing_rules, {})
     _setup_arrival_distribution(json_dict, arrival_distr)
 
     with open(json_path, "w+") as json_file:
@@ -596,11 +596,7 @@ def test_two_rules_week_day_and_size_correct_start_time(assets_path):
         ("2022-09-26 23:44:30+03:00", 3),
         ("2022-10-03 00:00:00+03:00", 6)
     ]
-
-    grouped_by_start_items = list(map(_get_start_time_and_count, list(grouped_by_start.groups.items())))
-    assert (
-        grouped_by_start_items == expected_start_time_items
-    ), f"The start_time for batched D tasks differs. Expected: {expected_start_time_items}, but was {grouped_by_start_items}"
+    _verify_start_time_num_tasks(grouped_by_start, expected_start_time_items)
 
 
 def _remove_miliseconds(x: datetime):
@@ -618,12 +614,13 @@ def _add_batch_task(json_dict):
             "type": "Sequential",
             "duration_distrib": {"3": 0.5},
             "firing_rules": [[{"attribute": "size", "comparison": "=", "value": 3}]],
+            "size_distrib": {},
         }
     )
 
 
 def _setup_sim_scenario_file(
-    json_dict, duration_distrib, firing_count, batch_type, firing_rules
+    json_dict, duration_distrib, firing_count, batch_type, firing_rules, size_distr
 ):
     batch_processing = json_dict["batch_processing"][0]
     if batch_type != None:
@@ -640,6 +637,9 @@ def _setup_sim_scenario_file(
     if firing_rules != None:
         batch_processing["firing_rules"] = firing_rules
 
+    if size_distr != None:
+        batch_processing["size_distrib"] = size_distr
+
 
 def _setup_arrival_distribution(json_dict, arrival_distribution):
     if arrival_distribution != None:
@@ -655,6 +655,12 @@ def _verify_same_resource_for_batch(resource_series):
     assert (first_resource_arr[0] == resource_series).all(), \
         f"Assigned resource to the tasks inside the batch should be equal. \
             {resource_series} does not satisfy the requirement."
+
+def _verify_start_time_num_tasks(grouped_by_start, expected_start_time_keys):
+    grouped_by_start_items = list(map(_get_start_time_and_count, list(grouped_by_start.groups.items())))
+    assert (
+        grouped_by_start_items == expected_start_time_keys
+    ), f"The start_time for batched D tasks differs. Expected: {expected_start_time_keys}, but was {grouped_by_start_items}"
 
 def _verify_logs_ordered_asc(df, tzinfo):
     """ Verify that column 'start_time' is ordered ascendingly """

@@ -351,7 +351,7 @@ class BPMNGraph:
         """
         Get whether the task could be enabled for the execution.
         :param task_id: id of the task
-        :return: (is batched task enabled, rule that enables the execution)
+        :return: (is batched task enabled, chunks info, start time of the batch)
         """
         task_batch_info = self.batch_info.get(task_id, None)
 
@@ -374,10 +374,60 @@ class BPMNGraph:
             "waiting_times": waiting_time,
             "enabled_datetimes": [ v.datetime for (_, v) in self.batch_waiting_processes[task_id].items() ],
             "curr_enabled_at": enabled_at.datetime,
-            "is_triggered_by_batch": True # specify where from we checking the rule. If not triggered by batch - then we move to midnight time
+            "is_triggered_by_batch": True, # specify where from we checking the rule. If not triggered by batch - then we move to midnight time
+            "is_only_one_batch_return": False
         }
 
-        return firing_rules.is_true(spec)
+        if task_batch_info.are_rules_discovered():
+            # if the rules were discovered,
+            # we proceed with checking whether the rule is satisfied and
+            # information for executing the batch 
+            return firing_rules.is_true(spec)
+        else:
+            return self.get_batch_size_no_rules_defined(spec, firing_rules, task_batch_info)
+
+    def get_batch_size_no_rules_defined(self, spec, firing_rules, task_batch_info):
+        """
+        In case no rules were discovered, size distribution is being used to define how batches will be formed.
+        For this, we regenerate the rule associated with the batch after each batch creation.
+
+        """
+        spec["is_only_one_batch_return"] = True
+        
+        final_is_true, final_batch_spec, final_start_time = False, None, None
+
+        while True:
+            is_true, batch_spec, start_time = firing_rules.is_true(spec)
+
+            if not is_true:
+                # size rule could not be satisfied
+                # return what we found so far
+                break
+
+            # size rule satisfied, remember the number of the items inside this batch
+            # continue searching for next batches if any
+            if (final_batch_spec == None): final_batch_spec = []
+            num_items = batch_spec[0]
+            final_batch_spec.append(num_items)
+            final_is_true = is_true
+            final_start_time = start_time
+            
+            # regenerate the rule based on the size distribution
+            task_batch_info.update_firing_rules_from_distr()
+
+            # update spec by removing the items we already included in the batch
+            spec["waiting_times"] = spec["waiting_times"][num_items:]
+            spec["enabled_datetimes"] = spec["enabled_datetimes"][num_items:]
+            new_num_tasks_in_queue = spec["size"] - num_items
+
+            if new_num_tasks_in_queue == 0:
+                # all items were included in the batches
+                break
+            
+            spec["size"] = spec["size"] - num_items
+
+        return final_is_true, final_batch_spec, final_start_time
+
 
     def get_start_time(self, task_id, last_task_enabled_time) -> tuple([int, int, CustomDatetimeAndSeconds]):
         task_batch_info = self.batch_info.get(task_id, None)

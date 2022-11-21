@@ -16,6 +16,7 @@ from testing_scripts.test_batching import (
     _setup_sim_scenario_file,
     _verify_logs_ordered_asc,
     _verify_same_resource_for_batch,
+    _verify_start_time_num_tasks,
     assets_path,
 )
 
@@ -172,10 +173,7 @@ def test_daily_hour_and_week_day_and_size_rule_correct_enabled_and_batch_size(as
         ("2022-10-03 00:00:00.035185+03:00", 21),
         ("2022-10-03 11:49:30.035185+03:00", 4)
     ]
-    grouped_by_start_items = list(map(_get_start_time_and_count, list(grouped_by_start.groups.items())))
-    assert (
-        grouped_by_start_items == expected_start_time_keys
-    ), f"The start_time for batched D tasks differs. Expected: {expected_start_time_keys}, but was {grouped_by_start_items}"
+    _verify_start_time_num_tasks(grouped_by_start, expected_start_time_keys)
 
     # verify that the same resource execute the whole batch
     for _, group in grouped_by_start:
@@ -225,7 +223,8 @@ def test_2_daily_hour_and_week_day_and_size_rule_correct_enabled_and_batch_size(
     df = pd.read_csv(sim_logs)
     logs_d_task = df[df["activity"] == "D"]
     # group by two columns because we have firing of multiple batches at the same datetime
-    grouped_by_start = logs_d_task.groupby(by=["start_time", "resource"])
+    grouped_by_start = logs_d_task.groupby(by=["start_time"])
+    grouped_by_start_and_resource = logs_d_task.groupby(by=["start_time", "resource"])
 
     expected_start_time_keys = [
         ("2022-09-30 12:00:00.000000+03:00", 5),
@@ -236,18 +235,16 @@ def test_2_daily_hour_and_week_day_and_size_rule_correct_enabled_and_batch_size(
         ("2022-10-03 12:00:00.000000+03:00", 6),
         ("2022-10-03 12:00:00.000000+03:00", 2),
     ]
-    grouped_by_start_items = list(map(_get_start_time_and_count_final, list(grouped_by_start.groups.items())))
-    assert (
-        grouped_by_start_items == expected_start_time_keys
-    ), f"The start_time for batched D tasks differs. Expected: {expected_start_time_keys}, but was {grouped_by_start_items}"
+    _verify_start_time_num_tasks(grouped_by_start_and_resource, expected_start_time_keys)
 
     # verify that the same resource execute the whole batch
-    for _, group in grouped_by_start:
+    for _, group in grouped_by_start_and_resource:
         _verify_same_resource_for_batch(group["resource"])
 
     # verify that column 'start_time' is ordered ascendingly
     start_date = parse_datetime(start_string, True)
     _verify_logs_ordered_asc(df, start_date.tzinfo)
+
 
 def _get_start_time_and_count_final(item):
     key, value = _get_start_time_and_count(item)
@@ -288,10 +285,7 @@ def test_daily_hour_every_day_correct_firing(assets_path):
         ("2022-09-27 15:00:00.000000+03:00", 4),
         ("2022-09-27 19:14:30.035185+03:00", 2)
     ]
-    grouped_by_start_items = list(map(_get_start_time_and_count, list(grouped_by_start.groups.items())))
-    assert (
-        grouped_by_start_items == expected_start_time_keys
-    ), f"The start_time for batched D tasks differs. Expected: {expected_start_time_keys}, but was {grouped_by_start_items}"
+    _verify_start_time_num_tasks(grouped_by_start, expected_start_time_keys)
 
     # verify that column 'start_time' is ordered ascendingly
     start_date = parse_datetime(start_string, True)
@@ -366,10 +360,9 @@ def test_daily_hour_every_day_and_size_correct_firing(assets_path_fixture, size_
     logs_d_task = df[df["activity"] == "D"]
     grouped_by_start = logs_d_task.groupby(by="start_time")
 
-    grouped_by_start_items = list(map(_get_start_time_and_count, list(grouped_by_start.groups.items())))
-    assert (
-        grouped_by_start_items == expected_start_time_keys
-    ), f"The start_time for batched D tasks differs. Expected: {expected_start_time_keys}, but was {grouped_by_start_items}"
+    # verify the start time of every batch and
+    # number of tasks inside every batch
+    _verify_start_time_num_tasks(grouped_by_start, expected_start_time_keys)
 
     # verify that column 'start_time' is ordered ascendingly
     start_date = parse_datetime(start_string, True)
@@ -398,7 +391,7 @@ def _arrange_and_act_base(assets_path, firing_rules, start_date, num_cases, arri
     with open(basic_json_path, "r") as f:
         json_dict = json.load(f)
 
-    _setup_sim_scenario_file(json_dict, None, None, "Parallel", firing_rules)
+    _setup_sim_scenario_file(json_dict, None, None, "Parallel", firing_rules, {})
     _setup_arrival_distribution(json_dict, arrival_distr)
 
     with open(json_path, "w+") as json_file:
