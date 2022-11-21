@@ -2,6 +2,7 @@ import pytest
 import pandas as pd
 
 from bpdfr_simulation_engine.batching_processing import AndFiringRule, FiringSubRule, OrFiringRule
+from bpdfr_simulation_engine.exceptions import InvalidRuleDefinition
 from bpdfr_simulation_engine.resource_calendar import parse_datetime
 from testing_scripts.test_batching import SIM_LOGS_FILENAME, _verify_logs_ordered_asc, _verify_same_resource_for_batch, assets_path
 from testing_scripts.test_batching_daily_hour import _arrange_and_act
@@ -164,3 +165,55 @@ def test_invalid_end_correct(or_rule: OrFiringRule, num_tasks, first_wt_sec, las
    
     # ====== ASSERT ======
     assert expected_result == actual_result
+
+invalid_setup = [
+    # Verify:   Defining two simple rules of the type "WEEK_DAY" invalidates the rule.
+    #           There is no case when this condition could be satisfied.
+    (
+        [
+            [
+                {"attribute": "week_day", "comparison": "=", "value": "Monday"},
+                {"attribute": "week_day", "comparison": "=", "value": "Tuesday"}
+            ]
+        ],
+        "Only one WEEK_DAY subrule is allowed inside AND rule."
+    ),
+    # Verify:   Defining three simple rules of the type "DAILY_HOUR" invalidates the rule.
+    (
+        [
+            [
+                {"attribute": "daily_hour", "comparison": ">=", "value": "12"},
+                {"attribute": "daily_hour", "comparison": "<=", "value": "18"},
+                {"attribute": "daily_hour", "comparison": "<=", "value": "20"},
+            ]
+        ],
+        "Only one or two subrules of DAILY_HOUR type is allowed inside AND rule."
+    ),
+    # Verify:   The only allowed operator to be used with "week_day" rule is =.
+    #           Exception is being thrown in case some other operator is being used.
+    (
+        [
+            [
+                {"attribute": "week_day", "comparison": ">", "value": "Monday"},
+            ]
+        ],
+        "'>' is not allowed operator for the week_day type of rule."
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "firing_rules, exception_match",
+    invalid_setup,
+)
+def test_rule_setup_invalid(firing_rules, exception_match, assets_path):
+    """
+    Verify:     Defining two simple rules of the type "WEEK_DAY" invalidates the rule.
+                There is no case when this condition could be satisfied.
+    """
+    start_string = "2022-06-21 13:22:30.035185+03:00"
+    total_num_cases = 10
+
+    with pytest.raises(InvalidRuleDefinition, match=exception_match):
+        _arrange_and_act(assets_path, firing_rules, start_string, total_num_cases, 5 * 60) # every 5 minutes
+

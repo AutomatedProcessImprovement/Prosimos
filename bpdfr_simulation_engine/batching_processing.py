@@ -4,6 +4,7 @@ from random import choices
 import sys
 from typing import List
 from datetime import datetime, time, timedelta
+from bpdfr_simulation_engine.exceptions import InvalidRuleDefinition
 
 from bpdfr_simulation_engine.resource_calendar import str_week_days
 from bpdfr_simulation_engine.weekday_helper import CustomDatetimeAndSeconds, get_nearest_abs_day, get_nearest_past_day
@@ -348,6 +349,7 @@ class AndFiringRule():
         self.ready_wt_boundaries = None
         self.large_wt_boundaries = None
 
+    
     def _has_rule(self, rule_name: List[RULE_TYPE]):
         rule_values = list(map(lambda x: x.value, rule_name))
         for rule in self.rules:
@@ -376,6 +378,21 @@ class AndFiringRule():
             return 
 
         self.large_wt_boundaries = self._get_low_and_high_boundaries(rule_type)
+
+
+    def validate(self):
+        week_day_count = 0
+        daily_hour_count = 0
+        for rule in self.rules:
+            if rule.variable1 == RULE_TYPE.WEEK_DAY.value:
+                week_day_count += 1
+            elif rule.variable1 == RULE_TYPE.DAILY_HOUR.value:
+                daily_hour_count += 1
+
+        if week_day_count > 1:
+            raise InvalidRuleDefinition("Only one WEEK_DAY subrule is allowed inside AND rule.")
+        elif daily_hour_count > 2:
+            raise InvalidRuleDefinition("Only one or two subrules of DAILY_HOUR type is allowed inside AND rule.")
 
 
     def _get_low_and_high_boundaries(self, rule_name: RULE_TYPE):

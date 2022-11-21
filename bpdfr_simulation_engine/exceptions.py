@@ -11,3 +11,6 @@ class InvalidBpmnModelException(Error):
 
 class InvalidLogFileException(Error):
     """Raised when the provided log file is invalid"""
+
+class InvalidRuleDefinition(Error):
+    """Raised when the defined rule is invalid"""

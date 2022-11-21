@@ -5,9 +5,10 @@ from typing import List
 import xml.etree.ElementTree as ET
 
 from numpy import exp, sqrt, log
-from bpdfr_simulation_engine.batching_processing import BATCH_TYPE, BatchConfigPerTask, AndFiringRule, FiringSubRule, OrFiringRule
+from bpdfr_simulation_engine.batching_processing import BATCH_TYPE, RULE_TYPE, BatchConfigPerTask, AndFiringRule, FiringSubRule, OrFiringRule
 
 from bpdfr_simulation_engine.control_flow_manager import EVENT_TYPE, BPMNGraph, ElementInfo, BPMN
+from bpdfr_simulation_engine.exceptions import InvalidRuleDefinition
 from bpdfr_simulation_engine.resource_calendar import RCalendar
 from bpdfr_simulation_engine.resource_profile import ResourceProfile, PoolInfo
 from bpdfr_simulation_engine.probability_distributions import *
@@ -144,7 +145,9 @@ def parse_batch_processing(batch_processing_json_data):
 
             firing_rule = AndFiringRule(parsed_and_rules)
 
+            firing_rule.validate()
             firing_rule.init_boundaries()
+
             parsed_or_rules.append(firing_rule)
 
         firing_rules = OrFiringRule(parsed_or_rules)
@@ -186,6 +189,11 @@ def create_subrule(attribute, comparison, value):
     formatted_value = value
     if attribute == 'daily_hour':
         formatted_value = time(int(value), 0, 0, 0)
+
+    if attribute == RULE_TYPE.WEEK_DAY.value and \
+        comparison != "=":
+        # only "=" operator is allowed to be used with the week_day type of rule
+        raise InvalidRuleDefinition(f"'{comparison}' is not allowed operator for the week_day type of rule.")
 
     return FiringSubRule(
         attribute,
