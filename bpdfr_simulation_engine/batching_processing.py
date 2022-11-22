@@ -391,7 +391,7 @@ class AndFiringRule():
         if not self._has_rule([rule_type]):
             return 
 
-        self.daily_hour_range = self._get_low_and_high_boundaries(rule_type, timedelta(seconds=1), False)
+        self.daily_hour_range = self._get_low_and_high_boundaries(rule_type, timedelta(seconds=1))
 
 
     def validate(self):
@@ -409,7 +409,7 @@ class AndFiringRule():
             raise InvalidRuleDefinition("Only one or two subrules of DAILY_HOUR type is allowed inside AND rule.")
 
 
-    def _get_low_and_high_boundaries(self, rule_name: RULE_TYPE, diff_units, is_validated = True):
+    def _get_low_and_high_boundaries(self, rule_name: RULE_TYPE, diff_units):
         if isinstance(diff_units, timedelta):
             low_boundary, high_boundary = self.daily_hour_range
         else:
