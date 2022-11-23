@@ -642,20 +642,32 @@ class AndFiringRule():
         
         return is_true_result, None, None
 
+    def get_firing_batch_size_ready_and_large(self, element, init_batch_size, init_enabled_time):
+        batch_size, enabled_time = (init_batch_size, init_enabled_time)
+
+        ready_wt_result = self.get_ready_wt(element)
+        large_wt_result = self.get_large_wt(element)
+
+        if ready_wt_result != None and large_wt_result != None:
+            r_batch_size, r_enabled_time = ready_wt_result
+            l_batch_size, l_enabled_time = large_wt_result
+            batch_size = min(value for value in [r_batch_size, l_batch_size] if value is not None)
+            enabled_time = max(value for value in [r_enabled_time, l_enabled_time] if value is not None)
+
+        elif ready_wt_result != None:
+            batch_size, enabled_time = ready_wt_result
+
+        elif large_wt_result != None:
+            batch_size, enabled_time = large_wt_result
+
+        return batch_size, enabled_time
+
     def get_firing_batch_size(self, current_batch_size, element):
         batch_size = sys.maxsize
         initial_curr_enabled_at = element["curr_enabled_at"]
         enabled_time = initial_curr_enabled_at
 
-        ready_wt_result = self.get_ready_wt(element)
-        if ready_wt_result != None:
-            batch_size, enabled_time = ready_wt_result
-
-        large_wt_result = self.get_large_wt(element)
-        if large_wt_result != None:
-            batch_size, enabled_time = large_wt_result
-
-        #TODO: what if ready_wt and large_wt are together
+        batch_size, enabled_time = self.get_firing_batch_size_ready_and_large(element, batch_size, enabled_time)
 
         is_time_forced = False
 

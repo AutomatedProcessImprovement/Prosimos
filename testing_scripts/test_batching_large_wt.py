@@ -13,6 +13,7 @@ from testing_scripts.test_batching import (
 from testing_scripts.test_batching_daily_hour import _get_current_exec_status
 from testing_scripts.test_batching_ready_wt import _arrange_and_act_exp, _test_range_basic
 
+HALF_AN_HOUR_SEC = 1800
 ONE_HOUR_IN_SEC = 3600
 TWO_HOURS_IN_SEC = 7200
 
@@ -253,6 +254,72 @@ def test_range_large_wt_rule_correct_log_distances(execution_number, assets_path
 
     _verify_diff_start_and_first_enable_time(grouped_by_start, ONE_HOUR_IN_SEC, TWO_HOURS_IN_SEC)
     _verify_start_time_batch_one_task(grouped_by_start, TWO_HOURS_IN_SEC)
+
+data_ready_and_large = [
+    (
+        "17/09/22 19:35:00",
+        [
+            "17/09/22 19:00:00",
+            "17/09/22 19:30:00",
+        ],
+        AndFiringRule(array_of_subrules=[
+            FiringSubRule("large_wt", "<=", ONE_HOUR_IN_SEC),
+            FiringSubRule("ready_wt", ">", HALF_AN_HOUR_SEC),
+            FiringSubRule("ready_wt", "<", TWO_HOURS_IN_SEC),
+        ]),
+        False,
+        None,
+        None,
+    ),
+    (
+        "17/09/22 20:05:00",
+        [
+            "17/09/22 19:00:00",
+            "17/09/22 19:30:00",
+        ],
+        AndFiringRule(array_of_subrules=[
+            FiringSubRule("large_wt", "<=", ONE_HOUR_IN_SEC),
+            FiringSubRule("ready_wt", ">", HALF_AN_HOUR_SEC),
+            FiringSubRule("ready_wt", "<", TWO_HOURS_IN_SEC),
+        ]),
+        True,
+        [2],
+        "17/09/2022 20:00:01",
+    ),
+    # TODO: check expected result
+    # (
+    #     "17/09/22 21:05:00",
+    #     [
+    #         "17/09/22 19:00:00",
+    #         "17/09/22 19:30:00",
+    #         "17/09/22 20:00:00",
+    #         "17/09/22 20:30:00",
+    #     ],
+    #     AndFiringRule(array_of_subrules=[
+    #         FiringSubRule("large_wt", "<=", ONE_HOUR_IN_SEC),
+    #         FiringSubRule("ready_wt", ">", HALF_AN_HOUR_SEC),
+    #         FiringSubRule("ready_wt", "<", TWO_HOURS_IN_SEC),
+    #     ]),
+    #     True,
+    #     [2, 2],
+    #     "17/09/2022 20:00:01",
+    # ),
+]
+
+
+@pytest.mark.parametrize(
+    "curr_enabled_at_str, enabled_datetimes, and_rule, expected_is_true, expected_batch_size, expected_batch_start_time", 
+    data_ready_and_large
+)
+def test_large_and_ready_together_is_true_correct(
+    curr_enabled_at_str, enabled_datetimes, and_rule, expected_is_true, expected_batch_size, expected_batch_start_time):
+
+    # ====== ARRANGE ======
+    and_rule.init_boundaries()
+    rule = OrFiringRule([and_rule])
+
+    _test_range_basic(rule, curr_enabled_at_str, enabled_datetimes, expected_is_true,
+        expected_batch_size, expected_batch_start_time)
 
 
 def _verify_diff_start_and_first_enable_time(grouped_by_start, min_time_distance_sec, max_time_distance_sec):
