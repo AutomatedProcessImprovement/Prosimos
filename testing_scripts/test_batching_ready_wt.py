@@ -396,7 +396,7 @@ def _arrange_and_act_exp(assets_path, firing_rules, start_date, num_cases):
         ]
     }
 
-    _arrange_and_act_base(assets_path, firing_rules, start_date, num_cases, arrival_distr)
+    _arrange_and_act_base(assets_path, firing_rules, start_date, num_cases, arrival_distr, {})
 
 
 def _test_range_basic(rule: OrFiringRule, curr_enabled_at_str, enabled_datetimes, expected_is_true, expected_batch_size, expected_start_time_from_rule ):

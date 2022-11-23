@@ -1,4 +1,3 @@
-from functools import reduce
 import json
 from datetime import time
 from typing import List
@@ -177,10 +176,10 @@ def parse_size_distrib(size_distrib):
 
     possible_options = []
     probabilities = []
-    all_sum = reduce(lambda x, y: x+y, size_distrib.values())
+
     for key, item in size_distrib.items():
         possible_options.append(int(key))
-        probabilities.append(item/all_sum)
+        probabilities.append(item)
 
     return possible_options, probabilities
 

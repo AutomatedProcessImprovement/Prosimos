@@ -570,10 +570,17 @@ class AndFiringRule():
             _, en_time = wt_res
             return en_time
 
+    def is_size_one(self):
+        for rule in self.rules:
+            if rule.variable1 == RULE_TYPE.SIZE.value:
+                return rule.value2 == 1
+
+        return False
 
     def is_batch_size_enough_for_exec(self, batch_size_res: int):
-        return True if batch_size_res > 0 \
-            and self._has_rule([RULE_TYPE.READY_WT, RULE_TYPE.LARGE_WT]) \
+        return True if (self._has_rule([RULE_TYPE.READY_WT, RULE_TYPE.LARGE_WT]) or \
+                self.is_size_one()) and \
+                batch_size_res > 0 \
             else batch_size_res > 1
 
 
@@ -880,11 +887,12 @@ class OrFiringRule():
         # no enabled batches, check whether rule is invalid
         # if yes, batch is triggered straight away
         first_wt = spec["waiting_times"][0]
-        if rule.is_invalid(first_wt):
-            # in case rule is invalid,
-            # we trigger the batch execution straight away with all tasks waiting for the batch exec
-            # and "current" moment of time we have
-            return True, [spec["size"]], spec["curr_enabled_at"]
+        for rule in self.rules:
+            if rule.is_invalid(first_wt):
+                # in case rule is invalid,
+                # we trigger the batch execution straight away with all tasks waiting for the batch exec
+                # and "current" moment of time we have
+                return True, [spec["size"]], spec["curr_enabled_at"]
         
         return is_batched_task_enabled, None, None
 

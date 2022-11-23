@@ -1,4 +1,4 @@
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 import json
 import pandas as pd
 import pytest
@@ -239,7 +239,7 @@ def test_daily_hour_and_week_day_and_size_rule_correct_enabled_and_batch_size(fi
     # ====== ASSERT ======
     df = pd.read_csv(sim_logs)
     logs_d_task = df[df["activity"] == "D"]
-    
+
     # group by two columns because we have firing of multiple batches at the same datetime
     grouped_by_start_and_resource = logs_d_task.groupby(by=["start_time", "resource"])
 
@@ -377,7 +377,7 @@ def test_daily_hour_every_day_and_size_correct_firing(assets_path_fixture, size_
     _verify_logs_ordered_asc(df, start_date.tzinfo)
 
 
-def _arrange_and_act(assets_path, firing_rules, start_date, num_cases, cases_arrival_rate):
+def _arrange_and_act(assets_path, firing_rules, start_date, num_cases, cases_arrival_rate, size_distr = {}):
     # case arrives every 14400 seconds (= 4 hours)
     # e.g., 14400 seconds = 4 hours
     arrival_distr = {
@@ -385,10 +385,10 @@ def _arrange_and_act(assets_path, firing_rules, start_date, num_cases, cases_arr
         "distribution_params": [{"value": cases_arrival_rate}, {"value": 0}, {"value": 1}],
     }
 
-    _arrange_and_act_base(assets_path, firing_rules, start_date, num_cases, arrival_distr)
+    _arrange_and_act_base(assets_path, firing_rules, start_date, num_cases, arrival_distr, size_distr)
     
 
-def _arrange_and_act_base(assets_path, firing_rules, start_date, num_cases, arrival_distr):
+def _arrange_and_act_base(assets_path, firing_rules, start_date, num_cases, arrival_distr, size_distr):
     # ====== ARRANGE ======
     model_path = assets_path / "batch-example-end-task.bpmn"
     basic_json_path = assets_path / "batch-example-with-batch.json"
@@ -399,7 +399,7 @@ def _arrange_and_act_base(assets_path, firing_rules, start_date, num_cases, arri
     with open(basic_json_path, "r") as f:
         json_dict = json.load(f)
 
-    _setup_sim_scenario_file(json_dict, None, None, "Parallel", firing_rules, {})
+    _setup_sim_scenario_file(json_dict, None, None, "Parallel", firing_rules, size_distr)
     _setup_arrival_distribution(json_dict, arrival_distr)
 
     with open(json_path, "w+") as json_file:
