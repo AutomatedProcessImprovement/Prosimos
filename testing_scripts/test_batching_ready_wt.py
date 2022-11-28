@@ -1,7 +1,7 @@
 import pytest
 import pandas as pd
 
-from bpdfr_simulation_engine.batching_processing import AndFiringRule, FiringSubRule, OrFiringRule
+from bpdfr_simulation_engine.batch_processing import AndFiringRule, FiringSubRule, OrFiringRule
 from bpdfr_simulation_engine.resource_calendar import parse_datetime
 from testing_scripts.test_batching import (
     _verify_logs_ordered_asc,

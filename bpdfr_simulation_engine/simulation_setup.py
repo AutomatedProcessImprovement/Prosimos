@@ -2,7 +2,7 @@ import pytz
 import datetime
 from datetime import timedelta
 import ntpath
-from bpdfr_simulation_engine.batching_processing import BatchConfigPerTask
+from bpdfr_simulation_engine.batch_processing import BatchConfigPerTask
 from typing import Optional
 
 from bpdfr_simulation_engine.control_flow_manager import ProcessState, ElementInfo, BPMN

@@ -4,7 +4,7 @@ from typing import List
 import xml.etree.ElementTree as ET
 
 from numpy import exp, sqrt, log
-from bpdfr_simulation_engine.batching_processing import BATCH_TYPE, RULE_TYPE, BatchConfigPerTask, AndFiringRule, FiringSubRule, OrFiringRule
+from bpdfr_simulation_engine.batch_processing import BATCH_TYPE, RULE_TYPE, BatchConfigPerTask, AndFiringRule, FiringSubRule, OrFiringRule
 
 from bpdfr_simulation_engine.control_flow_manager import EVENT_TYPE, BPMNGraph, ElementInfo, BPMN
 from bpdfr_simulation_engine.exceptions import InvalidRuleDefinition

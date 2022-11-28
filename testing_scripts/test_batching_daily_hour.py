@@ -3,7 +3,7 @@ import json
 import pandas as pd
 import pytest
 
-from bpdfr_simulation_engine.batching_processing import (
+from bpdfr_simulation_engine.batch_processing import (
     AndFiringRule,
     FiringSubRule,
     OrFiringRule,

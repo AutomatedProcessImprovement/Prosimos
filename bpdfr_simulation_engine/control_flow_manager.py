@@ -8,7 +8,7 @@ import pm4py
 import random
 import secrets
 from pm4py.objects.conversion.process_tree import converter
-from bpdfr_simulation_engine.batching_processing import BATCH_TYPE, AndFiringRule, BatchConfigPerTask
+from bpdfr_simulation_engine.batch_processing import BATCH_TYPE, AndFiringRule, BatchConfigPerTask
 from bpdfr_simulation_engine.probability_distributions import generate_number_from
 
 from bpdfr_simulation_engine.exceptions import InvalidBpmnModelException
