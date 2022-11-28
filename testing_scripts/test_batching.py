@@ -23,6 +23,10 @@ data_nearest_neighbors = [
     ("assets_path", distribution, 10, 120 * 0.6),
 ]
 
+_batch_every_time = {
+    '1': 0,
+    '2': 1
+}
 
 @pytest.fixture
 def assets_path(request) -> Path:
@@ -600,8 +604,8 @@ def _add_batch_task(json_dict):
             "task_id": "Activity_0ngxjs9",
             "type": "Sequential",
             "duration_distrib": {"3": 0.5},
+            "size_distrib": _batch_every_time,
             "firing_rules": [[{"attribute": "size", "comparison": "=", "value": 3}]],
-            "size_distrib": {},
         }
     )
 
@@ -628,7 +632,11 @@ def _setup_sim_scenario_file(
     if firing_rules != None:
         batch_processing_0["firing_rules"] = firing_rules
 
-    if size_distr != None:
+    if len(size_distr) == 0:
+        # by default we say that the batch processing happens every time
+        # and the probability of the batched task to be executed alone is 0
+        batch_processing_0["size_distrib"] = _batch_every_time
+    elif size_distr != None:
         batch_processing_0["size_distrib"] = size_distr
 
 
@@ -681,8 +689,9 @@ def _setup_initial_scenario(json_path, firing_rules, batch_type):
         json_dict = json.load(f)
 
     duration_dist = {"3": 0.8}
+
     _setup_sim_scenario_file(
-        json_dict, duration_dist, None, batch_type, firing_rules, size_distr={}
+        json_dict, duration_dist, None, batch_type, firing_rules, {}
     )
 
     arrival_distr = {

@@ -1,6 +1,7 @@
 import json
 from unittest import mock
 import pandas as pd
+from bpdfr_simulation_engine.batching_processing import FiringSubRule
 from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 from testing_scripts.test_batching import (
     JSON_FILENAME,
@@ -58,7 +59,7 @@ def test_distr_one_choice_correct(assets_path):
     _verify_start_time_num_tasks(grouped_by_start, expected_start_time_keys)
 
 
-@mock.patch('bpdfr_simulation_engine.batching_processing.BatchConfigPerTask.get_batch_size')
+@mock.patch('bpdfr_simulation_engine.batching_processing.BatchConfigPerTask.get_new_subrule_rule')
 def test_distr_multi_choice_correct(mock_choice, assets_path):
     # ====== ARRANGE ======
     # provide the sequence of the mocked random.choices 
@@ -69,7 +70,8 @@ def test_distr_multi_choice_correct(mock_choice, assets_path):
     start_string = "2022-06-21 13:22:30.035185+03:00"
     total_sim_num = 15
 
-    mock_choice.side_effect = [2, 2, 3, 3, 3, 2, 3]
+    prob_seq = [2, 2, 2, 3, 3, 3, 2, 3, 2]
+    mock_choice.side_effect = [ FiringSubRule("size", "=", i) for i in prob_seq ]
     initial_size_distr = {
         "2": 0.5,
         "3": 0.5

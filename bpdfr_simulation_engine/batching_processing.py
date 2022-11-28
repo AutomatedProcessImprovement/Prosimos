@@ -970,13 +970,34 @@ class BatchConfigPerTask():
         self.firing_rules = firing_rules
         self.possible_options = possible_options
         self.probabilities = probabilities
+        self.are_rules_discovered = len(self.firing_rules.rules) > 0
 
-        self.update_firing_rules_from_distr()
+        if not self.are_rules_discovered:
+            # define the initial rule based on size_distr
+            self.update_firing_rules_from_distr()
+        else:
+            # redefine the probabilities
+            # to be used to get the probabiity of batch to be executed alone
+            prob_for_one = self.probabilities[0]
+            other_than_one_prob = 1 - prob_for_one
+            
+            self.possible_options = [1,2]
+            self.probabilities = [prob_for_one, other_than_one_prob]
 
-    def are_rules_discovered(self):
-        """ Verify whether rules were initially defined.
-        Otherwise, we generate size rule dynamically. """
-        return len(self.possible_options) == 0
+
+    def is_batch_exec_alone(self):
+        """
+        Based on size_distr param, we calculate
+        whether the batch is executed either alone as a task or 
+        in the batch following the defined rules
+        """
+        # could return 1 or 2
+        prob_num = self.get_batch_size()
+
+        # if we returned 1, then we execute batch alone
+        # otherwise, 2 refers to all cases other than 1 and 
+        # means that batch should start creating following the rule
+        return prob_num == 1
 
     def update_firing_rules_from_distr(self):
         if len(self.possible_options) == 0:
@@ -984,9 +1005,12 @@ class BatchConfigPerTask():
 
         self.firing_rules = OrFiringRule(or_firing_rule_arr=[
             AndFiringRule(array_of_subrules=[
-                FiringSubRule("size", "=", self.get_batch_size())
+                self.get_new_subrule_rule()
             ])
         ])
+
+    def get_new_subrule_rule(self):
+        return FiringSubRule("size", "=", self.get_batch_size())
 
     def get_batch_size(self):
         one_item_list = choices(self.possible_options, self.probabilities)

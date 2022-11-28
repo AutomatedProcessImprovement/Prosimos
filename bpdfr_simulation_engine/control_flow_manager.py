@@ -8,7 +8,7 @@ import pm4py
 import random
 import secrets
 from pm4py.objects.conversion.process_tree import converter
-from bpdfr_simulation_engine.batching_processing import BATCH_TYPE, AndFiringRule
+from bpdfr_simulation_engine.batching_processing import BATCH_TYPE, AndFiringRule, BatchConfigPerTask
 from bpdfr_simulation_engine.probability_distributions import generate_number_from
 
 from bpdfr_simulation_engine.exceptions import InvalidBpmnModelException
@@ -378,7 +378,7 @@ class BPMNGraph:
             "is_only_one_batch_return": False
         }
 
-        if task_batch_info.are_rules_discovered():
+        if task_batch_info.are_rules_discovered:
             # if the rules were discovered,
             # we proceed with checking whether the rule is satisfied and
             # information for executing the batch 
@@ -832,15 +832,55 @@ class BPMNGraph:
         next_e = self.flow_arcs[f_arc][1]
         if self.is_enabled(next_e, p_state):
             if self.element_info[next_e].type == BPMN.TASK and self.is_task_batched(next_e):
-                self.increase_task_count(next_e, case_id, enabled_time)
-                self.move_batch_to_enabled(next_e, enabled_time, enabled_tasks)
+                self.enable_batch_or_task(next_e, case_id, enabled_time, enabled_tasks, duration_sec)
                     
             elif self.element_info[next_e].type in [BPMN.TASK, BPMN.INTERMEDIATE_EVENT]:
                 enabled_tasks.append(EnabledTask(next_e, None, duration_sec))
             else:
                 to_execute.append(next_e)
 
-    def move_batch_to_enabled(self, task_id: str, enabled_time: CustomDatetimeAndSeconds, enabled_tasks: List[EnabledTask]):
+    def is_executing_alone(self, task_id: str):
+        task_batch_info: BatchConfigPerTask = self.batch_info.get(task_id, None)
+
+        if task_batch_info == None:
+            print(f"WARNING: task {task_id} does not have config for batching processing")
+            return False, None, None
+
+        return task_batch_info.is_batch_exec_alone()
+
+    def is_open_batch(self, task_id):
+        """ True if there are open batch waiting for the batch execution
+            else False"""
+        return task_id in self.batch_waiting_processes and \
+            len(self.batch_waiting_processes[task_id]) > 0
+
+    def enable_batch_or_task(self, task_id: str, case_id, enabled_time: CustomDatetimeAndSeconds, \
+        enabled_tasks: List[EnabledTask], duration_sec):
+        """ 
+        Checking the compliance with the size_distr specified in the input
+        In case the probability returns 1, the task is being executed alone
+        In case we already have open batch, we continue allocate tasks there 
+        till the moment it could be executed
+        """
+        if not self.is_open_batch(task_id) and \
+            self.is_executing_alone(task_id):
+            # execute alone as a simple task
+            enabled_tasks.append(EnabledTask(task_id, None, duration_sec))
+            return
+
+        # moving batch to list of enabled tasks if the batch is enabled
+        self.move_batch_if_enabled(task_id, case_id, enabled_time, enabled_tasks)
+
+    def move_batch_if_enabled(self, task_id: str, case_id, enabled_time: CustomDatetimeAndSeconds, \
+        enabled_tasks: List[EnabledTask]):
+        """
+        Moving batch to list of enabled tasks if the batch is enabled
+        Before, checking whether it complies with the size_distr specified in the input
+        In case the probability returns 1, the task is being executed alone
+        In case we already have open batch, we continue allocate tasks there 
+        till the moment it could be executed
+        """
+        self.increase_task_count(task_id, case_id, enabled_time)
         is_enabled, batch_spec, start_time_from_rule = self.is_batched_task_enabled(task_id, enabled_time)
 
         if is_enabled:
@@ -852,6 +892,7 @@ class BPMNGraph:
                 start_time_from_rule)
             enabled_tasks.append((EnabledTask(task_id, batch_info)))
             self._clear_batch(task_id, batch_spec)
+
 
     def _clear_batch(self, next_e, batch_spec):
         """
