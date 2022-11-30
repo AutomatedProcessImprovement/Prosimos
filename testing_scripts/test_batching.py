@@ -245,7 +245,7 @@ def test_parallel_batch_enable_start_waiting_correct(assets_path):
         task_d_sim_result.processing_time.avg == expected_activity_in_batch_duration_sec
     )
 
-    # verify min and max waiting times in logs
+    # verify min and max waiting times in KPIs
 
     # the first task in the batch will wait for the longest
     # calculation: duration of the task prior to the batch * num of tasks
@@ -282,6 +282,66 @@ def test_parallel_batch_enable_start_waiting_correct(assets_path):
     )
 
     _verify_same_resource_for_batch(logs_d_task["resource"])
+
+
+def test_parallel_duration_correct(assets_path):
+    """
+    Verify:     the duration of the individual batch reflect the whole batch duration
+                the last task (executed alone) has a proper duration and equals to
+                the initial duration of the batched task (120 sec).
+    """
+    # ====== ARRANGE ======
+    model_path = assets_path / MODEL_FILENAME
+    json_path = assets_path / JSON_FILENAME
+    sim_stats = assets_path / SIM_STATS_FILENAME
+    sim_logs = assets_path / SIM_LOGS_FILENAME
+
+    start_string = "2022-06-21 13:22:30.035185+03:00"
+
+    firing_rules = [[{"attribute": "size", "comparison": "=", "value": 3}]]
+    batch_type = "Parallel"
+    _setup_initial_scenario(json_path, firing_rules, batch_type)
+
+    # ====== ACT ======
+    _ = run_diff_res_simulation(
+        start_string, 4, model_path, json_path, sim_stats, sim_logs  # one batch + one task alone
+    )
+
+    # ====== ASSERT ======
+    full_act_dur = 120
+    df = pd.read_csv(sim_logs)
+
+    df["enable_time"] = pd.to_datetime(df["enable_time"], errors="coerce")
+    df["start_time"] = pd.to_datetime(df["start_time"], errors="coerce")
+    df["end_time"] = pd.to_datetime(df["end_time"], errors="coerce")
+
+    logs_d_task = df[df["activity"] == "D"]
+
+    # verify the duration of every batched task in the log file
+    start_enable_start_diff_for_task = (
+        logs_d_task["end_time"] - logs_d_task["start_time"]
+    )
+
+    # refers to the one which is reduced by the coefficient
+    batched_duration = full_act_dur * 0.8 * 3
+    
+    expected_waiting_times = pd.Series(
+        [
+            timedelta(seconds=batched_duration),
+            timedelta(seconds=batched_duration),
+            timedelta(seconds=batched_duration),
+            timedelta(seconds=full_act_dur)         # one task, equal to the original duration of the task
+        ]
+    )
+
+    tm.assert_series_equal(
+        start_enable_start_diff_for_task, expected_waiting_times, check_index=False
+    )
+
+    # verify that resource who executed the batch is the same
+    grouped_by_start = logs_d_task.groupby(by="start_time")
+    for _, group in grouped_by_start:
+        _verify_same_resource_for_batch(group["resource"])
 
 
 def test_two_batches_duration_correct(assets_path):
