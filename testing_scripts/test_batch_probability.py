@@ -52,7 +52,6 @@ def test_all_tasks_alone(assets_path):
 def _verify_diff_start_enabled_time(df, expected_diff):
     for _, item in df.iterrows():
         actual_diff_start_and_first_enabled = (item['start_time'] - item['enable_time']).seconds
-        expected_diff = 0
         
         assert (
             actual_diff_start_and_first_enabled == expected_diff

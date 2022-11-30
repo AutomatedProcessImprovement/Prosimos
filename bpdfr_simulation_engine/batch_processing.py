@@ -1017,6 +1017,10 @@ class BatchConfigPerTask():
         return one_item_list[0]
 
     def calculate_ideal_duration(self, initial_duration, num_tasks_in_batch):
+        if num_tasks_in_batch == 1:
+            # one task in the batch is executed with the initial_duration
+            return initial_duration
+
         curr_coef = self.duration_distribution.get(num_tasks_in_batch, None)
 
         if curr_coef is None:
@@ -1033,4 +1037,12 @@ class BatchConfigPerTask():
             nearest_coef = self.duration_distribution[min_key]
             return initial_duration * nearest_coef
 
-        return initial_duration * curr_coef
+        # calculate the duration for executing one of the batched task
+        duration_per_task = initial_duration * curr_coef
+        if self.type == BATCH_TYPE.PARALLEL:
+            # the total duration of every item in the batch
+            # should reflect the whole time spent for the executing of the batch
+            duration = duration_per_task * num_tasks_in_batch
+            return duration
+
+        return duration_per_task

@@ -40,7 +40,7 @@ def assets_path(request) -> Path:
         output_paths = [
             entry_path / SIM_STATS_FILENAME,
             entry_path / SIM_LOGS_FILENAME,
-            entry_path / JSON_NEAREST_COEF_FILENAME,
+            entry_path / JSON_ONE_RESOURCE_FILENAME
         ]
         for output_path in output_paths:
             if output_path.exists():
@@ -236,7 +236,9 @@ def test_parallel_batch_enable_start_waiting_correct(assets_path):
     # ====== ASSERT ======
     # verify duration in stats
     full_act_dur = 120
-    expected_activity_in_batch_duration_sec = full_act_dur * 0.8
+    # 0.8 - coefficient
+    # 3 - number of tasks inside the batch
+    expected_activity_in_batch_duration_sec = full_act_dur * 0.8 * 3
 
     task_d_sim_result = diff_sim_result.tasks_kpi_map["D"]
     assert (
@@ -307,7 +309,7 @@ def test_two_batches_duration_correct(assets_path):
         json.dump(json_dict, json_file)
 
     # ====== ACT ======
-    _, diff_sim_result = run_diff_res_simulation(
+    _ = run_diff_res_simulation(
         start_string, 3, model_path, json_path, sim_stats, sim_logs  # one batch
     )
 
@@ -483,7 +485,7 @@ def test_two_rules_week_day_correct_start_time(assets_path):
         json.dump(json_dict, json_file)
 
     # ====== ACT ======
-    _, diff_sim_result = run_diff_res_simulation(
+    _ = run_diff_res_simulation(
         start_string, 9, model_path, json_path, sim_stats, sim_logs
     )
 
@@ -566,7 +568,7 @@ def test_two_rules_week_day_and_size_correct_start_time(assets_path):
         json.dump(json_dict, json_file)
 
     # ====== ACT ======
-    _, diff_sim_result = run_diff_res_simulation(
+    _ = run_diff_res_simulation(
         start_string, 9, model_path, json_path, sim_stats, sim_logs
     )
 
@@ -684,14 +686,14 @@ def _verify_logs_ordered_asc(df, tzinfo):
         prev_row_value = row["start_time"]
 
 
-def _setup_initial_scenario(json_path, firing_rules, batch_type):
+def _setup_initial_scenario(json_path, firing_rules, batch_type, size_distr = {}):
     with open(json_path, "r") as f:
         json_dict = json.load(f)
 
     duration_dist = {"3": 0.8}
 
     _setup_sim_scenario_file(
-        json_dict, duration_dist, None, batch_type, firing_rules, {}
+        json_dict, duration_dist, None, batch_type, firing_rules, size_distr
     )
 
     arrival_distr = {

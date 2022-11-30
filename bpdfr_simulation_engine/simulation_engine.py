@@ -255,6 +255,7 @@ class SimBPMEnv:
                 full_evt = TaskEvent(p_case, task_id, r_id, r_avail_at, enabled_at,
                                     enabled_datetime, self, num_tasks_in_batch)
 
+                self.sim_resources[r_id].worked_time += full_evt.ideal_duration
                 completed_at, completed_datetime = self._update_logs_and_resource_availability(
                     full_evt, p_case, task_id, r_id
                 )
@@ -303,7 +304,12 @@ class SimBPMEnv:
 
                 yield completed_at, completed_datetime, p_case
 
-    def _update_logs_and_resource_availability(self, full_evt, p_case, task_id, r_id):
+            # since the tasks are executed in parallel
+            # we add their duration only once cause they were happening at the same time
+            self.sim_resources[r_id].worked_time += full_evt.ideal_duration
+
+
+    def _update_logs_and_resource_availability(self, full_evt: TaskEvent, p_case, task_id, r_id):
         self.log_info.add_event_info(p_case, full_evt, self.sim_setup.resources_map[r_id].cost_per_hour)
 
         r_next_available = full_evt.completed_at
@@ -312,7 +318,6 @@ class SimBPMEnv:
             r_next_available += self.sim_setup.next_resting_time(r_id, full_evt.completed_datetime)
 
         self.resource_queue.update_resource_availability(r_id, r_next_available)
-        self.sim_resources[r_id].worked_time += full_evt.ideal_duration
         
         self.log_writer.add_csv_row(verify_miliseconds([p_case,
                                     self.sim_setup.bpmn_graph.element_info[task_id].name,

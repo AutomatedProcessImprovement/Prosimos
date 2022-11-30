@@ -54,7 +54,7 @@ def test_distr_one_choice_correct(assets_path):
 
     expected_start_time_keys = [
         ("2022-06-21 13:30:30.035185+03:00", 3),
-        ("2022-06-21 13:34:30.035185+03:00", 2),
+        ("2022-06-21 13:35:18.035185+03:00", 2),
     ]
     _verify_start_time_num_tasks(grouped_by_start, expected_start_time_keys)
 
