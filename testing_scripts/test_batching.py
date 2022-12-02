@@ -15,7 +15,6 @@ MODEL_FILENAME              = "batch-example-end-task.bpmn"
 JSON_FILENAME               = "batch-example-with-batch.json"
 SIM_STATS_FILENAME          = "batch_stats.csv"
 SIM_LOGS_FILENAME           = "batch_logs.csv"
-JSON_NEAREST_COEF_FILENAME  = "batch-example-nearest-coef.json"
 JSON_ONE_RESOURCE_FILENAME  = "batch-one-resource.json"
 
 data_nearest_neighbors = [

@@ -658,6 +658,9 @@ class AndFiringRule():
         if ready_wt_result != None and large_wt_result != None:
             r_batch_size, r_enabled_time = ready_wt_result
             l_batch_size, l_enabled_time = large_wt_result
+            if r_batch_size == 0 or l_batch_size == 0:
+                return 0, None
+
             batch_size = min(value for value in [r_batch_size, l_batch_size] if value is not None)
             enabled_time = max(value for value in [r_enabled_time, l_enabled_time] if value is not None)
 

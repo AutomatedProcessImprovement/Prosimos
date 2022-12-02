@@ -11,6 +11,10 @@ from bpdfr_simulation_engine.batch_processing import (
 from bpdfr_simulation_engine.resource_calendar import parse_datetime
 from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 from testing_scripts.test_batching import (
+    JSON_FILENAME,
+    MODEL_FILENAME,
+    SIM_LOGS_FILENAME,
+    SIM_STATS_FILENAME,
     _get_start_time_and_count,
     _setup_arrival_distribution,
     _setup_sim_scenario_file,
@@ -20,7 +24,6 @@ from testing_scripts.test_batching import (
     assets_path,
 )
 
-BATCH_LOGS_CSV_FILENAME = "batch_logs.csv"
 
 data_one_week_day = [
     # Rule: daily_hour > 15
@@ -230,7 +233,7 @@ data_dh_wd_s = [
 def test_daily_hour_and_week_day_and_size_rule_correct_enabled_and_batch_size(firing_rules, expected_start_time_keys, assets_path):
     
     # ====== ARRANGE & ACT ======
-    sim_logs = assets_path / BATCH_LOGS_CSV_FILENAME
+    sim_logs = assets_path / SIM_LOGS_FILENAME
 
     start_string = "2022-09-29 23:45:30.035185+03:00"
 
@@ -273,7 +276,7 @@ def test_daily_hour_every_day_correct_firing(assets_path):
     """
 
     # ====== ARRANGE & ACT ======
-    sim_logs = assets_path / BATCH_LOGS_CSV_FILENAME
+    sim_logs = assets_path / SIM_LOGS_FILENAME
 
     start_string = "2022-09-26 3:10:30.035185+03:00"
 
@@ -349,7 +352,7 @@ def test_daily_hour_every_day_and_size_correct_firing(assets_path_fixture, size_
 
     # ====== ARRANGE & ACT ======
     assets_path = request.getfixturevalue(assets_path_fixture)
-    sim_logs = assets_path / BATCH_LOGS_CSV_FILENAME
+    sim_logs = assets_path / SIM_LOGS_FILENAME
 
     start_string = "2022-09-26 3:10:30.035185+03:00"
     
@@ -390,13 +393,12 @@ def _arrange_and_act(assets_path, firing_rules, start_date, num_cases, cases_arr
 
 def _arrange_and_act_base(assets_path, firing_rules, start_date, num_cases, arrival_distr, size_distr):
     # ====== ARRANGE ======
-    model_path = assets_path / "batch-example-end-task.bpmn"
-    basic_json_path = assets_path / "batch-example-with-batch.json"
-    json_path = assets_path / "batch-example-nearest-coef.json"
-    sim_stats = assets_path / "batch_stats.csv"
-    sim_logs = assets_path / BATCH_LOGS_CSV_FILENAME
+    model_path = assets_path / MODEL_FILENAME
+    json_path = assets_path / JSON_FILENAME
+    sim_stats = assets_path / SIM_STATS_FILENAME
+    sim_logs = assets_path / SIM_LOGS_FILENAME
 
-    with open(basic_json_path, "r") as f:
+    with open(json_path, "r") as f:
         json_dict = json.load(f)
 
     _setup_sim_scenario_file(json_dict, None, None, "Parallel", firing_rules, size_distr)
@@ -406,7 +408,7 @@ def _arrange_and_act_base(assets_path, firing_rules, start_date, num_cases, arri
         json.dump(json_dict, json_file)
 
     # ====== ACT ======
-    _, diff_sim_result = run_diff_res_simulation(
+    _ = run_diff_res_simulation(
         start_date, num_cases, model_path, json_path, sim_stats, sim_logs
     )
 
