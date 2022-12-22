@@ -1,23 +1,18 @@
 import csv
 import json
 import sys
-
-import pandas as pd
-
 from datetime import datetime
 
+import numpy as np
+import pandas as pd
 import pytz
 from pm4py.objects.log.importer.xes import importer as xes_importer
 
 from bpdfr_discovery.exceptions import InvalidInputDiscoveryParameters
 from bpdfr_simulation_engine.control_flow_manager import BPMN, BPMNGraph
 from bpdfr_simulation_engine.exceptions import InvalidBpmnModelException, InvalidLogFileException
-
-from bpdfr_simulation_engine.execution_info import ProcessInfo, Trace, TaskEvent
+from bpdfr_simulation_engine.execution_info import Trace, TaskEvent
 from bpdfr_simulation_engine.probability_distributions import best_fit_distribution
-
-import ntpath
-
 from bpdfr_simulation_engine.resource_calendar import RCalendar, CalendarFactory
 from bpdfr_simulation_engine.simulation_engine import add_simulation_event_log_header
 from bpdfr_simulation_engine.simulation_properties_parser import parse_simulation_model
@@ -593,14 +588,14 @@ def save_prosimos_json(to_save, file_path):
             arrival_dist_params.append({
                 "value": d_param
             })
-    observations = to_save["arrival_time_distribution"]["observations"] \
-        if "observations" in to_save["arrival_time_distribution"] else {}
+    histogram_data = to_save["arrival_time_distribution"]["histogram_data"] \
+        if "histogram_data" in to_save["arrival_time_distribution"] else {}
     arrival_time_distribution = {
         "distribution_name": to_save["arrival_time_distribution"]["distribution_name"],
         "distribution_params": arrival_dist_params,
-        "observations": observations
+        "histogram_data": histogram_data
     }
-    
+
     with open(file_path, 'w') as file_writter:
         json.dump({
             "resource_profiles": resource_profiles,
@@ -811,12 +806,34 @@ def discover_arrival_time_distribution(initial_events, arrival_calendar, use_obs
         print('---------------------------------------------------')
     # If we want to use the observed arrival times instead of fitting them to a distribution
     if use_observed_arrival_times:
-        # The arrival distribution is "histogram_sampling" and we save the observations
-        arrival_distribution = {"distribution_name": "histogram_sampling", "observations": durations}
+        # The arrival distribution is "histogram_sampling" so we compute the CDF and BINs of the observations histogram
+        num_bins = 20
+        filtered_durations = _reject_outliers(durations)
+        bins = np.linspace(min(filtered_durations), max(filtered_durations), num_bins + 1)
+        hist, _ = np.histogram(filtered_durations, bins=bins)
+        cdf = np.cumsum(hist)
+        cdf = cdf / cdf[-1]
+        bin_midpoints = (bins[:-1] + bins[1:]) / 2
+        arrival_distribution = {
+            'distribution_name': "histogram_sampling",
+            'histogram_data': {
+                'cdf': [float(num) for num in cdf],
+                'bin_midpoints': [float(num) for num in bin_midpoints]
+            }
+        }
     else:
         # Otherwise, find the best fitting distribution
         arrival_distribution = best_fit_distribution(durations)
     return arrival_distribution
+
+
+def _reject_outliers(data, m=5.):
+    # https://stackoverflow.com/a/16562028
+    data = np.asarray(data)
+    d = np.abs(data - np.median(data))
+    mdev = np.median(d)
+    s = d / mdev if mdev else 0.
+    return data[s < m]
 
 
 def discover_aggregated_task_distributions(task_events, fit_cal, res_calendar: RCalendar):

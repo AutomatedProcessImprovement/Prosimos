@@ -134,7 +134,7 @@ def parse_arrival_branching_probabilities(arrival_json, gateway_json):
         # prosimos will take randomly a value from this list each time it needs a new
         # observation, so the output will follow (if the sample is big enough) the same
         # "unknown distribution" than the specified data.
-        dist_params = arrival_json["observations"]
+        dist_params = arrival_json["histogram_data"]
     else:
         for param_info in arrival_json["distribution_params"]:
             dist_params.append(float(param_info["value"]))

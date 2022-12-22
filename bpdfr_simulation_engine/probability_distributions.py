@@ -1,13 +1,12 @@
+import math
 import statistics
 import sys
-import math
-
-import numpy.random
-from numpy import random
-
 import warnings
+
 import numpy as np
+import numpy.random
 import scipy.stats as st
+from numpy import random
 from scipy.stats import wasserstein_distance
 
 
@@ -125,7 +124,9 @@ def evaluate_distribution_function(distribution_name, params):
     elif distribution_name == 'default':
         return numpy.random.uniform(params[0], params[1])
     elif distribution_name == "histogram_sampling":
-        return random.choice(params)
+        value = np.random.rand(1)[0]
+        value_bin = np.searchsorted(params['cdf'], value)
+        return params['bin_midpoints'][value_bin]
 
     arg = params[:-4]
     loc = params[-4]
@@ -204,11 +205,11 @@ def best_fit_distribution_1(data):
         sigma = math.sqrt(math.log(phi ** 2 / mean_2))
 
         dist_candidates.append({"distribution_name": "lognorm",
-                                "distribution_params": [sigma, 0, math.exp(mu), d_min, d_max]},)
+                                "distribution_params": [sigma, 0, math.exp(mu), d_min, d_max]}, )
 
     if mean != 0 and variance != 0:
         dist_candidates.append({"distribution_name": "gamma",
-                                "distribution_params": [pow(mean, 2) / variance, 0, variance / mean, d_min, d_max]},)
+                                "distribution_params": [pow(mean, 2) / variance, 0, variance / mean, d_min, d_max]}, )
 
     best_dist = None
     best_emd = sys.float_info.max
