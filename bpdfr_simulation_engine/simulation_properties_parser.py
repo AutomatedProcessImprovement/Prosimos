@@ -188,9 +188,14 @@ def parse_size_distrib(size_distrib):
 
 
 def create_subrule(attribute, comparison, value):
-    formatted_value = value
-    if attribute == 'daily_hour':
+    if attribute == RULE_TYPE.DAILY_HOUR.value:
         formatted_value = time(int(value), 0, 0, 0)
+    elif attribute == RULE_TYPE.WEEK_DAY.value:
+        # string is accepted for the WEEK_DAY
+        formatted_value = value
+    else:
+        # all others should have the number as the value
+        formatted_value = float(value)
 
     if attribute == RULE_TYPE.WEEK_DAY.value and \
         comparison != "=":
