@@ -153,7 +153,9 @@ def parse_batch_processing(batch_processing_json_data):
 
         duration_distibution = dict()
         for item in batch_processing["duration_distrib"]:
-            duration_distibution[int(item)] = batch_processing["duration_distrib"][item]
+            key = int(item['key'])
+            value = float(item['value'])
+            duration_distibution[key] = value
 
         # TODO: "batch_frequency" should be added, as well
         size_distrib = batch_processing["size_distrib"]
@@ -177,9 +179,10 @@ def parse_size_distrib(size_distrib):
     possible_options = []
     probabilities = []
 
-    for key, item in size_distrib.items():
-        possible_options.append(int(key))
-        probabilities.append(item)
+    for item in size_distrib:
+        option = int(item['key'])
+        possible_options.append(option)
+        probabilities.append(item['value'])
 
     return possible_options, probabilities
 
