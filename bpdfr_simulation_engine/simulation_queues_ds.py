@@ -2,7 +2,7 @@ import itertools
 from collections import deque
 from heapq import heappush
 from heapq import heappop
-
+from heapq import nsmallest
 
 class PriorityQueue:
     def __init__(self):
@@ -47,6 +47,15 @@ class PriorityQueue:
         """ Mark an existing task as REMOVED.  Raise KeyError if not found. """
         entry = self.entry_finder.pop(element)
         entry[-1] = self.REMOVED
+
+    def peek(self):
+        """ Return the lowest priority task (without removing it from the queue)"""
+        if len(self.pq) > 0:
+            all_enteries = nsmallest(1, self.pq)
+            priority, _, task = all_enteries[0]
+            return task, priority
+        
+        return None, None
 
 
 class DiffResourceQueue:
@@ -114,6 +123,13 @@ class EventQueue:
     def pop_next_event(self):
         if self.enabled_events:
             event_info, _ = self.enabled_events.pop_min()
+            return event_info
+        else:
+            return None
+
+    def peek(self):
+        if self.enabled_events:
+            event_info, _ = self.enabled_events.peek()
             return event_info
         else:
             return None

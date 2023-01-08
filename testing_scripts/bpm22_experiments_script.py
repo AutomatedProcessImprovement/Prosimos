@@ -41,7 +41,7 @@ def main():
 #
 #     total_time = 0
 #     for i in range(0, 5):
-#         sim_time, _ = run_diff_res_simulation(parse_datetime(start_datetime, True),
+#         sim_time, _ = run_diff_res_simulation(start_datetime,
 #                                               p_cases, bpmn_path, json_path, None, sim_log_path)
 #         total_time += sim_time
 #     print("Mean Simulation Time: %.2f" % (total_time / 5))

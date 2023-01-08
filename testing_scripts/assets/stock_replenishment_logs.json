@@ -501,5 +501,6 @@
                 }
             ]
         }
-    ]
+    ],
+    "batch_processing": []
 }

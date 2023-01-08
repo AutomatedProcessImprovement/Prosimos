@@ -1,16 +1,18 @@
 import datetime
 import pytz
 
-from bpdfr_simulation_engine.control_flow_manager import BPMN
+from bpdfr_simulation_engine.control_flow_manager import BPMN, BatchInfoForExecution
 
 
 class EnabledEvent:
-    def __init__(self, p_case, p_state, task_id, enabled_at, enabled_datetime, duration_sec = None):
+    def __init__(self, p_case, p_state, task_id, enabled_at, enabled_datetime, 
+        batch_info_exec: BatchInfoForExecution = None, duration_sec = None):
         self.p_case = p_case
         self.p_state = p_state
         self.task_id = task_id
         self.enabled_datetime = enabled_datetime
         self.enabled_at = enabled_at
+        self.batch_info_exec = batch_info_exec
         self.duration_sec = duration_sec # filled only in case of event-based gateway
 
 
@@ -21,7 +23,8 @@ class ProcessInfo:
 
 
 class TaskEvent:
-    def __init__(self, p_case, task_id, resource_id, resource_available_at=None, enabled_at=None, enabled_datetime=None, bpm_env=None):
+    def __init__(self, p_case, task_id, resource_id, resource_available_at=None, 
+        enabled_at=None, enabled_datetime=None, bpm_env=None, num_tasks_in_batch=0):
         self.p_case = p_case  # ID of the current trace, i.e., index of the trace in log_info list
         self.task_id = task_id  # Name of the task related to the current event
         self.type = BPMN.TASK # showing whether it's task or event
@@ -43,9 +46,10 @@ class TaskEvent:
             self.started_datetime = bpm_env.simulation_datetime_from(self.started_at)
 
             # Ideal duration from the distribution-function if allocate resource doesn't rest
-            self.ideal_duration = bpm_env.sim_setup.ideal_task_duration(task_id, resource_id)
+            self.ideal_duration = bpm_env.sim_setup.ideal_task_duration(task_id, resource_id, num_tasks_in_batch)
             # Actual duration adding the resource resting-time according to their calendar
-            self.real_duration = bpm_env.sim_setup.real_task_duration(self.ideal_duration, self.resource_id,
+            self.real_duration = bpm_env.sim_setup.real_task_duration(self.ideal_duration,
+                                                                      self.resource_id,
                                                                       self.started_datetime)
 
             # Time moment in seconds from beginning, i.e., first event has time = 0

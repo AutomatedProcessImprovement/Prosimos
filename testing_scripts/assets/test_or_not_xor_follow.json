@@ -259,7 +259,6 @@
             ]
         }
     ],
-    "event_distribution": {
-        
-    }
+    "event_distribution": {},
+    "batch_processing": []
 }
