@@ -28,9 +28,9 @@ def test_distr_one_choice_correct(assets_path):
     with open(json_path, "r") as f:
         json_dict = json.load(f)
 
-    size_distr = {
-        "3": 1
-    }
+    size_distr = [
+        { "key": "3", "value": 1}
+    ]
     _setup_sim_scenario_file(json_dict, None, None, "Parallel", [], size_distr)
 
     arrival_distr = {
@@ -72,10 +72,10 @@ def test_distr_multi_choice_correct(mock_choice, assets_path):
 
     prob_seq = [2, 2, 2, 3, 3, 3, 2, 3, 2]
     mock_choice.side_effect = [ FiringSubRule("size", "=", i) for i in prob_seq ]
-    initial_size_distr = {
-        "2": 0.5,
-        "3": 0.5
-    }
+    initial_size_distr = [
+        {"key": "2", "value": 0.5},
+        {"key": "3", "value": 0.5}
+    ]
     _arrange_and_act(assets_path, {}, start_string, total_sim_num, 10800, initial_size_distr)
 
     # ====== ASSERT ======
@@ -93,9 +93,9 @@ def test_distr_all_ones_correct(assets_path):
     total_sim_num = 20
     start_string = "2022-06-21 13:22:30.035185+03:00"
     
-    initial_size_distr = {
-        "1": 1
-    }
+    initial_size_distr = [
+        {"key": "1", "value": 1}
+    ]
     _arrange_and_act(assets_path, {}, start_string, total_sim_num, 10800, initial_size_distr)
 
     # ====== ASSERT ======
@@ -112,5 +112,5 @@ def _verify_batched_size_match_distrib(logs_d_tasks, initial_size_distr):
     total_num_batches = len(logs_d_tasks.groupby(by=["start_time"]).groups)
 
     grouped_by_number_of_rows = grouped_by_start.size().reset_index().groupby(by=0).groups
-    actual_row_num_count = {str(k): len(v) / total_num_batches for k, v in grouped_by_number_of_rows.items()}
+    actual_row_num_count = [{ "key": str(k), "value": (len(v) / total_num_batches) } for k, v in grouped_by_number_of_rows.items()]
     assert initial_size_distr == actual_row_num_count

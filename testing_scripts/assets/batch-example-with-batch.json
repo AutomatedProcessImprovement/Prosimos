@@ -530,14 +530,14 @@
          "task_id":"sid-503A048D-6344-446A-8D67-172B164CF8FA",
          "type":"Sequential",
          "batch_frequency":1.0,
-         "size_distrib":{
-            "1":6,
-            "3":35,
-            "4":3
-         },
-         "duration_distrib":{
-            "3":0.8
-         },
+         "size_distrib":[
+            {"key": "1", "value": 6},
+            {"key": "3", "value": 35},
+            {"key": "4", "value": 3}
+         ],
+         "duration_distrib": [
+            {"key": "3", "value": 0.8}
+         ],
          "firing_rules":[
             [
                {

@@ -58,10 +58,10 @@ def test_resource_utilization_correct(batch_type, expected_worked_time, expected
     # or execute all batched tasks alone
     size_distr = { } if batch_type != None \
         else \
-        {
-            '1': 1,
-            '2': 0
-        }
+        [
+            {"key": "1", "value": 1},
+            {"key": "2", "value": 0 }
+        ]
 
     _setup_initial_scenario(json_path, firing_rules, batch_type, size_distr)
 

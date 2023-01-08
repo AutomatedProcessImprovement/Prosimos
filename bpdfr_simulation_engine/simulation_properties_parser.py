@@ -193,6 +193,8 @@ def create_subrule(attribute, comparison, value):
     elif attribute == RULE_TYPE.WEEK_DAY.value:
         # string is accepted for the WEEK_DAY
         formatted_value = value
+    elif attribute == RULE_TYPE.SIZE.value:
+        formatted_value = int(value)
     else:
         # all others should have the number as the value
         formatted_value = float(value)

@@ -10,7 +10,11 @@ from pandas import testing as tm
 from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 from testing_scripts.test_simulation import _verify_activity_count_and_duration
 
-distribution                = {"1": 0.8, "3": 0.75, "5": 0.6}
+distribution                = [
+    { "key": "1", "value": 0.8 },
+    { "key": "3", "value": 0.75 },
+    { "key": "5", "value": 0.6 },
+]
 MODEL_FILENAME              = "batch-example-end-task.bpmn"
 JSON_FILENAME               = "batch-example-with-batch.json"
 SIM_STATS_FILENAME          = "batch_stats.csv"
@@ -23,10 +27,10 @@ data_nearest_neighbors = [
     ("assets_path", distribution, 10, 120 * 0.6),
 ]
 
-_batch_every_time = {
-    '1': 0,
-    '2': 1
-}
+_batch_every_time = [
+    { "key": "1", "value": 0 },
+    { "key": "2", "value": 1 }
+]
 
 @pytest.fixture
 def assets_path(request) -> Path:
@@ -665,7 +669,7 @@ def _add_batch_task(json_dict):
         {
             "task_id": "Activity_0ngxjs9",
             "type": "Sequential",
-            "duration_distrib": {"3": 0.5},
+            "duration_distrib": [{ "key": "3", "value": 0.5}],
             "size_distrib": _batch_every_time,
             "firing_rules": [[{"attribute": "size", "comparison": "=", "value": 3}]],
         }
@@ -750,7 +754,7 @@ def _setup_initial_scenario(json_path, firing_rules, batch_type, size_distr = {}
     with open(json_path, "r") as f:
         json_dict = json.load(f)
 
-    duration_dist = {"3": 0.8}
+    duration_dist = [{ "key": "3", "value": 0.8 }]
 
     _setup_sim_scenario_file(
         json_dict, duration_dist, None, batch_type, firing_rules, size_distr

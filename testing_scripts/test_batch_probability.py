@@ -29,9 +29,9 @@ def test_all_tasks_alone(assets_path):
         ]
     ]
     total_num_cases = 20
-    size_distr = {
-        '1': 1
-    }
+    size_distr = [
+        { "key": "1", "value": 1 }
+    ]
 
     _arrange_and_act(assets_path, firing_rules, start_string, total_num_cases, 1800, size_distr)
 
