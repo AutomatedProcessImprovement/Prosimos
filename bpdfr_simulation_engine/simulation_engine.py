@@ -1,6 +1,4 @@
 import csv
-import os
-from pathlib import Path
 from typing import List
 
 import pytz
@@ -43,13 +41,14 @@ class SimBPMEnv:
 
         self.resource_queue = DiffResourceQueue(self.sim_setup.task_resource, r_first_available)
         self.events_queue = EventQueue()
-        self.all_process_states = dict()
+        self.all_process_states = dict() # store all process states with a case_id as a key
+        self.all_case_attributes = self.generate_case_attributes()
 
-    def generate_all_arrival_events(self, total_cases):
+    def generate_all_arrival_events(self):
         sim_setup = self.sim_setup
         arrival_time = 0
         # prev = 0
-        for p_case in range(0, total_cases):
+        for p_case in range(0, sim_setup.total_num_cases):
             p_state = sim_setup.initial_state()
             enabled_datetime = self.simulation_datetime_from(arrival_time)
             enabled_time = CustomDatetimeAndSeconds(arrival_time, enabled_datetime)
@@ -61,6 +60,17 @@ class SimBPMEnv:
                 self.events_queue.append_arrival_event(EnabledEvent(p_case, p_state, task_id, arrival_time,
                                                                     enabled_datetime, task.batch_info_exec, task.duration_sec))
             arrival_time += sim_setup.next_arrival_time(enabled_datetime)
+
+
+    def generate_case_attributes(self):
+        " Calculate values of each case attribute for every case that will be executed "
+        total_num_cases = self.sim_setup.total_num_cases
+        all_case_attr_dict = dict()
+        for case_id in range(0, total_num_cases):
+            all_case_attr_dict[case_id] = self.sim_setup.case_attributes.get_values_calculated()
+
+        return all_case_attr_dict
+
 
     def execute_enabled_event(self, c_event: EnabledEvent):
         self.executed_events += 1
@@ -126,18 +136,35 @@ class SimBPMEnv:
         self.resource_queue.update_resource_availability(r_id, r_next_available)
         self.sim_resources[r_id].worked_time += full_evt.ideal_duration
         
-        self.log_writer.add_csv_row(verify_miliseconds([c_event.p_case,
-                                    self.sim_setup.bpmn_graph.element_info[c_event.task_id].name,
-                                    full_evt.enabled_datetime,
-                                    full_evt.started_datetime,
-                                    full_evt.completed_datetime,
-                                    self.sim_setup.resources_map[full_evt.resource_id].resource_name]))
+        self.log_writer.add_csv_row(self.get_csv_row_data(full_evt))
 
         completed_at = full_evt.completed_at
         completed_datetime = full_evt.completed_datetime
 
         return completed_at, completed_datetime
 
+
+    def get_csv_row_data(self, full_event: TaskEvent):
+        """
+        Return array of values for one line of the csv file based on full_event information.
+        In case we have defined case attributes setup, we will have additional columns besides the basic ones.
+        """
+        
+        # TODO: make sure to test the case without the resource (events)
+        resource_name = self.sim_setup.resources_map[full_event.resource_id].resource_name \
+            if (type(full_event.resource_id) == str) else \
+                "No assigned resource"
+        
+        row_basic_info = verify_miliseconds([full_event.p_case,
+                            self.sim_setup.bpmn_graph.element_info[full_event.task_id].name,
+                            full_event.enabled_datetime,
+                            full_event.started_datetime,
+                            full_event.completed_datetime,
+                            resource_name])
+        
+        extended_with_case_atrr = self.all_case_attributes[full_event.p_case]
+
+        return [*row_basic_info, *extended_with_case_atrr]
     
     def append_any_enabled_batch_tasks(self, current_event: EnabledEvent) -> List[EnabledEvent]:
         enabled_datetime = CustomDatetimeAndSeconds(current_event.enabled_at, current_event.enabled_datetime)
@@ -309,8 +336,8 @@ class SimBPMEnv:
             self.sim_resources[r_id].worked_time += full_evt.ideal_duration
 
 
-    def _update_logs_and_resource_availability(self, full_evt: TaskEvent, p_case, task_id, r_id):
-        self.log_info.add_event_info(p_case, full_evt, self.sim_setup.resources_map[r_id].cost_per_hour)
+    def _update_logs_and_resource_availability(self, full_evt: TaskEvent, r_id):
+        self.log_info.add_event_info(full_evt.p_case, full_evt, self.sim_setup.resources_map[r_id].cost_per_hour)
 
         r_next_available = full_evt.completed_at
 
@@ -319,12 +346,7 @@ class SimBPMEnv:
 
         self.resource_queue.update_resource_availability(r_id, r_next_available)
         
-        self.log_writer.add_csv_row(verify_miliseconds([p_case,
-                                    self.sim_setup.bpmn_graph.element_info[task_id].name,
-                                    full_evt.enabled_datetime,
-                                    full_evt.started_datetime,
-                                    full_evt.completed_datetime,
-                                    self.sim_setup.resources_map[full_evt.resource_id].resource_name]))
+        self.log_writer.add_csv_row(self.get_csv_row_data(full_evt))
 
         completed_at = full_evt.completed_at
         completed_datetime = full_evt.completed_datetime
@@ -345,12 +367,7 @@ class SimBPMEnv:
         self.log_info.add_event_info(c_event.p_case, full_evt, 0)
 
         if (self.sim_setup.is_event_added_to_log):
-            self.log_writer.add_csv_row(verify_miliseconds([c_event.p_case,
-                            self.sim_setup.bpmn_graph.element_info[c_event.task_id].name,
-                            full_evt.enabled_datetime,
-                            full_evt.started_datetime,
-                            full_evt.completed_datetime,
-                            "No assigned resource"]))
+            self.log_writer.add_csv_row(self.get_csv_row_data(full_evt))
 
         return completed_at, completed_datetime
 
@@ -389,11 +406,11 @@ class SimBPMEnv:
         return duration + resource_calendar.find_working_time(event_info.started_at, current_end)
 
 
-def execute_full_process(bpm_env: SimBPMEnv, total_cases):
+def execute_full_process(bpm_env: SimBPMEnv):
     # Initialize event queue with the arrival times of all the cases to simulate,
     # i.e., all the initial events are enqueued and sorted by their arrival times
     # s_t = datetime.datetime.now()
-    bpm_env.generate_all_arrival_events(total_cases)
+    bpm_env.generate_all_arrival_events()
     # print("Generation of all cases: %s" %
     #       str(datetime.timedelta(seconds=(datetime.datetime.now() - s_t).total_seconds())))
     current_event = bpm_env.events_queue.pop_next_event()
@@ -421,7 +438,7 @@ def execute_full_process(bpm_env: SimBPMEnv, total_cases):
 
 
 def run_simulation(bpmn_path, json_path, total_cases, stat_out_path=None, log_out_path=None, starting_at=None, is_event_added_to_log=False):
-    diffsim_info = SimDiffSetup(bpmn_path, json_path, is_event_added_to_log)
+    diffsim_info = SimDiffSetup(bpmn_path, json_path, is_event_added_to_log, total_cases)
 
     if not diffsim_info:
         return None
@@ -432,36 +449,38 @@ def run_simulation(bpmn_path, json_path, total_cases, stat_out_path=None, log_ou
     # if not stat_out_path and not log_out_path:
     #     stat_out_path = os.path.join(os.path.dirname(__file__), Path("%s.csv" % diffsim_info.process_name))
     if stat_out_path is None and log_out_path is None:
-        return run_simpy_simulation(diffsim_info, total_cases, None, None)
+        return run_simpy_simulation(diffsim_info, None, None)
     elif stat_out_path:
         with open(stat_out_path, mode='w', newline='', encoding='utf-8') as stat_csv_file:
             if log_out_path:
                 with open(log_out_path, mode='w', newline='', encoding='utf-8') as log_csv_file:
-                    return run_simpy_simulation(diffsim_info, total_cases,
+                    return run_simpy_simulation(diffsim_info,
                                                 csv.writer(stat_csv_file, delimiter=',', quotechar='"',
                                                            quoting=csv.QUOTE_MINIMAL),
                                                 csv.writer(log_csv_file, delimiter=',', quotechar='"',
                                                            quoting=csv.QUOTE_MINIMAL))
             else:
-                return run_simpy_simulation(diffsim_info, total_cases,
+                return run_simpy_simulation(diffsim_info,
                                             csv.writer(stat_csv_file, delimiter=',', quotechar='"',
                                                        quoting=csv.QUOTE_MINIMAL), None)
     else:
         with open(log_out_path, mode='w', newline='', encoding='utf-8') as log_csv_file:
-            return run_simpy_simulation(diffsim_info, total_cases,
+            return run_simpy_simulation(diffsim_info,
                                         None, csv.writer(log_csv_file, delimiter=',', quotechar='"',
                                                          quoting=csv.QUOTE_MINIMAL))
 
 
-def run_simpy_simulation(diffsim_info, total_cases, stat_fwriter, log_fwriter):
+def run_simpy_simulation(diffsim_info, stat_fwriter, log_fwriter):
     bpm_env = SimBPMEnv(diffsim_info, stat_fwriter, log_fwriter)
-    execute_full_process(bpm_env, total_cases)
+    execute_full_process(bpm_env)
+
     if log_fwriter is None and stat_fwriter is None:
         return bpm_env.log_info.compute_process_kpi(bpm_env), bpm_env.log_info
     if log_fwriter:
         bpm_env.log_writer.force_write()
     if stat_fwriter:
         bpm_env.log_info.save_joint_statistics(bpm_env)
+
     return None
 
 

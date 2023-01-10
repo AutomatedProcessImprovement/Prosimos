@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import List
 from bpdfr_simulation_engine.probability_distributions import generate_number_from
 from random import choices
 
@@ -29,14 +30,6 @@ def parse_continuous_value(value_info):
     }
 
 
-class AllCaseAttributes():
-    def __init__(self, case_attr_arr):
-        self.attributes = case_attr_arr
-
-    def get_columns_generated(self):
-        return map(lambda i: i.name, self.attributes)
-
-
 class CaseAttribute():
     def __init__(self, name, case_atrr_type, value):
         self.name: str = name
@@ -51,6 +44,21 @@ class CaseAttribute():
 
     def get_next_value(self):
         if self.case_atrr_type == CASE_ATTR_TYPE.DISCRETE:
-            return choices(self.value["options"], self.value["probabilities"])
+            one_choice_arr = choices(self.value["options"], self.value["probabilities"])
+            return one_choice_arr[0]
         else:
             return generate_number_from(self.value["distribution_name"], self.value["distribution_params"])
+
+
+class AllCaseAttributes():
+    def __init__(self, case_attr_arr: List[CaseAttribute]):
+        self.attributes = case_attr_arr
+
+    def get_columns_generated(self):
+        return [attr.name for attr in self.attributes]
+
+    def get_values_calculated(self):
+        # return the list of calculated values specified
+        # the order should reflect the one with headers
+
+        return [attr.get_next_value() for attr in self.attributes]
