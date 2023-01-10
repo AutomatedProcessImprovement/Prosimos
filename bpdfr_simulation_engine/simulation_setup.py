@@ -17,7 +17,7 @@ class SimDiffSetup:
         self.start_datetime = datetime.datetime.now(pytz.utc)
 
         self.resources_map, self.calendars_map, self.element_probability, self.task_resource, self.arrival_calendar, \
-            self.event_distibution, self.batch_processing \
+            self.event_distibution, self.batch_processing, self.case_attributes \
             = parse_json_sim_parameters(json_path)
 
         self.bpmn_graph = parse_simulation_model(bpmn_path)

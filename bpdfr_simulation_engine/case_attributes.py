@@ -28,6 +28,15 @@ def parse_continuous_value(value_info):
         "distribution_params": dist_params
     }
 
+
+class AllCaseAttributes():
+    def __init__(self, case_attr_arr):
+        self.attributes = case_attr_arr
+
+    def get_columns_generated(self):
+        return map(lambda i: i.name, self.attributes)
+
+
 class CaseAttribute():
     def __init__(self, name, case_atrr_type, value):
         self.name: str = name
@@ -40,7 +49,7 @@ class CaseAttribute():
         else:
             raise Exception(f"Not supported case attribute {type}")
 
-    def _get_next_value(self):
+    def get_next_value(self):
         if self.case_atrr_type == CASE_ATTR_TYPE.DISCRETE:
             return choices(self.value["options"], self.value["probabilities"])
         else:

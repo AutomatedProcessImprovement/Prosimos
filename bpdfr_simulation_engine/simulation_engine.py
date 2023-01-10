@@ -6,7 +6,7 @@ from typing import List
 import pytz
 import datetime
 from datetime import timedelta
-from bpdfr_simulation_engine.control_flow_manager import BPMN, EVENT_TYPE, CustomDatetimeAndSeconds, EnabledTask
+from bpdfr_simulation_engine.control_flow_manager import BPMN, CustomDatetimeAndSeconds
 
 from bpdfr_simulation_engine.file_manager import FileManager
 from bpdfr_simulation_engine.execution_info import Trace, TaskEvent, EnabledEvent
@@ -31,7 +31,7 @@ class SimBPMEnv:
         self.sim_setup = sim_setup
         self.sim_resources = dict()
         self.stat_fwriter = stat_fwriter
-        self.log_writer = FileManager(10000, log_fwriter)
+        self.log_writer = FileManager(10000, log_fwriter, self.sim_setup.case_attributes.get_columns_generated())
         self.log_info = LogInfo(sim_setup)
         self.executed_events = 0
         self.time_update_process_state = 0
@@ -455,7 +455,6 @@ def run_simulation(bpmn_path, json_path, total_cases, stat_out_path=None, log_ou
 
 def run_simpy_simulation(diffsim_info, total_cases, stat_fwriter, log_fwriter):
     bpm_env = SimBPMEnv(diffsim_info, stat_fwriter, log_fwriter)
-    add_simulation_event_log_header(log_fwriter)
     execute_full_process(bpm_env, total_cases)
     if log_fwriter is None and stat_fwriter is None:
         return bpm_env.log_info.compute_process_kpi(bpm_env), bpm_env.log_info
@@ -465,11 +464,6 @@ def run_simpy_simulation(diffsim_info, total_cases, stat_fwriter, log_fwriter):
         bpm_env.log_info.save_joint_statistics(bpm_env)
     return None
 
-
-def add_simulation_event_log_header(log_fwriter):
-    if log_fwriter:
-        log_fwriter.writerow([
-            'case_id', 'activity', 'enable_time', 'start_time', 'end_time', 'resource', ])
 
 def verify_miliseconds(array):
     """
