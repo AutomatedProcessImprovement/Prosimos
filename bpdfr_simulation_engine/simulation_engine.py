@@ -152,7 +152,7 @@ class SimBPMEnv:
         
         # TODO: make sure to test the case without the resource (events)
         resource_name = self.sim_setup.resources_map[full_event.resource_id].resource_name \
-            if (type(full_event.resource_id) == str) else \
+            if (hasattr(full_event, "resource_id")) else \
                 "No assigned resource"
         
         row_basic_info = verify_miliseconds([full_event.p_case,
@@ -284,7 +284,7 @@ class SimBPMEnv:
 
                 self.sim_resources[r_id].worked_time += full_evt.ideal_duration
                 completed_at, completed_datetime = self._update_logs_and_resource_availability(
-                    full_evt, p_case, task_id, r_id
+                    full_evt, r_id
                 )
 
                 yield completed_at, completed_datetime, p_case
@@ -326,7 +326,7 @@ class SimBPMEnv:
                                     enabled_datetime, self, num_tasks_in_batch)
 
                 completed_at, completed_datetime = self._update_logs_and_resource_availability(
-                    full_evt, p_case, task_id, r_id
+                    full_evt, r_id
                 )
 
                 yield completed_at, completed_datetime, p_case
