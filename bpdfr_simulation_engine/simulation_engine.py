@@ -150,7 +150,6 @@ class SimBPMEnv:
         In case we have defined case attributes setup, we will have additional columns besides the basic ones.
         """
         
-        # TODO: make sure to test the case without the resource (events)
         resource_name = self.sim_setup.resources_map[full_event.resource_id].resource_name \
             if (hasattr(full_event, "resource_id")) else \
                 "No assigned resource"
