@@ -5,6 +5,7 @@ import xml.etree.ElementTree as ET
 
 from numpy import exp, sqrt, log
 from bpdfr_simulation_engine.batch_processing import BATCH_TYPE, RULE_TYPE, BatchConfigPerTask, AndFiringRule, FiringSubRule, OrFiringRule
+from bpdfr_simulation_engine.case_attributes import AllCaseAttributes, CaseAttribute
 
 from bpdfr_simulation_engine.control_flow_manager import EVENT_TYPE, BPMNGraph, ElementInfo, BPMN
 from bpdfr_simulation_engine.exceptions import InvalidRuleDefinition
@@ -31,9 +32,11 @@ def parse_json_sim_parameters(json_path):
         event_distibution = parse_event_distribution(json_data["event_distribution"]) \
             if "event_distribution" in json_data else dict()
         batch_processing = parse_batch_processing(json_data["batch_processing"])
+        case_attributes = parse_case_attr(json_data["case_attributes"]) \
+            if "case_attributes" in json_data else AllCaseAttributes([])
 
-
-        return resources_map, calendars_map, element_distribution, task_resource_distribution, arrival_calendar, event_distibution, batch_processing
+        return resources_map, calendars_map, element_distribution, task_resource_distribution, \
+            arrival_calendar, event_distibution, batch_processing, case_attributes
 
 
 # def parse_pool_info(json_data, resources_map):
@@ -157,9 +160,7 @@ def parse_batch_processing(batch_processing_json_data):
             value = float(item['value'])
             duration_distibution[key] = value
 
-        # TODO: "batch_frequency" should be added, as well
-        size_distrib = batch_processing["size_distrib"]
-        possible_options, probabilities = parse_size_distrib(size_distrib)
+        possible_options, probabilities = parse_size_distrib(batch_processing["size_distrib"])
 
         batch_config[t_id] = BatchConfigPerTask(
             batch_type,
@@ -185,6 +186,15 @@ def parse_size_distrib(size_distrib):
         probabilities.append(item['value'])
 
     return possible_options, probabilities
+
+
+def parse_case_attr(json_data) -> AllCaseAttributes:
+    case_attributes = []
+    for curr_case_attr in json_data:
+        case_attr = CaseAttribute(curr_case_attr["name"], curr_case_attr["type"], curr_case_attr["values"])
+        case_attributes.append(case_attr)
+
+    return AllCaseAttributes(case_attributes)
 
 
 def create_subrule(attribute, comparison, value):
