@@ -14,3 +14,6 @@ class InvalidLogFileException(Error):
 
 class InvalidRuleDefinition(Error):
     """Raised when the defined rule is invalid"""
+
+class InvalidCaseAttributeException(Error):
+    """Raised when the defined case attribute is invalid"""

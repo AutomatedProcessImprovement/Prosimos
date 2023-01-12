@@ -1,5 +1,7 @@
 from enum import Enum
+from functools import reduce
 from typing import List
+from bpdfr_simulation_engine.exceptions import InvalidCaseAttributeException
 from bpdfr_simulation_engine.probability_distributions import generate_number_from
 from random import choices
 
@@ -42,12 +44,23 @@ class CaseAttribute():
         else:
             raise Exception(f"Not supported case attribute {type}")
 
+        self.validate()
+
     def get_next_value(self):
         if self.case_atrr_type == CASE_ATTR_TYPE.DISCRETE:
             one_choice_arr = choices(self.value["options"], self.value["probabilities"])
             return one_choice_arr[0]
         else:
             return generate_number_from(self.value["distribution_name"], self.value["distribution_params"])
+
+    def validate(self):
+        if self.case_atrr_type == CASE_ATTR_TYPE.DISCRETE:
+            actual_sum_probabilities = reduce(lambda acc, item: acc + item, self.value["probabilities"], 0) 
+            
+            if actual_sum_probabilities != 1:
+                raise InvalidCaseAttributeException(f"Case attribute ${self.name}: probabilities' sum should be equal to 1") 
+        
+        return True
 
 
 class AllCaseAttributes():
