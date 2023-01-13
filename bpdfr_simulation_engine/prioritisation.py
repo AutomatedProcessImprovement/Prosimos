@@ -1,19 +1,11 @@
 import sys
-from typing import List
+from typing import List, Tuple
 
 
 class InOperatorEvaluator:
-    def __init__(self, range: List[str], case_value: float):
-        self.range = range          # including the edges
+    def __init__(self, range: Tuple[float,float], case_value: float):
+        self.min, self.max = range          # including the edges
         self.value = case_value
-        self.min, self.max = self._parse_boundaries()
-
-    def _parse_boundaries(self):
-        min_boundary = float(self.range[0])
-        max_boundary = sys.maxsize if self.range[1] == "inf" else \
-            float(self.range[1])
-
-        return min_boundary, max_boundary
 
     def eval(self):
         if (self.min == self.max):
@@ -28,25 +20,36 @@ class PrioritisationRule:
     def __init__(self, attribute, condition, value):
         self.attribute = attribute
         self.condition = condition
-        self.value = value
+        self.value = self._parse_value(value)
 
-    def is_rule_true(self, case_value):
+    def _parse_value(self, value):
+        if self.condition == 'in':
+            min_boundary = float(value[0])
+            max_boundary = sys.maxsize if value[1] == "inf" else \
+                float(value[1])
+
+            return min_boundary, max_boundary
+        else:
+            return value
+
+    def is_rule_true(self, all_case_values):
+        case_value = all_case_values[self.attribute]
         if self.condition == 'in':
             evaluator = InOperatorEvaluator(self.value, case_value)
             return evaluator.eval()
         else:
             # TODO: clarify whether == is the only possible option
-            return case_value == self.value
+            return self.value == case_value
 
 
 class AndPrioritisationRule:
     def __init__(self, and_rules: List[PrioritisationRule]):
         self.and_rules = and_rules
 
-    def is_and_rule_true(self):
+    def is_and_rule_true(self, all_case_values):
         init_val = True
         for item in self.and_rules:
-            init_val = init_val and item.is_rule_true()
+            init_val = init_val and item.is_rule_true(all_case_values)
 
         return init_val
 
@@ -55,9 +58,35 @@ class OrPrioritisationRule:
     def __init__(self, or_rules: List[AndPrioritisationRule]):
         self.or_rules = or_rules
 
-    def is_or_rule_true(self):
+    def is_or_rule_true(self, all_case_values):
         init_val = False
         for item in self.or_rules:
-            init_val = init_val and item.is_and_rule_true()
+            init_val = init_val and item.is_and_rule_true(all_case_values)
 
         return init_val
+
+
+class PriorityWithRule:
+    def __init__(self, or_rule: OrPrioritisationRule, priority: str):
+        self.or_rule = or_rule
+        self.priority = int(priority)
+
+    def is_true(self, all_case_values):
+        return self.or_rule.is_or_rule_true(all_case_values)
+
+
+class AllPriorityRules:
+    def __init__(self, rules_array: List[PriorityWithRule]):
+        # TODO: order of or_rule should be guaranteed
+        # ascending by the priority
+        self.all_rules = rules_array
+
+    def get_priority(self, all_case_values):
+        # the lower number - the higher priority
+        # so, by default, the highest integer value will guarantee the lowest priority 
+        init_priority = sys.maxsize
+        for rule in self.all_rules:
+            if rule.is_true(all_case_values):
+                init_priority = rule.priority
+
+        return init_priority

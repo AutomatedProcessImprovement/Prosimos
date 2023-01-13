@@ -161,7 +161,7 @@ class SimBPMEnv:
                             full_event.completed_datetime,
                             resource_name])
         
-        extended_with_case_atrr = self.all_case_attributes[full_event.p_case]
+        extended_with_case_atrr = self.all_case_attributes[full_event.p_case].values()
 
         return [*row_basic_info, *extended_with_case_atrr]
     

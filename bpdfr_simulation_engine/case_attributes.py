@@ -74,4 +74,4 @@ class AllCaseAttributes():
         # return the list of calculated values specified
         # the order should reflect the one with headers
 
-        return [attr.get_next_value() for attr in self.attributes]
+        return {attr.name: attr.get_next_value() for attr in self.attributes}
