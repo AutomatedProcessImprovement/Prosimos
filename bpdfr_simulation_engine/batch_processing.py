@@ -1036,9 +1036,9 @@ class BatchConfigPerTask():
                     min_key = item
                 else:
                     break
-
-            nearest_coef = self.duration_distribution[min_key]
-            return initial_duration * nearest_coef
+            
+            # assign the nearest coeff as the current one
+            curr_coef = self.duration_distribution[min_key]
 
         # calculate the duration for executing one of the batched task
         duration_per_task = initial_duration * curr_coef
