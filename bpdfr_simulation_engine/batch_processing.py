@@ -662,7 +662,14 @@ class AndFiringRule():
                 return 0, None
 
             batch_size = min(value for value in [r_batch_size, l_batch_size] if value is not None)
-            enabled_time = max(value for value in [r_enabled_time, l_enabled_time] if value is not None)
+            if batch_size == 1:
+                # when batch_size == 1, surpassing the lowest enabled time will make the rule invalid 
+                # there is no way the rule can turn to true once it surpass the upper boundary of one of the rule
+                enabled_time = min(value for value in [r_enabled_time, l_enabled_time] if value is not None)
+            else:
+                # when we have multiple tasks in the batch, we wait for the full fulfillment of the rules
+                # so we wait to the latest
+                enabled_time = max(value for value in [r_enabled_time, l_enabled_time] if value is not None)
 
         elif ready_wt_result != None:
             batch_size, enabled_time = ready_wt_result
