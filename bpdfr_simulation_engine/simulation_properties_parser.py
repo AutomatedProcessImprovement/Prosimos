@@ -31,7 +31,8 @@ def parse_json_sim_parameters(json_path):
         arrival_calendar = parse_arrival_calendar(json_data)
         event_distibution = parse_event_distribution(json_data["event_distribution"]) \
             if "event_distribution" in json_data else dict()
-        batch_processing = parse_batch_processing(json_data["batch_processing"])
+        batch_processing = parse_batch_processing(json_data["batch_processing"]) \
+            if "batch_processing" in json_data else dict()
         case_attributes = parse_case_attr(json_data["case_attributes"]) \
             if "case_attributes" in json_data else AllCaseAttributes([])
 
