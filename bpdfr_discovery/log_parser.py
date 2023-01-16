@@ -12,9 +12,9 @@ from bpdfr_discovery.exceptions import InvalidInputDiscoveryParameters
 from bpdfr_simulation_engine.control_flow_manager import BPMN, BPMNGraph
 from bpdfr_simulation_engine.exceptions import InvalidBpmnModelException, InvalidLogFileException
 from bpdfr_simulation_engine.execution_info import Trace, TaskEvent
+from bpdfr_simulation_engine.file_manager import FileManager
 from bpdfr_simulation_engine.probability_distributions import best_fit_distribution
 from bpdfr_simulation_engine.resource_calendar import RCalendar, CalendarFactory
-from bpdfr_simulation_engine.simulation_engine import add_simulation_event_log_header
 from bpdfr_simulation_engine.simulation_properties_parser import parse_simulation_model
 
 print_info = False
@@ -45,7 +45,7 @@ def transform_xes_to_csv(log_path, csv_out_path):
 
     with open(csv_out_path, mode='w', newline='', encoding='utf-8') as log_csv_file:
         csv_writer = csv.writer(log_csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        add_simulation_event_log_header(csv_writer)
+        log_writer = FileManager(10000, csv_writer)
         log_traces = xes_importer.apply(log_path)
         for trace in log_traces:
             started_events = dict()
@@ -65,8 +65,10 @@ def transform_xes_to_csv(log_path, csv_out_path):
                 elif state == "complete":
                     if task_name in started_events:
                         c_event = trace_info.complete_event(started_events.pop(task_name), timestamp)
-                        csv_writer.writerow([trace_info.p_case, task_name, '', str(c_event.started_at),
+                        log_writer.add_csv_row([trace_info.p_case, task_name, '', str(c_event.started_at),
                                              str(c_event.completed_at), resource])
+
+        log_writer.force_write()
 
 
 def is_duplicated(visited_events, p_case, task_name, resource, timestamp, state):

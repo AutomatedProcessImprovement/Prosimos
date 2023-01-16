@@ -1,20 +1,46 @@
 import copy
-import datetime
-from datetime import timedelta
 import sys
 from collections import deque
 from enum import Enum
+from typing import List
 
 import pm4py
 import random
 import secrets
 from pm4py.objects.conversion.process_tree import converter
+from bpdfr_simulation_engine.batch_processing import BATCH_TYPE, AndFiringRule, BatchConfigPerTask
 from bpdfr_simulation_engine.probability_distributions import generate_number_from
-from bpdfr_simulation_engine.resource_calendar import str_week_days
 
 from bpdfr_simulation_engine.exceptions import InvalidBpmnModelException
+from bpdfr_simulation_engine.weekday_helper import CustomDatetimeAndSeconds
 
 seconds_per_unit = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
+
+class BatchInfoForExecution:
+    def __init__(self, all_case_ids, task_batch_info, curr_task_id, batch_spec, start_time_from_rule):
+        self.case_ids = all_case_ids[curr_task_id].copy()
+        self.task_batch_info = task_batch_info[curr_task_id]
+        self.batch_spec = batch_spec
+        self.start_time_from_rule = start_time_from_rule
+
+    def is_sequential(self):
+        return self.task_batch_info.type == BATCH_TYPE.SEQUENTIAL
+    
+    def is_concurrent(self):
+        return self.task_batch_info.type == BATCH_TYPE.CONCURRENT
+
+    def is_parallel(self):
+        return self.task_batch_info.type == BATCH_TYPE.PARALLEL
+
+
+class EnabledTask:
+    def __init__(self, task_id, batch_info_exec: BatchInfoForExecution = None, duration_sec = None):
+        self.task_id = task_id
+        self.batch_info_exec = batch_info_exec
+        
+        # is filled only for event-based gateways
+        # (when we already know the duration at the control flow step)
+        self.duration_sec = duration_sec
 
 
 class BPMN(Enum):
@@ -123,11 +149,16 @@ class BPMNGraph:
         self.decision_flows_sortest_path = None
         self._c_trace = None
         self.event_distribution = None
+        self.batch_info = dict()
+        self.batch_count = dict()
+        self.batch_waiting_processes = dict()
 
-    def set_element_probabilities(self, element_probability, task_resource_probability, event_distribution):
+    def set_additional_fields_from_json(self, element_probability, task_resource_probability, \
+        event_distribution, batch_processing):
         self.element_probability = element_probability
         self.task_resource_probability = task_resource_probability
         self.event_distribution = event_distribution
+        self.batch_info = batch_processing
 
     def add_bpmn_element(self, element_id, element_info):
         if element_info.type == BPMN.START_EVENT:
@@ -231,7 +262,15 @@ class BPMNGraph:
         if e_id == self.starting_event:
             return True
         e_info = self.element_info[e_id]
-        if e_info.type in [BPMN.TASK, BPMN.END_EVENT, BPMN.PARALLEL_GATEWAY, BPMN.INTERMEDIATE_EVENT]:
+        if e_info.type == BPMN.TASK:
+            # not enabled in case there is no token before the task
+            # we assume that there might be only one incoming flow to the task
+            for f_arc in e_info.incoming_flows:
+                if p_state.tokens[f_arc] < 1:
+                    return False
+
+            return True
+        if e_info.type in [BPMN.END_EVENT, BPMN.PARALLEL_GATEWAY, BPMN.INTERMEDIATE_EVENT]:
             for f_arc in e_info.incoming_flows:
                 if p_state.tokens[f_arc] < 1:
                     return False
@@ -261,7 +300,7 @@ class BPMNGraph:
                 return False
         return False
 
-    def update_process_state(self, e_id, p_state, completed_datetime_prev_event):
+    def update_process_state(self, case_id, e_id, p_state, completed_datetime_prev_event: CustomDatetimeAndSeconds):
         """
         :param completed_time_prev_event: datetime of the completion of the previous event
                                           which equals to enabled time for current event
@@ -288,7 +327,7 @@ class BPMNGraph:
                 if e_info.type is BPMN.EXCLUSIVE_GATEWAY:
                     f_arcs = [(self.element_probability[e_info.id].get_outgoing_flow(), None)]
                 elif e_info.type is BPMN.EVENT_BASED_GATEWAY:
-                    f_arcs = [self.get_event_gateway_choice(e_info, completed_datetime_prev_event)]
+                    f_arcs = [self.get_event_gateway_choice(e_info, completed_datetime_prev_event.datetime)]
                 else:
                     if e_info.type in \
                         [BPMN.TASK, BPMN.PARALLEL_GATEWAY, BPMN.START_EVENT, BPMN.INTERMEDIATE_EVENT]:
@@ -298,11 +337,117 @@ class BPMNGraph:
                         f_arcs = self.element_probability[e_info.id].get_multiple_flows()
                 random.shuffle(f_arcs)
             for f_arc in f_arcs:
-                self._find_next(f_arc, p_state, enabled_tasks, to_execute)
+                self._find_next(f_arc, case_id, p_state, enabled_tasks, to_execute, completed_datetime_prev_event)
             current += 1
         if len(enabled_tasks) > 1:
             random.shuffle(enabled_tasks)
         return enabled_tasks
+
+    def is_task_batched(self, task_id):
+        return self.batch_info.get(task_id, None) != None
+
+
+    def is_batched_task_enabled(self, task_id: str, enabled_at: CustomDatetimeAndSeconds):
+        """
+        Get whether the task could be enabled for the execution.
+        :param task_id: id of the task
+        :return: (is batched task enabled, chunks info, start time of the batch)
+        """
+        task_batch_info = self.batch_info.get(task_id, None)
+
+        if task_batch_info == None:
+            print(f"WARNING: task {task_id} does not have config for batching processing")
+            return False, None, None
+
+        firing_rules: List[AndFiringRule] = task_batch_info.firing_rules
+
+        size_count = self.batch_count[task_id] if self.batch_count.get(task_id, None) != None else 0
+
+        if not firing_rules.is_batch_size_enough_for_exec(size_count): #size_count < 2:
+            # not enough items for batch execution
+            return False, None, None
+
+        waiting_time = [ (enabled_at.datetime - v.datetime).total_seconds() for (_, v) in self.batch_waiting_processes[task_id].items() ] 
+        
+        spec = {
+            "size": size_count,
+            "waiting_times": waiting_time,
+            "enabled_datetimes": [ v.datetime for (_, v) in self.batch_waiting_processes[task_id].items() ],
+            "curr_enabled_at": enabled_at.datetime,
+            "is_triggered_by_batch": True, # specify where from we checking the rule. If not triggered by batch - then we move to midnight time
+            "is_only_one_batch_return": False
+        }
+
+        if task_batch_info.are_rules_discovered:
+            # if the rules were discovered,
+            # we proceed with checking whether the rule is satisfied and
+            # information for executing the batch 
+            return firing_rules.is_true(spec)
+        else:
+            return self.get_batch_size_no_rules_defined(spec, firing_rules, task_batch_info)
+
+    def get_batch_size_no_rules_defined(self, spec, firing_rules, task_batch_info):
+        """
+        In case no rules were discovered, size distribution is being used to define how batches will be formed.
+        For this, we regenerate the rule associated with the batch after each batch creation.
+
+        """
+        spec["is_only_one_batch_return"] = True
+        
+        final_is_true, final_batch_spec, final_start_time = False, None, None
+
+        while True:
+            is_true, batch_spec, start_time = firing_rules.is_true(spec)
+
+            if not is_true:
+                # size rule could not be satisfied
+                # return what we found so far
+                break
+
+            # size rule satisfied, remember the number of the items inside this batch
+            # continue searching for next batches if any
+            if (final_batch_spec == None): final_batch_spec = []
+            num_items = batch_spec[0]
+            final_batch_spec.append(num_items)
+            final_is_true = is_true
+            final_start_time = start_time
+            
+            # regenerate the rule based on the size distribution
+            task_batch_info.update_firing_rules_from_distr()
+
+            # update spec by removing the items we already included in the batch
+            spec["waiting_times"] = spec["waiting_times"][num_items:]
+            spec["enabled_datetimes"] = spec["enabled_datetimes"][num_items:]
+            new_num_tasks_in_queue = spec["size"] - num_items
+
+            if new_num_tasks_in_queue == 0:
+                # all items were included in the batches
+                break
+            
+            spec["size"] = spec["size"] - num_items
+
+        return final_is_true, final_batch_spec, final_start_time
+
+
+    def get_start_time(self, task_id, last_task_enabled_time) -> tuple([int, int, CustomDatetimeAndSeconds]):
+        task_batch_info = self.batch_info.get(task_id, None)
+        firing_rules: List[AndFiringRule] = task_batch_info.firing_rules
+        enabled_times = list(self.batch_waiting_processes[task_id].items())
+        batch_enabled_time = firing_rules.get_enabled_time(
+            enabled_times, 
+            last_task_enabled_time,
+        )
+        
+        if batch_enabled_time != None:
+            enabled_time = batch_enabled_time
+
+            enabled_time_obj = CustomDatetimeAndSeconds(0, enabled_time)
+            case_id, _ = enabled_times[0]
+
+            return case_id, enabled_time_obj
+
+        return None
+
 
     def get_event_gateway_choice(self, gateway_element_info: ElementInfo, completed_datetime_prev_event):
         """
@@ -323,6 +468,7 @@ class BPMNGraph:
         # return randomly selected outgoing flow
         # in case of same value for multiple flows
         return secrets.choice(res)
+
 
     def event_duration(self, event_id):
         """
@@ -678,17 +824,196 @@ class BPMNGraph:
                 gateways_branching[e_id] = flow_arc_probability
         return gateways_branching
 
-    def _find_next(self, f_arc_and_duration, p_state, enabled_tasks, to_execute):
+    def _find_next(self, f_arc_and_duration, case_id, p_state, enabled_tasks, to_execute, enabled_time: CustomDatetimeAndSeconds):
+        # verify that there is no batch waiting to be executed
         f_arc, duration_sec = f_arc_and_duration
         p_state.tokens[f_arc] += 1
         p_state.state_mask |= self.arcs_bitset[f_arc]
         next_e = self.flow_arcs[f_arc][1]
         if self.is_enabled(next_e, p_state):
-            if self.element_info[next_e].type in [BPMN.TASK, BPMN.INTERMEDIATE_EVENT]:
-                enabled_tasks.append((next_e, duration_sec))
+            if self.element_info[next_e].type == BPMN.TASK and self.is_task_batched(next_e):
+                self.enable_batch_or_task(next_e, case_id, enabled_time, enabled_tasks, duration_sec)
+                    
+            elif self.element_info[next_e].type in [BPMN.TASK, BPMN.INTERMEDIATE_EVENT]:
+                enabled_tasks.append(EnabledTask(next_e, None, duration_sec))
             else:
                 to_execute.append(next_e)
 
+    def is_executing_alone(self, task_id: str):
+        task_batch_info: BatchConfigPerTask = self.batch_info.get(task_id, None)
+
+        if task_batch_info == None:
+            print(f"WARNING: task {task_id} does not have config for batching processing")
+            return False, None, None
+
+        return task_batch_info.is_batch_exec_alone()
+
+    def is_open_batch(self, task_id):
+        """ True if there are open batch waiting for the batch execution
+            else False"""
+        return task_id in self.batch_waiting_processes and \
+            len(self.batch_waiting_processes[task_id]) > 0
+
+    def enable_batch_or_task(self, task_id: str, case_id, enabled_time: CustomDatetimeAndSeconds, \
+        enabled_tasks: List[EnabledTask], duration_sec):
+        """ 
+        Checking the compliance with the size_distr specified in the input
+        In case the probability returns 1, the task is being executed alone
+        In case we already have open batch, we continue allocate tasks there 
+        till the moment it could be executed
+        """
+        if not self.is_open_batch(task_id) and \
+            self.is_executing_alone(task_id):
+            # execute alone as a simple task
+            enabled_tasks.append(EnabledTask(task_id, None, duration_sec))
+            return
+
+        # moving batch to list of enabled tasks if the batch is enabled
+        self.move_batch_if_enabled(task_id, case_id, enabled_time, enabled_tasks)
+
+    def move_batch_if_enabled(self, task_id: str, case_id, enabled_time: CustomDatetimeAndSeconds, \
+        enabled_tasks: List[EnabledTask]):
+        """
+        Moving batch to list of enabled tasks if the batch is enabled
+        Before, checking whether it complies with the size_distr specified in the input
+        In case the probability returns 1, the task is being executed alone
+        In case we already have open batch, we continue allocate tasks there 
+        till the moment it could be executed
+        """
+        self.increase_task_count(task_id, case_id, enabled_time)
+        is_enabled, batch_spec, start_time_from_rule = self.is_batched_task_enabled(task_id, enabled_time)
+
+        if is_enabled:
+            batch_info = BatchInfoForExecution(
+                self.batch_waiting_processes,
+                self.batch_info,
+                task_id,
+                batch_spec,
+                start_time_from_rule)
+            enabled_tasks.append((EnabledTask(task_id, batch_info)))
+            self._clear_batch(task_id, batch_spec)
+
+
+    def _clear_batch(self, next_e, batch_spec):
+        """
+        When we passed on the information about the batch for the execution,
+        clear that data from here to avoid multiple execution
+        """
+        for batch_size in batch_spec:
+            if batch_size != None:
+                # remove first batch_size-element since they are being executed
+                # the rest stays in the queue for being enabled for batch execution
+                curr_index = 0
+                for item_key in list(self.batch_waiting_processes[next_e].keys()):
+                    del self.batch_waiting_processes[next_e][item_key]
+                    curr_index = curr_index + 1
+
+                    if curr_index == batch_size:
+                        # all waiting processes regarding the selected batch was removed
+                        break
+
+                self.batch_count[next_e] = self.batch_count[next_e] - batch_size
+
+
+    def increase_task_count(self, task_id, case_id, enabled_time):
+        """ Keep track of the batched tasks in the queue """
+
+        # keep track of case_id which are waiting for the firing rule to be true
+        if task_id not in self.batch_waiting_processes:
+            self.batch_waiting_processes[task_id] = dict()
+        
+        # in case we execute the batch, there is no need to increase the total num
+        if case_id in self.batch_waiting_processes[task_id]:
+            return
+        
+        self.batch_waiting_processes[task_id][case_id] = enabled_time
+        
+        if task_id in self.batch_count:
+            self.batch_count[task_id] += 1
+        else:
+            self.batch_count[task_id] = 1
+
+    def is_any_batch_enabled(self, started_datetime: CustomDatetimeAndSeconds):
+        enabled_task_batch = dict()
+        for (task_id, waiting_tasks) in self.batch_waiting_processes.items():
+            if len(waiting_tasks) == 0:
+                continue
+
+            # finding the date in the future when rule will be satisfied
+            is_enabled, batch_spec, start_time_from_rule = self.is_batched_task_enabled(task_id, started_datetime)
+            if is_enabled:
+                enabled_task_batch[task_id] = self.create_batch_info_and_clear_from_queue(
+                    task_id, batch_spec, start_time_from_rule
+                )
+
+        return enabled_task_batch
+
+    def is_any_unexecuted_batch(self, last_task_enabled_time: CustomDatetimeAndSeconds):
+        is_any = self.batch_waiting_processes.items()
+
+        if is_any == None:
+            return None
+
+        for (task_id, waiting_tasks) in self.batch_waiting_processes.items():
+            if not self.batch_info[task_id].firing_rules.is_batch_size_enough_for_exec(len(waiting_tasks)):
+                # either no or not enough tasks waiting for batch execution
+                # minimum number of tasks to be executed: 2
+                continue
+
+            case_id_and_start_time = self.get_start_time(task_id, last_task_enabled_time)
+
+            if (case_id_and_start_time != None):
+                yield case_id_and_start_time
+
+
+    def get_invalid_batches_if_any(self, current_point_of_time):
+        enabled_task_batch = dict()
+        for (task_id, waiting_tasks) in self.batch_waiting_processes.items():
+            num_tasks_wait_batch = len(waiting_tasks)
+            if num_tasks_wait_batch == 0:
+                continue
+            
+            if self.is_or_rule_invalid(waiting_tasks, task_id, num_tasks_wait_batch, current_point_of_time):
+                # if the rule become invlaid, we execute everything we have
+                # invalid = the one that cannot be satisfied in the future anymore
+                # this method is being called only in case it is the end of all simulated cases
+                waiting_tasks_len = len(waiting_tasks)
+                batch_spec = [waiting_tasks_len]
+
+                # in case last executed task was the one that triggers batch exec
+                # we need to take the enabled_time of the last task in this batch
+                # as start_time for the whole batch
+                last_added_key = list(waiting_tasks.keys())[-1]
+                last_task_in_batch_start = waiting_tasks[last_added_key].datetime
+                start_time_from_rule = max(current_point_of_time.datetime, last_task_in_batch_start)
+                enabled_task_batch[task_id] = self.create_batch_info_and_clear_from_queue(
+                    task_id, batch_spec, start_time_from_rule
+                )
+                continue
+        
+        return enabled_task_batch
+
+    def create_batch_info_and_clear_from_queue(self, task_id: str, batch_spec, start_time_from_rule):
+        batch_info = BatchInfoForExecution(
+            self.batch_waiting_processes,
+            self.batch_info,
+            task_id,
+            batch_spec,
+            start_time_from_rule)
+
+        self._clear_batch(task_id, batch_spec)
+        return batch_info
+
+    def is_or_rule_invalid(self, waiting_tasks, task_id: str, num_tasks_wait_batch: int, current_point_of_time: CustomDatetimeAndSeconds):
+        all_keys = list(waiting_tasks.keys())
+        
+        first_key = all_keys[0]
+        first_wt = (current_point_of_time.datetime - waiting_tasks[first_key].datetime).seconds
+
+        last_key = all_keys[-1]
+        last_wt = (current_point_of_time.datetime - waiting_tasks[last_key].datetime).seconds
+
+        return self.batch_info[task_id].firing_rules.is_invalid_end(num_tasks_wait_batch, first_wt, last_wt)
 
 def discover_bpmn_from_log(log_path, process_name):
     log = pm4py.read_xes(log_path)

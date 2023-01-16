@@ -74,5 +74,6 @@
                 }
             ]
         }
-    ]
+    ],
+    "batch_processing": []
 }
