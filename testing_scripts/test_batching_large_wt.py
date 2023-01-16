@@ -11,11 +11,12 @@ from testing_scripts.test_batching import (
 )
 
 from testing_scripts.test_batching_daily_hour import _get_current_exec_status
-from testing_scripts.test_batching_ready_wt import _arrange_and_act_exp, _test_range_basic
+from testing_scripts.test_batching_ready_wt import THREE_HOURS_IN_SEC, _arrange_and_act_exp, _test_range_basic
 
 HALF_AN_HOUR_SEC = 1800
 ONE_HOUR_IN_SEC = 3600
 TWO_HOURS_IN_SEC = 7200
+FOUR_HOURS_IN_SEC = 14400
 
 def test_size_eq_wt_lt_correct():
     # ====== ARRANGE ======
@@ -285,6 +286,38 @@ data_ready_and_large = [
         True,
         [2],
         "17/09/2022 20:00:01",
+    ),
+    (
+        "17/09/22 23:05:00",
+        [
+            "17/09/22 19:00:00",
+        ],
+        AndFiringRule(array_of_subrules=[
+            FiringSubRule("large_wt", ">", HALF_AN_HOUR_SEC),
+            FiringSubRule("large_wt", "<", TWO_HOURS_IN_SEC),
+            FiringSubRule("ready_wt", "<", ONE_HOUR_IN_SEC),
+        ]),
+        True,
+        [1],
+        "17/09/2022 19:59:59",
+    ),
+    # the minimum boundary of large_wt makes it impossible for the rule to 
+    # turn to be true cause we need to wait at least for three hours
+    (
+        "17/09/22 21:05:00",
+        [
+            "17/09/22 19:00:00",
+            "17/09/22 19:30:00",
+        ],
+        AndFiringRule(array_of_subrules=[
+            FiringSubRule("large_wt", ">", THREE_HOURS_IN_SEC),
+            FiringSubRule("large_wt", "<", FOUR_HOURS_IN_SEC),
+            FiringSubRule("ready_wt", ">", ONE_HOUR_IN_SEC),
+            FiringSubRule("ready_wt", "<", TWO_HOURS_IN_SEC),
+        ]),
+        False,
+        None,
+        None
     ),
     # TODO: check expected result
     # (
