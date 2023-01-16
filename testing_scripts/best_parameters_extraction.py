@@ -17,7 +17,7 @@ from bpdfr_discovery.emd_metric import read_and_preprocess_log, absolute_hour_em
     discretize_to_hour, SimStats, discretize_to_day
 
 
-def discover_simulation_parameters(model_name, log_path, bpmn_path, out_f_path):
+def discover_simulation_parameters(model_name, log_path, bpmn_path, out_f_path, use_observed_arrival_times=False):
     print('Parsing Event Log %s ...' % model_name)
     bpmn_graph = parse_simulation_model(bpmn_path)
 
@@ -74,7 +74,8 @@ def discover_simulation_parameters(model_name, log_path, bpmn_path, out_f_path):
                                                                                               initial_events,
                                                                                               task_resource_events,
                                                                                               flow_arcs_frequency,
-                                                                                              out_f_path)
+                                                                                              out_f_path,
+                                                                                              use_observed_arrival_times)
     print('Best Parameters ----------------------------------------------')
     print('Best EMD_Hour  -> GSize: %d Conf: %.1f, Supp: %.1f, Part: %.1f, Adj_Calendar: %s' % (
         best_granule, best_conf, best_supp, best_part, str(adj_c)
@@ -86,7 +87,8 @@ def discover_simulation_parameters(model_name, log_path, bpmn_path, out_f_path):
             [best_granule_t, best_conf_t, best_supp_t, best_part_t, adj_c_t]]
 
 
-def find_best_parameters(model_name, bpmn_path, log_info, initial_events, task_res_evt, flow_arcs_freq, out_f_path):
+def find_best_parameters(model_name, bpmn_path, log_info, initial_events, task_res_evt, flow_arcs_freq, out_f_path,
+                         use_observed_arrival_times=False):
     bpmn_graph = parse_simulation_model(bpmn_path)
     real_log = read_and_preprocess_log(process_files[model_name]['real_csv_log'])
     # # Discovering Gateways Branching Probabilities
@@ -104,7 +106,7 @@ def find_best_parameters(model_name, bpmn_path, log_info, initial_events, task_r
         json_arrival_calendar = arrival_calendar.to_json()
 
         # # Discovering Arrival Time Distribution
-        arrival_time_dist = discover_arrival_time_distribution(initial_events, arrival_calendar)
+        arrival_time_dist = discover_arrival_time_distribution(initial_events, arrival_calendar, use_observed_arrival_times)
 
         calendar_factory = CalendarFactory(granule_size)
         for case_id in log_info:

@@ -59,6 +59,35 @@ def test_discovery_valid_input_not_empty_json(assets_path):
     assert len(task_resource_events) != 0, 'Task Resource Events should not be empty'
     assert len(id_from_name) != 0, "Map 'elementId - name' should not be empty"
 
+
+def test_discovery_valid_input_histogram_sampling_not_empty_json(assets_path):
+    model_path = assets_path / 'LoanApp_sequential_9-5.bpmn'
+    log_path = assets_path / 'LoanApp_arrival_fix_10.csv'
+    output_path = assets_path / 'LoanApp_arrival_fix_10.json'
+
+    [granule, conf, supp, part, adj_calendar] = [60, 0.1, 0.9, 0.6, True]
+
+    [_, arrival_time_dist, _, _, _, _, _, _, _, _] = preprocess_xes_log(
+        log_path=log_path.as_posix(),
+        bpmn_path=model_path.as_posix(),
+        out_f_path=output_path.as_posix(),
+        minutes_x_granule=granule,
+        min_confidence=conf,
+        min_support=supp,
+        min_participation=part,
+        fit_calendar=adj_calendar,
+        is_csv=True,
+        use_observed_arrival_times=True
+    )
+
+    with output_path.open('r') as f:
+        assert len(f.readlines()) == 1, 'Output JSON parameters must have 1 line'
+    assert len(arrival_time_dist) != 0, 'Arrival Time Distibutions should not be empty'
+    assert arrival_time_dist['distribution_name'] == 'histogram_sampling', "Arrival Time Distribution should be 'Histogram Sampling'"
+    assert len(arrival_time_dist['histogram_data']['cdf']) == 20, "Arrival Time Distribution CDF should have 20 values"
+    assert len(arrival_time_dist['histogram_data']['bin_midpoints']) == 20, "Arrival Time Distribution bin_midpoints should have 20 values"
+
+
 def test_discovery_csv_input_error(assets_path):
     model_path = assets_path / 'financial.bpmn'
     log_path = assets_path / 'financial_log.csv'

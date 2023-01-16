@@ -1,13 +1,14 @@
+import datetime
 import json
 import os
-import pytest
-import pandas as pd
-
-import datetime
 from pathlib import Path
+
+import pandas as pd
+import pytest
 
 from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 from testing_scripts.test_update_state import _setup_sim_scenario_file
+
 
 @pytest.fixture
 def assets_path(request) -> Path:
@@ -27,6 +28,7 @@ def assets_path(request) -> Path:
             output_path = entry_path / file
             if output_path.exists():
                 os.remove(output_path)
+
     request.addfinalizer(teardown)
 
     return entry_path
@@ -55,19 +57,19 @@ def test_timer_event_correct_duration_in_sim_logs(assets_path):
 
     # ====== ACT ======
     _, _ = run_diff_res_simulation(start_string,
-                                    5,
-                                    model_path,
-                                    json_path,
-                                    sim_stats,
-                                    sim_logs,
-                                    True)
+                                   5,
+                                   model_path,
+                                   json_path,
+                                   sim_stats,
+                                   sim_logs,
+                                   True)
 
     # ====== ASSERT ======
     df = pd.read_csv(sim_logs)
     grouped_by_case_id = df.groupby(by="case_id")["case_id"]
     assert grouped_by_case_id.count().size == 5, \
         "The total number of simulated cases does not equal to the setup number"
-    
+
     for name, group in grouped_by_case_id:
         assert group.size == 2, \
             f"The case '{name}' does not have the required number of logged simulated activities"
@@ -88,6 +90,33 @@ def test_timer_event_correct_duration_in_sim_logs(assets_path):
     _verify_activity_count_and_duration(df, expected_task_count, expected_task_timedelta)
 
 
+
+def test_histogram_sampling_arrival_distribution_in_sim_logs(assets_path):
+    """
+    Input: run simulation with an arrival distribution sampling from a custom histogram
+
+    Output:
+    1) validate that the simulation does not fail
+    """
+    # ====== ARRANGE ======
+
+    model_path = assets_path / 'LoanApp_sequential_9-5.bpmn'
+    json_path = assets_path / 'LoanApp_arrival_fix_10.json'
+    sim_logs = assets_path / 'LoanApp_arrival_fix_10_sim_log.csv'
+
+    # ====== ACT ======
+    _, _ = run_diff_res_simulation(start_date="2022-06-21 13:22:30.035185+03:00",
+                                   total_cases=100,
+                                   bpmn_model=model_path,
+                                   json_sim_params=json_path,
+                                   out_stats_csv_path=None,
+                                   out_log_csv_path=sim_logs)
+
+    # ====== ASSERT ======
+    df = pd.read_csv(sim_logs)
+    assert len(df['case_id'].unique()) == 100
+
+
 def test_timer_event_no_events_in_logs(assets_path):
     """
     Input: run simulation without writting events to the log file
@@ -96,7 +125,7 @@ def test_timer_event_no_events_in_logs(assets_path):
     1) validate that the file does include only tasks (automatically means no event)
     2) validate the duration of the logged task (30 min)
     """
-    
+
     # ====== ARRANGE ======
 
     model_path = assets_path / 'timer_with_task.bpmn'
@@ -111,19 +140,19 @@ def test_timer_event_no_events_in_logs(assets_path):
 
     # ====== ACT ======
     _, _ = run_diff_res_simulation(start_string,
-                                    5,
-                                    model_path,
-                                    json_path,
-                                    sim_stats,
-                                    sim_logs,
-                                    False)
+                                   5,
+                                   model_path,
+                                   json_path,
+                                   sim_stats,
+                                   sim_logs,
+                                   False)
 
     # ====== ASSERT ======
     df = pd.read_csv(sim_logs)
     grouped_by_case_id = df.groupby(by="case_id")["case_id"]
     assert grouped_by_case_id.count().size == 5, \
         "The total number of simulated cases does not equal to the setup number"
-    
+
     for name, group in grouped_by_case_id:
         assert group.size == 1, \
             f"The case '{name}' does not have the required number of logged simulated activities"
@@ -136,6 +165,7 @@ def test_timer_event_no_events_in_logs(assets_path):
     expected_task_timedelta = datetime.timedelta(minutes=30)
     expected_task_count = 5
     _verify_activity_count_and_duration(df, expected_task_count, expected_task_timedelta)
+
 
 
 def test_event_based_gateway_correct(assets_path):
@@ -198,13 +228,13 @@ def test_event_based_gateway_correct(assets_path):
 
     # ====== ACT ======
     _, _ = run_diff_res_simulation(start_string,
-                                    5,
-                                    model_path,
-                                    json_path,
-                                    sim_stats,
-                                    sim_logs,
-                                    True)
-    
+                                   5,
+                                   model_path,
+                                   json_path,
+                                   sim_stats,
+                                   sim_logs,
+                                   True)
+
     # ====== ASSERT ======
     df = pd.read_csv(sim_logs)
 
