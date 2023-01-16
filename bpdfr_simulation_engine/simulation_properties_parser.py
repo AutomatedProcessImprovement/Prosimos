@@ -155,6 +155,7 @@ def parse_batch_processing(batch_processing_json_data):
         firing_rules = OrFiringRule(parsed_or_rules)
 
         duration_distibution = dict()
+        duration_distibution[1] = 1.0
         for item in batch_processing["duration_distrib"]:
             key = int(item['key'])
             value = float(item['value'])

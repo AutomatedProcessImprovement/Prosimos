@@ -514,11 +514,18 @@ def test_week_day_different_correct_firing(assets_path):
     logs_d_task["start_time"] = pd.to_datetime(logs_d_task["start_time"], errors="coerce")
     logs_d_task["end_time"] = pd.to_datetime(logs_d_task["end_time"], errors="coerce")
     grouped_by_start_original = logs_d_task.groupby(by="start_time")
-    expected_activity_timedelta = timedelta(seconds=(120 * 0.8))
+    original_activity_timedelta = timedelta(seconds=120)
+    scaled_activity_timedelta = timedelta(seconds=(120 * 0.8))
     for _, group in grouped_by_start_original:
         actual_num_tasks_in_batch = group.shape[0] # this number is dynamic
-        expected_task_duration = expected_activity_timedelta * actual_num_tasks_in_batch
-        _verify_activity_count_and_duration(group, actual_num_tasks_in_batch, expected_task_duration)
+
+        # everything lower than 3 should have the initial duration
+        # every item in duration_distr map is considered as a lower boundary
+        expected_task_duration = original_activity_timedelta if actual_num_tasks_in_batch < 3 \
+            else scaled_activity_timedelta
+
+        expected_tasks_duration = expected_task_duration * actual_num_tasks_in_batch
+        _verify_activity_count_and_duration(group, actual_num_tasks_in_batch, expected_tasks_duration)
 
 
 def test_two_rules_week_day_correct_start_time(assets_path):
