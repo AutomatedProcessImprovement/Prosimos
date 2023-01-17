@@ -42,7 +42,8 @@ class SimBPMEnv:
         self.resource_queue = DiffResourceQueue(self.sim_setup.task_resource, r_first_available)
         self.events_queue = EventQueue()
         self.all_process_states = dict() # store all process states with a case_id as a key
-        self.all_case_attributes = self.generate_case_attributes()
+        self.all_case_attributes, self.all_case_priorities = self.calculate_case_attr_and_priorities()
+        print(self.all_case_priorities)
 
     def generate_all_arrival_events(self):
         sim_setup = self.sim_setup
@@ -57,19 +58,24 @@ class SimBPMEnv:
             self.log_info.trace_list.append(Trace(p_case, enabled_datetime))
             for task in enabled_tasks:
                 task_id = task.task_id
+                case_priority = self.all_case_priorities[p_case]
                 self.events_queue.append_arrival_event(EnabledEvent(p_case, p_state, task_id, arrival_time,
-                                                                    enabled_datetime, task.batch_info_exec, task.duration_sec))
+                                                                    enabled_datetime, task.batch_info_exec, task.duration_sec),
+                                                        case_priority)
             arrival_time += sim_setup.next_arrival_time(enabled_datetime)
 
 
-    def generate_case_attributes(self):
+    def calculate_case_attr_and_priorities(self):
         " Calculate values of each case attribute for every case that will be executed "
         total_num_cases = self.sim_setup.total_num_cases
         all_case_attr_dict = dict()
+        all_case_priorities = dict()
         for case_id in range(0, total_num_cases):
-            all_case_attr_dict[case_id] = self.sim_setup.case_attributes.get_values_calculated()
+            curr_case_attributes = self.sim_setup.case_attributes.get_values_calculated()
+            all_case_attr_dict[case_id] = curr_case_attributes
+            all_case_priorities[case_id] = self.sim_setup.prioritisation_rules.get_priority(curr_case_attributes)
 
-        return all_case_attr_dict
+        return all_case_attr_dict, all_case_priorities
 
 
     def execute_enabled_event(self, c_event: EnabledEvent):
@@ -90,9 +96,11 @@ class SimBPMEnv:
                     enabled_time)
 
                 for next_task in enabled_tasks:
+                    case_priority = self.all_case_priorities[p_case]
                     self.events_queue.append_enabled_event(
                         EnabledEvent(p_case, p_state, next_task.task_id, completed_at,
-                                    completed_datetime, next_task.batch_info_exec, next_task.duration_sec))
+                                    completed_datetime, next_task.batch_info_exec, next_task.duration_sec),
+                        case_priority)
         else:
             if event_element_info.type == BPMN.TASK:
                 # execute not batched task
@@ -109,13 +117,21 @@ class SimBPMEnv:
             # self.time_update_process_state += (datetime.datetime.now() - s_t).total_seconds()
 
             for next_task in enabled_tasks:
+                case_priority = self.all_case_priorities[c_event.p_case]
                 self.events_queue.append_enabled_event(
                     EnabledEvent(c_event.p_case, c_event.p_state, next_task.task_id, completed_at,
-                                completed_datetime, next_task.batch_info_exec, next_task.duration_sec))
+                                completed_datetime, next_task.batch_info_exec, next_task.duration_sec),
+                    case_priority)
+
+
+    def pop_and_allocate_resource(self, task_id: str, num_allocated_tasks: int):
+        r_id, r_avail_at = self.resource_queue.pop_resource_for(task_id)
+        self.sim_resources[r_id].allocated_tasks += num_allocated_tasks
+        return r_id, r_avail_at
+
 
     def execute_task(self, c_event: EnabledEvent):
-        r_id, r_avail_at = self.resource_queue.pop_resource_for(c_event.task_id)
-        self.sim_resources[r_id].allocated_tasks += 1
+        r_id, r_avail_at = self.pop_and_allocate_resource(c_event.task_id, 1)
 
         r_avail_at = max(c_event.enabled_at, r_avail_at)
         avail_datetime = self._datetime_from(r_avail_at)
@@ -195,7 +211,8 @@ class SimBPMEnv:
                     batch_info
                 )
 
-                self.events_queue.append_enabled_event(c_event)
+                case_priority = self.all_case_priorities[c_event.p_case]
+                self.events_queue.append_enabled_event(c_event, case_priority)
 
 
     def execute_if_any_unexecuted_batch(self, last_task_enabled_time: CustomDatetimeAndSeconds):
@@ -225,7 +242,8 @@ class SimBPMEnv:
                         batch_info
                     )
 
-                    self.events_queue.append_enabled_event(c_event)
+                    case_priority = self.all_case_priorities[case_id]
+                    self.events_queue.append_enabled_event(c_event, case_priority)
 
 
     def _get_chunk(self, batch_spec, curr_index, all_case_ids):
@@ -259,9 +277,8 @@ class SimBPMEnv:
 
         for batch_item in chunks:
             num_tasks_in_batch = len(batch_item)
-            
-            r_id, r_avail_at = self.resource_queue.pop_resource_for(c_event.task_id)
-            self.sim_resources[r_id].allocated_tasks += num_tasks_in_batch
+
+            r_id, r_avail_at = self.pop_and_allocate_resource(c_event.task_id, num_tasks_in_batch)
             
             completed_at = 0
 
@@ -307,8 +324,7 @@ class SimBPMEnv:
         for batch_item in chunks:
             num_tasks_in_batch = len(batch_item)
 
-            r_id, r_avail_at = self.resource_queue.pop_resource_for(task_id)
-            self.sim_resources[r_id].allocated_tasks += num_tasks_in_batch
+            r_id, r_avail_at = self.pop_and_allocate_resource(c_event.task_id, num_tasks_in_batch)
 
             r_avail_at = max(r_avail_at, enabled_batch, start_time_from_rule_seconds)
             avail_datetime = self._datetime_from(r_avail_at)

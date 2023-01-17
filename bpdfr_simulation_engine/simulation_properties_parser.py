@@ -9,6 +9,7 @@ from bpdfr_simulation_engine.case_attributes import AllCaseAttributes, CaseAttri
 
 from bpdfr_simulation_engine.control_flow_manager import EVENT_TYPE, BPMNGraph, ElementInfo, BPMN
 from bpdfr_simulation_engine.exceptions import InvalidRuleDefinition
+from bpdfr_simulation_engine.prioritisation import AllPriorityRules
 from bpdfr_simulation_engine.prioritisation_parser import PrioritisationParser
 from bpdfr_simulation_engine.resource_calendar import RCalendar
 from bpdfr_simulation_engine.resource_profile import ResourceProfile, PoolInfo
@@ -35,10 +36,11 @@ def parse_json_sim_parameters(json_path):
         batch_processing = parse_batch_processing(json_data["batch_processing"])
         case_attributes = parse_case_attr(json_data["case_attributes"]) \
             if "case_attributes" in json_data else AllCaseAttributes([])
-        prioritisation_rules = PrioritisationParser(json_data["prioritization_rules"]).parse()
+        prioritisation_rules = PrioritisationParser(json_data["prioritization_rules"]).parse() \
+            if "prioritization_rules" in json_data else AllPriorityRules([])
 
         return resources_map, calendars_map, element_distribution, task_resource_distribution, \
-            arrival_calendar, event_distibution, batch_processing, case_attributes
+            arrival_calendar, event_distibution, batch_processing, case_attributes, prioritisation_rules
 
 
 # def parse_pool_info(json_data, resources_map):

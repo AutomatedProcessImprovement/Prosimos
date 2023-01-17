@@ -3,12 +3,12 @@ from typing import List, Tuple
 
 
 class InOperatorEvaluator:
-    def __init__(self, range: Tuple[float,float], case_value: float):
-        self.min, self.max = range          # including the edges
+    def __init__(self, range: Tuple[float, float], case_value: float):
+        self.min, self.max = range  # including the edges
         self.value = case_value
 
     def eval(self):
-        if (self.min == self.max):
+        if self.min == self.max:
             # equal operator
             return self.min == self.value
         else:
@@ -23,10 +23,9 @@ class PrioritisationRule:
         self.value = self._parse_value(value)
 
     def _parse_value(self, value):
-        if self.condition == 'in':
+        if self.condition == "in":
             min_boundary = float(value[0])
-            max_boundary = sys.maxsize if value[1] == "inf" else \
-                float(value[1])
+            max_boundary = sys.maxsize if value[1] == "inf" else float(value[1])
 
             return min_boundary, max_boundary
         else:
@@ -34,7 +33,7 @@ class PrioritisationRule:
 
     def is_rule_true(self, all_case_values):
         case_value = all_case_values[self.attribute]
-        if self.condition == 'in':
+        if self.condition == "in":
             evaluator = InOperatorEvaluator(self.value, case_value)
             return evaluator.eval()
         else:
@@ -61,7 +60,7 @@ class OrPrioritisationRule:
     def is_or_rule_true(self, all_case_values):
         init_val = False
         for item in self.or_rules:
-            init_val = init_val and item.is_and_rule_true(all_case_values)
+            init_val = init_val or item.is_and_rule_true(all_case_values)
 
         return init_val
 
@@ -83,10 +82,11 @@ class AllPriorityRules:
 
     def get_priority(self, all_case_values):
         # the lower number - the higher priority
-        # so, by default, the highest integer value will guarantee the lowest priority 
+        # so, by default, the highest integer value will guarantee the lowest priority
         init_priority = sys.maxsize
         for rule in self.all_rules:
             if rule.is_true(all_case_values):
                 init_priority = rule.priority
+                break
 
         return init_priority

@@ -114,11 +114,11 @@ class EventQueue:
     def __init__(self):
         self.enabled_events = PriorityQueue()
 
-    def append_arrival_event(self, event_info):
-        self.enabled_events.insert(event_info, event_info.enabled_at)
+    def append_arrival_event(self, event_info, case_priority):
+        self.enabled_events.insert(event_info, (case_priority, event_info.enabled_at))
 
-    def append_enabled_event(self, event_info):
-        self.enabled_events.insert(event_info, event_info.enabled_at)
+    def append_enabled_event(self, event_info, case_priority):
+        self.enabled_events.insert(event_info, (case_priority, event_info.enabled_at))
 
     def pop_next_event(self):
         if self.enabled_events:
