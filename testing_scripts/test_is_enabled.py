@@ -1,9 +1,13 @@
-from bpdfr_simulation_engine.simulation_properties_parser import parse_json_sim_parameters, parse_simulation_model
-from bpdfr_simulation_engine.simulation_setup import SimDiffSetup
-from test_discovery import assets_path
+import datetime
 
 import pytz
-import datetime
+from bpdfr_simulation_engine.simulation_properties_parser import (
+    parse_json_sim_parameters,
+    parse_simulation_model,
+)
+from bpdfr_simulation_engine.simulation_setup import SimDiffSetup
+
+from test_discovery import assets_path
 
 
 def test_or_gateway_one_token_before_or_true(assets_path):
@@ -17,16 +21,26 @@ def test_or_gateway_one_token_before_or_true(assets_path):
     """
 
     # ====== ARRANGE ======
-    bpmn_path = assets_path / 'test_and_or.bpmn'
-    json_path = assets_path / 'test_or_xor_follow.json'
-    
-    _, _, element_probability, task_resource, _, event_distribution, batch_processing, _ \
-        = parse_json_sim_parameters(json_path)
+    bpmn_path = assets_path / "test_and_or.bpmn"
+    json_path = assets_path / "test_or_xor_follow.json"
+
+    (
+        _,
+        _,
+        element_probability,
+        task_resource,
+        _,
+        event_distribution,
+        batch_processing,
+        _,
+        _,
+    ) = parse_json_sim_parameters(json_path)
 
     bpmn_graph = parse_simulation_model(bpmn_path)
-    bpmn_graph.set_additional_fields_from_json(element_probability, task_resource, 
-        event_distribution, batch_processing)
-    
+    bpmn_graph.set_additional_fields_from_json(
+        element_probability, task_resource, event_distribution, batch_processing
+    )
+
     sim_setup = SimDiffSetup(bpmn_path, json_path, False, 1)
     sim_setup.set_starting_datetime(pytz.utc.localize(datetime.datetime.now()))
     p_state = sim_setup.initial_state()
@@ -38,7 +52,7 @@ def test_or_gateway_one_token_before_or_true(assets_path):
     p_state.add_token("Flow_0vgoazd")
 
     # ====== ACT ======
-    e_id = "Gateway_1aucmm2" # id of the inclusive (OR) join gateway
+    e_id = "Gateway_1aucmm2"  # id of the inclusive (OR) join gateway
     result = bpmn_graph.is_enabled(e_id, p_state)
 
     # ====== ASSERT ======
@@ -53,16 +67,26 @@ def test_or_gateway_both_tokens_before_or_true(assets_path):
     """
 
     # ====== ARRANGE ======
-    bpmn_path = assets_path / 'test_and_or.bpmn'
-    json_path = assets_path / 'test_or_xor_follow.json'
-    
-    _, _, element_probability, task_resource, _, event_distribution, batch_processing, _ \
-        = parse_json_sim_parameters(json_path)
+    bpmn_path = assets_path / "test_and_or.bpmn"
+    json_path = assets_path / "test_or_xor_follow.json"
+
+    (
+        _,
+        _,
+        element_probability,
+        task_resource,
+        _,
+        event_distribution,
+        batch_processing,
+        _,
+        _,
+    ) = parse_json_sim_parameters(json_path)
 
     bpmn_graph = parse_simulation_model(bpmn_path)
-    bpmn_graph.set_additional_fields_from_json(element_probability, task_resource,
-        event_distribution, batch_processing)
-    
+    bpmn_graph.set_additional_fields_from_json(
+        element_probability, task_resource, event_distribution, batch_processing
+    )
+
     sim_setup = SimDiffSetup(bpmn_path, json_path, False, 1)
     sim_setup.set_starting_datetime(pytz.utc.localize(datetime.datetime.now()))
     p_state = sim_setup.initial_state()
@@ -93,16 +117,26 @@ def test_or_gateway_one_token_before_xor_false(assets_path):
     """
 
     # ====== ARRANGE ======
-    bpmn_path = assets_path / 'test_and_or.bpmn'
-    json_path = assets_path / 'test_or_xor_follow.json'
-    
-    _, _, element_probability, task_resource, _, event_distribution, batch_processing, _ \
-        = parse_json_sim_parameters(json_path)
+    bpmn_path = assets_path / "test_and_or.bpmn"
+    json_path = assets_path / "test_or_xor_follow.json"
+
+    (
+        _,
+        _,
+        element_probability,
+        task_resource,
+        _,
+        event_distribution,
+        batch_processing,
+        _,
+        _,
+    ) = parse_json_sim_parameters(json_path)
 
     bpmn_graph = parse_simulation_model(bpmn_path)
-    bpmn_graph.set_additional_fields_from_json(element_probability, task_resource,
-        event_distribution, batch_processing)
-    
+    bpmn_graph.set_additional_fields_from_json(
+        element_probability, task_resource, event_distribution, batch_processing
+    )
+
     sim_setup = SimDiffSetup(bpmn_path, json_path, False, 1)
     sim_setup.set_starting_datetime(pytz.utc.localize(datetime.datetime.now()))
     p_state = sim_setup.initial_state()

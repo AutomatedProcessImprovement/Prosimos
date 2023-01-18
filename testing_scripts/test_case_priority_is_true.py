@@ -9,6 +9,9 @@ BUSINESS = "Business"
 REGULAR = "Regular"
 INF = "inf"
 
+NOT_INTERSECTED_RANGE = [[10, 100], [200, 500]]
+INTERSECTED_RANGE = [[10, 300], [200, 500]]
+
 discrete_test_cases = [
     ([0, 100], 50, True),
     ([0, 100], 150, False),
@@ -85,23 +88,24 @@ def test_and_combination_correct(loan_amount_value, category_value, expected_res
 
 
 or_test_cases = [
-    ([10, 300], 280, BUSINESS, True),
-    ([10, 100], 239, BUSINESS, True),
-    ([10, 100], 73, BUSINESS, True),
-    ([10, 100], 130, REGULAR, False),
+    (INTERSECTED_RANGE, 280, BUSINESS, True),
+    (NOT_INTERSECTED_RANGE, 239, BUSINESS, True),
+    (NOT_INTERSECTED_RANGE, 73, BUSINESS, True),
+    (NOT_INTERSECTED_RANGE, 130, REGULAR, False),
 ]
 
 
 @pytest.mark.parametrize(
-    "range_rule1, loan_amount_value, category_value, expected_result",
+    "range_rules, loan_amount_value, category_value, expected_result",
     or_test_cases,
 )
 def test_or_combination(
-    range_rule1, loan_amount_value, category_value, expected_result
+    range_rules, loan_amount_value, category_value, expected_result
 ):
+    range_rule1, range_rule2 = range_rules[0], range_rules[1]
     # ====== ARRANGE ======
     or_rule = _create_or_rule_with_two_subrule(
-        [range_rule1, BUSINESS], [[200, 500], BUSINESS]
+        [range_rule1, BUSINESS], [range_rule2, BUSINESS]
     )
 
     # ====== ACT ======
