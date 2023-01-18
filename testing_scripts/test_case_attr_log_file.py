@@ -13,6 +13,7 @@ basic_columns = [
     "resource",
 ]
 
+
 def test_present_case_attr_correct_output(assets_path):
     """
     Input: run simulation with writting events to the log file.
@@ -45,7 +46,7 @@ def test_present_case_attr_correct_output(assets_path):
             },
         },
     ]
-    _setup_and_write_case_attributes(json_path, case_attributes)
+    _setup_and_write_case_attributes(json_path, case_attributes, [])
 
     sim_stats = assets_path / "timer_with_task_stats.csv"
     sim_logs = assets_path / "timer_with_task_logs.csv"
@@ -89,7 +90,7 @@ def test_present_case_attr_correct_output(assets_path):
 def test_no_case_attr_setup_correct_output(assets_path):
     """
     Input: run simulation with writting events to the log file.
-            Case attributes' setup is empty so no additional case attributes are added to the log file. 
+            Case attributes' setup is empty so no additional case attributes are added to the log file.
 
     Output:
     1) verify the number&naming&order of the columns (only basic columns are present)
@@ -100,8 +101,7 @@ def test_no_case_attr_setup_correct_output(assets_path):
 
     # provide setup for the case attributes generation
     json_path = assets_path / "timer_with_task.json"
-    case_attributes = []
-    _setup_and_write_case_attributes(json_path, case_attributes)
+    _setup_and_write_case_attributes(json_path, [], [])
 
     sim_stats = assets_path / "timer_with_task_stats.csv"
     sim_logs = assets_path / "timer_with_task_logs.csv"
