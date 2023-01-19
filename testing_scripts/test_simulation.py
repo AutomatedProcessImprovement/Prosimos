@@ -45,7 +45,7 @@ def test_timer_event_correct_duration_in_sim_logs(assets_path):
     model_path = assets_path / "timer_with_task.bpmn"
 
     json_path = assets_path / "timer_with_task.json"
-    _setup_and_write_case_attributes(json_path, [], [])
+    _setup_and_write_sim_scenario(json_path)
 
     sim_stats = assets_path / "timer_with_task_stats.csv"
     sim_logs = assets_path / "timer_with_task_logs.csv"
@@ -103,7 +103,7 @@ def test_timer_event_no_events_in_logs(assets_path):
     model_path = assets_path / "timer_with_task.bpmn"
 
     json_path = assets_path / "timer_with_task.json"
-    _setup_and_write_case_attributes(json_path, [], [])
+    _setup_and_write_sim_scenario(json_path)
 
     sim_stats = assets_path / "timer_with_task_stats.csv"
     sim_logs = assets_path / "timer_with_task_logs.csv"
@@ -219,12 +219,15 @@ def _verify_activity_count_and_duration(activities, count, expected_activity_tim
         ), f"The duration of the activity does not equal to {expected_activity_timedelta}"
 
 
-def _setup_and_write_case_attributes(json_path, case_attributes, prioritisation_rules):
+def _setup_and_write_sim_scenario(
+    json_path, case_attributes=[], prioritisation_rules=[], batch_processing=[]
+):
     with open(json_path, "r") as f:
         json_dict = json.load(f)
 
     json_dict["case_attributes"] = case_attributes
     json_dict["prioritization_rules"] = prioritisation_rules
+    json_dict["batch_processing"] = batch_processing
 
     with open(json_path, "w+") as json_file:
         json.dump(json_dict, json_file)

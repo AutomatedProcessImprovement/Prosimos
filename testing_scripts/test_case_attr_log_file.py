@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from test_discovery import assets_path
 from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
-from testing_scripts.test_simulation import _setup_and_write_case_attributes
+from testing_scripts.test_simulation import _setup_and_write_sim_scenario
 
 basic_columns = [
     "case_id",
@@ -46,7 +46,7 @@ def test_present_case_attr_correct_output(assets_path):
             },
         },
     ]
-    _setup_and_write_case_attributes(json_path, case_attributes, [])
+    _setup_and_write_sim_scenario(json_path, case_attributes)
 
     sim_stats = assets_path / "timer_with_task_stats.csv"
     sim_logs = assets_path / "timer_with_task_logs.csv"
@@ -101,7 +101,7 @@ def test_no_case_attr_setup_correct_output(assets_path):
 
     # provide setup for the case attributes generation
     json_path = assets_path / "timer_with_task.json"
-    _setup_and_write_case_attributes(json_path, [], [])
+    _setup_and_write_sim_scenario(json_path)
 
     sim_stats = assets_path / "timer_with_task_stats.csv"
     sim_logs = assets_path / "timer_with_task_logs.csv"
