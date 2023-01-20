@@ -11,7 +11,7 @@ NOT_KNOWN = "Not Known"
 
 # setup for the distribution of the arrival rate
 def ARRIVAL_DISTR(value_seconds):
-    {
+    return {
         "distribution_name": "fix",
         "distribution_params": [{"value": value_seconds}, {"value": 0}, {"value": 1}],
     }
