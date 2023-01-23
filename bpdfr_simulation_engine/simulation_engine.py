@@ -4,10 +4,14 @@ from typing import List
 import pytz
 import datetime
 from datetime import timedelta
-from bpdfr_simulation_engine.control_flow_manager import BPMN, CustomDatetimeAndSeconds
+from bpdfr_simulation_engine.control_flow_manager import (
+    BPMN,
+    CustomDatetimeAndSeconds,
+)
 
 from bpdfr_simulation_engine.file_manager import FileManager
 from bpdfr_simulation_engine.execution_info import Trace, TaskEvent, EnabledEvent
+from bpdfr_simulation_engine.prioritisation import CasePrioritisation
 from bpdfr_simulation_engine.resource_calendar import get_string_from_datetime
 from bpdfr_simulation_engine.resource_calendar import parse_datetime
 from bpdfr_simulation_engine.simulation_queues_ds import (
@@ -54,11 +58,37 @@ class SimBPMEnv:
         self.all_process_states = (
             dict()
         )  # store all process states with a case_id as a key
-        (
-            self.all_case_attributes,
-            self.all_case_priorities,
-        ) = self.calculate_case_attr_and_priorities()
-        print(self.all_case_priorities)
+
+        self.case_prioritisation = CasePrioritisation(
+            self.sim_setup.total_num_cases,
+            self.sim_setup.case_attributes,
+            self.sim_setup.prioritisation_rules,
+        )
+
+    def append_event_to_queue(
+        self, enabled_event: EnabledEvent, is_arrival_event: bool
+    ):
+        """
+        Calculate case priority by following one of two path:
+        1) no batching  - use current case's priority
+        2) batching     - find case id with the highest priority
+        """
+        if enabled_event.batch_info_exec != None:
+            # batched task
+            multiple_cases_dict = enabled_event.batch_info_exec.case_ids
+            multiple_cases_arr = [(k, v) for k, v in multiple_cases_dict.items()]
+            case_priority = self.case_prioritisation.calculate_max_priority(
+                multiple_cases_arr
+            )
+        else:
+            case_priority = self.case_prioritisation.get_priority_by_case_id(
+                enabled_event.p_case
+            )
+
+        if is_arrival_event:
+            self.events_queue.append_arrival_event(enabled_event, case_priority)
+        else:
+            self.events_queue.append_enabled_event(enabled_event, case_priority)
 
     def generate_all_arrival_events(self):
         sim_setup = self.sim_setup
@@ -75,8 +105,7 @@ class SimBPMEnv:
             self.log_info.trace_list.append(Trace(p_case, enabled_datetime))
             for task in enabled_tasks:
                 task_id = task.task_id
-                case_priority = self.all_case_priorities[p_case]
-                self.events_queue.append_arrival_event(
+                self.append_event_to_queue(
                     EnabledEvent(
                         p_case,
                         p_state,
@@ -86,25 +115,9 @@ class SimBPMEnv:
                         task.batch_info_exec,
                         task.duration_sec,
                     ),
-                    case_priority,
+                    True,
                 )
             arrival_time += sim_setup.next_arrival_time(enabled_datetime)
-
-    def calculate_case_attr_and_priorities(self):
-        "Calculate values of each case attribute for every case that will be executed"
-        total_num_cases = self.sim_setup.total_num_cases
-        all_case_attr_dict = dict()
-        all_case_priorities = dict()
-        for case_id in range(0, total_num_cases):
-            curr_case_attributes = (
-                self.sim_setup.case_attributes.get_values_calculated()
-            )
-            all_case_attr_dict[case_id] = curr_case_attributes
-            all_case_priorities[
-                case_id
-            ] = self.sim_setup.prioritisation_rules.get_priority(curr_case_attributes)
-
-        return all_case_attr_dict, all_case_priorities
 
     def execute_enabled_event(self, c_event: EnabledEvent):
         self.executed_events += 1
@@ -129,8 +142,7 @@ class SimBPMEnv:
                 )
 
                 for next_task in enabled_tasks:
-                    case_priority = self.all_case_priorities[p_case]
-                    self.events_queue.append_enabled_event(
+                    self.append_event_to_queue(
                         EnabledEvent(
                             p_case,
                             p_state,
@@ -140,7 +152,7 @@ class SimBPMEnv:
                             next_task.batch_info_exec,
                             next_task.duration_sec,
                         ),
-                        case_priority,
+                        False,
                     )
         else:
             if event_element_info.type == BPMN.TASK:
@@ -158,8 +170,7 @@ class SimBPMEnv:
             # self.time_update_process_state += (datetime.datetime.now() - s_t).total_seconds()
 
             for next_task in enabled_tasks:
-                case_priority = self.all_case_priorities[c_event.p_case]
-                self.events_queue.append_enabled_event(
+                self.append_event_to_queue(
                     EnabledEvent(
                         c_event.p_case,
                         c_event.p_state,
@@ -169,7 +180,7 @@ class SimBPMEnv:
                         next_task.batch_info_exec,
                         next_task.duration_sec,
                     ),
-                    case_priority,
+                    False,
                 )
 
     def pop_and_allocate_resource(self, task_id: str, num_allocated_tasks: int):
@@ -244,7 +255,9 @@ class SimBPMEnv:
             ]
         )
 
-        extended_with_case_atrr = self.all_case_attributes[full_event.p_case].values()
+        extended_with_case_atrr = self.case_prioritisation.get_case_attr_values(
+            full_event.p_case
+        )
 
         return [*row_basic_info, *extended_with_case_atrr]
 
@@ -283,9 +296,7 @@ class SimBPMEnv:
                     enabled_datetime,
                     batch_info,
                 )
-
-                case_priority = self.all_case_priorities[c_event.p_case]
-                self.events_queue.append_enabled_event(c_event, case_priority)
+                self.append_event_to_queue(c_event, False)
 
     def execute_if_any_unexecuted_batch(
         self, last_task_enabled_time: CustomDatetimeAndSeconds
@@ -323,9 +334,7 @@ class SimBPMEnv:
                         batch_info.start_time_from_rule,
                         batch_info,
                     )
-
-                    case_priority = self.all_case_priorities[case_id]
-                    self.events_queue.append_enabled_event(c_event, case_priority)
+                    self.append_event_to_queue(c_event, False)
 
     def _get_chunk(self, batch_spec, curr_index, all_case_ids):
         """Return only the part of the all_case_ids that will be executed as a batch"""
@@ -337,22 +346,6 @@ class SimBPMEnv:
             acc_tasks_in_batch : acc_tasks_in_batch + num_tasks_in_batch
         ]
 
-    def _get_ordered_case_ids_by_priority(self, case_ids: list):
-        "Sort list of case_ids based on their previously calculated priority"
-        if not self.all_case_priorities:
-            "return the original case_ids in case no priorities were defined"
-            return case_ids
-
-        print(case_ids)
-        priority = [self.all_case_priorities[case_id] for (case_id, _) in case_ids]
-        # map(lambda case_id: self.all_case_priorities[case_id], case_ids)
-        return [
-            x
-            for _, x in sorted(
-                zip(priority, case_ids), key=lambda pair: (pair[0], pair[1][1].datetime)
-            )
-        ]
-
     def execute_task_batch(self, c_event: EnabledEvent):
         all_tasks_waiting = len(c_event.batch_info_exec.case_ids)
 
@@ -360,7 +353,9 @@ class SimBPMEnv:
             print("WARNING: Number of tasks in the enabled batch is 0.")
 
         all_case_ids = list(c_event.batch_info_exec.case_ids.items())
-        ordered_case_ids = self._get_ordered_case_ids_by_priority(all_case_ids)
+        ordered_case_ids = self.case_prioritisation.get_ordered_case_ids_by_priority(
+            all_case_ids
+        )
         batch_spec = c_event.batch_info_exec.batch_spec
         chunks = [
             self._get_chunk(batch_spec, i, ordered_case_ids)

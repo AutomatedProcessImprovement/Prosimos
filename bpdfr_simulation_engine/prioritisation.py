@@ -1,92 +1,75 @@
-import sys
-from typing import List, Tuple
+from typing import List, Tuple, Union
+from bpdfr_simulation_engine.case_attributes import AllCaseAttributes
+from bpdfr_simulation_engine.prioritisation_rules import AllPriorityRules
+
+ArrayOfTuplesOrStrings = Union[List[Tuple[str, any]], List[str]]
 
 
-class InOperatorEvaluator:
-    def __init__(self, range: Tuple[float, float], case_value: float):
-        self.min, self.max = range  # including the edges
-        self.value = case_value
+class CasePrioritisation:
+    def __init__(
+        self,
+        total_num_cases,
+        case_attributes: AllCaseAttributes,
+        prioritisation_rules: AllPriorityRules,
+    ):
+        self.total_num_cases = total_num_cases
+        self.case_attributes = case_attributes
+        self.prioritisation_rules = prioritisation_rules
+        (
+            self.all_case_attributes,
+            self.all_case_priorities,
+        ) = self.calculate_case_attr_and_priorities()
 
-    def eval(self):
-        if self.min == self.max:
-            # equal operator
-            return self.min == self.value
-        else:
-            # check whether in the range
-            return self.min <= self.value <= self.max
+    def get_priority_by_case_id(self, case_id):
+        return self.all_case_priorities[case_id]
 
+    def get_case_attr_values(self, case_id):
+        "Return all case attributes assigned to the specific case id"
+        return self.all_case_attributes[case_id].values()
 
-class PrioritisationRule:
-    def __init__(self, attribute, condition, value):
-        self.attribute = attribute
-        self.condition = condition
-        self.value = self._parse_value(value)
+    def calculate_case_attr_and_priorities(self):
+        "Calculate values of each case attribute for every case that will be executed"
+        total_num_cases = self.total_num_cases
+        all_case_attr_dict = dict()
+        all_case_priorities = dict()
+        for case_id in range(0, total_num_cases):
+            curr_case_attributes = self.case_attributes.get_values_calculated()
+            all_case_attr_dict[case_id] = curr_case_attributes
+            all_case_priorities[case_id] = self.prioritisation_rules.get_priority(
+                curr_case_attributes
+            )
 
-    def _parse_value(self, value):
-        if self.condition == "in":
-            min_boundary = float(value[0])
-            max_boundary = sys.maxsize if value[1] == "inf" else float(value[1])
+        return all_case_attr_dict, all_case_priorities
 
-            return min_boundary, max_boundary
-        else:
-            return value
+    @staticmethod
+    def _get_sorting_func(value: tuple):
+        # if input array is tuple - sort by priority, then by datetime
+        # if simple type (e.g., string) - sort by priority
+        is_tuple = type(value[1]) is tuple
+        return value[0], value[1][1].datetime if is_tuple else value[0]
 
-    def is_rule_true(self, all_case_values):
-        case_value = all_case_values[self.attribute]
-        if self.condition == "in":
-            evaluator = InOperatorEvaluator(self.value, case_value)
-            return evaluator.eval()
-        else:
-            # TODO: clarify whether == is the only possible option
-            return self.value == case_value
+    def get_ordered_case_ids_by_priority(self, case_ids: ArrayOfTuplesOrStrings):
+        "Sort list of case_ids based on their previously calculated priority"
+        if not self.all_case_priorities:
+            "Return the original case_ids in case no priorities were defined"
+            return case_ids
 
+        # check whether it's array of tuples
+        is_tuple = type(case_ids[0]) is tuple
+        # get only array of case ids
+        only_case_ids = [case_id for (case_id, _) in case_ids] if is_tuple else case_ids
+        # calculate the priority of each case id in the list
+        priority = [self.all_case_priorities[case_id] for case_id in only_case_ids]
+        # sort the input list based on the calculated priorities
+        return [
+            x
+            for _, x in sorted(
+                zip(priority, case_ids), key=CasePrioritisation._get_sorting_func
+            )
+        ]
 
-class AndPrioritisationRule:
-    def __init__(self, and_rules: List[PrioritisationRule]):
-        self.and_rules = and_rules
-
-    def is_and_rule_true(self, all_case_values):
-        init_val = True
-        for item in self.and_rules:
-            init_val = init_val and item.is_rule_true(all_case_values)
-
-        return init_val
-
-
-class OrPrioritisationRule:
-    def __init__(self, or_rules: List[AndPrioritisationRule]):
-        self.or_rules = or_rules
-
-    def is_or_rule_true(self, all_case_values):
-        init_val = False
-        for item in self.or_rules:
-            init_val = init_val or item.is_and_rule_true(all_case_values)
-
-        return init_val
-
-
-class PriorityWithRule:
-    def __init__(self, or_rule: OrPrioritisationRule, priority: str):
-        self.or_rule = or_rule
-        self.priority = int(priority)
-
-    def is_true(self, all_case_values):
-        return self.or_rule.is_or_rule_true(all_case_values)
-
-
-class AllPriorityRules:
-    def __init__(self, rules_array: List[PriorityWithRule]):
-        # TODO: order of or_rule should be guaranteed
-        # ascending by the priority
-        self.all_rules = rules_array
-
-    def get_priority(self, all_case_values):
-        # the lower number - the higher priority
-        # so, by default, the highest integer value will guarantee the lowest priority
-        init_priority = sys.maxsize
-        for rule in self.all_rules:
-            if rule.is_true(all_case_values):
-                init_priority = rule.priority
-                break
-
-        return init_priority
+    def calculate_max_priority(self, case_ids: List[Tuple[str, any]]):
+        "Calculate the maximum priority for the list of case ids"
+        ordered_case_ids = self.get_ordered_case_ids_by_priority(case_ids)
+        case_highest_priority = ordered_case_ids[0][0]
+        return self.all_case_priorities[case_highest_priority]

@@ -85,7 +85,7 @@ def test__no_batching_only_priority__correct_log(assets_path):
     _verify_column_values_increase(df, "client_type", "Cases")
 
 
-def test__batching_and_prioritiation__correct_log(assets_path):
+def test__batching_and_prioritiation__correct_order_inside_batch(assets_path):
     """
     Input:          Batch executes when there are 4 items
                     Three types of client_types associated with each case
@@ -127,6 +127,68 @@ def test__batching_and_prioritiation__correct_log(assets_path):
         _verify_column_values_increase(item, "client_type", "Cases inside the batch")
 
 
+def test__batching_and_prioritiation__correct_order_outside_batch(assets_path):
+    # """
+    # Input:            Batch executes when there are 4 items
+    #                   Three types of client_types associated with each case
+    # Verifying:        Order of the activity execution outside the batch execution.
+    #                   This means that, first, the priority should be calculated for the whole batch.
+    #                   After this, we insert the batch to the task queue with the calculated priority.
+    # """
+    json_path = assets_path / "timer_with_task.json"
+
+    batch_processing = [
+        {
+            "task_id": "Activity_002wpuc",
+            "type": "Parallel",
+            "batch_frequency": 1.0,
+            "size_distrib": [{"key": "1", "value": 0}, {"key": "2", "value": 1}],
+            "duration_distrib": [{"key": "2", "value": 0.8}],
+            "firing_rules": [[{"attribute": "size", "comparison": "=", "value": 4}]],
+        }
+    ]
+
+    _setup_and_write_arrival_distr_case_attr_priority_rules(
+        json_path,
+        ARRIVAL_DISTR(0),
+        THREE_CLIENT_TYPES_ATTRS,
+        PRIORITISATION_RULES,
+        batch_processing,
+    )
+
+    # ====== ACT ======
+    df = _run_simulation_until_all_client_types_present(assets_path, 20)
+
+    df = df.replace([BUSINESS, REGULAR, NOT_KNOWN], [0, 1, 2])
+    grouped_by_task_name_and_start = df.groupby(by=["activity", "start_time"])
+
+    # the list will contain two types of rows:
+    # 1) batched task is reduced to one row with the highest priority
+    # 2) task executed alone will stay as is
+    priority_calc_list = []
+
+    for _, group in grouped_by_task_name_and_start:
+        print(group)
+        if group.iloc[0]["activity"] == "Task 1":
+            # task is batched
+            # reduce all tasks in the batch to one row with the highest priority
+            highest_priority = group.iloc[0]["client_type"].min()
+            row_index = group.iloc[0].name
+
+            # update the first in the group with the highest priority
+            group.at[row_index, "client_type"] = highest_priority
+            # add the reduced (one instead of four)
+            priority_calc_list.append(group.iloc[0])
+
+    events_only = df[df["activity"] == "15 min"]
+    for index, event in events_only.iterrows():
+        priority_calc_list.append(event)
+
+    # TODO: define how should event + prioritisation work together
+    prioritised_df = pd.concat(priority_calc_list, axis=1).T
+    _verify_column_values_increase(
+        prioritised_df, "client_type", "Cases outside the batch"
+    )
 def _setup_and_write_arrival_distr_case_attr_priority_rules(
     json_path: str,
     new_arrival_dist,
