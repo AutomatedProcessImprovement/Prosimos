@@ -6,14 +6,15 @@ from bpdfr_simulation_engine.control_flow_manager import BPMN, BatchInfoForExecu
 
 class EnabledEvent:
     def __init__(self, p_case, p_state, task_id, enabled_at, enabled_datetime, 
-        batch_info_exec: BatchInfoForExecution = None, duration_sec = None):
+        batch_info_exec: BatchInfoForExecution = None, duration_sec = None, is_inter_event = False):
         self.p_case = p_case
         self.p_state = p_state
         self.task_id = task_id
         self.enabled_datetime = enabled_datetime
         self.enabled_at = enabled_at
         self.batch_info_exec = batch_info_exec
-        self.duration_sec = duration_sec # filled only in case of event-based gateway
+        self.duration_sec = duration_sec        # filled only in case of event-based gateway
+        self.is_inter_event = is_inter_event    # whether the enabled event is the intermediate event
 
 
 class ProcessInfo:
