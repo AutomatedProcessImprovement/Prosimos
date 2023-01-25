@@ -1,3 +1,4 @@
+from datetime import timedelta
 import pytest
 import pandas as pd
 
@@ -7,6 +8,7 @@ from bpdfr_simulation_engine.resource_calendar import parse_datetime
 from testing_scripts.test_batching import SIM_LOGS_FILENAME, _verify_logs_ordered_asc, _verify_same_resource_for_batch, assets_path
 from testing_scripts.test_batching_daily_hour import _arrange_and_act
 from testing_scripts.test_batching_ready_wt import _test_range_basic
+from testing_scripts.test_simulation import _verify_activity_count_and_duration
 
 HALF_AN_HOUR_SEC = 1800
 FIVE_HOURS_SEC = 18000
@@ -75,6 +77,7 @@ def test_conflict_rule_correct_sim_log(assets_path):
     Verified:   Start time of both batches.
                 All log items in the log file are ordered ascendingly.
                 Resource which executes one batch is the same.
+                Duration of all tasks inside the batch reflects the total number of tasks in the batch. 
     """
 
     # ====== ARRANGE ======
@@ -94,12 +97,13 @@ def test_conflict_rule_correct_sim_log(assets_path):
     # ====== ASSERT ======
     df = pd.read_csv(sim_logs)
     logs_d_task = df[df["activity"] == "D"]
+
     grouped_by_start = logs_d_task.groupby(by="start_time")
 
     # verify the start_time of batches
     expected_start_time_keys = [
         "2022-06-21 13:57:30.035185+03:00",
-        "2022-06-21 14:11:30.035185+03:00",
+        "2022-06-21 14:12:42.035185+03:00",
     ]
     actual_start_time_keys = list(grouped_by_start.groups.keys())
     assert (
@@ -112,6 +116,17 @@ def test_conflict_rule_correct_sim_log(assets_path):
     # verify that the same resource execute the whole batch
     for _, group in grouped_by_start:
         _verify_same_resource_for_batch(group["resource"])
+
+    # verify the duration of each task inside the batch
+    # the duration reflects the total number of tasks in the batch
+    logs_d_task["start_time"] = pd.to_datetime(logs_d_task["start_time"], errors="coerce")
+    logs_d_task["end_time"] = pd.to_datetime(logs_d_task["end_time"], errors="coerce")
+
+    expected_activity_timedelta = timedelta(seconds=(120 * 0.8))
+    for _, group in grouped_by_start:
+        actual_num_tasks_in_batch = group.shape[0] # this number is dynamic
+        expected_task_duration = expected_activity_timedelta * actual_num_tasks_in_batch
+        _verify_activity_count_and_duration(group, actual_num_tasks_in_batch, expected_task_duration)
 
 
 data_case_invalid_end = [

@@ -1,15 +1,15 @@
+import datetime
 import json
 import os
-import pytest
-import pandas as pd
-
-import datetime
 from pathlib import Path
 from bpdfr_simulation_engine.simulation_properties_parser import (
     BATCH_PROCESSING_SECTION,
     CASE_ATTRIBUTES_SECTION,
     PRIORITISATION_RULES_SECTION,
 )
+
+import pandas as pd
+import pytest
 
 from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 from testing_scripts.test_update_state import _setup_sim_scenario_file
@@ -92,6 +92,34 @@ def test_timer_event_correct_duration_in_sim_logs(assets_path):
     _verify_activity_count_and_duration(
         df, expected_task_count, expected_task_timedelta
     )
+
+
+def test_histogram_sampling_arrival_distribution_in_sim_logs(assets_path):
+    """
+    Input: run simulation with an arrival distribution sampling from a custom histogram
+
+    Output:
+    1) validate that the simulation does not fail
+    """
+    # ====== ARRANGE ======
+
+    model_path = assets_path / "LoanApp_sequential_9-5.bpmn"
+    json_path = assets_path / "LoanApp_arrival_fix_10.json"
+    sim_logs = assets_path / "LoanApp_arrival_fix_10_sim_log.csv"
+
+    # ====== ACT ======
+    _, _ = run_diff_res_simulation(
+        start_date="2022-06-21 13:22:30.035185+03:00",
+        total_cases=100,
+        bpmn_model=model_path,
+        json_sim_params=json_path,
+        out_stats_csv_path=None,
+        out_log_csv_path=sim_logs,
+    )
+
+    # ====== ASSERT ======
+    df = pd.read_csv(sim_logs)
+    assert len(df["case_id"].unique()) == 100
 
 
 def test_timer_event_no_events_in_logs(assets_path):

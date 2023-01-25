@@ -100,7 +100,7 @@ def test_seq_batch_count_firing_rule_correct_duration(assets_path):
     _verify_activity_count_and_duration(logs_d_task, 6, expected_activity_timedelta)
 
     grouped_by_start_time = logs_d_task.groupby(by="case_id")
-    for start_time, group in grouped_by_start_time:
+    for _, group in grouped_by_start_time:
         _verify_same_resource_for_batch(group["resource"])
 
 
@@ -450,12 +450,14 @@ def test_week_day_correct_firing(assets_path):
 
 def test_week_day_different_correct_firing(assets_path):
     """
-    Input:      Firing rule of week_day = Monday. 10 process cases are being generated.
+    Input:      Case arrival: every 120 seconds (2 minutes)
+                Firing rule of week_day = Monday. 10 process cases are being generated.
                 The first process case starts on night before Monday (11:40 PM).
-    Expected:   two batches are being executed.
+    Expected:   Two batches are being executed.
                 First - at Monday midnight (right when the rule become enabled).
                 Second - once the second task become enabled and batch_size equals 2.
-    Verified:   the start_time of the appropriate grouped D task (tasks are executed in parallel).
+    Verified:   The start_time of the appropriate grouped D task (tasks are executed in parallel).
+                Duration of all tasks inside the batch reflects the total number of tasks in the batch. 
     """
 
     # ====== ARRANGE ======
@@ -498,13 +500,33 @@ def test_week_day_different_correct_firing(assets_path):
 
     expected_start_time_keys = [
         "2022-09-26 00:00:00+03:00",
-        "2022-09-26 00:03:36+03:00",
+        "2022-09-26 00:02:30+03:00",
     ]
 
     grouped_by_start_keys = list(grouped_by_start.groups.keys())
     assert (
         grouped_by_start_keys == expected_start_time_keys
     ), f"The start_time for batched D tasks differs. Expected: {expected_start_time_keys}, but was {grouped_by_start_keys}"
+
+    # verify the duration of each task inside the batch
+    # the duration reflects the total number of tasks in the batch
+    logs_d_task = df[df["activity"] == "D"]
+
+    logs_d_task["start_time"] = pd.to_datetime(logs_d_task["start_time"], errors="coerce")
+    logs_d_task["end_time"] = pd.to_datetime(logs_d_task["end_time"], errors="coerce")
+    grouped_by_start_original = logs_d_task.groupby(by="start_time")
+    original_activity_timedelta = timedelta(seconds=120)
+    scaled_activity_timedelta = timedelta(seconds=(120 * 0.8))
+    for _, group in grouped_by_start_original:
+        actual_num_tasks_in_batch = group.shape[0] # this number is dynamic
+
+        # everything lower than 3 should have the initial duration
+        # every item in duration_distr map is considered as a lower boundary
+        expected_task_duration = original_activity_timedelta if actual_num_tasks_in_batch < 3 \
+            else scaled_activity_timedelta
+
+        expected_tasks_duration = expected_task_duration * actual_num_tasks_in_batch
+        _verify_activity_count_and_duration(group, actual_num_tasks_in_batch, expected_tasks_duration)
 
 
 def test_two_rules_week_day_correct_start_time(assets_path):

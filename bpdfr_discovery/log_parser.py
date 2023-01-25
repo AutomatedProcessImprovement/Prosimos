@@ -1,24 +1,19 @@
 import csv
 import json
 import sys
-
-import pandas as pd
-
 from datetime import datetime
 
+import numpy as np
+import pandas as pd
 import pytz
 from pm4py.objects.log.importer.xes import importer as xes_importer
 
 from bpdfr_discovery.exceptions import InvalidInputDiscoveryParameters
 from bpdfr_simulation_engine.control_flow_manager import BPMN, BPMNGraph
 from bpdfr_simulation_engine.exceptions import InvalidBpmnModelException, InvalidLogFileException
-
-from bpdfr_simulation_engine.execution_info import ProcessInfo, Trace, TaskEvent
+from bpdfr_simulation_engine.execution_info import Trace, TaskEvent
 from bpdfr_simulation_engine.file_manager import FileManager
 from bpdfr_simulation_engine.probability_distributions import best_fit_distribution
-
-import ntpath
-
 from bpdfr_simulation_engine.resource_calendar import RCalendar, CalendarFactory
 from bpdfr_simulation_engine.simulation_properties_parser import parse_simulation_model
 
@@ -281,7 +276,7 @@ def parse_csv(log_path):
 
 
 def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_confidence, min_support,
-                       min_participation, fit_calendar, is_csv=False, min_bin=50):
+                       min_participation, fit_calendar, is_csv=False, min_bin=50, use_observed_arrival_times=False):
     print('Discovery Params: Conf: %.2f, Supp: %.2f, R. Part: %.2f, Adj. Cal: %s'
           % (min_confidence, min_support, min_participation, str(fit_calendar)))
     bpmn_graph, log_traces = parse_and_validate_input(log_path, bpmn_path, minutes_x_granule, min_confidence,
@@ -425,7 +420,7 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
     json_arrival_calendar = arrival_calendar.to_json()
 
     # # (3) Discovering Arrival Time Distribution
-    arrival_time_dist = discover_arrival_time_distribution(initial_events, arrival_calendar)
+    arrival_time_dist = discover_arrival_time_distribution(initial_events, arrival_calendar, use_observed_arrival_times)
 
     # # (4) Discovering Task Duration Distributions per resource
     task_resource_dist = discover_resource_task_duration_distribution(task_resource_events, res_calendars,
@@ -590,14 +585,19 @@ def save_prosimos_json(to_save, file_path):
         })
 
     arrival_dist_params = []
-    for d_param in to_save["arrival_time_distribution"]["distribution_params"]:
-        arrival_dist_params.append({
-            "value": d_param
-        })
+    if "distribution_params" in to_save["arrival_time_distribution"]:
+        for d_param in to_save["arrival_time_distribution"]["distribution_params"]:
+            arrival_dist_params.append({
+                "value": d_param
+            })
+    histogram_data = to_save["arrival_time_distribution"]["histogram_data"] \
+        if "histogram_data" in to_save["arrival_time_distribution"] else {}
     arrival_time_distribution = {
         "distribution_name": to_save["arrival_time_distribution"]["distribution_name"],
-        "distribution_params": arrival_dist_params
+        "distribution_params": arrival_dist_params,
+        "histogram_data": histogram_data
     }
+
     with open(file_path, 'w') as file_writter:
         json.dump({
             "resource_profiles": resource_profiles,
@@ -790,7 +790,7 @@ def discover_arrival_calendar(initial_events, minutes_x_granule, min_confidence,
     return arrival_calendar['arrival']
 
 
-def discover_arrival_time_distribution(initial_events, arrival_calendar):
+def discover_arrival_time_distribution(initial_events, arrival_calendar, use_observed_arrival_times=False):
     # print("Discovering Arrival-Time Distribution ...")
     arrival = list()
     for case_id in initial_events:
@@ -806,7 +806,36 @@ def discover_arrival_time_distribution(initial_events, arrival_calendar):
     if print_info:
         print("In Calendar Event Ratio: %.2f" % (len(arrival) / len(initial_events)))
         print('---------------------------------------------------')
-    return best_fit_distribution(durations)
+    # If we want to use the observed arrival times instead of fitting them to a distribution
+    if use_observed_arrival_times:
+        # The arrival distribution is "histogram_sampling" so we compute the CDF and BINs of the observations histogram
+        num_bins = 20
+        filtered_durations = _reject_outliers(durations)
+        bins = np.linspace(min(filtered_durations), max(filtered_durations), num_bins + 1)
+        hist, _ = np.histogram(filtered_durations, bins=bins)
+        cdf = np.cumsum(hist)
+        cdf = cdf / cdf[-1]
+        bin_midpoints = (bins[:-1] + bins[1:]) / 2
+        arrival_distribution = {
+            'distribution_name': "histogram_sampling",
+            'histogram_data': {
+                'cdf': [float(num) for num in cdf],
+                'bin_midpoints': [float(num) for num in bin_midpoints]
+            }
+        }
+    else:
+        # Otherwise, find the best fitting distribution
+        arrival_distribution = best_fit_distribution(durations)
+    return arrival_distribution
+
+
+def _reject_outliers(data, m=5.):
+    # https://stackoverflow.com/a/16562028
+    data = np.asarray(data)
+    d = np.abs(data - np.median(data))
+    mdev = np.median(d)
+    s = d / mdev if mdev else 0.
+    return data[s < m]
 
 
 def discover_aggregated_task_distributions(task_events, fit_cal, res_calendar: RCalendar):
