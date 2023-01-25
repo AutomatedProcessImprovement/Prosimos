@@ -2,8 +2,9 @@ import json
 import xml.etree.ElementTree as ET
 
 from numpy import exp, log, sqrt
-from bpdfr_simulation_engine.batch_processing_parser import BatchProcessingParser
 
+from bpdfr_simulation_engine.batch_processing_parser import \
+    BatchProcessingParser
 from bpdfr_simulation_engine.case_attributes import (AllCaseAttributes,
                                                      CaseAttribute)
 from bpdfr_simulation_engine.control_flow_manager import (BPMN, EVENT_TYPE,
@@ -19,6 +20,10 @@ bpmn_schema_url = 'http://www.omg.org/spec/BPMN/20100524/MODEL'
 simod_ns = {'qbp': 'http://www.qbp-simulator.com/Schema201212'}
 bpmn_element_ns = {'xmlns': bpmn_schema_url}
 
+EVENT_DISTRIBUTION_SECTION = "event_distribution"
+BATCH_PROCESSING_SECTION = "batch_processing"
+CASE_ATTRIBUTES_SECTION = "case_attributes"
+PRIORITISATION_RULES_SECTION = "prioritization_rules"
 
 def parse_json_sim_parameters(json_path):
     with open(json_path) as json_file:
@@ -31,13 +36,14 @@ def parse_json_sim_parameters(json_path):
         element_distribution = parse_arrival_branching_probabilities(json_data["arrival_time_distribution"],
                                                                      json_data["gateway_branching_probabilities"])
         arrival_calendar = parse_arrival_calendar(json_data)
-        event_distibution = parse_event_distribution(json_data["event_distribution"]) \
-            if "event_distribution" in json_data else dict()
-        batch_processing = BatchProcessingParser(json_data["batch_processing"]).parse()
-        case_attributes = parse_case_attr(json_data["case_attributes"]) \
-            if "case_attributes" in json_data else AllCaseAttributes([])
-        prioritisation_rules = PrioritisationParser(json_data["prioritization_rules"]).parse() \
-            if "prioritization_rules" in json_data else AllPriorityRules([])
+        event_distibution = parse_event_distribution(json_data[EVENT_DISTRIBUTION_SECTION]) \
+            if EVENT_DISTRIBUTION_SECTION in json_data else dict()
+        batch_processing = BatchProcessingParser(json_data[BATCH_PROCESSING_SECTION]).parse() \
+            if BATCH_PROCESSING_SECTION in json_data else dict()
+        case_attributes = parse_case_attr(json_data[CASE_ATTRIBUTES_SECTION]) \
+            if CASE_ATTRIBUTES_SECTION in json_data else AllCaseAttributes([])
+        prioritisation_rules = PrioritisationParser(json_data[PRIORITISATION_RULES_SECTION]).parse() \
+            if PRIORITISATION_RULES_SECTION in json_data else AllPriorityRules([])
 
         return resources_map, calendars_map, element_distribution, task_resource_distribution, \
             arrival_calendar, event_distibution, batch_processing, case_attributes, prioritisation_rules

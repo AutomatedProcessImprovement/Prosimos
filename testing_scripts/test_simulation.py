@@ -5,6 +5,11 @@ import pandas as pd
 
 import datetime
 from pathlib import Path
+from bpdfr_simulation_engine.simulation_properties_parser import (
+    BATCH_PROCESSING_SECTION,
+    CASE_ATTRIBUTES_SECTION,
+    PRIORITISATION_RULES_SECTION,
+)
 
 from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 from testing_scripts.test_update_state import _setup_sim_scenario_file
@@ -225,9 +230,9 @@ def _setup_and_write_sim_scenario(
     with open(json_path, "r") as f:
         json_dict = json.load(f)
 
-    json_dict["case_attributes"] = case_attributes
-    json_dict["prioritization_rules"] = prioritisation_rules
-    json_dict["batch_processing"] = batch_processing
+    json_dict[CASE_ATTRIBUTES_SECTION] = case_attributes
+    json_dict[PRIORITISATION_RULES_SECTION] = prioritisation_rules
+    json_dict[BATCH_PROCESSING_SECTION] = batch_processing
 
     with open(json_path, "w+") as json_file:
         json.dump(json_dict, json_file)

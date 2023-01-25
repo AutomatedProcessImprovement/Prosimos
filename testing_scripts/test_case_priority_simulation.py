@@ -2,6 +2,11 @@ import json
 
 import pandas as pd
 import pytest
+from bpdfr_simulation_engine.simulation_properties_parser import (
+    BATCH_PROCESSING_SECTION,
+    CASE_ATTRIBUTES_SECTION,
+    PRIORITISATION_RULES_SECTION,
+)
 
 from test_discovery import assets_path
 from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
@@ -250,9 +255,9 @@ def _setup_and_write_arrival_distr_case_attr_priority_rules(
         json_dict = json.load(f)
 
     _setup_arrival_distribution(json_dict, new_arrival_dist)
-    json_dict["case_attributes"] = case_attributes
-    json_dict["prioritization_rules"] = new_priority_rules
-    json_dict["batch_processing"] = batch_processing
+    json_dict[CASE_ATTRIBUTES_SECTION] = case_attributes
+    json_dict[PRIORITISATION_RULES_SECTION] = new_priority_rules
+    json_dict[BATCH_PROCESSING_SECTION] = batch_processing
 
     with open(json_path, "w+") as json_file:
         json.dump(json_dict, json_file)
