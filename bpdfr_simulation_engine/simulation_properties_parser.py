@@ -1,19 +1,19 @@
 import json
-from datetime import time
-from typing import List
 import xml.etree.ElementTree as ET
 
-from numpy import exp, sqrt, log
-from bpdfr_simulation_engine.batch_processing import BATCH_TYPE, RULE_TYPE, BatchConfigPerTask, AndFiringRule, FiringSubRule, OrFiringRule
-from bpdfr_simulation_engine.case_attributes import AllCaseAttributes, CaseAttribute
+from numpy import exp, log, sqrt
+from bpdfr_simulation_engine.batch_processing_parser import BatchProcessingParser
 
-from bpdfr_simulation_engine.control_flow_manager import EVENT_TYPE, BPMNGraph, ElementInfo, BPMN
-from bpdfr_simulation_engine.exceptions import InvalidRuleDefinition
+from bpdfr_simulation_engine.case_attributes import (AllCaseAttributes,
+                                                     CaseAttribute)
+from bpdfr_simulation_engine.control_flow_manager import (BPMN, EVENT_TYPE,
+                                                          BPMNGraph,
+                                                          ElementInfo)
 from bpdfr_simulation_engine.prioritisation import AllPriorityRules
 from bpdfr_simulation_engine.prioritisation_parser import PrioritisationParser
-from bpdfr_simulation_engine.resource_calendar import RCalendar
-from bpdfr_simulation_engine.resource_profile import ResourceProfile, PoolInfo
 from bpdfr_simulation_engine.probability_distributions import *
+from bpdfr_simulation_engine.resource_calendar import RCalendar
+from bpdfr_simulation_engine.resource_profile import PoolInfo, ResourceProfile
 
 bpmn_schema_url = 'http://www.omg.org/spec/BPMN/20100524/MODEL'
 simod_ns = {'qbp': 'http://www.qbp-simulator.com/Schema201212'}
@@ -33,7 +33,7 @@ def parse_json_sim_parameters(json_path):
         arrival_calendar = parse_arrival_calendar(json_data)
         event_distibution = parse_event_distribution(json_data["event_distribution"]) \
             if "event_distribution" in json_data else dict()
-        batch_processing = parse_batch_processing(json_data["batch_processing"])
+        batch_processing = BatchProcessingParser(json_data["batch_processing"]).parse()
         case_attributes = parse_case_attr(json_data["case_attributes"]) \
             if "case_attributes" in json_data else AllCaseAttributes([])
         prioritisation_rules = PrioritisationParser(json_data["prioritization_rules"]).parse() \
@@ -124,73 +124,6 @@ def parse_event_distribution(event_json_data):
 
     return event_distibution
 
-def parse_batch_processing(batch_processing_json_data):
-    """
-    Parse "batch_processing" section of json data
-    """
-    batch_config = dict()
-
-    for batch_processing in batch_processing_json_data:
-        t_id = batch_processing["task_id"]
-        batch_type = BATCH_TYPE(batch_processing["type"])
-
-        parsed_or_rules: List[OrFiringRule] = []
-        for or_rules in batch_processing["firing_rules"]:
-            parsed_and_rules: List[FiringSubRule] = []
-
-            for and_rule in or_rules:
-                subrule = create_subrule(
-                    and_rule["attribute"],
-                    and_rule["comparison"],
-                    and_rule["value"] 
-                )
-
-                parsed_and_rules.append(subrule)
-            
-            _move_size_to_end(parsed_and_rules)
-
-            firing_rule = AndFiringRule(parsed_and_rules)
-
-            firing_rule.validate()
-            firing_rule.init_boundaries()
-
-            parsed_or_rules.append(firing_rule)
-
-        firing_rules = OrFiringRule(parsed_or_rules)
-
-        duration_distibution = dict()
-        for item in batch_processing["duration_distrib"]:
-            key = int(item['key'])
-            value = float(item['value'])
-            duration_distibution[key] = value
-
-        possible_options, probabilities = parse_size_distrib(batch_processing["size_distrib"])
-
-        batch_config[t_id] = BatchConfigPerTask(
-            batch_type,
-            duration_distibution,
-            firing_rules,
-            possible_options,
-            probabilities 
-        )
-
-    return batch_config
-
-
-def parse_size_distrib(size_distrib):
-    if len(size_distrib) == 0:
-        return {}, {}
-
-    possible_options = []
-    probabilities = []
-
-    for item in size_distrib:
-        option = int(item['key'])
-        possible_options.append(option)
-        probabilities.append(item['value'])
-
-    return possible_options, probabilities
-
 
 def parse_case_attr(json_data) -> AllCaseAttributes:
     case_attributes = []
@@ -199,30 +132,6 @@ def parse_case_attr(json_data) -> AllCaseAttributes:
         case_attributes.append(case_attr)
 
     return AllCaseAttributes(case_attributes)
-
-
-def create_subrule(attribute, comparison, value):
-    if attribute == RULE_TYPE.DAILY_HOUR.value:
-        formatted_value = time(int(value), 0, 0, 0)
-    elif attribute == RULE_TYPE.WEEK_DAY.value:
-        # string is accepted for the WEEK_DAY
-        formatted_value = value
-    elif attribute == RULE_TYPE.SIZE.value:
-        formatted_value = int(value)
-    else:
-        # all others should have the number as the value
-        formatted_value = float(value)
-
-    if attribute == RULE_TYPE.WEEK_DAY.value and \
-        comparison != "=":
-        # only "=" operator is allowed to be used with the week_day type of rule
-        raise InvalidRuleDefinition(f"'{comparison}' is not allowed operator for the week_day type of rule.")
-
-    return FiringSubRule(
-        attribute,
-        comparison,
-        formatted_value
-    )
 
 
 # def parse_calendar_from_json(json_data):
@@ -237,27 +146,6 @@ def create_subrule(attribute, comparison, value):
 #         r_calendar.compute_cumulative_durations()
 #         calendars_map[r_calendar.calendar_id] = r_calendar
 #     return resources_map, calendars_map
-
-
-def _move_size_to_end(list: List[FiringSubRule]):
-    """
-    Re-order the elements inside list so that:
-        1) size rule is the last one in the sequence
-        2) week_day rule is the second item from the end
-    """
-
-    _move_to_end("daily_hour", list)
-    _move_to_end("size", list)
-
-def _move_to_end(rule_name: str, list):
-    rule_index = next((i for i, item in enumerate(list) if item.variable1 == rule_name), -1)
-    last_index = len(list) - 1
-
-    if rule_index == -1:
-        # size rule is not on the list of all rules
-        return
-
-    list.insert(last_index, list.pop(rule_index))
 
 
 def parse_arrival_branching_probabilities(arrival_json, gateway_json):
