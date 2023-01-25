@@ -53,6 +53,11 @@ class BatchProcessingParser:
                 value = float(item["value"])
                 duration_distibution[key] = value
 
+            # add the default scale coefficient for the activity's duration
+            # if it was not provided by the input
+            if duration_distibution.get(1) is None:
+                duration_distibution[1] = 1.0
+
             possible_options, probabilities = BatchProcessingParser.parse_size_distrib(
                 batch_processing["size_distrib"]
             )
