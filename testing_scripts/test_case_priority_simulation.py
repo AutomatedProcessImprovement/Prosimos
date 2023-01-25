@@ -82,7 +82,9 @@ def test__no_batching_only_priority__correct_log(assets_path):
     # 1) replace the value by priority assigned to it
     # 2) verify that the newly mapped values are ordered ascendingly
     df = df.replace([BUSINESS, REGULAR, NOT_KNOWN], [0, 1, 2])
-    _verify_column_values_increase(df, "client_type", "Cases")
+    _verify_column_values_increase(
+        df, "client_type", "Activities", "by priorily level of cases"
+    )
 
 
 def test__batching_and_prioritiation__correct_order_inside_batch(assets_path):
@@ -124,16 +126,25 @@ def test__batching_and_prioritiation__correct_order_inside_batch(assets_path):
     logs_d_task = df[df["activity"] == "Task 1"]
     grouped_by_start_and_resource = logs_d_task.groupby(by=["start_time"])
     for _, item in grouped_by_start_and_resource:
-        _verify_column_values_increase(item, "client_type", "Cases inside the batch")
+        _verify_column_values_increase(
+            item,
+            "client_type",
+            "Activities inside the batch",
+            "by priority level of cases",
+        )
 
 
 def test__batching_and_prioritiation__correct_order_outside_batch(assets_path):
     # """
-    # Input:            Batch executes when there are 4 items
-    #                   Three types of client_types associated with each case
-    # Verifying:        Order of the activity execution outside the batch execution.
+    # Input:            Batch executes when there are 4 items.
+    #                   Three types of client_types associated with each case.
+    #                   All 20 process instances start at the same moment.
+    # Expected:         Order of the activity execution outside the batch execution.
     #                   This means that, first, the priority should be calculated for the whole batch.
     #                   After this, we insert the batch to the task queue with the calculated priority.
+    # Verifying:        Batches are executed according to the "general" priority level of the batch.
+    #                   Events are not impacted by the priority and
+    #                   are executed according to the start_time.
     # """
     json_path = assets_path / "timer_with_task.json"
 
@@ -162,16 +173,16 @@ def test__batching_and_prioritiation__correct_order_outside_batch(assets_path):
     df = df.replace([BUSINESS, REGULAR, NOT_KNOWN], [0, 1, 2])
     grouped_by_task_name_and_start = df.groupby(by=["activity", "start_time"])
 
-    # the list will contain two types of rows:
-    # 1) batched task is reduced to one row with the highest priority
-    # 2) task executed alone will stay as is
+    # the list will contain
+    # all batched task reduced to one row with the highest priority
     priority_calc_list = []
 
     for _, group in grouped_by_task_name_and_start:
-        print(group)
         if group.iloc[0]["activity"] == "Task 1":
-            # task is batched
-            # reduce all tasks in the batch to one row with the highest priority
+            # activity "Task 1" is batched
+            # so we reduce all tasks in the batch to one row with the highest priority
+
+            # minimum value of client_type refers to the highest priority of the case
             highest_priority = group.iloc[0]["client_type"].min()
             row_index = group.iloc[0].name
 
@@ -180,15 +191,23 @@ def test__batching_and_prioritiation__correct_order_outside_batch(assets_path):
             # add the reduced (one instead of four)
             priority_calc_list.append(group.iloc[0])
 
-    events_only = df[df["activity"] == "15 min"]
-    for index, event in events_only.iterrows():
-        priority_calc_list.append(event)
-
-    # TODO: define how should event + prioritisation work together
+    # verify that batched task are executed in accordance to the priority
+    # all tasks were enabled at the same moment of time
     prioritised_df = pd.concat(priority_calc_list, axis=1).T
     _verify_column_values_increase(
-        prioritised_df, "client_type", "Cases outside the batch"
+        prioritised_df,
+        "client_type",
+        "Activities outside the batch",
+        "by priority level of cases",
     )
+
+    # events are not impacted by the prioritisation
+    # thus the only requirement to them is:
+    # start_time should increase with the following row
+    events_only = df[df["activity"] == "15m"]
+    _verify_column_values_increase(events_only, "start_time", "Events", "by start time")
+
+
 def _setup_and_write_arrival_distr_case_attr_priority_rules(
     json_path: str,
     new_arrival_dist,
@@ -208,12 +227,14 @@ def _setup_and_write_arrival_distr_case_attr_priority_rules(
         json.dump(json_dict, json_file)
 
 
-def _verify_column_values_increase(df, column_name: str, error_entity_name: str):
+def _verify_column_values_increase(
+    df, column_name: str, error_entity_name: str, sort_by_name: str
+):
     "Verifying all values in the mentioned column are increasing"
     assert df[
         column_name
     ].is_monotonic_increasing, (
-        f"{error_entity_name} are executed not accordingly to the priority level"
+        f"{error_entity_name} are not sorted ascendingly {sort_by_name}"
     )
 
 
