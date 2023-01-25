@@ -76,9 +76,11 @@ class PriorityWithRule:
 
 class AllPriorityRules:
     def __init__(self, rules_array: List[PriorityWithRule]):
-        # TODO: order of or_rule should be guaranteed
-        # ascending by the priority
-        self.all_rules = rules_array
+        self.all_rules = self._sort_rule_by_priority_level(rules_array)
+
+    def _sort_rule_by_priority_level(self, rules_array: List[PriorityWithRule]):
+        "Order rules from the highest priority to the lowest"
+        return sorted(rules_array, key=lambda rule: rule.priority)
 
     def get_priority(self, all_case_values):
         # the lower number - the higher priority

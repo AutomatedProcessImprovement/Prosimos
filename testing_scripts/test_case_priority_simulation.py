@@ -1,6 +1,7 @@
 import json
 
 import pandas as pd
+import pytest
 
 from test_discovery import assets_path
 from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
@@ -44,7 +45,7 @@ THREE_CLIENT_TYPES_ATTRS = [
 ]
 
 # setup for the prioritisation rules generation
-PRIORITISATION_RULES = [
+ORDERED_NOT_INTERSECTED_PRIORITISATION_RULES = [
     {
         "priority_level": 1,
         "rules": [
@@ -57,8 +58,38 @@ PRIORITISATION_RULES = [
     },
 ]
 
+NOT_ORDERED_INTERSECTED_PRIORITISATION_RULES = [
+    {
+        "priority_level": 2,
+        "rules": [
+            [{"attribute": "client_type", "condition": "=", "value": REGULAR}],
+            [{"attribute": "client_type", "condition": "=", "value": BUSINESS}],
+        ],
+    },
+    {
+        "priority_level": 1,
+        "rules": [
+            [{"attribute": "client_type", "condition": "=", "value": BUSINESS}],
+        ],
+    },
+]
 
-def test__no_batching_only_priority__correct_log(assets_path):
+no_batching_test_cases = [
+    # there are two rules that are not intersected
+    # they are sorted by the priority level
+    (ORDERED_NOT_INTERSECTED_PRIORITISATION_RULES),
+    # there are two rules and they intersect
+    # (cases with client_type = BUSINESS match both of the priority level)
+    # additionally, the rule with lower priority level is the first one in the list
+    (NOT_ORDERED_INTERSECTED_PRIORITISATION_RULES),
+]
+
+
+@pytest.mark.parametrize(
+    "prioritisation_rules",
+    no_batching_test_cases,
+)
+def test__no_batching_only_priority__correct_log(assets_path, prioritisation_rules):
     """
     Input:      Generate 4 cases simultaneously.
                 Assigning three client_types based on distribution
@@ -72,11 +103,11 @@ def test__no_batching_only_priority__correct_log(assets_path):
     json_path = assets_path / "timer_with_task.json"
 
     _setup_and_write_arrival_distr_case_attr_priority_rules(
-        json_path, ARRIVAL_DISTR(0), THREE_CLIENT_TYPES_ATTRS, PRIORITISATION_RULES, []
+        json_path, ARRIVAL_DISTR(0), THREE_CLIENT_TYPES_ATTRS, prioritisation_rules, []
     )
 
     # ====== ACT ======
-    df = _run_simulation_until_all_client_types_present(assets_path, 5)
+    df = _run_simulation_until_all_client_types_present(assets_path, 20)
 
     # ====== ASSERT ======
     # 1) replace the value by priority assigned to it
@@ -111,7 +142,7 @@ def test__batching_and_prioritiation__correct_order_inside_batch(assets_path):
         json_path,
         ARRIVAL_DISTR(1200),
         THREE_CLIENT_TYPES_ATTRS,
-        PRIORITISATION_RULES,
+        ORDERED_NOT_INTERSECTED_PRIORITISATION_RULES,
         batch_processing,
     )
 
@@ -163,7 +194,7 @@ def test__batching_and_prioritiation__correct_order_outside_batch(assets_path):
         json_path,
         ARRIVAL_DISTR(0),
         THREE_CLIENT_TYPES_ATTRS,
-        PRIORITISATION_RULES,
+        ORDERED_NOT_INTERSECTED_PRIORITISATION_RULES,
         batch_processing,
     )
 
