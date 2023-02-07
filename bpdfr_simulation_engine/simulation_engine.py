@@ -652,12 +652,12 @@ def run_simulation(
     if not diffsim_info:
         return None
 
-    starting_at_datetime = parse_datetime(starting_at, True)
-    diffsim_info.set_starting_datetime(
-        starting_at_datetime
-        if starting_at_datetime
+    starting_at_datetime = (
+        parse_datetime(starting_at, True)
+        if starting_at
         else pytz.utc.localize(datetime.datetime.now())
     )
+    diffsim_info.set_starting_datetime(starting_at_datetime)
 
     # if not stat_out_path and not log_out_path:
     #     stat_out_path = os.path.join(os.path.dirname(__file__), Path("%s.csv" % diffsim_info.process_name))

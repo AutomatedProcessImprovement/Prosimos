@@ -56,7 +56,7 @@ Note that the order of the sections is not relevant, i.e., they can appear in an
    the distribution function is represented by its name and a list of parameters 
    (i.e., typically ranging from 1 to 3 floating numbers depending on the function). 
    For the complete list of available distributions, please check the 
-   [Scipy Stats documentation](https://docs.scipy.org/doc/scipy/reference/stats.html#module-scipy.stats).
+   [Scipy Stats documentation](https://docs.scipy.org/doc/scipy/reference/stats.html#module-scipy.stats). The unit of measurement of values provided as `distribution_params` is seconds.
 * "gateway_branching_probabilities": Represents the probability for the process execution to move towards any outgoing 
    flow of each split (inclusive or exclusive) gateway in the process model. So, for each gateway, the set of pairs 
    outgoing_flow -> probability (between 0 and 1) is represented. Note that the sum of all the probabilities for a 
@@ -65,11 +65,37 @@ Note that the order of the sections is not relevant, i.e., they can appear in an
    For each task, represented by its ID, the list of allowed resources and a probability distribution function 
    (per resource) that describes its duration are represented. Note that the distribution function of a task may vary 
    per resource. As for the arrival time distributions, **Prosimos** allows any of the functions supported by the Python 
-   library [Scipy Stats](https://docs.scipy.org/doc/scipy/reference/stats.html#module-scipy.stats).
+   library [Scipy Stats](https://docs.scipy.org/doc/scipy/reference/stats.html#module-scipy.stats). The unit of measurement of values provided as `distribution_params` is seconds.
 * "resource_calendars": List of time intervals in which a resource is available to perform a task on a weekly calendar basis. 
    Each calendar interval is described starting from weekday (Monday, ..., Sunday) at some beginTime, 
    until another (not necessarily different) weekday to some endTime.
-* "case_attributes": Description on which case attributes should be generated during the simulation and what value it should have. There is a possibility to introduce two types of case attributes: `discrete` and `continuous`. The `values` property of the `continuous` case attribute is defined as a distribution function selected from the Python library [Scipy Stats](https://docs.scipy.org/doc/scipy/reference/stats.html#module-scipy.stats). The `values` property of the `discrete` case attribute is defined as an array of possible choices with theirs probability accordingly. The sum of probabilities should be equal to 1. 
+* "batch_processing": List of tasks that are batched (= could be executed together based on the specified rules).
+  * `type`. There might be batched tasks of two types: `Sequential` or `Parallel`. 
+  * `size_distrib` defines the probability of tasks to be executed in batches of the specified size. The total sum of values should be 1 (which equals 100% of tasks). For example, if we want to imply that all tasks are being batched, we say:
+  ```
+    "size_distrib": [
+        {
+            "key": "1",
+            "value": 0
+        },
+        {
+            "key": "2",
+            "value": 1
+        }
+    ]
+  ```
+  * `duration_distrib` defines the scaling factor for the activity's duration based on the number of tasks in the batch. Let's say one defines the array in the following way:
+  ```
+    "duration_distrib": [
+        {
+            "key": "3",
+            "value": 0.8
+        }
+    ]
+  ```
+  This means that batches with 1 or 2 tasks inside will be executed with the defined (original) duration. Starting from batches with 3 tasks inside, the duration of the individual task inside the batch will be scaled by `0.8`. The array should contain objects with unique keys. The tool will sort values internally, so the user does not need to provide them in ascending order.
+  * `firing_rules`. 
+* "case_attributes": Description on which case attributes should be generated during the simulation and what value it should have. There is a possibility to introduce two types of case attributes: `discrete` and `continuous`. The `values` property of the `continuous` case attribute is defined as a distribution function selected from the Python library [Scipy Stats](https://docs.scipy.org/doc/scipy/reference/stats.html#module-scipy.stats). The unit of measurement of values provided as `distribution_params` is seconds. The `values` property of the `discrete` case attribute is defined as an array of possible choices with theirs probability accordingly. The sum of probabilities should be equal to 1. 
 
 The following snippet outlines an example of the general structure of the input JSON parameters with the simulation parameters.
 
@@ -201,6 +227,41 @@ The following snippet outlines an example of the general structure of the input 
                     "beginTime": "09:00:00.000",
                     "endTime": "13:00:00.000"
                 }
+            ]
+        }
+    ],
+    "batch_processing": [
+        {
+            "task_id": "sid-503A048D-6344-446A-8D67-172B164CF8FA",
+            "type": "Sequential",
+            "size_distrib": [
+                {
+                    "key": "1",
+                    "value": 0.25
+                },
+                {
+                    "key": "3",
+                    "value": 0.5
+                },
+                {
+                    "key": "4",
+                    "value": 0.25
+                }
+            ],
+            "duration_distrib": [
+                {
+                    "key": "3",
+                    "value": 0.8
+                }
+            ],
+            "firing_rules": [
+                [
+                    {
+                        "attribute": "size",
+                        "comparison": "=",
+                        "value": 3
+                    }
+                ]
             ]
         }
     ],
