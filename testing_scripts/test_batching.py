@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 import json
 from pandas import testing as tm
+from bpdfr_simulation_engine.simulation_properties_parser import BATCH_PROCESSING_SECTION
 
 from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 from testing_scripts.test_simulation import _verify_activity_count_and_duration
@@ -686,7 +687,7 @@ def _remove_miliseconds(x: datetime):
 
 
 def _add_batch_task(json_dict):
-    batch_processing = json_dict["batch_processing"]
+    batch_processing = json_dict[BATCH_PROCESSING_SECTION]
     batch_processing.append(
         {
             "task_id": "Activity_0ngxjs9",
@@ -701,11 +702,11 @@ def _add_batch_task(json_dict):
 def _setup_sim_scenario_file(
     json_dict, duration_distrib, firing_count, batch_type, firing_rules, size_distr
 ):
-    batch_processing = json_dict["batch_processing"]
+    batch_processing = json_dict[BATCH_PROCESSING_SECTION]
     if len(batch_processing) > 1:
         del batch_processing[-1]
 
-    batch_processing_0 = json_dict["batch_processing"][0]
+    batch_processing_0 = json_dict[BATCH_PROCESSING_SECTION][0]
     if batch_type != None:
         batch_processing_0["type"] = batch_type
 

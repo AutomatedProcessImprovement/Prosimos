@@ -34,13 +34,14 @@ class BatchInfoForExecution:
 
 
 class EnabledTask:
-    def __init__(self, task_id, batch_info_exec: BatchInfoForExecution = None, duration_sec = None):
+    def __init__(self, task_id, batch_info_exec: BatchInfoForExecution = None, duration_sec = None, is_event = False):
         self.task_id = task_id
         self.batch_info_exec = batch_info_exec
         
         # is filled only for event-based gateways
         # (when we already know the duration at the control flow step)
         self.duration_sec = duration_sec
+        self.is_event = is_event
 
 
 class BPMN(Enum):
@@ -831,11 +832,13 @@ class BPMNGraph:
         p_state.state_mask |= self.arcs_bitset[f_arc]
         next_e = self.flow_arcs[f_arc][1]
         if self.is_enabled(next_e, p_state):
-            if self.element_info[next_e].type == BPMN.TASK and self.is_task_batched(next_e):
-                self.enable_batch_or_task(next_e, case_id, enabled_time, enabled_tasks, duration_sec)
-                    
-            elif self.element_info[next_e].type in [BPMN.TASK, BPMN.INTERMEDIATE_EVENT]:
+            next_el_type = self.element_info[next_e].type 
+            if next_el_type == BPMN.TASK and self.is_task_batched(next_e):
+                self.enable_batch_or_task(next_e, case_id, enabled_time, enabled_tasks, duration_sec)           
+            elif next_el_type == BPMN.TASK:
                 enabled_tasks.append(EnabledTask(next_e, None, duration_sec))
+            elif next_el_type == BPMN.INTERMEDIATE_EVENT:
+                enabled_tasks.append(EnabledTask(next_e, None, duration_sec, True))
             else:
                 to_execute.append(next_e)
 

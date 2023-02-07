@@ -4,11 +4,12 @@ from heapq import heappush
 from heapq import heappop
 from heapq import nsmallest
 
+
 class PriorityQueue:
     def __init__(self):
         self.pq = []  # list of entries arranged in a heap
         self.entry_finder = {}  # mapping of tasks to entries
-        self.REMOVED = '<removed-task>'  # placeholder for a removed task
+        self.REMOVED = "<removed-task>"  # placeholder for a removed task
         self.counter = itertools.count()  # unique sequence count
 
     def is_empty(self):
@@ -26,7 +27,7 @@ class PriorityQueue:
         return None
 
     def insert(self, element, priority=0):
-        """ Add a new task or update the priority of an existing task """
+        """Add a new task or update the priority of an existing task"""
         if element in self.entry_finder:
             self.remove_element(element)
         count = next(self.counter)
@@ -35,7 +36,7 @@ class PriorityQueue:
         heappush(self.pq, entry)
 
     def pop_min(self):
-        """ Remove and return the lowest priority task. Raise KeyError if empty. """
+        """Remove and return the lowest priority task. Raise KeyError if empty."""
         while self.pq:
             priority, count, task = heappop(self.pq)
             if task is not self.REMOVED:
@@ -44,17 +45,17 @@ class PriorityQueue:
         return None, None
 
     def remove_element(self, element):
-        """ Mark an existing task as REMOVED.  Raise KeyError if not found. """
+        """Mark an existing task as REMOVED.  Raise KeyError if not found."""
         entry = self.entry_finder.pop(element)
         entry[-1] = self.REMOVED
 
     def peek(self):
-        """ Return the lowest priority task (without removing it from the queue)"""
-        if len(self.pq) > 0:
-            all_enteries = nsmallest(1, self.pq)
-            priority, _, task = all_enteries[0]
-            return task, priority
-        
+        """Return the lowest priority task (without removing it from the queue)"""
+        for heap_item in self.pq:
+            priority, _, task = heap_item
+            if task is not self.REMOVED:
+                return task, priority
+
         return None, None
 
 
@@ -62,9 +63,15 @@ class DiffResourceQueue:
     # Two tasks share a resource queue iff the share all the resources. If the two tasks share only a set of resources,
     # then they will point to different resource queues. Therefore, a resource may be repeated in many queues.
     def __init__(self, task_resource_map, r_initial_availability):
-        self._resource_queues = list()  # List of (shared) resource queues, i.e., many tasks may share a resource queue
-        self._resource_queue_map = dict()  # Map relating the indexes of the queues where a resource r_id is contained
-        self._task_queue_map = dict()  # Map with the index of the resource queue that can perform a task r_id
+        self._resource_queues = (
+            list()
+        )  # List of (shared) resource queues, i.e., many tasks may share a resource queue
+        self._resource_queue_map = (
+            dict()
+        )  # Map relating the indexes of the queues where a resource r_id is contained
+        self._task_queue_map = (
+            dict()
+        )  # Map with the index of the resource queue that can perform a task r_id
 
         self._init_simulation_queues(task_resource_map, r_initial_availability)
 
@@ -84,7 +91,9 @@ class DiffResourceQueue:
                 joint_tasks = set()
                 for task_id_2 in task_resource_map:
                     is_joint = True
-                    if len(task_resource_map[task_id_2]) != len(task_resource_map[task_id_1]):
+                    if len(task_resource_map[task_id_2]) != len(
+                        task_resource_map[task_id_1]
+                    ):
                         continue
                     for r_id in task_resource_map[task_id_2]:
                         if r_id not in task_resource_map[task_id_1]:
@@ -114,11 +123,11 @@ class EventQueue:
     def __init__(self):
         self.enabled_events = PriorityQueue()
 
-    def append_arrival_event(self, event_info):
-        self.enabled_events.insert(event_info, event_info.enabled_at)
+    def append_arrival_event(self, event_info, case_priority):
+        self.enabled_events.insert(event_info, (case_priority, event_info.enabled_at))
 
-    def append_enabled_event(self, event_info):
-        self.enabled_events.insert(event_info, event_info.enabled_at)
+    def append_enabled_event(self, event_info, case_priority):
+        self.enabled_events.insert(event_info, (case_priority, event_info.enabled_at))
 
     def pop_next_event(self):
         if self.enabled_events:

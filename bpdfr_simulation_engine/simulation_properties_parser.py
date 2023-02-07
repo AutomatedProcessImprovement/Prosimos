@@ -1,21 +1,30 @@
 import json
-from datetime import time
-from typing import List
 import xml.etree.ElementTree as ET
 
-from numpy import exp, sqrt, log
-from bpdfr_simulation_engine.batch_processing import BATCH_TYPE, RULE_TYPE, BatchConfigPerTask, AndFiringRule, FiringSubRule, OrFiringRule
+from numpy import exp, log, sqrt
+
+from bpdfr_simulation_engine.batch_processing_parser import BatchProcessingParser
 from bpdfr_simulation_engine.case_attributes import AllCaseAttributes, CaseAttribute
-
-from bpdfr_simulation_engine.control_flow_manager import EVENT_TYPE, BPMNGraph, ElementInfo, BPMN
-from bpdfr_simulation_engine.exceptions import InvalidRuleDefinition
-from bpdfr_simulation_engine.resource_calendar import RCalendar
-from bpdfr_simulation_engine.resource_profile import ResourceProfile, PoolInfo
+from bpdfr_simulation_engine.control_flow_manager import (
+    BPMN,
+    EVENT_TYPE,
+    BPMNGraph,
+    ElementInfo,
+)
+from bpdfr_simulation_engine.prioritisation import AllPriorityRules
+from bpdfr_simulation_engine.prioritisation_parser import PrioritisationParser
 from bpdfr_simulation_engine.probability_distributions import *
+from bpdfr_simulation_engine.resource_calendar import RCalendar
+from bpdfr_simulation_engine.resource_profile import PoolInfo, ResourceProfile
 
-bpmn_schema_url = 'http://www.omg.org/spec/BPMN/20100524/MODEL'
-simod_ns = {'qbp': 'http://www.qbp-simulator.com/Schema201212'}
-bpmn_element_ns = {'xmlns': bpmn_schema_url}
+bpmn_schema_url = "http://www.omg.org/spec/BPMN/20100524/MODEL"
+simod_ns = {"qbp": "http://www.qbp-simulator.com/Schema201212"}
+bpmn_element_ns = {"xmlns": bpmn_schema_url}
+
+EVENT_DISTRIBUTION_SECTION = "event_distribution"
+BATCH_PROCESSING_SECTION = "batch_processing"
+CASE_ATTRIBUTES_SECTION = "case_attributes"
+PRIORITISATION_RULES_SECTION = "prioritization_rules"
 
 
 def parse_json_sim_parameters(json_path):
@@ -24,20 +33,47 @@ def parse_json_sim_parameters(json_path):
 
         resources_map = parse_resource_profiles(json_data["resource_profiles"])
         calendars_map = parse_resource_calendars(json_data["resource_calendars"])
-        task_resource_distribution = parse_task_resource_distributions(json_data["task_resource_distribution"])
+        task_resource_distribution = parse_task_resource_distributions(
+            json_data["task_resource_distribution"]
+        )
 
-        element_distribution = parse_arrival_branching_probabilities(json_data["arrival_time_distribution"],
-                                                                     json_data["gateway_branching_probabilities"])
+        element_distribution = parse_arrival_branching_probabilities(
+            json_data["arrival_time_distribution"],
+            json_data["gateway_branching_probabilities"],
+        )
         arrival_calendar = parse_arrival_calendar(json_data)
-        event_distibution = parse_event_distribution(json_data["event_distribution"]) \
-            if "event_distribution" in json_data else dict()
-        batch_processing = parse_batch_processing(json_data["batch_processing"]) \
-            if "batch_processing" in json_data else dict()
-        case_attributes = parse_case_attr(json_data["case_attributes"]) \
-            if "case_attributes" in json_data else AllCaseAttributes([])
+        event_distibution = (
+            parse_event_distribution(json_data[EVENT_DISTRIBUTION_SECTION])
+            if EVENT_DISTRIBUTION_SECTION in json_data
+            else dict()
+        )
+        batch_processing = (
+            BatchProcessingParser(json_data[BATCH_PROCESSING_SECTION]).parse()
+            if BATCH_PROCESSING_SECTION in json_data
+            else dict()
+        )
+        case_attributes = (
+            parse_case_attr(json_data[CASE_ATTRIBUTES_SECTION])
+            if CASE_ATTRIBUTES_SECTION in json_data
+            else AllCaseAttributes([])
+        )
+        prioritisation_rules = (
+            PrioritisationParser(json_data[PRIORITISATION_RULES_SECTION]).parse()
+            if PRIORITISATION_RULES_SECTION in json_data
+            else AllPriorityRules([])
+        )
 
-        return resources_map, calendars_map, element_distribution, task_resource_distribution, \
-            arrival_calendar, event_distibution, batch_processing, case_attributes
+        return (
+            resources_map,
+            calendars_map,
+            element_distribution,
+            task_resource_distribution,
+            arrival_calendar,
+            event_distibution,
+            batch_processing,
+            case_attributes,
+            prioritisation_rules,
+        )
 
 
 # def parse_pool_info(json_data, resources_map):
@@ -53,10 +89,12 @@ def parse_json_sim_parameters(json_path):
 
 def parse_arrival_calendar(json_data):
     arrival_calendar = None
-    if 'arrival_time_calendar' in json_data:
-        arrival_calendar = RCalendar('arrival_time_calendar')
-        for c_item in json_data['arrival_time_calendar']:
-            arrival_calendar.add_calendar_item(c_item['from'], c_item['to'], c_item['beginTime'], c_item['endTime'])
+    if "arrival_time_calendar" in json_data:
+        arrival_calendar = RCalendar("arrival_time_calendar")
+        for c_item in json_data["arrival_time_calendar"]:
+            arrival_calendar.add_calendar_item(
+                c_item["from"], c_item["to"], c_item["beginTime"], c_item["endTime"]
+            )
     return arrival_calendar
 
 
@@ -65,10 +103,13 @@ def parse_resource_profiles(json_data):
     for pool_entry in json_data:
         for r_info in pool_entry["resource_list"]:
             r_id = r_info["id"]
-            resources_map[r_id] = ResourceProfile(r_id, r_info["name"], r_info["calendar"],
-                                                  float(r_info["cost_per_hour"]))
+            resources_map[r_id] = ResourceProfile(
+                r_id, r_info["name"], r_info["calendar"], float(r_info["cost_per_hour"])
+            )
             resources_map[r_id].resource_amount = int(r_info["amount"])
-            resources_map[r_id].pool_info = PoolInfo(pool_entry["id"], pool_entry["name"])
+            resources_map[r_id].pool_info = PoolInfo(
+                pool_entry["id"], pool_entry["name"]
+            )
     return resources_map
 
 
@@ -77,7 +118,9 @@ def parse_resource_calendars(json_data):
     for c_info in json_data:
         r_calendar = RCalendar(c_info["id"])
         for c_item in c_info["time_periods"]:
-            r_calendar.add_calendar_item(c_item['from'], c_item['to'], c_item['beginTime'], c_item['endTime'])
+            r_calendar.add_calendar_item(
+                c_item["from"], c_item["to"], c_item["beginTime"], c_item["endTime"]
+            )
         r_calendar.compute_cumulative_durations()
         calendars_info[r_calendar.calendar_id] = r_calendar
     return calendars_info
@@ -93,8 +136,10 @@ def parse_task_resource_distributions(json_data):
             dist_params = []
             for param_info in r_info["distribution_params"]:
                 dist_params.append(float(param_info["value"]))
-            task_resource_distribution[t_id][r_info["resource_id"]] = {"distribution_name": r_info["distribution_name"],
-                                                                       "distribution_params": dist_params}
+            task_resource_distribution[t_id][r_info["resource_id"]] = {
+                "distribution_name": r_info["distribution_name"],
+                "distribution_params": dist_params,
+            }
     return task_resource_distribution
 
 
@@ -116,111 +161,21 @@ def parse_event_distribution(event_json_data):
 
             event_distibution[e_id] = {
                 "distribution_name": event_info["distribution_name"],
-                "distribution_params": dist_params
+                "distribution_params": dist_params,
             }
 
     return event_distibution
-
-def parse_batch_processing(batch_processing_json_data):
-    """
-    Parse "batch_processing" section of json data
-    """
-    batch_config = dict()
-
-    for batch_processing in batch_processing_json_data:
-        t_id = batch_processing["task_id"]
-        batch_type = BATCH_TYPE(batch_processing["type"])
-
-        parsed_or_rules: List[OrFiringRule] = []
-        for or_rules in batch_processing["firing_rules"]:
-            parsed_and_rules: List[FiringSubRule] = []
-
-            for and_rule in or_rules:
-                subrule = create_subrule(
-                    and_rule["attribute"],
-                    and_rule["comparison"],
-                    and_rule["value"] 
-                )
-
-                parsed_and_rules.append(subrule)
-            
-            _move_size_to_end(parsed_and_rules)
-
-            firing_rule = AndFiringRule(parsed_and_rules)
-
-            firing_rule.validate()
-            firing_rule.init_boundaries()
-
-            parsed_or_rules.append(firing_rule)
-
-        firing_rules = OrFiringRule(parsed_or_rules)
-
-        duration_distibution = dict()
-        duration_distibution[1] = 1.0
-        for item in batch_processing["duration_distrib"]:
-            key = int(item['key'])
-            value = float(item['value'])
-            duration_distibution[key] = value
-
-        possible_options, probabilities = parse_size_distrib(batch_processing["size_distrib"])
-
-        batch_config[t_id] = BatchConfigPerTask(
-            batch_type,
-            duration_distibution,
-            firing_rules,
-            possible_options,
-            probabilities 
-        )
-
-    return batch_config
-
-
-def parse_size_distrib(size_distrib):
-    if len(size_distrib) == 0:
-        return {}, {}
-
-    possible_options = []
-    probabilities = []
-
-    for item in size_distrib:
-        option = int(item['key'])
-        possible_options.append(option)
-        probabilities.append(item['value'])
-
-    return possible_options, probabilities
 
 
 def parse_case_attr(json_data) -> AllCaseAttributes:
     case_attributes = []
     for curr_case_attr in json_data:
-        case_attr = CaseAttribute(curr_case_attr["name"], curr_case_attr["type"], curr_case_attr["values"])
+        case_attr = CaseAttribute(
+            curr_case_attr["name"], curr_case_attr["type"], curr_case_attr["values"]
+        )
         case_attributes.append(case_attr)
 
     return AllCaseAttributes(case_attributes)
-
-
-def create_subrule(attribute, comparison, value):
-    if attribute == RULE_TYPE.DAILY_HOUR.value:
-        formatted_value = time(int(value), 0, 0, 0)
-    elif attribute == RULE_TYPE.WEEK_DAY.value:
-        # string is accepted for the WEEK_DAY
-        formatted_value = value
-    elif attribute == RULE_TYPE.SIZE.value:
-        formatted_value = int(value)
-    else:
-        # all others should have the number as the value
-        formatted_value = float(value)
-
-    if attribute == RULE_TYPE.WEEK_DAY.value and \
-        comparison != "=":
-        # only "=" operator is allowed to be used with the week_day type of rule
-        raise InvalidRuleDefinition(f"'{comparison}' is not allowed operator for the week_day type of rule.")
-
-    return FiringSubRule(
-        attribute,
-        comparison,
-        formatted_value
-    )
 
 
 # def parse_calendar_from_json(json_data):
@@ -237,27 +192,6 @@ def create_subrule(attribute, comparison, value):
 #     return resources_map, calendars_map
 
 
-def _move_size_to_end(list: List[FiringSubRule]):
-    """
-    Re-order the elements inside list so that:
-        1) size rule is the last one in the sequence
-        2) week_day rule is the second item from the end
-    """
-
-    _move_to_end("daily_hour", list)
-    _move_to_end("size", list)
-
-def _move_to_end(rule_name: str, list):
-    rule_index = next((i for i, item in enumerate(list) if item.variable1 == rule_name), -1)
-    last_index = len(list) - 1
-
-    if rule_index == -1:
-        # size rule is not on the list of all rules
-        return
-
-    list.insert(last_index, list.pop(rule_index))
-
-
 def parse_arrival_branching_probabilities(arrival_json, gateway_json):
     element_distribution = dict()
 
@@ -271,8 +205,10 @@ def parse_arrival_branching_probabilities(arrival_json, gateway_json):
     else:
         for param_info in arrival_json["distribution_params"]:
             dist_params.append(float(param_info["value"]))
-    element_distribution['arrivalTime'] = {"distribution_name": arrival_json["distribution_name"],
-                                           "distribution_params": dist_params}
+    element_distribution["arrivalTime"] = {
+        "distribution_name": arrival_json["distribution_name"],
+        "distribution_params": dist_params,
+    }
 
     for g_info in gateway_json:
         g_id = g_info["gateway_id"]
@@ -290,59 +226,90 @@ def parse_simulation_model(bpmn_path):
     tree = ET.parse(bpmn_path)
     root = tree.getroot()
 
-    to_extract = {'xmlns:task': BPMN.TASK,
-                  'xmlns:startEvent': BPMN.START_EVENT,
-                  'xmlns:endEvent': BPMN.END_EVENT,
-                  'xmlns:exclusiveGateway': BPMN.EXCLUSIVE_GATEWAY,
-                  'xmlns:parallelGateway': BPMN.PARALLEL_GATEWAY,
-                  'xmlns:inclusiveGateway': BPMN.INCLUSIVE_GATEWAY,
-                  'xmlns:eventBasedGateway': BPMN.EVENT_BASED_GATEWAY,
-                  'xmlns:intermediateCatchEvent': BPMN.INTERMEDIATE_EVENT}
+    to_extract = {
+        "xmlns:task": BPMN.TASK,
+        "xmlns:startEvent": BPMN.START_EVENT,
+        "xmlns:endEvent": BPMN.END_EVENT,
+        "xmlns:exclusiveGateway": BPMN.EXCLUSIVE_GATEWAY,
+        "xmlns:parallelGateway": BPMN.PARALLEL_GATEWAY,
+        "xmlns:inclusiveGateway": BPMN.INCLUSIVE_GATEWAY,
+        "xmlns:eventBasedGateway": BPMN.EVENT_BASED_GATEWAY,
+        "xmlns:intermediateCatchEvent": BPMN.INTERMEDIATE_EVENT,
+    }
 
     bpmn_graph = BPMNGraph()
     elements_map = dict()
-    for process in root.findall('xmlns:process', bpmn_element_ns):
+    for process in root.findall("xmlns:process", bpmn_element_ns):
         for xmlns_key in to_extract:
             for bpmn_element in process.findall(xmlns_key, bpmn_element_ns):
-                name = bpmn_element.attrib["name"] \
-                    if "name" in bpmn_element.attrib and len(bpmn_element.attrib["name"]) > 0 \
+                name = (
+                    bpmn_element.attrib["name"]
+                    if "name" in bpmn_element.attrib
+                    and len(bpmn_element.attrib["name"]) > 0
                     else bpmn_element.attrib["id"]
+                )
                 elem_general_type: BPMN = to_extract[xmlns_key]
 
-                event_type = _get_event_type_from_element(name, bpmn_element) if BPMN.is_event(elem_general_type) else None
-                e_info = ElementInfo(elem_general_type, bpmn_element.attrib["id"], name, event_type)
+                event_type = (
+                    _get_event_type_from_element(name, bpmn_element)
+                    if BPMN.is_event(elem_general_type)
+                    else None
+                )
+                e_info = ElementInfo(
+                    elem_general_type, bpmn_element.attrib["id"], name, event_type
+                )
 
                 bpmn_graph.add_bpmn_element(bpmn_element.attrib["id"], e_info)
-                elements_map[e_info.id] = {'in': 0, 'out': 0, 'info': e_info}
+                elements_map[e_info.id] = {"in": 0, "out": 0, "info": e_info}
 
         # Counting incoming/outgoing flow arcs to handle cases of multiple in/out arcs simultaneously
         pending_flow_arcs = list()
-        for flow_arc in process.findall('xmlns:sequenceFlow', bpmn_element_ns):
+        for flow_arc in process.findall("xmlns:sequenceFlow", bpmn_element_ns):
             # Fixing the case in which a task may have multiple incoming/outgoing flow-arcs
             pending_flow_arcs.append(flow_arc)
             if flow_arc.attrib["sourceRef"] in elements_map:
-                elements_map[flow_arc.attrib["sourceRef"]]['out'] += 1
+                elements_map[flow_arc.attrib["sourceRef"]]["out"] += 1
             if flow_arc.attrib["targetRef"] in elements_map:
-                elements_map[flow_arc.attrib["targetRef"]]['in'] += 1
+                elements_map[flow_arc.attrib["targetRef"]]["in"] += 1
             # bpmn_graph.add_flow_arc(flow_arc.attrib["id"], flow_arc.attrib["sourceRef"], flow_arc.attrib["targetRef"])
 
         # Adding fake gateways for tasks with multiple incoming/outgoing flow arcs
         join_gateways = dict()
         split_gateways = dict()
         for t_id in elements_map:
-            e_info = elements_map[t_id]['info']
+            e_info = elements_map[t_id]["info"]
             if e_info.type is BPMN.TASK:
-                if elements_map[t_id]['in'] > 1:
-                    _add_fake_gateway(bpmn_graph, 'xor_join_%s' % t_id, BPMN.EXCLUSIVE_GATEWAY, t_id, join_gateways)
-                if elements_map[t_id]['out'] > 1:
-                    _add_fake_gateway(bpmn_graph, 'and_split_%s' % t_id, BPMN.PARALLEL_GATEWAY, t_id, split_gateways,
-                                      False)
+                if elements_map[t_id]["in"] > 1:
+                    _add_fake_gateway(
+                        bpmn_graph,
+                        "xor_join_%s" % t_id,
+                        BPMN.EXCLUSIVE_GATEWAY,
+                        t_id,
+                        join_gateways,
+                    )
+                if elements_map[t_id]["out"] > 1:
+                    _add_fake_gateway(
+                        bpmn_graph,
+                        "and_split_%s" % t_id,
+                        BPMN.PARALLEL_GATEWAY,
+                        t_id,
+                        split_gateways,
+                        False,
+                    )
             elif e_info.type is BPMN.END_EVENT:
-                if elements_map[t_id]['in'] > 1:
-                    _add_fake_gateway(bpmn_graph, 'or_join_%s' % t_id, BPMN.INCLUSIVE_GATEWAY, t_id, join_gateways)
+                if elements_map[t_id]["in"] > 1:
+                    _add_fake_gateway(
+                        bpmn_graph,
+                        "or_join_%s" % t_id,
+                        BPMN.INCLUSIVE_GATEWAY,
+                        t_id,
+                        join_gateways,
+                    )
             elif e_info.is_gateway():
-                if elements_map[t_id]['in'] > 1 and elements_map[t_id]['out'] > 1:
-                    _add_fake_gateway(bpmn_graph, 'join_%s' % t_id, e_info.type, t_id, join_gateways)
+                if elements_map[t_id]["in"] > 1 and elements_map[t_id]["out"] > 1:
+                    _add_fake_gateway(
+                        bpmn_graph, "join_%s" % t_id, e_info.type, t_id, join_gateways
+                    )
 
         for flow_arc in pending_flow_arcs:
             source_id = flow_arc.attrib["sourceRef"]
@@ -359,7 +326,7 @@ def parse_simulation_model(bpmn_path):
 
 
 def _get_event_type_from_element(name: str, bpmn_element):
-    #children = bpmn_element.getchildren()
+    # children = bpmn_element.getchildren()
     children = list(bpmn_element)
 
     for child in children:
@@ -367,15 +334,15 @@ def _get_event_type_from_element(name: str, bpmn_element):
             # tag example: '{http://www.omg.org/spec/BPMN/20100524/MODEL}timerEventDefinition'
             type_name = child.tag.split("}")[1]
             switcher = {
-                'timerEventDefinition': EVENT_TYPE.TIMER,
-                'messageEventDefinition': EVENT_TYPE.MESSAGE,
-                'linkEventDefinition': EVENT_TYPE.LINK,
-                'signalEventDefinition': EVENT_TYPE.SIGNAL,
-                'terminateEventDefinition': EVENT_TYPE.TERMINATE
+                "timerEventDefinition": EVENT_TYPE.TIMER,
+                "messageEventDefinition": EVENT_TYPE.MESSAGE,
+                "linkEventDefinition": EVENT_TYPE.LINK,
+                "signalEventDefinition": EVENT_TYPE.SIGNAL,
+                "terminateEventDefinition": EVENT_TYPE.TERMINATE,
             }
 
             event_type = switcher.get(type_name, EVENT_TYPE.UNDEFINED)
-            if (event_type == EVENT_TYPE.UNDEFINED):
+            if event_type == EVENT_TYPE.UNDEFINED:
                 print(f"WARNING: {name} event has an undefined event type")
 
             return event_type
@@ -384,9 +351,9 @@ def _get_event_type_from_element(name: str, bpmn_element):
 def _add_fake_gateway(bpmn_graph, g_id, g_type, t_id, e_map, in_front=True):
     bpmn_graph.add_bpmn_element(g_id, ElementInfo(g_type, g_id, g_id, None))
     if in_front:
-        bpmn_graph.add_flow_arc('%s_%s' % (g_id, t_id), g_id, t_id)
+        bpmn_graph.add_flow_arc("%s_%s" % (g_id, t_id), g_id, t_id)
     else:
-        bpmn_graph.add_flow_arc('%s_%s' % (t_id, g_id), t_id, g_id)
+        bpmn_graph.add_flow_arc("%s_%s" % (t_id, g_id), t_id, g_id)
     e_map[t_id] = g_id
 
 
@@ -395,24 +362,32 @@ def parse_qbp_simulation_process(qbp_bpmn_path, out_file):
     root = tree.getroot()
     simod_root = root.find("qbp:processSimulationInfo", simod_ns)
     if simod_root is None:
-        print('PARSING ABORTED: Input BPMN model is not a simulation model, i.e., simulation parameters are missing.')
+        print(
+            "PARSING ABORTED: Input BPMN model is not a simulation model, i.e., simulation parameters are missing."
+        )
         return
 
     # 1. Extracting gateway branching probabilities
     gateways_branching = dict()
     reverse_map = dict()
-    for process in root.findall('xmlns:process', bpmn_element_ns):
-        for xmlns_key in ['xmlns:exclusiveGateway', 'xmlns:inclusiveGateway']:
+    for process in root.findall("xmlns:process", bpmn_element_ns):
+        for xmlns_key in ["xmlns:exclusiveGateway", "xmlns:inclusiveGateway"]:
             for bpmn_element in process.findall(xmlns_key, bpmn_element_ns):
                 if bpmn_element.attrib["gatewayDirection"] == "Diverging":
                     gateways_branching[bpmn_element.attrib["id"]] = dict()
-                    for out_flow in bpmn_element.findall("xmlns:outgoing", bpmn_element_ns):
+                    for out_flow in bpmn_element.findall(
+                        "xmlns:outgoing", bpmn_element_ns
+                    ):
                         arc_id = out_flow.text.strip()
                         gateways_branching[bpmn_element.attrib["id"]][arc_id] = 0
                         reverse_map[arc_id] = bpmn_element.attrib["id"]
-    for flow_prob in simod_root.find("qbp:sequenceFlows", simod_ns).findall("qbp:sequenceFlow", simod_ns):
+    for flow_prob in simod_root.find("qbp:sequenceFlows", simod_ns).findall(
+        "qbp:sequenceFlow", simod_ns
+    ):
         flow_id = flow_prob.attrib["elementId"]
-        gateways_branching[reverse_map[flow_id]][flow_id] = flow_prob.attrib["executionProbability"]
+        gateways_branching[reverse_map[flow_id]][flow_id] = flow_prob.attrib[
+            "executionProbability"
+        ]
 
     # 2. Extracting Resource Calendars
     resource_pools = dict()
@@ -425,17 +400,27 @@ def parse_qbp_simulation_process(qbp_bpmn_path, out_file):
         if calendar_id not in calendars_map:
             calendars_map[calendar_id] = list()
 
-        time_tables = calendar_info.find("qbp:rules", simod_ns).findall("qbp:rule", simod_ns)
-        if 'ARRIVAL_CALENDAR' in calendar_id or (arrival_calendar_id is None and 'DEFAULT_TIMETABLE' in calendar_id):
+        time_tables = calendar_info.find("qbp:rules", simod_ns).findall(
+            "qbp:rule", simod_ns
+        )
+        if "ARRIVAL_CALENDAR" in calendar_id or (
+            arrival_calendar_id is None and "DEFAULT_TIMETABLE" in calendar_id
+        ):
             arrival_calendar_id = calendar_id
         for time_table in time_tables:
-            calendars_map[calendar_id].append({"from": time_table.attrib["fromWeekDay"],
-                                               "to": time_table.attrib["toWeekDay"],
-                                               "beginTime": format_date(time_table.attrib["fromTime"]),
-                                               "endTime": format_date(time_table.attrib["toTime"])})
+            calendars_map[calendar_id].append(
+                {
+                    "from": time_table.attrib["fromWeekDay"],
+                    "to": time_table.attrib["toWeekDay"],
+                    "beginTime": format_date(time_table.attrib["fromTime"]),
+                    "endTime": format_date(time_table.attrib["toTime"]),
+                }
+            )
 
     # 3. Extracting Arrival time distribution
-    arrival_time_dist = extract_dist_params(simod_root.find("qbp:arrivalRateDistribution", simod_ns))
+    arrival_time_dist = extract_dist_params(
+        simod_root.find("qbp:arrivalRateDistribution", simod_ns)
+    )
 
     # 4. Extracting task-resource duration distributions
     bpmn_resources = simod_root.find("qbp:resources", simod_ns)
@@ -444,24 +429,33 @@ def parse_qbp_simulation_process(qbp_bpmn_path, out_file):
 
     resource_calendars = dict()
     for resource in bpmn_resources:
-        pools_json[resource.attrib["id"]] = {"name": resource.attrib["name"], "resource_list": list()}
+        pools_json[resource.attrib["id"]] = {
+            "name": resource.attrib["name"],
+            "resource_list": list(),
+        }
         resource_pools[resource.attrib["id"]] = list()
         calendar_id = resource.attrib["timetableId"]
         for i in range(1, int(resource.attrib["totalAmount"]) + 1):
             nr_id = "%s_%d" % (resource.attrib["id"], i)
-            pools_json[resource.attrib["id"]]["resource_list"].append({
-                "id": nr_id,
-                "name": "%s_%d" % (resource.attrib["name"], i),
-                "cost_per_hour": resource.attrib["costPerHour"],
-                "amount": 1
-            })
+            pools_json[resource.attrib["id"]]["resource_list"].append(
+                {
+                    "id": nr_id,
+                    "name": "%s_%d" % (resource.attrib["name"], i),
+                    "cost_per_hour": resource.attrib["costPerHour"],
+                    "amount": 1,
+                }
+            )
             resource_pools[resource.attrib["id"]].append(nr_id)
             resource_calendars[nr_id] = calendars_map[calendar_id]
 
     task_resource_dist = dict()
     for e_inf in simod_elements:
         task_id = e_inf.attrib["elementId"]
-        rpool_id = e_inf.find("qbp:resourceIds", simod_ns).find("qbp:resourceId", simod_ns).text
+        rpool_id = (
+            e_inf.find("qbp:resourceIds", simod_ns)
+            .find("qbp:resourceId", simod_ns)
+            .text
+        )
         dist_info = e_inf.find("qbp:durationDistribution", simod_ns)
 
         t_dist = extract_dist_params(dist_info)
@@ -480,7 +474,7 @@ def parse_qbp_simulation_process(qbp_bpmn_path, out_file):
         "task_resource_distribution": task_resource_dist,
         "resource_calendars": resource_calendars,
     }
-    with open(out_file, 'w') as file_writter:
+    with open(out_file, "w") as file_writter:
         json.dump(to_save, file_writter)
 
 
@@ -488,39 +482,67 @@ def extract_dist_params(dist_info):
     # time_unit = dist_info.find("qbp:timeUnit", simod_ns).text
     # The time_tables produced by bimp always have the parameters in seconds, although it shouws other time units in
     # the XML file.
-    dist_params = {"mean": float(dist_info.attrib["mean"]),
-                   "arg1": float(dist_info.attrib["arg1"]),
-                   "arg2": float(dist_info.attrib["arg2"])}
+    dist_params = {
+        "mean": float(dist_info.attrib["mean"]),
+        "arg1": float(dist_info.attrib["arg1"]),
+        "arg2": float(dist_info.attrib["arg2"]),
+    }
     dist_name = dist_info.attrib["type"].upper()
     if dist_name == "EXPONENTIAL":
         # input: loc = 0, scale = mean
-        return {"distribution_name": "expon", "distribution_params": [0, dist_params["arg1"]]}
+        return {
+            "distribution_name": "expon",
+            "distribution_params": [0, dist_params["arg1"]],
+        }
     if dist_name == "NORMAL":
         # input: loc = mean, scale = standard deviation
-        return {"distribution_name": "norm", "distribution_params": [dist_params["mean"], dist_params["arg1"]]}
+        return {
+            "distribution_name": "norm",
+            "distribution_params": [dist_params["mean"], dist_params["arg1"]],
+        }
     if dist_name == "FIXED":
-        return {"distribution_name": "fix", "distribution_params": [dist_params["mean"], 0, 1]}
+        return {
+            "distribution_name": "fix",
+            "distribution_params": [dist_params["mean"], 0, 1],
+        }
     if dist_name == "UNIFORM":
         # input: loc = from, scale = to - from
-        return {"distribution_name": "uniform", "distribution_params": [dist_params["arg1"],
-                                                                        dist_params["arg2"] - dist_params["arg2"]]}
+        return {
+            "distribution_name": "uniform",
+            "distribution_params": [
+                dist_params["arg1"],
+                dist_params["arg2"] - dist_params["arg2"],
+            ],
+        }
     if dist_name == "GAMMA":
         # input: shape, loc=0, scale
         mean, variance = dist_params["mean"], dist_params["arg1"]
-        return {"distribution_name": "gamma", "distribution_params": [pow(mean, 2) / variance, 0, variance / mean]}
+        return {
+            "distribution_name": "gamma",
+            "distribution_params": [pow(mean, 2) / variance, 0, variance / mean],
+        }
     if dist_name == "TRIANGULAR":
         # input: c = mode, loc = min, scale = max - min
-        return {"distribution_name": "triang", "distribution_params": [dist_params["mean"], dist_params["arg1"],
-                                                                       dist_params["arg2"] - dist_params["arg1"]]}
+        return {
+            "distribution_name": "triang",
+            "distribution_params": [
+                dist_params["mean"],
+                dist_params["arg1"],
+                dist_params["arg2"] - dist_params["arg1"],
+            ],
+        }
     if dist_name == "LOGNORMAL":
         mean_2 = dist_params["mean"] ** 2
         variance = dist_params["arg1"]
         phi = sqrt([variance + mean_2])[0]
         mu = log(mean_2 / phi)
-        sigma = sqrt([log(phi ** 2 / mean_2)])[0]
+        sigma = sqrt([log(phi**2 / mean_2)])[0]
 
         # input: s = sigma = standard deviation, loc = 0, scale = exp(mu)
-        return {"distribution_name": "lognorm", "distribution_params": [sigma, 0, exp(mu)]}
+        return {
+            "distribution_name": "lognorm",
+            "distribution_params": [sigma, 0, exp(mu)],
+        }
     return None
 
 
