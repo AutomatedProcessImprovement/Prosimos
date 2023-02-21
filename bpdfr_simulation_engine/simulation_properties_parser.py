@@ -217,7 +217,7 @@ def parse_simulation_model(bpmn_path):
     return bpmn_graph
 
 def _get_event_type_from_element(name: str, bpmn_element):
-    children = bpmn_element.getchildren()
+    children = list(bpmn_element)
 
     for child in children:
         if "EventDefinition" in child.tag:
