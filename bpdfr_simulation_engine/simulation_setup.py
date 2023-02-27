@@ -107,4 +107,16 @@ class SimDiffSetup:
         return self.calendars_map[self.resources_map[resource_id].calendar_id].find_idle_time(enabled_at, task_duration)
 
     def set_starting_datetime(self, new_datetime):
-        self.start_datetime = new_datetime
+        (
+            is_inside_arrival_calendar,
+            _,
+        ) = self.arrival_calendar.is_working_datetime(new_datetime)
+        if is_inside_arrival_calendar:
+            self.start_datetime = new_datetime
+        else:
+            # the start datetime provided in the simulation scenario
+            # is outside of the arrival calendar range
+            # so we need to get the next earliest datetime
+            # next_in_sec = self.arrival_calendar.next_available_time(new_datetime)
+            next_in_sec = self.next_arrival_time(new_datetime)
+            self.start_datetime = new_datetime + timedelta(seconds=next_in_sec)
