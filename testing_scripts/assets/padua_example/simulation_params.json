@@ -1,0 +1,323 @@
+{
+    "resource_profiles": [
+        {
+            "id": "default_profile",
+            "name": "Default profile",
+            "resource_list": [
+                {
+                    "id": "resource_role_1",
+                    "name": "ROLE 1",
+                    "cost_per_hour": "0",
+                    "amount": 10,
+                    "calendar": "24_7_roles_calendar",
+                    "assignedTasks": [
+                        "node_aac5b3dc-6216-410b-8dbb-7ea7081d8d8f"
+                    ]
+                },
+                {
+                    "id": "resource_role_2",
+                    "name": "ROLE 2",
+                    "cost_per_hour": "0",
+                    "amount": 32,
+                    "calendar": "24_7_roles_calendar",
+                    "assignedTasks": [
+                        "node_b9ecb46e-5c07-4395-a682-129f75db501d"
+                    ]
+                },
+                {
+                    "id": "resource_role_3",
+                    "name": "ROLE 3",
+                    "cost_per_hour": "0",
+                    "amount": 32,
+                    "calendar": "24_7_roles_calendar",
+                    "assignedTasks": [
+                        "node_5f3c2f00-3e18-4681-9878-559c8bb9a229"
+                    ]
+                },
+                {
+                    "id": "resource_role_4",
+                    "name": "ROLE 4",
+                    "cost_per_hour": "0",
+                    "amount": 70,
+                    "calendar": "24_7_roles_calendar",
+                    "assignedTasks": [
+                        "node_bde166fa-3414-49ae-9c52-e3f3da7d31a1"
+                    ]
+                },
+                {
+                    "id": "resource_role_5",
+                    "name": "ROLE 5",
+                    "cost_per_hour": "0",
+                    "amount": 320,
+                    "calendar": "24_7_roles_calendar",
+                    "assignedTasks": [
+                        "node_1801d33c-c54c-4b5c-b8ea-8f82a929a7d8"
+                    ]
+                },
+                {
+                    "id": "resource_role_6",
+                    "name": "ROLE 6",
+                    "cost_per_hour": "0",
+                    "amount": 320,
+                    "calendar": "24_7_roles_calendar",
+                    "assignedTasks": [
+                        "node_b5c43472-b580-456a-b6ce-b2c2826c7066"
+                    ]
+                },
+                {
+                    "id": "resource_role_7",
+                    "name": "ROLE 7",
+                    "cost_per_hour": "0",
+                    "amount": 140,
+                    "calendar": "24_7_roles_calendar",
+                    "assignedTasks": [
+                        "node_3e7949b8-a6bb-4571-9391-1cf9a17ff9ba"
+                    ]
+                }
+            ]
+        }
+    ],
+    "arrival_time_distribution": {
+        "distribution_name": "expon",
+        "distribution_params": [
+            {
+                "value": 1800
+            },
+            {
+                "value": 180.0
+            },
+            {
+                "value": 0
+            },
+            {
+                "value": 5400
+            }
+        ]
+    },
+    "arrival_time_calendar": [
+        {
+            "from": "MONDAY",
+            "to": "SUNDAY",
+            "beginTime": "00:00:00.000",
+            "endTime": "23:59:59.000"
+        }
+    ],
+    "gateway_branching_probabilities": [
+        {
+            "gateway_id": "Gateway_0q8hdfo",
+            "probabilities": [
+                {
+                    "path_id": "Flow_0nked9v",
+                    "value": 0.27
+                },
+                {
+                    "path_id": "Flow_141yu27",
+                    "value": 0.73
+                }
+            ]
+        },
+        {
+            "gateway_id": "Gateway_0wiuj7d",
+            "probabilities": [
+                {
+                    "path_id": "Flow_0bfm523",
+                    "value": 0.438
+                },
+                {
+                    "path_id": "Flow_12vcv3j",
+                    "value": 0.562
+                }
+            ]
+        },
+        {
+            "gateway_id": "Gateway_07vvg1g",
+            "probabilities": [
+                {
+                    "path_id": "Flow_1iac8l9",
+                    "value": 0.641
+                },
+                {
+                    "path_id": "Flow_0xhgtfe",
+                    "value": 0.359
+                }
+            ]
+        }
+    ],
+    "task_resource_distribution": [
+        {
+            "task_id": "node_aac5b3dc-6216-410b-8dbb-7ea7081d8d8f",
+            "resources": [
+                {
+                    "distribution_name": "norm",
+                    "distribution_params": [
+                        {
+                            "value": 17396
+                        },
+                        {
+                            "value": 1739.6
+                        },
+                        {
+                            "value": 0
+                        },
+                        {
+                            "value": 52188
+                        }
+                    ],
+                    "resource_id": "resource_role_1"
+                }
+            ]
+        },
+        {
+            "task_id": "node_b9ecb46e-5c07-4395-a682-129f75db501d",
+            "resources": [
+                {
+                    "distribution_name": "norm",
+                    "distribution_params": [
+                        {
+                            "value": 118594
+                        },
+                        {
+                            "value": 11859.4
+                        },
+                        {
+                            "value": 0
+                        },
+                        {
+                            "value": 355782
+                        }
+                    ],
+                    "resource_id": "resource_role_2"
+                }
+            ]
+        },
+        {
+            "task_id": "node_5f3c2f00-3e18-4681-9878-559c8bb9a229",
+            "resources": [
+                {
+                    "distribution_name": "norm",
+                    "distribution_params": [
+                        {
+                            "value": 5
+                        },
+                        {
+                            "value": 0.5
+                        },
+                        {
+                            "value": 0
+                        },
+                        {
+                            "value": 15
+                        }
+                    ],
+                    "resource_id": "resource_role_3"
+                }
+            ]
+        },
+        {
+            "task_id": "node_bde166fa-3414-49ae-9c52-e3f3da7d31a1",
+            "resources": [
+                {
+                    "distribution_name": "norm",
+                    "distribution_params": [
+                        {
+                            "value": 380721
+                        },
+                        {
+                            "value": 38072.1
+                        },
+                        {
+                            "value": 0
+                        },
+                        {
+                            "value": 1142163
+                        }
+                    ],
+                    "resource_id": "resource_role_4"
+                }
+            ]
+        },
+        {
+            "task_id": "node_b5c43472-b580-456a-b6ce-b2c2826c7066",
+            "resources": [
+                {
+                    "distribution_name": "norm",
+                    "distribution_params": [
+                        {
+                            "value": 1022162
+                        },
+                        {
+                            "value": 102216.2
+                        },
+                        {
+                            "value": 0
+                        },
+                        {
+                            "value": 3066486
+                        }
+                    ],
+                    "resource_id": "resource_role_6"
+                }
+            ]
+        },
+        {
+            "task_id": "node_1801d33c-c54c-4b5c-b8ea-8f82a929a7d8",
+            "resources": [
+                {
+                    "distribution_name": "norm",
+                    "distribution_params": [
+                        {
+                            "value": 1130584
+                        },
+                        {
+                            "value": 113058.4
+                        },
+                        {
+                            "value": 0
+                        },
+                        {
+                            "value": 3391752
+                        }
+                    ],
+                    "resource_id": "resource_role_5"
+                }
+            ]
+        },
+        {
+            "task_id": "node_3e7949b8-a6bb-4571-9391-1cf9a17ff9ba",
+            "resources": [
+                {
+                    "distribution_name": "norm",
+                    "distribution_params": [
+                        {
+                            "value": 443893
+                        },
+                        {
+                            "value": 44389.3
+                        },
+                        {
+                            "value": 0
+                        },
+                        {
+                            "value": 1331679
+                        }
+                    ],
+                    "resource_id": "resource_role_7"
+                }
+            ]
+        }
+    ],
+    "resource_calendars": [
+        {
+            "id": "24_7_roles_calendar",
+            "name": "24/7 Roles Calendar",
+            "time_periods": [
+                {
+                    "from": "MONDAY",
+                    "to": "SUNDAY",
+                    "beginTime": "00:00:00.000",
+                    "endTime": "23:59:59.000"
+                }
+            ]
+        }
+    ]
+}

@@ -13,6 +13,18 @@ experiment_logs = {0: 'production',
                    }
 
 process_files = {
+    'padua_example': {
+        'xes_log': 'None',
+        'csv_log': 'None',
+        'real_csv_log': 'None',
+        'bpmn': './assets/padua_example/process_model.bpmn',
+        'json': './assets/padua_example/simulation_params.json',
+        'sim_log': './assets/padua_example/out/sim_log.csv',
+        'demo_stats': './assets/padua_example/out/sim_stats.csv',
+        'start_datetime': '2008-01-02T23:00:00.000Z',
+        'total_cases': 10000,
+        'disc_params': [60, 0.1, 0.9, 0.6, True]
+    },
     'demo_example': {
         'xes_log': './../input_output_files/discovery_input_files/xes_logs/log_demo_filtered.xes',
         'csv_log': './../input_output_files/discovery_input_files/csv_logs/log_demo_filtered.csv',
