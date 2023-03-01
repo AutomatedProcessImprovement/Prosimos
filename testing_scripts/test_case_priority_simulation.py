@@ -54,12 +54,12 @@ ORDERED_NOT_INTERSECTED_PRIORITISATION_RULES = [
     {
         "priority_level": 1,
         "rules": [
-            [{"attribute": "client_type", "condition": "=", "value": BUSINESS}],
+            [{"attribute": "client_type", "comparison": "=", "value": BUSINESS}],
         ],
     },
     {
         "priority_level": 2,
-        "rules": [[{"attribute": "client_type", "condition": "=", "value": REGULAR}]],
+        "rules": [[{"attribute": "client_type", "comparison": "=", "value": REGULAR}]],
     },
 ]
 
@@ -67,14 +67,14 @@ NOT_ORDERED_INTERSECTED_PRIORITISATION_RULES = [
     {
         "priority_level": 2,
         "rules": [
-            [{"attribute": "client_type", "condition": "=", "value": REGULAR}],
-            [{"attribute": "client_type", "condition": "=", "value": BUSINESS}],
+            [{"attribute": "client_type", "comparison": "=", "value": REGULAR}],
+            [{"attribute": "client_type", "comparison": "=", "value": BUSINESS}],
         ],
     },
     {
         "priority_level": 1,
         "rules": [
-            [{"attribute": "client_type", "condition": "=", "value": BUSINESS}],
+            [{"attribute": "client_type", "comparison": "=", "value": BUSINESS}],
         ],
     },
 ]

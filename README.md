@@ -298,6 +298,20 @@ The following snippet outlines an example of the general structure of the input 
                 ]
             }
         }
+    ],
+    "prioritisation_rules": [
+        {
+            "priority_level": 1,
+            "rules": [
+                [
+                    {
+                        "attribute": "client_type",
+                        "comparison": "=",
+                        "value": "BUSINESS"
+                    }
+                ]
+            ]
+        }
     ]
 }
 ```

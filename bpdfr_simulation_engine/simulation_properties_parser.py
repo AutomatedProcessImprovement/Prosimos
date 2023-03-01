@@ -24,7 +24,7 @@ bpmn_element_ns = {"xmlns": bpmn_schema_url}
 EVENT_DISTRIBUTION_SECTION = "event_distribution"
 BATCH_PROCESSING_SECTION = "batch_processing"
 CASE_ATTRIBUTES_SECTION = "case_attributes"
-PRIORITISATION_RULES_SECTION = "prioritization_rules"
+PRIORITISATION_RULES_SECTION = "prioritisation_rules"
 ARRIVAL_TIME_CALENDAR = "arrival_time_calendar"
 RESOURCE_CALENDARS = "resource_calendars"
 

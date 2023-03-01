@@ -24,7 +24,7 @@ class PrioritisationParser:
                 for and_rule_json in or_rule:
                     rule: PrioritisationRule = PrioritisationRule(
                         and_rule_json["attribute"],
-                        and_rule_json["condition"],
+                        and_rule_json["comparison"],
                         and_rule_json["value"],
                     )
                     and_rules.append(rule)
