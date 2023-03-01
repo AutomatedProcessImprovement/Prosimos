@@ -33,10 +33,12 @@ def parse_json_sim_parameters(json_path):
     with open(json_path) as json_file:
         json_data = json.load(json_file)
 
-        resources_map = parse_resource_profiles(json_data["resource_profiles"])
+        resources_map, res_pool = parse_resource_profiles(
+            json_data["resource_profiles"]
+        )
         calendars_map = parse_resource_calendars(json_data[RESOURCE_CALENDARS])
         task_resource_distribution = parse_task_resource_distributions(
-            json_data["task_resource_distribution"]
+            json_data["task_resource_distribution"], res_pool
         )
 
         element_distribution = parse_arrival_branching_probabilities(
@@ -102,17 +104,24 @@ def parse_arrival_calendar(json_data):
 
 def parse_resource_profiles(json_data):
     resources_map = dict()
+    resource_pool = dict()
     for pool_entry in json_data:
         for r_info in pool_entry["resource_list"]:
             r_id = r_info["id"]
-            resources_map[r_id] = ResourceProfile(
-                r_id, r_info["name"], r_info["calendar"], float(r_info["cost_per_hour"])
-            )
-            resources_map[r_id].resource_amount = int(r_info["amount"])
-            resources_map[r_id].pool_info = PoolInfo(
-                pool_entry["id"], pool_entry["name"]
-            )
-    return resources_map
+            r_count = int(r_info["amount"])
+            resource_pool[r_id] = list()
+            for i in range(0, r_count):
+                r_i = "%s_%d" % (r_id, i) if r_count > 1 else r_id
+                name = "%s_%d" % (r_info["name"], i) if r_count > 1 else r_info["name"]
+                resource_pool[r_id].append(r_i)
+                resources_map[r_i] = ResourceProfile(
+                    r_i, name, r_info["calendar"], float(r_info["cost_per_hour"])
+                )
+                resources_map[r_i].resource_amount = 1
+                resources_map[r_i].pool_info = PoolInfo(
+                    pool_entry["id"], pool_entry["name"]
+                )
+    return resources_map, resource_pool
 
 
 def parse_resource_calendars(json_data):
@@ -128,7 +137,7 @@ def parse_resource_calendars(json_data):
     return calendars_info
 
 
-def parse_task_resource_distributions(json_data):
+def parse_task_resource_distributions(json_data, res_pool):
     task_resource_distribution = dict()
     for perf_info in json_data:
         t_id = perf_info["task_id"]
@@ -138,10 +147,11 @@ def parse_task_resource_distributions(json_data):
             dist_params = []
             for param_info in r_info["distribution_params"]:
                 dist_params.append(float(param_info["value"]))
-            task_resource_distribution[t_id][r_info["resource_id"]] = {
-                "distribution_name": r_info["distribution_name"],
-                "distribution_params": dist_params,
-            }
+            for r_id in res_pool[r_info["resource_id"]]:
+                task_resource_distribution[t_id][r_id] = {
+                    "distribution_name": r_info["distribution_name"],
+                    "distribution_params": dist_params,
+                }
     return task_resource_distribution
 
 
