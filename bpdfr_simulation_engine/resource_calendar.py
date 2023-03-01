@@ -268,6 +268,13 @@ class RCalendar:
         return real_duration
 
     def next_available_time(self, requested_date):
+        """
+        Validates whether the 'requested_date' is located in the arrival time calendar.
+        Valid = complies with the provided time periods of the arrival calendar.
+        If the 'requested_date' is valid, 0 is being returned (no waiting time).
+        If not, the number of seconds we need to wait till the time the datetime will
+        become eligible and comply with the time periods of the calendar.
+        """
         c_day = requested_date.date().weekday()
         c_date = datetime.datetime.combine(self.default_date, requested_date.time())
 

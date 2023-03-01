@@ -25,17 +25,20 @@ EVENT_DISTRIBUTION_SECTION = "event_distribution"
 BATCH_PROCESSING_SECTION = "batch_processing"
 CASE_ATTRIBUTES_SECTION = "case_attributes"
 PRIORITISATION_RULES_SECTION = "prioritization_rules"
+ARRIVAL_TIME_CALENDAR = "arrival_time_calendar"
+RESOURCE_CALENDARS = "resource_calendars"
 
 
 def parse_json_sim_parameters(json_path):
     with open(json_path) as json_file:
         json_data = json.load(json_file)
 
-        resources_map, res_pool = parse_resource_profiles(json_data["resource_profiles"])
-        calendars_map = parse_resource_calendars(json_data["resource_calendars"])
+        resources_map, res_pool = parse_resource_profiles(
+            json_data["resource_profiles"]
+        )
+        calendars_map = parse_resource_calendars(json_data[RESOURCE_CALENDARS])
         task_resource_distribution = parse_task_resource_distributions(
-            json_data["task_resource_distribution"],
-            res_pool
+            json_data["task_resource_distribution"], res_pool
         )
 
         element_distribution = parse_arrival_branching_probabilities(
@@ -90,9 +93,9 @@ def parse_json_sim_parameters(json_path):
 
 def parse_arrival_calendar(json_data):
     arrival_calendar = None
-    if "arrival_time_calendar" in json_data:
+    if ARRIVAL_TIME_CALENDAR in json_data:
         arrival_calendar = RCalendar("arrival_time_calendar")
-        for c_item in json_data["arrival_time_calendar"]:
+        for c_item in json_data[ARRIVAL_TIME_CALENDAR]:
             arrival_calendar.add_calendar_item(
                 c_item["from"], c_item["to"], c_item["beginTime"], c_item["endTime"]
             )

@@ -2,17 +2,43 @@ import datetime
 import json
 import os
 from pathlib import Path
-from bpdfr_simulation_engine.simulation_properties_parser import (
-    BATCH_PROCESSING_SECTION,
-    CASE_ATTRIBUTES_SECTION,
-    PRIORITISATION_RULES_SECTION,
-)
 
 import pandas as pd
 import pytest
+from bpdfr_simulation_engine.simulation_properties_parser import (
+    ARRIVAL_TIME_CALENDAR,
+    BATCH_PROCESSING_SECTION,
+    CASE_ATTRIBUTES_SECTION,
+    PRIORITISATION_RULES_SECTION,
+    RESOURCE_CALENDARS,
+)
 
 from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 from testing_scripts.test_update_state import _setup_sim_scenario_file
+
+DEFAULT_RESOURCE_CALENDARS_TIMER_WITH_TASK = [
+    {
+        "id": "Default resource-000001timetable",
+        "name": "Default resource-000001timetable",
+        "time_periods": [
+            {
+                "from": "THURSDAY",
+                "to": "THURSDAY",
+                "beginTime": "09:00:00",
+                "endTime": "14:00:00",
+            }
+        ],
+    }
+]
+
+DEFAULT_ARRIVAL_CALENDAR_TIMER_WITH_TASK = [
+    {
+        "from": "THURSDAY",
+        "to": "THURSDAY",
+        "beginTime": "09:00:00",
+        "endTime": "14:00:00",
+    }
+]
 
 
 @pytest.fixture
@@ -253,7 +279,12 @@ def _verify_activity_count_and_duration(activities, count, expected_activity_tim
 
 
 def _setup_and_write_sim_scenario(
-    json_path, case_attributes=[], prioritisation_rules=[], batch_processing=[]
+    json_path,
+    case_attributes=[],
+    prioritisation_rules=[],
+    batch_processing=[],
+    arrival_time_calendar=DEFAULT_ARRIVAL_CALENDAR_TIMER_WITH_TASK,
+    resource_calendars=DEFAULT_RESOURCE_CALENDARS_TIMER_WITH_TASK,
 ):
     with open(json_path, "r") as f:
         json_dict = json.load(f)
@@ -261,6 +292,8 @@ def _setup_and_write_sim_scenario(
     json_dict[CASE_ATTRIBUTES_SECTION] = case_attributes
     json_dict[PRIORITISATION_RULES_SECTION] = prioritisation_rules
     json_dict[BATCH_PROCESSING_SECTION] = batch_processing
+    json_dict[ARRIVAL_TIME_CALENDAR] = arrival_time_calendar
+    json_dict[RESOURCE_CALENDARS] = resource_calendars
 
     with open(json_path, "w+") as json_file:
         json.dump(json_dict, json_file)
