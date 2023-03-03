@@ -20,7 +20,7 @@ class SimDiffSetup:
             self.event_distibution, self.batch_processing, self.case_attributes, self.prioritisation_rules \
             = parse_json_sim_parameters(json_path)
 
-        self.bpmn_graph = parse_simulation_model(bpmn_path)
+        self.bpmn_graph = parse_simulation_model(bpmn_path, self.element_probability)
         self.bpmn_graph.set_additional_fields_from_json(self.element_probability, \
             self.task_resource, self.event_distibution, self.batch_processing)
         if not self.arrival_calendar:
