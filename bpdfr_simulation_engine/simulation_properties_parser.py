@@ -235,7 +235,9 @@ def parse_arrival_branching_probabilities(arrival_json, gateway_json):
     return element_distribution
 
 
-def parse_simulation_model(bpmn_path, element_probability={}):
+def parse_simulation_model(
+    bpmn_path, element_probability={}, num_generated_events=None
+):
     """
     element_probability parameter is only used for adding probability for newly inserted sequence flows
     when inserting events
@@ -338,8 +340,13 @@ def parse_simulation_model(bpmn_path, element_probability={}):
                 target_id = join_gateways[target_id]
             bpmn_graph.add_flow_arc(flow_arc.attrib["id"], source_id, target_id)
 
-        # TODO: call this only when running experiments
-        _add_events(bpmn_graph, sequence_flow_list, element_probability)
+        if num_generated_events != None:
+            _add_events(
+                bpmn_graph,
+                sequence_flow_list,
+                element_probability,
+                num_generated_events,
+            )
 
     bpmn_graph.encode_or_join_predecesors()
     bpmn_graph.validate_model()

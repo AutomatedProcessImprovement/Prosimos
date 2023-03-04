@@ -100,6 +100,11 @@ class ElementInfo:
         if flow_id in self.incoming_flows:
             self.incoming_flows.remove(flow_id)
 
+    def delete_outgoing_flow(self, flow_id):
+        "Delete outgoing flow if it exists"
+        if flow_id in self.outgoing_flows:
+            self.outgoing_flows.remove(flow_id)
+
 
 class ProcessState:
     def __init__(self, bpmn_graph):
@@ -178,6 +183,9 @@ class BPMNGraph:
 
     def remove_incoming_flow(self, element_id, flow_id):
         self.element_info[element_id].delete_incoming_flow(flow_id)
+
+    def remove_outgoing_flow(self, element_id, flow_id):
+        self.element_info[element_id].delete_outgoing_flow(flow_id)
 
     def add_flow_arc(self, flow_id, source_id, target_id):
         for node_id in [source_id, target_id]:

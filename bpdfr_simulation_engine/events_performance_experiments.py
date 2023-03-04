@@ -9,9 +9,16 @@ from bpdfr_simulation_engine.control_flow_manager import (
 )
 
 
-def _add_events(bpmn_graph: BPMNGraph, sequence_flow_list, element_probability):
-    # add events
-    num_inserted_events = 5
+def _add_events(
+    bpmn_graph: BPMNGraph,
+    sequence_flow_list,
+    element_probability,
+    num_inserted_events: int,
+):
+    if len(sequence_flow_list) < num_inserted_events:
+        raise ValueError(
+            "A number of inserted events should not be higher than a number of sequence flows present in the BPMN model."
+        )
 
     # keep track of the added events to the model
     inserted_events_logs: string = ""
@@ -40,7 +47,8 @@ def _add_events(bpmn_graph: BPMNGraph, sequence_flow_list, element_probability):
             ),
         )
 
-        # remove previously referenced sequence flow in the target activity
+        # remove previously referenced sequence flow in the source & target activity
+        bpmn_graph.remove_outgoing_flow(source_id, to_be_deleted_flow_arc_id)
         bpmn_graph.remove_incoming_flow(target_id, to_be_deleted_flow_arc_id)
 
         # add sequence flow to and from the newly added event
@@ -58,7 +66,7 @@ def _add_events(bpmn_graph: BPMNGraph, sequence_flow_list, element_probability):
     # save logs about events
     logs_path = os.path.join(
         os.path.dirname(__file__),
-        f"../performance_exp/events/input/events_logs_{num_inserted_events}.txt",
+        f"../performance_exp/events/input/{num_inserted_events}_events_logs.txt",
     )
     with open(logs_path, "w+") as logs_file:
         logs_file.write(inserted_events_logs)
