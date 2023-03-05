@@ -2,6 +2,8 @@ import datetime
 import json
 import os
 
+import matplotlib.pyplot as plt
+import numpy as np
 from bpdfr_simulation_engine.simulation_properties_parser import (
     EVENT_DISTRIBUTION_SECTION,
 )
@@ -10,10 +12,34 @@ from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 
 
 def main():
-    for index in range(5):
-        run_one_iteration(9)
+    total_number_of_events_to_add = 9
+    number_of_events_to_add_list = range(1, 1 + total_number_of_events_to_add)
+    print(number_of_events_to_add_list)
+    sim_time_list = []
+    for index in number_of_events_to_add_list:
+        print(
+            "--------------------------------------------------------------------------"
+        )
+        print(f"Starting Simulation with {index} inserted events")
+        print(
+            "--------------------------------------------------------------------------"
+        )
 
-    os._exit(0)
+        same_index_sim_time_list = []
+        for iter_num in range(0, 5):
+            sim_time = run_one_iteration(index)
+            print(f"iter {iter_num}: {sim_time}")
+            same_index_sim_time_list.append(sim_time)
+
+        median_sim_time = np.median(same_index_sim_time_list)
+        sim_time_list.append(median_sim_time)
+
+    print(sim_time_list)
+    xpoints = np.array(number_of_events_to_add_list)
+    ypoints = np.array(sim_time_list)
+
+    plt.plot(xpoints, ypoints)
+    plt.show()
 
 
 def run_one_iteration(num_inserted_events: int):
@@ -32,9 +58,6 @@ def run_one_iteration(num_inserted_events: int):
     )
     new_json_path = _setup_event_distribution(initial_json_path, num_inserted_events)
 
-    print("--------------------------------------------------------------------------")
-    print(f"Starting Simulation with {num_inserted_events} inserted events")
-    print("--------------------------------------------------------------------------")
     start = datetime.datetime.now()
 
     _, _ = run_diff_res_simulation(
@@ -48,9 +71,8 @@ def run_one_iteration(num_inserted_events: int):
         num_inserted_events,
     )
     simulation_time = (datetime.datetime.now() - start).total_seconds()
-    print(f"Simulation Time: {str(simulation_time)}")
-    print(f"Simulation Time: {simulation_time}")
 
+    return simulation_time
     # diff_sim_result.print_simulation_results()
 
 
