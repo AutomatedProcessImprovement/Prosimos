@@ -21,7 +21,7 @@ class SimDiffSetup:
         json_path,
         is_event_added_to_log,
         total_cases,
-        num_generated_events,
+        num_generated_events=None,
     ):
         self.process_name = ntpath.basename(bpmn_path).split(".")[0]
         self.start_datetime = datetime.datetime.now(pytz.utc)
