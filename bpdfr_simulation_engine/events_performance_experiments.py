@@ -66,7 +66,7 @@ def _add_events(
     # save logs about events
     logs_path = os.path.join(
         os.path.dirname(__file__),
-        f"../performance_exp/events/input/{num_inserted_events}_events_logs.txt",
+        f"../performance_exp/events/generated_events/{num_inserted_events}_events_logs.txt",
     )
     with open(logs_path, "w+") as logs_file:
         logs_file.write(inserted_events_logs)

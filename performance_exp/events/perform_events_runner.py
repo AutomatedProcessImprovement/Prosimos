@@ -1,4 +1,3 @@
-import datetime
 import json
 import os
 
@@ -7,26 +6,22 @@ import numpy as np
 from bpdfr_simulation_engine.simulation_properties_parser import (
     EVENT_DISTRIBUTION_SECTION,
 )
-from performance_exp.events.testing_files import process_files
+from performance_exp.events.testing_files import process_files_setup
 from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 
 
 def main():
-    model_info = process_files["events_exp"]
+    model_info = process_files_setup["bpi2012"]
+    total_number_of_events_to_add = model_info["number_of_added_events"]
 
-    total_number_of_events_to_add = 9
     number_of_events_to_add_list = range(0, 1 + total_number_of_events_to_add)
-    print(number_of_events_to_add_list)
+
     sim_time_list = []
     median_results_str = ""
     for index in number_of_events_to_add_list:
-        print(
-            "--------------------------------------------------------------------------"
-        )
+        print("-------------------------------------------")
         print(f"Starting Simulation with {index} inserted events")
-        print(
-            "--------------------------------------------------------------------------"
-        )
+        print("-------------------------------------------")
 
         same_index_sim_time_list = []
         for iter_num in range(0, 5):
@@ -34,15 +29,17 @@ def main():
             print(f"iter {iter_num}: {sim_time}")
             same_index_sim_time_list.append(sim_time)
 
-        median_sim_time = np.mean(same_index_sim_time_list)
+        # TODO: should we use mean or median?
+        median_sim_time = np.median(same_index_sim_time_list)
+        print(f"median: {median_sim_time}")
+
         sim_time_list.append(median_sim_time)
 
         # collect results for writing them as txt later
         median_results_str += f"{index},{median_sim_time}\n"
 
     # save received results (number_inserted_events, simulation_time) as a separate file
-    demo_stats = os.path.join(
-        os.path.dirname(__file__),
+    demo_stats = _get_abs_path(
         model_info["results_folder"],
         f"all_simulation_times.csv",
     )
@@ -51,32 +48,23 @@ def main():
 
     print(sim_time_list)
 
-    # show plot of the results
-    xpoints = np.array(number_of_events_to_add_list)
-    ypoints = np.array(sim_time_list)
-
-    plt.plot(xpoints, ypoints)
-    plt.show()
+    # show plot of the relationship: number of added events - simulation time
+    _show_plot(np.array(number_of_events_to_add_list), np.array(sim_time_list))
 
 
 def run_one_iteration(num_inserted_events: int, model_info):
-    initial_json_path = os.path.join(os.path.dirname(__file__), model_info["json"])
-    bpmn_path = os.path.join(os.path.dirname(__file__), model_info["bpmn"])
-    demo_stats = os.path.join(
-        os.path.dirname(__file__),
-        model_info["results_folder"],
-        f"{num_inserted_events}_stats.csv",
+    initial_json_path = _get_abs_path(model_info["json"])
+    bpmn_path = _get_abs_path(model_info["bpmn"])
+    demo_stats = _get_abs_path(
+        model_info["results_folder"], f"{num_inserted_events}_stats.csv"
     )
-    sim_log = os.path.join(
-        os.path.dirname(__file__),
+    sim_log = _get_abs_path(
         model_info["results_folder"],
         f"{num_inserted_events}_logs.csv",
     )
     new_json_path = _setup_event_distribution(initial_json_path, num_inserted_events)
 
-    start = datetime.datetime.now()
-
-    _, _ = run_diff_res_simulation(
+    simulation_time, _ = run_diff_res_simulation(
         model_info["start_datetime"],
         model_info["total_cases"],
         bpmn_path,
@@ -86,7 +74,6 @@ def run_one_iteration(num_inserted_events: int, model_info):
         True,
         num_inserted_events,
     )
-    simulation_time = (datetime.datetime.now() - start).total_seconds()
 
     return simulation_time
     # diff_sim_result.print_simulation_results()
@@ -122,6 +109,15 @@ def _setup_event_distribution(initial_json_path, num_events: int):
         json.dump(json_dict, json_file)
 
     return new_json_path
+
+
+def _show_plot(xpoints, ypoints):
+    plt.plot(xpoints, ypoints)
+    plt.show()
+
+
+def _get_abs_path(*args):
+    return os.path.join(os.path.dirname(__file__), *args)
 
 
 if __name__ == "__main__":
