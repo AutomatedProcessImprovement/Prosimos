@@ -13,9 +13,10 @@ from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 
 def main():
     total_number_of_events_to_add = 9
-    number_of_events_to_add_list = range(1, 1 + total_number_of_events_to_add)
+    number_of_events_to_add_list = range(0, 1 + total_number_of_events_to_add)
     print(number_of_events_to_add_list)
     sim_time_list = []
+    median_results_str = ""
     for index in number_of_events_to_add_list:
         print(
             "--------------------------------------------------------------------------"
@@ -31,10 +32,25 @@ def main():
             print(f"iter {iter_num}: {sim_time}")
             same_index_sim_time_list.append(sim_time)
 
-        median_sim_time = np.median(same_index_sim_time_list)
+        median_sim_time = np.mean(same_index_sim_time_list)
         sim_time_list.append(median_sim_time)
 
+        # collect results for writing them as txt later
+        median_results_str += f"{index},{median_sim_time}\n"
+
+    # save received results (number_inserted_events, simulation_time) as a separate file
+    model_info = process_files["events_exp"]
+    demo_stats = os.path.join(
+        os.path.dirname(__file__),
+        model_info["results_folder"],
+        f"all_simulation_times.csv",
+    )
+    with open(demo_stats, "w+") as logs_file:
+        logs_file.write(median_results_str)
+
     print(sim_time_list)
+
+    # show plot of the results
     xpoints = np.array(number_of_events_to_add_list)
     ypoints = np.array(sim_time_list)
 
