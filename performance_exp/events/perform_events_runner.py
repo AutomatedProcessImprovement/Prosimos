@@ -11,7 +11,8 @@ from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 
 
 def main():
-    model_info = process_files_setup["bpi2012"]
+    model_name = "events_exp"
+    model_info = process_files_setup[model_name]
     total_number_of_events_to_add = model_info["number_of_added_events"]
 
     number_of_events_to_add_list = range(0, 1 + total_number_of_events_to_add)
@@ -49,7 +50,12 @@ def main():
     print(sim_time_list)
 
     # show plot of the relationship: number of added events - simulation time
-    _show_plot(np.array(number_of_events_to_add_list), np.array(sim_time_list))
+    _show_plot(
+        np.array(number_of_events_to_add_list),
+        np.array(sim_time_list),
+        model_name,
+        model_info["total_cases"],
+    )
 
 
 def run_one_iteration(num_inserted_events: int, model_info):
@@ -111,8 +117,18 @@ def _setup_event_distribution(initial_json_path, num_events: int):
     return new_json_path
 
 
-def _show_plot(xpoints, ypoints):
+def _show_plot(xpoints, ypoints, model_name, num_of_instances):
+    # give a general title
+    plt.title(f"Model: {model_name}, instances: {num_of_instances}")
+
+    # name axis
+    plt.xlabel("Number of added events")
+    plt.ylabel("Simulation time, sec")
+
+    # provide data points
     plt.plot(xpoints, ypoints)
+
+    # visualize
     plt.show()
 
 
