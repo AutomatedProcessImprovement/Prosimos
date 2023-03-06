@@ -12,6 +12,8 @@ from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 
 
 def main():
+    model_info = process_files["events_exp"]
+
     total_number_of_events_to_add = 9
     number_of_events_to_add_list = range(0, 1 + total_number_of_events_to_add)
     print(number_of_events_to_add_list)
@@ -28,7 +30,7 @@ def main():
 
         same_index_sim_time_list = []
         for iter_num in range(0, 5):
-            sim_time = run_one_iteration(index)
+            sim_time = run_one_iteration(index, model_info)
             print(f"iter {iter_num}: {sim_time}")
             same_index_sim_time_list.append(sim_time)
 
@@ -39,7 +41,6 @@ def main():
         median_results_str += f"{index},{median_sim_time}\n"
 
     # save received results (number_inserted_events, simulation_time) as a separate file
-    model_info = process_files["events_exp"]
     demo_stats = os.path.join(
         os.path.dirname(__file__),
         model_info["results_folder"],
@@ -58,8 +59,7 @@ def main():
     plt.show()
 
 
-def run_one_iteration(num_inserted_events: int):
-    model_info = process_files["events_exp"]
+def run_one_iteration(num_inserted_events: int, model_info):
     initial_json_path = os.path.join(os.path.dirname(__file__), model_info["json"])
     bpmn_path = os.path.join(os.path.dirname(__file__), model_info["bpmn"])
     demo_stats = os.path.join(
