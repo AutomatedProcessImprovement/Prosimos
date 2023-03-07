@@ -26,11 +26,15 @@ def main():
 
     sim_time_list = []
 
+    unique_run_id = uuid.uuid4()
     # file for saving received results (number_inserted_events, simulation_time)
     final_plot_results = _get_abs_path(
         model_info["results_folder"],
-        f"all_simulation_times_{uuid.uuid4()}.csv",
+        f"{unique_run_id}_plot_data.csv",
     )
+
+    with open(final_plot_results, "a") as plot_file:
+        plot_file.write(f"{model_name}\n")
 
     for index in number_of_events_to_add_list:
         print("-------------------------------------------")
@@ -38,7 +42,11 @@ def main():
         print("-------------------------------------------")
 
         median_sim_time = get_central_tendency_over_all_iters(
-            max_iter_num, run_one_iteration, index, model_info, measure_central_tendency
+            max_iter_num,
+            run_one_iteration,
+            index,
+            model_info,
+            measure_central_tendency,
         )
         sim_time_list.append(median_sim_time)
 
@@ -48,11 +56,16 @@ def main():
     print(sim_time_list)
 
     # show plot of the relationship: number of added events - simulation time
-    _show_plot(
+    plt_path = _get_abs_path(
+        model_info["results_folder"],
+        f"{unique_run_id}_plot.png",
+    )
+    _save_plot(
         np.array(number_of_events_to_add_list),
         np.array(sim_time_list),
         model_name,
         model_info["total_cases"],
+        plt_path,
     )
 
 
@@ -115,7 +128,7 @@ def _setup_event_distribution(initial_json_path, num_events: int):
     return new_json_path
 
 
-def _show_plot(xpoints, ypoints, model_name, num_of_instances):
+def _save_plot(xpoints, ypoints, model_name, num_of_instances, plt_path):
     # give a general title
     plt.title(f"Model: {model_name}, instances: {num_of_instances}")
 
@@ -126,8 +139,8 @@ def _show_plot(xpoints, ypoints, model_name, num_of_instances):
     # provide data points
     plt.plot(xpoints, ypoints)
 
-    # visualize
-    plt.show()
+    # save as a file
+    plt.savefig(plt_path, bbox_inches="tight")
 
 
 def _get_abs_path(*args):
