@@ -1,5 +1,6 @@
 import json
 import os
+import uuid
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -7,45 +8,42 @@ from bpdfr_simulation_engine.simulation_properties_parser import (
     EVENT_DISTRIBUTION_SECTION,
 )
 from performance_exp.events.testing_files import process_files_setup
+from performance_exp.shared_func import get_central_tendency_over_all_iters
 from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 
 
 def main():
-    model_name = "events_exp"
+    model_name = "events_exp"  # "bpi2012_median"
     model_info = process_files_setup[model_name]
     total_number_of_events_to_add = model_info["number_of_added_events"]
+    measure_central_tendency = model_info["measure_central_tendency"]
+    max_iter_num = model_info["max_iter_num"]
+
+    print(f"Selected log: {model_name}")
+    print(f"Selected function for central tendency: {measure_central_tendency}")
 
     number_of_events_to_add_list = range(0, 1 + total_number_of_events_to_add)
 
     sim_time_list = []
-    median_results_str = ""
+
+    # file for saving received results (number_inserted_events, simulation_time)
+    final_plot_results = _get_abs_path(
+        model_info["results_folder"],
+        f"all_simulation_times_{uuid.uuid4()}.csv",
+    )
+
     for index in number_of_events_to_add_list:
         print("-------------------------------------------")
         print(f"Starting Simulation with {index} inserted events")
         print("-------------------------------------------")
 
-        same_index_sim_time_list = []
-        for iter_num in range(0, 5):
-            sim_time = run_one_iteration(index, model_info)
-            print(f"iter {iter_num}: {sim_time}")
-            same_index_sim_time_list.append(sim_time)
-
-        # TODO: should we use mean or median?
-        median_sim_time = np.median(same_index_sim_time_list)
-        print(f"median: {median_sim_time}")
-
+        median_sim_time = get_central_tendency_over_all_iters(
+            max_iter_num, run_one_iteration, index, model_info, measure_central_tendency
+        )
         sim_time_list.append(median_sim_time)
 
-        # collect results for writing them as txt later
-        median_results_str += f"{index},{median_sim_time}\n"
-
-    # save received results (number_inserted_events, simulation_time) as a separate file
-    demo_stats = _get_abs_path(
-        model_info["results_folder"],
-        f"all_simulation_times.csv",
-    )
-    with open(demo_stats, "w+") as logs_file:
-        logs_file.write(median_results_str)
+        with open(final_plot_results, "a") as plot_file:
+            plot_file.write(f"{index},{median_sim_time}\n")
 
     print(sim_time_list)
 
