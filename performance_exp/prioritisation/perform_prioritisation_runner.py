@@ -2,63 +2,27 @@ import json
 import os
 
 import matplotlib.pyplot as plt
-import numpy as np
 
 from bpdfr_simulation_engine.simulation_properties_parser import (
     PRIORITISATION_RULES_SECTION,
 )
 from performance_exp.prioritisation.testing_files import process_files_setup
+from performance_exp.shared_func import (
+    run_whole_experiment,
+)
 from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 
 
 def main():
-    model_name = "simple_example"
-    model_info = process_files_setup[model_name]
-    max_number_prioritisation_rules = 6
+    model_name = "bpi2012"
 
-    prioritisation_rules_to_add_list = range(0, 1 + max_number_prioritisation_rules)
-    # run_one_iteration(1, model_info)
-
-    sim_time_list = []
-    median_results_str = ""
-    for index in prioritisation_rules_to_add_list:
-        print("-------------------------------------------")
-        print(
-            f"Starting Simulation with {index} priority levels in the simulation scenario"
-        )
-        print("-------------------------------------------")
-
-        same_index_sim_time_list = []
-        for iter_num in range(0, 5):
-            sim_time = run_one_iteration(index, model_info)
-            print(f"iter {iter_num}: {sim_time}")
-            same_index_sim_time_list.append(sim_time)
-
-        # TODO: should we use mean or median?
-        median_sim_time = np.mean(same_index_sim_time_list)
-        print(f"median: {median_sim_time}")
-
-        sim_time_list.append(median_sim_time)
-
-        # collect results for writing them as txt later
-        median_results_str += f"{index},{median_sim_time}\n"
-
-    # save received results (number_priority_levels, simulation_time) as a separate file
-    demo_stats = _get_abs_path(
-        model_info["results_folder"],
-        f"all_simulation_times.csv",
-    )
-    with open(demo_stats, "w+") as logs_file:
-        logs_file.write(median_results_str)
-
-    print(sim_time_list)
-
-    # show plot of the relationship: number of priority levels - simulation time
-    _show_plot(
-        np.array(prioritisation_rules_to_add_list),
-        np.array(sim_time_list),
+    run_whole_experiment(
         model_name,
-        model_info["total_cases"],
+        process_files_setup[model_name],
+        "number_of_priority_levels",
+        _get_abs_path,
+        run_one_iteration,
+        _save_plot,
     )
 
 
@@ -177,7 +141,7 @@ def _setup_sim_scenario(initial_json_path, num_prioritisation_rules: int):
     return new_json_path
 
 
-def _show_plot(xpoints, ypoints, model_name, num_of_instances):
+def _save_plot(xpoints, ypoints, model_name, num_of_instances, plt_path):
     # give a general title
     plt.title(f"Model: {model_name}, instances: {num_of_instances}")
 
@@ -188,8 +152,8 @@ def _show_plot(xpoints, ypoints, model_name, num_of_instances):
     # provide data points
     plt.plot(xpoints, ypoints)
 
-    # visualize
-    plt.show()
+    # save as a file
+    plt.savefig(plt_path, bbox_inches="tight")
 
 
 def _get_abs_path(*args):
