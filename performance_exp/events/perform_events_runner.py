@@ -24,6 +24,7 @@ def main():
             _get_abs_path,
             run_one_iteration,
             _save_plot,
+            False,
         )
 
 

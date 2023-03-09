@@ -23,6 +23,7 @@ def main():
         _get_abs_path,
         run_one_iteration,
         _save_plot,
+        True,
     )
 
 
@@ -141,13 +142,14 @@ def _setup_sim_scenario(initial_json_path, num_prioritisation_rules: int):
     return new_json_path
 
 
-def _save_plot(xpoints, ypoints, model_name, num_of_instances, plt_path):
+def _save_plot(xpoints, ypoints, model_name, num_of_instances, plt_path, is_ms=False):
     # give a general title
     plt.title(f"Model: {model_name}, instances: {num_of_instances}")
 
     # name axis
     plt.xlabel("Number of priority levels")
-    plt.ylabel("Simulation time, sec")
+    time_measure = "ms" if is_ms else "sec"
+    plt.ylabel(f"Simulation time, {time_measure}")
 
     # provide data points
     plt.plot(xpoints, ypoints)
