@@ -28,7 +28,7 @@ CASE_ATTRIBUTES_SECTION = "case_attributes"
 PRIORITISATION_RULES_SECTION = "prioritisation_rules"
 ARRIVAL_TIME_CALENDAR = "arrival_time_calendar"
 RESOURCE_CALENDARS = "resource_calendars"
-
+TASK_RESOURCE_DISTR_SECTON = "task_resource_distribution"
 
 def parse_json_sim_parameters(json_path):
     with open(json_path) as json_file:
@@ -39,7 +39,7 @@ def parse_json_sim_parameters(json_path):
         )
         calendars_map = parse_resource_calendars(json_data[RESOURCE_CALENDARS])
         task_resource_distribution = parse_task_resource_distributions(
-            json_data["task_resource_distribution"], res_pool
+            json_data[TASK_RESOURCE_DISTR_SECTON], res_pool
         )
 
         element_distribution = parse_arrival_branching_probabilities(
