@@ -224,8 +224,9 @@ def _save_plot(xpoints, ypoints, zpoints, model_name, num_of_instances, plt_path
     ax.set_title(f"Model: {model_name}, instances: {num_of_instances}")
 
     # name axis
-    ax.set_xlabel("Number of priority levels")
+    ax.set_xlabel("Number of batched tasks")
     ax.set_ylabel("Simulation time, sec")
+    ax.set_zlabel("Complexity of the batching rule")
 
     plt.show()
     # save as a file
