@@ -107,6 +107,10 @@ def test_enabled_first_task_enables_next_one(assets_path):
     p_case = 0
     p_state = sim_setup.initial_state()
 
+    # Adding the case_id to the mapping which stores the last datetime a workitem was enabled
+    for e_id in bpmn_graph.last_datetime:
+        bpmn_graph.last_datetime[e_id][0] = None
+
     # split inclusive (OR) gateway      -> Task 1 B
     p_state.add_token("Flow_0wy9dja")
 
@@ -116,7 +120,7 @@ def test_enabled_first_task_enables_next_one(assets_path):
     # ====== ACT ======
     e_id = "Activity_1uiiyhu"  # id of the 'Task 1 B' activity
     prev_completed_event_time = datetime.datetime.now(pytz.utc)
-    result = bpmn_graph.update_process_state(
+    result, _ = bpmn_graph.update_process_state(
         p_case, e_id, p_state, prev_completed_event_time
     )
 
@@ -170,6 +174,10 @@ def test_enabled_first_task_token_wait_at_the_or_join(assets_path):
     p_case = 0
     p_state = sim_setup.initial_state()
 
+    # Adding the case_id to the mapping which stores the last datetime a workitem was enabled
+    for e_id in bpmn_graph.last_datetime:
+        bpmn_graph.last_datetime[e_id][0] = None
+
     # split inclusive (OR) gateway      -> Task 1 B
     p_state.add_token("Flow_0wy9dja")
 
@@ -181,7 +189,7 @@ def test_enabled_first_task_token_wait_at_the_or_join(assets_path):
     prev_completed_event_time = CustomDatetimeAndSeconds(
         0, datetime.datetime.now(pytz.utc)
     )
-    result = bpmn_graph.update_process_state(
+    result, _ = bpmn_graph.update_process_state(
         p_case, e_id, p_state, prev_completed_event_time
     )
 
@@ -307,6 +315,10 @@ def test_update_state_event_gateway_event_happened(
     p_case = 0
     p_state = sim_setup.initial_state()
 
+    # Adding the case_id to the mapping which stores the last datetime a workitem was enabled
+    for e_id in bpmn_graph.last_datetime:
+        bpmn_graph.last_datetime[e_id][0] = None
+
     # Parallel gateway split            -> Event-based gateway split
     p_state.add_token("Flow_0d8kgwc")
 
@@ -315,7 +327,7 @@ def test_update_state_event_gateway_event_happened(
     prev_completed_event_time = CustomDatetimeAndSeconds(
         0, datetime.datetime.fromisoformat("2022-08-10T16:05:00")
     )  # Wednesday, 16:05
-    result = bpmn_graph.update_process_state(
+    result, _ = bpmn_graph.update_process_state(
         p_case, e_id, p_state, prev_completed_event_time
     )
 
@@ -377,6 +389,10 @@ def test_update_state_terminate_event(assets_path):
     p_case = 0
     p_state = sim_setup.initial_state()
 
+    # Adding the case_id to the mapping which stores the last datetime a workitem was enabled
+    for e_id in bpmn_graph.last_datetime:
+        bpmn_graph.last_datetime[e_id][0] = None
+
     # OR gateway (the last one)     -> 'Request processed' event
     p_state.add_token("Flow_14zyrni")
 
@@ -386,7 +402,7 @@ def test_update_state_terminate_event(assets_path):
     # ====== ACT ======
     e_id = "Event_06aw5gs"  # 'Request processed' terminate event
     prev_completed_event_time = datetime.datetime.fromisoformat("2022-08-05T12:05:00")
-    result = bpmn_graph.update_process_state(
+    result, _ = bpmn_graph.update_process_state(
         p_case, e_id, p_state, prev_completed_event_time
     )
 
