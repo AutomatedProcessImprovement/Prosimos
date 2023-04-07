@@ -116,10 +116,12 @@ class SimBPMEnv:
         arrival_time = 0
         # prev = 0
         for p_case in range(0, sim_setup.total_num_cases):
+            for e_id in sim_setup.bpmn_graph.last_datetime:
+                sim_setup.bpmn_graph.last_datetime[e_id][p_case] = None
             p_state = sim_setup.initial_state()
             enabled_datetime = self.simulation_datetime_from(arrival_time)
             enabled_time = CustomDatetimeAndSeconds(arrival_time, enabled_datetime)
-            enabled_tasks = sim_setup.update_process_state(
+            enabled_tasks, _ = sim_setup.update_process_state(
                 p_case, sim_setup.bpmn_graph.starting_event, p_state, enabled_time
             )
             self.all_process_states[p_case] = p_state
@@ -187,7 +189,7 @@ class SimBPMEnv:
             # Updating the process state. Retrieving/enqueuing enabled tasks, it also schedules the corresponding event
             # s_t = datetime.datetime.now()
             enabled_time = CustomDatetimeAndSeconds(completed_at, completed_datetime)
-            enabled_tasks = self.sim_setup.update_process_state(
+            enabled_tasks, visited_at = self.sim_setup.update_process_state(
                 c_event.p_case, c_event.task_id, c_event.p_state, enabled_time
             )
             # self.time_update_process_state += (datetime.datetime.now() - s_t).total_seconds()
@@ -198,8 +200,8 @@ class SimBPMEnv:
                         c_event.p_case,
                         c_event.p_state,
                         next_task.task_id,
-                        completed_at,
-                        completed_datetime,
+                        visited_at[next_task.task_id].seconds_from_start,
+                        visited_at[next_task.task_id].datetime,
                         next_task.batch_info_exec,
                         next_task.duration_sec,
                         next_task.is_event,
@@ -221,9 +223,7 @@ class SimBPMEnv:
             avail_datetime
         )
         if not is_working:
-            r_avail_at = r_avail_at + self.sim_setup.next_resting_time(
-                r_id, avail_datetime
-            )
+            r_avail_at = r_avail_at + self.sim_setup.next_resting_time(r_id, avail_datetime)
 
         full_evt = TaskEvent(
             c_event.p_case,
@@ -235,16 +235,12 @@ class SimBPMEnv:
             self,
         )
 
-        self.log_info.add_event_info(
-            c_event.p_case, full_evt, self.sim_setup.resources_map[r_id].cost_per_hour
-        )
+        self.log_info.add_event_info(c_event.p_case, full_evt, self.sim_setup.resources_map[r_id].cost_per_hour)
 
         r_next_available = full_evt.completed_at
 
         if self.sim_resources[r_id].switching_time > 0:
-            r_next_available += self.sim_setup.next_resting_time(
-                r_id, full_evt.completed_datetime
-            )
+            r_next_available += self.sim_setup.next_resting_time(r_id, full_evt.completed_datetime)
 
         self.resource_queue.update_resource_availability(r_id, r_next_available)
         self.sim_resources[r_id].worked_time += full_evt.ideal_duration
