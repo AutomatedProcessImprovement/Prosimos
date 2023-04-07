@@ -158,7 +158,7 @@ class SimBPMEnv:
                 enabled_time = CustomDatetimeAndSeconds(
                     completed_at, completed_datetime
                 )
-                enabled_tasks = self.sim_setup.update_process_state(
+                enabled_tasks, visited_at = self.sim_setup.update_process_state(
                     p_case,
                     c_event.task_id,
                     self.all_process_states[p_case],
@@ -171,8 +171,8 @@ class SimBPMEnv:
                             p_case,
                             p_state,
                             next_task.task_id,
-                            completed_at,
-                            completed_datetime,
+                            visited_at[next_task.task_id].seconds_from_start,
+                            visited_at[next_task.task_id].datetime,
                             next_task.batch_info_exec,
                             next_task.duration_sec,
                             next_task.is_event,
