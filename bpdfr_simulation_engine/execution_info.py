@@ -11,6 +11,7 @@ class TaskEvent:
         self.processing_time = None
         self.normalized_waiting = None
         self.normalized_processing = None
+        self.worked_intervals = []
 
         if resource_available_at is not None:
             # Time moment in seconds from beginning, i.e., first event has time = 0
@@ -27,7 +28,7 @@ class TaskEvent:
             self.ideal_duration = bpm_env.sim_setup.ideal_task_duration(task_id, resource_id)
             # Actual duration adding the resource resting-time according to their calendar
             self.real_duration = bpm_env.sim_setup.real_task_duration(self.ideal_duration, self.resource_id,
-                                                                      self.started_datetime)
+                                                                      self.started_datetime, self.worked_intervals)
 
             # Time moment in seconds from beginning, i.e., first event has time = 0
             self.completed_at = self.started_at + self.real_duration

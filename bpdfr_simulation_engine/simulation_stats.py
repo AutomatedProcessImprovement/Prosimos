@@ -104,7 +104,7 @@ class SimulationResult:
 
         for task_name in self.tasks_kpi_map:
             kpi_info: KPIMap = self.tasks_kpi_map[task_name]
-            print('| %s | %s | %s | %s | %s | %s | %s | %s |' % (task_name.ljust(26),
+            print('| %s | %s | %s | %s | %s | %s | %s | %s |' % (task_name.ljust(max_t),
                                                                  str(kpi_info.cycle_time.count).ljust(c_s),
                                                                  format_duration(kpi_info.waiting_time.avg, d_s),
                                                                  format_duration(kpi_info.idle_cycle_time.avg, d_s),

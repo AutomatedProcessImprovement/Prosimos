@@ -6,16 +6,18 @@ import ntpath
 from bpdfr_simulation_engine.control_flow_manager import ProcessState, ElementInfo, BPMN
 from bpdfr_simulation_engine.probability_distributions import generate_number_from
 from bpdfr_simulation_engine.resource_calendar import RCalendar
-from bpdfr_simulation_engine.simulation_properties_parser import parse_simulation_model, parse_json_sim_parameters
+from bpdfr_simulation_engine.simulation_properties_parser import parse_simulation_model
+from fuzzy_engine.fuzzy_parser import parse_json_sim_parameters
 
 
 class SimDiffSetup:
-    def __init__(self, bpmn_path, json_path):
+    def __init__(self, bpmn_path, json_path, is_fuzzy=False):
+        self.is_fuzzy = is_fuzzy
         self.process_name = ntpath.basename(bpmn_path).split(".")[0]
         self.start_datetime = datetime.datetime.now(pytz.utc)
 
         self.resources_map, self.calendars_map, self.element_probability, self.task_resource, self.arrival_calendar \
-            = parse_json_sim_parameters(json_path)
+            = parse_json_sim_parameters(json_path, is_fuzzy)
 
         self.bpmn_graph = parse_simulation_model(bpmn_path)
         self.bpmn_graph.set_element_probabilities(self.element_probability, self.task_resource)
@@ -75,8 +77,14 @@ class SimDiffSetup:
                                    self.task_resource[task_id][resource_id]['distribution_params'])
         return val
 
-    def real_task_duration(self, task_duration, resource_id, enabled_at):
-        return self.calendars_map[self.resources_map[resource_id].calendar_id].find_idle_time(enabled_at, task_duration)
+    def real_task_duration(self, task_duration, resource_id, enabled_at, worked_intervals=None):
+        if self.is_fuzzy:
+            return self.calendars_map[self.resources_map[resource_id].calendar_id].find_idle_time(enabled_at,
+                                                                                                  task_duration,
+                                                                                                  worked_intervals)
+        else:
+            return self.calendars_map[self.resources_map[resource_id].calendar_id].find_idle_time(enabled_at,
+                                                                                                  task_duration)
 
     def set_starting_satetime(self, new_datetime):
         self.start_datetime = new_datetime
