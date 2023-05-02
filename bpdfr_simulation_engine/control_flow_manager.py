@@ -153,6 +153,7 @@ class BPMNGraph:
         self.batch_info = dict()
         self.batch_count = dict()
         self.batch_waiting_processes = dict()
+        self.last_datetime = dict()
 
     def set_additional_fields_from_json(self, element_probability, task_resource_probability, \
         event_distribution, batch_processing):
@@ -170,6 +171,7 @@ class BPMNGraph:
         self.element_info[element_id] = element_info
         self.from_name[element_info.name] = element_id
         self.nodes_bitset[element_id] = (1 << len(self.element_info))
+        self.last_datetime[element_id] = dict()
 
     def add_flow_arc(self, flow_id, source_id, target_id):
         for node_id in [source_id, target_id]:
@@ -311,8 +313,10 @@ class BPMNGraph:
         enabled_tasks = list()
         to_execute = [e_id]
         current = 0
+        visited_at = {e_id: self._check_and_update_enabling_time(case_id, e_id, completed_datetime_prev_event)}
         while current < len(to_execute):
             e_info: ElementInfo = self.element_info[to_execute[current]]
+            last_enabled = visited_at[e_info.id]
             if e_info.type == BPMN.END_EVENT and e_info.event_type == EVENT_TYPE.TERMINATE:
                 """ Terminate End Event detected"""
                 p_state.remove_all_tokens_on_terminate()
@@ -328,7 +332,7 @@ class BPMNGraph:
                 if e_info.type is BPMN.EXCLUSIVE_GATEWAY:
                     f_arcs = [(self.element_probability[e_info.id].get_outgoing_flow(), None)]
                 elif e_info.type is BPMN.EVENT_BASED_GATEWAY:
-                    f_arcs = [self.get_event_gateway_choice(e_info, completed_datetime_prev_event.datetime)]
+                    f_arcs = [self.get_event_gateway_choice(e_info, last_enabled.datetime)]
                 else:
                     if e_info.type in \
                         [BPMN.TASK, BPMN.PARALLEL_GATEWAY, BPMN.START_EVENT, BPMN.INTERMEDIATE_EVENT]:
@@ -338,11 +342,11 @@ class BPMNGraph:
                         f_arcs = self.element_probability[e_info.id].get_multiple_flows()
                 random.shuffle(f_arcs)
             for f_arc in f_arcs:
-                self._find_next(f_arc, case_id, p_state, enabled_tasks, to_execute, completed_datetime_prev_event)
+                self._find_next(f_arc, case_id, p_state, enabled_tasks, to_execute, last_enabled, visited_at)
             current += 1
         if len(enabled_tasks) > 1:
             random.shuffle(enabled_tasks)
-        return enabled_tasks
+        return enabled_tasks, visited_at
 
     def is_task_batched(self, task_id):
         return self.batch_info.get(task_id, None) != None
@@ -825,12 +829,14 @@ class BPMNGraph:
                 gateways_branching[e_id] = flow_arc_probability
         return gateways_branching
 
-    def _find_next(self, f_arc_and_duration, case_id, p_state, enabled_tasks, to_execute, enabled_time: CustomDatetimeAndSeconds):
+    def _find_next(self, f_arc_and_duration, case_id, p_state, enabled_tasks, to_execute, enabled_time: CustomDatetimeAndSeconds, visited_at):
         # verify that there is no batch waiting to be executed
         f_arc, duration_sec = f_arc_and_duration
         p_state.tokens[f_arc] += 1
         p_state.state_mask |= self.arcs_bitset[f_arc]
         next_e = self.flow_arcs[f_arc][1]
+        enabled_time = self._check_and_update_enabling_time(case_id, next_e, enabled_time)
+        visited_at[next_e] = enabled_time
         if self.is_enabled(next_e, p_state):
             next_el_type = self.element_info[next_e].type 
             if next_el_type == BPMN.TASK and self.is_task_batched(next_e):
@@ -841,6 +847,13 @@ class BPMNGraph:
                 enabled_tasks.append(EnabledTask(next_e, None, duration_sec, True))
             else:
                 to_execute.append(next_e)
+
+    def _check_and_update_enabling_time(self, p_case, e_id, enabled_at: CustomDatetimeAndSeconds):
+        if self.last_datetime[e_id][p_case] is None or self.last_datetime[e_id][p_case].datetime < enabled_at.datetime:
+            self.last_datetime[e_id][p_case] = enabled_at
+        elif self.last_datetime[e_id][p_case].datetime > enabled_at.datetime:
+            enabled_at = self.last_datetime[e_id][p_case]
+        return enabled_at
 
     def is_executing_alone(self, task_id: str):
         task_batch_info: BatchConfigPerTask = self.batch_info.get(task_id, None)

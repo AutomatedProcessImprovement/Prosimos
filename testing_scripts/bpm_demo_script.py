@@ -8,7 +8,7 @@ from testing_scripts.bpm_2022_testing_files import process_files
 
 
 def main():
-    model_info = process_files['padua_example']
+    model_info = process_files['and_example']
     # print('--------------------------------------------------------------------------')
     # print("Starting Discovery of demo example ...")
     # print('--------------------------------------------------------------------------')
@@ -36,7 +36,7 @@ def main():
                                                  model_info["bpmn"],
                                                  model_info["json"],
                                                  model_info['demo_stats'],
-                                                 None)
+                                                 model_info['sim_log'])
     print("Simulation Time: %s" % str(datetime.timedelta(seconds=(datetime.datetime.now() - start).total_seconds())))
     diff_sim_result.print_simulation_results()
     os._exit(0)

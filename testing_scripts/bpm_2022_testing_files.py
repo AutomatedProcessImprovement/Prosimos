@@ -13,6 +13,14 @@ experiment_logs = {0: 'production',
                    }
 
 process_files = {
+    'and_example': {
+        'bpmn': './assets/and_example/AND_join.bpmn',
+        'json': './assets/and_example/AND_join.json',
+        'sim_log': './assets/and_example/out/AND_join_log.csv',
+        'demo_stats': './assets/and_example/out/AND_join_stats.csv',
+        'start_datetime': '2008-01-02T23:00:00.000Z',
+        'total_cases': 1,
+    },
     'padua_example': {
         'xes_log': 'None',
         'csv_log': 'None',
