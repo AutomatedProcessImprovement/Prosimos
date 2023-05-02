@@ -11,6 +11,7 @@ from bpdfr_simulation_engine.control_flow_manager import (
     BPMNGraph,
     ElementInfo,
 )
+from bpdfr_simulation_engine.events_performance_experiments import _add_events
 from bpdfr_simulation_engine.prioritisation import AllPriorityRules
 from bpdfr_simulation_engine.prioritisation_parser import PrioritisationParser
 from bpdfr_simulation_engine.probability_distributions import *
@@ -27,7 +28,7 @@ CASE_ATTRIBUTES_SECTION = "case_attributes"
 PRIORITISATION_RULES_SECTION = "prioritisation_rules"
 ARRIVAL_TIME_CALENDAR = "arrival_time_calendar"
 RESOURCE_CALENDARS = "resource_calendars"
-
+TASK_RESOURCE_DISTR_SECTON = "task_resource_distribution"
 
 def parse_json_sim_parameters(json_path):
     with open(json_path) as json_file:
@@ -38,7 +39,7 @@ def parse_json_sim_parameters(json_path):
         )
         calendars_map = parse_resource_calendars(json_data[RESOURCE_CALENDARS])
         task_resource_distribution = parse_task_resource_distributions(
-            json_data["task_resource_distribution"], res_pool
+            json_data[TASK_RESOURCE_DISTR_SECTON], res_pool
         )
 
         element_distribution = parse_arrival_branching_probabilities(
@@ -234,7 +235,13 @@ def parse_arrival_branching_probabilities(arrival_json, gateway_json):
     return element_distribution
 
 
-def parse_simulation_model(bpmn_path):
+def parse_simulation_model(
+    bpmn_path, element_probability={}, num_generated_events=None
+):
+    """
+    element_probability parameter is only used for adding probability for newly inserted sequence flows
+    when inserting events
+    """
     tree = ET.parse(bpmn_path)
     root = tree.getroot()
 
@@ -276,7 +283,8 @@ def parse_simulation_model(bpmn_path):
 
         # Counting incoming/outgoing flow arcs to handle cases of multiple in/out arcs simultaneously
         pending_flow_arcs = list()
-        for flow_arc in process.findall("xmlns:sequenceFlow", bpmn_element_ns):
+        sequence_flow_list = process.findall("xmlns:sequenceFlow", bpmn_element_ns)
+        for flow_arc in sequence_flow_list:
             # Fixing the case in which a task may have multiple incoming/outgoing flow-arcs
             pending_flow_arcs.append(flow_arc)
             if flow_arc.attrib["sourceRef"] in elements_map:
@@ -331,6 +339,14 @@ def parse_simulation_model(bpmn_path):
             if target_id in join_gateways:
                 target_id = join_gateways[target_id]
             bpmn_graph.add_flow_arc(flow_arc.attrib["id"], source_id, target_id)
+
+        if num_generated_events != None:
+            _add_events(
+                bpmn_graph,
+                sequence_flow_list,
+                element_probability,
+                num_generated_events,
+            )
 
     bpmn_graph.encode_or_join_predecesors()
     bpmn_graph.validate_model()

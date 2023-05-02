@@ -175,6 +175,20 @@ class Choice:
                 selected.append((self.candidates_list[i], None))
         return selected if len(selected) > 0 else [(self.get_outgoing_flow(), None)]
 
+    def update_candidate_key(self, old_candidate_id, new_candidate_id):
+        """
+        After inserting an event, we need to change the candidate id in the list of candidates
+        This needs to happen due to the fact that we removed one gateway and inserted a new one instead
+        """
+
+        try:
+            candidate_index = self.candidates_list.index(old_candidate_id)
+        except ValueError:
+            # in case candidate is not on the list, not updating anything
+            return
+
+        self.candidates_list[candidate_index] = new_candidate_id
+
 
 def random_uniform(start, end):
     return numpy.random.uniform(low=start, high=end)

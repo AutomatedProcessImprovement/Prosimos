@@ -640,9 +640,10 @@ def run_simulation(
     log_out_path=None,
     starting_at=None,
     is_event_added_to_log=False,
+    num_generated_events=None,
 ):
     diffsim_info = SimDiffSetup(
-        bpmn_path, json_path, is_event_added_to_log, total_cases
+        bpmn_path, json_path, is_event_added_to_log, total_cases, num_generated_events
     )
 
     if not diffsim_info:

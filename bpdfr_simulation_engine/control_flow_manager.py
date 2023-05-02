@@ -95,6 +95,16 @@ class ElementInfo:
     def is_event(self):
         return self.type in [BPMN.START_EVENT, BPMN.END_EVENT, BPMN.INTERMEDIATE_EVENT]
 
+    def delete_incoming_flow(self, flow_id):
+        "Delete incoming flow if it exists"
+        if flow_id in self.incoming_flows:
+            self.incoming_flows.remove(flow_id)
+
+    def delete_outgoing_flow(self, flow_id):
+        "Delete outgoing flow if it exists"
+        if flow_id in self.outgoing_flows:
+            self.outgoing_flows.remove(flow_id)
+
 
 class ProcessState:
     def __init__(self, bpmn_graph):
@@ -172,6 +182,12 @@ class BPMNGraph:
         self.from_name[element_info.name] = element_id
         self.nodes_bitset[element_id] = (1 << len(self.element_info))
         self.last_datetime[element_id] = dict()
+
+    def remove_incoming_flow(self, element_id, flow_id):
+        self.element_info[element_id].delete_incoming_flow(flow_id)
+
+    def remove_outgoing_flow(self, element_id, flow_id):
+        self.element_info[element_id].delete_outgoing_flow(flow_id)
 
     def add_flow_arc(self, flow_id, source_id, target_id):
         for node_id in [source_id, target_id]:

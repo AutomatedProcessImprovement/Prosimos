@@ -8,11 +8,21 @@ from typing import Optional
 from bpdfr_simulation_engine.control_flow_manager import ProcessState, ElementInfo, BPMN
 from bpdfr_simulation_engine.probability_distributions import generate_number_from
 from bpdfr_simulation_engine.resource_calendar import RCalendar
-from bpdfr_simulation_engine.simulation_properties_parser import parse_simulation_model, parse_json_sim_parameters
+from bpdfr_simulation_engine.simulation_properties_parser import (
+    parse_simulation_model,
+    parse_json_sim_parameters,
+)
 
 
 class SimDiffSetup:
-    def __init__(self, bpmn_path, json_path, is_event_added_to_log, total_cases):
+    def __init__(
+        self,
+        bpmn_path,
+        json_path,
+        is_event_added_to_log,
+        total_cases,
+        num_generated_events=None,
+    ):
         self.process_name = ntpath.basename(bpmn_path).split(".")[0]
         self.start_datetime = datetime.datetime.now(pytz.utc)
 
@@ -20,9 +30,15 @@ class SimDiffSetup:
             self.event_distibution, self.batch_processing, self.case_attributes, self.prioritisation_rules \
             = parse_json_sim_parameters(json_path)
 
-        self.bpmn_graph = parse_simulation_model(bpmn_path)
-        self.bpmn_graph.set_additional_fields_from_json(self.element_probability, \
-            self.task_resource, self.event_distibution, self.batch_processing)
+        self.bpmn_graph = parse_simulation_model(
+            bpmn_path, self.element_probability, num_generated_events
+        )
+        self.bpmn_graph.set_additional_fields_from_json(
+            self.element_probability,
+            self.task_resource,
+            self.event_distibution,
+            self.batch_processing
+        )
         if not self.arrival_calendar:
             self.arrival_calendar = self.find_arrival_calendar()
 

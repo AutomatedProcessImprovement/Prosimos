@@ -13,3 +13,5 @@ bimp_test_examples/
 .pymon
 .DS_Store
 .vscode/
+performance_exp/*/*/results
+performance_exp/events/generated_events
