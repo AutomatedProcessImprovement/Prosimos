@@ -6,7 +6,6 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 import pytz
-from pm4py.objects.log.importer.xes import importer as xes_importer
 
 from bpdfr_discovery.exceptions import InvalidInputDiscoveryParameters
 from bpdfr_simulation_engine.control_flow_manager import BPMN, BPMNGraph
@@ -21,6 +20,8 @@ print_info = False
 
 
 def event_list_from_xes_log(log_path):
+    from pm4py.objects.log.importer.xes import importer as xes_importer
+
     log_traces = xes_importer.apply(log_path)
     trace_list = list()
     for trace in log_traces:
@@ -41,6 +42,8 @@ def event_list_from_xes_log(log_path):
 
 
 def transform_xes_to_csv(log_path, csv_out_path):
+    from pm4py.objects.log.importer.xes import importer as xes_importer
+
     visited_events = dict()
 
     with open(csv_out_path, mode='w', newline='', encoding='utf-8') as log_csv_file:
@@ -194,6 +197,7 @@ def parse_and_validate_input(log_path, bpmn_path, minutes_x_granule, conf, supp,
             raise InvalidLogFileException("Invalid CSV event-log.")
     else:
         try:
+            from pm4py.objects.log.importer.xes import importer as xes_importer
             log_traces = xes_importer.apply(log_path)
         except:
             raise InvalidLogFileException("Invalid XES event-log.")
