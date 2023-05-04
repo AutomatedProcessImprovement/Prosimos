@@ -25,7 +25,7 @@ def assets_path(request) -> Path:
 
 def test_discovery_valid_input_not_empty_json(assets_path):
     model_path = assets_path / 'purchasing_example.bpmn'
-    log_path = assets_path / 'purchasing_example_log.xes'
+    log_path = assets_path / 'purchasing_example_log.csv'
     output_path = assets_path / 'purchasing_example.json'
 
     [granule, conf, supp, part, adj_calendar] = [60, 0.1, 0.9, 0.6, True]
@@ -43,7 +43,7 @@ def test_discovery_valid_input_not_empty_json(assets_path):
                                         model_path.as_posix(),
                                         output_path.as_posix(), granule, conf, supp, part,
                                         adj_calendar,
-                                        False)
+                                        True)
 
     with output_path.open('r') as f:
         assert len(f.readlines()) == 1, 'Output log must have 1 line'

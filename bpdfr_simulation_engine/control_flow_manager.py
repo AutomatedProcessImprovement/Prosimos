@@ -4,10 +4,8 @@ from collections import deque
 from enum import Enum
 from typing import List
 
-import pm4py
 import random
 import secrets
-from pm4py.objects.conversion.process_tree import converter
 from bpdfr_simulation_engine.batch_processing import BATCH_TYPE, AndFiringRule, BatchConfigPerTask
 from bpdfr_simulation_engine.probability_distributions import generate_number_from
 
@@ -1030,9 +1028,3 @@ class BPMNGraph:
         last_wt = (current_point_of_time.datetime - waiting_tasks[last_key].datetime).seconds
 
         return self.batch_info[task_id].firing_rules.is_invalid_end(num_tasks_wait_batch, first_wt, last_wt)
-
-def discover_bpmn_from_log(log_path, process_name):
-    log = pm4py.read_xes(log_path)
-    tree = pm4py.discover_process_tree_inductive(log)
-    bpmn_graph = converter.apply(tree, variant=converter.Variants.TO_BPMN)
-    pm4py.write_bpmn(bpmn_graph, "%s.bpmn" % process_name, enable_layout=False)
