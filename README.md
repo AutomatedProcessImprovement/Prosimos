@@ -8,17 +8,20 @@ Besides, pools can share resources, i.e., a resource may play different roles in
 ## Requirements
 
 - Python 3.8+
-- PIP 21.2.3+ (upgrade with python -m pip install --upgrade pip)
-- For dependencies, please, check requirements.txt
+- Poetry 1.4.2
+- For dependencies, please, check `pyproject.toml`
 
 ## Getting Started
 
     git clone https://github.com/AutomatedProcessImprovement/Prosimos.git
 
-Set up Python environment using the built-in venv module from requirements.txt. 
+Set up Python environment using Poetry tool:
+
+    poetry install
+
 Once all the dependencies all installed, open a terminal and from the root folder run the following comand (i.e., all in one line):
 
-    .\diff_res_bpsim.py start-simulation --bpmn_path <Path to the BPMN file with the process model> 
+    poetry run prosimos start-simulation --bpmn_path <Path to the BPMN file with the process model> 
                                          --json_path <Path to the JSON file with the differentiated simulation parameters>
                                          --total_cases <Number of process instances to simulate>
                                          --log_out_path <(Optional) Path to the CSV file to save the statistics/metrics after running the simulations>
