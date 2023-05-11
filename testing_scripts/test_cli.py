@@ -5,7 +5,7 @@ import pytest
 import traceback
 from click.testing import CliRunner
 
-from diff_res_bpsim import cli
+from cli.diff_res_bpsim import cli
 
 
 @pytest.fixture
