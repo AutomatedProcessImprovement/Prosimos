@@ -59,7 +59,7 @@ def test_distr_one_choice_correct(assets_path):
     _verify_start_time_num_tasks(grouped_by_start, expected_start_time_keys)
 
 
-@mock.patch('bpdfr_simulation_engine.batch_processing.BatchConfigPerTask.get_new_subrule_rule')
+@mock.patch('prosimos.batch_processing.BatchConfigPerTask.get_new_subrule_rule')
 def test_distr_multi_choice_correct(mock_choice, assets_path):
     # ====== ARRANGE ======
     # provide the sequence of the mocked random.choices 
