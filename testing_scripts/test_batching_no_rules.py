@@ -1,7 +1,7 @@
 import json
 from unittest import mock
 import pandas as pd
-from bpdfr_simulation_engine.batch_processing import FiringSubRule
+from prosimos.batch_processing import FiringSubRule
 from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 from testing_scripts.test_batching import (
     JSON_FILENAME,

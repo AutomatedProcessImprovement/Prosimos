@@ -3,12 +3,12 @@ import json
 import pandas as pd
 import pytest
 
-from bpdfr_simulation_engine.batch_processing import (
+from prosimos.batch_processing import (
     AndFiringRule,
     FiringSubRule,
     OrFiringRule,
 )
-from bpdfr_simulation_engine.resource_calendar import parse_datetime
+from prosimos.resource_calendar import parse_datetime
 from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 from testing_scripts.test_batching import (
     JSON_FILENAME,

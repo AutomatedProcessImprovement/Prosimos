@@ -1,7 +1,7 @@
 import pytest
 from datetime import datetime, timedelta 
 
-from bpdfr_simulation_engine.batch_processing import AndFiringRule, FiringSubRule, OrFiringRule
+from prosimos.batch_processing import AndFiringRule, FiringSubRule, OrFiringRule
 from testing_scripts.test_batching_daily_hour import _get_current_exec_status
 
 

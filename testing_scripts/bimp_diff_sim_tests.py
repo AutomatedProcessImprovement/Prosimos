@@ -1,9 +1,9 @@
 import datetime
 import os
 
-from bpdfr_simulation_engine.simulation_engine import run_simulation
-from bpdfr_simulation_engine.simulation_properties_parser import parse_qbp_simulation_process
-from bpdfr_simulation_engine.simulation_stats import load_bimp_simulation_results, load_diff_simulation_results
+from prosimos.simulation_engine import run_simulation
+from prosimos.simulation_properties_parser import parse_qbp_simulation_process
+from prosimos.simulation_stats import load_bimp_simulation_results, load_diff_simulation_results
 
 experiment_models = {'purchasing_example': {'bpmn': './../bimp_test_examples/ihar/purchasing_example.bpmn',
                                             'json': './../bimp_test_examples/ihar/purchasing_example.json',

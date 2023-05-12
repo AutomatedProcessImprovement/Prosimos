@@ -2,13 +2,13 @@ import pytz
 import datetime
 from datetime import timedelta
 import ntpath
-from bpdfr_simulation_engine.batch_processing import BatchConfigPerTask
+from prosimos.batch_processing import BatchConfigPerTask
 from typing import Optional
 
-from bpdfr_simulation_engine.control_flow_manager import ProcessState, ElementInfo, BPMN
-from bpdfr_simulation_engine.probability_distributions import generate_number_from
-from bpdfr_simulation_engine.resource_calendar import RCalendar
-from bpdfr_simulation_engine.simulation_properties_parser import parse_simulation_model, parse_json_sim_parameters
+from prosimos.control_flow_manager import ProcessState, ElementInfo, BPMN
+from prosimos.probability_distributions import generate_number_from
+from prosimos.resource_calendar import RCalendar
+from prosimos.simulation_properties_parser import parse_simulation_model, parse_json_sim_parameters
 
 
 class SimDiffSetup:

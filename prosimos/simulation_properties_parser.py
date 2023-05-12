@@ -3,19 +3,19 @@ import xml.etree.ElementTree as ET
 
 from numpy import exp, log, sqrt
 
-from bpdfr_simulation_engine.batch_processing_parser import BatchProcessingParser
-from bpdfr_simulation_engine.case_attributes import AllCaseAttributes, CaseAttribute
-from bpdfr_simulation_engine.control_flow_manager import (
+from prosimos.batch_processing_parser import BatchProcessingParser
+from prosimos.case_attributes import AllCaseAttributes, CaseAttribute
+from prosimos.control_flow_manager import (
     BPMN,
     EVENT_TYPE,
     BPMNGraph,
     ElementInfo,
 )
-from bpdfr_simulation_engine.prioritisation import AllPriorityRules
-from bpdfr_simulation_engine.prioritisation_parser import PrioritisationParser
-from bpdfr_simulation_engine.probability_distributions import *
-from bpdfr_simulation_engine.resource_calendar import RCalendar
-from bpdfr_simulation_engine.resource_profile import PoolInfo, ResourceProfile
+from prosimos.prioritisation import AllPriorityRules
+from prosimos.prioritisation_parser import PrioritisationParser
+from prosimos.probability_distributions import *
+from prosimos.resource_calendar import RCalendar
+from prosimos.resource_profile import PoolInfo, ResourceProfile
 
 bpmn_schema_url = "http://www.omg.org/spec/BPMN/20100524/MODEL"
 simod_ns = {"qbp": "http://www.qbp-simulator.com/Schema201212"}

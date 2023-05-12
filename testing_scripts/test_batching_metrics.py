@@ -1,6 +1,6 @@
 import pytest
 import json
-from bpdfr_simulation_engine.batch_processing import BATCH_TYPE
+from prosimos.batch_processing import BATCH_TYPE
 from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 from testing_scripts.test_batching import JSON_FILENAME, JSON_ONE_RESOURCE_FILENAME, MODEL_FILENAME, SIM_LOGS_FILENAME, SIM_STATS_FILENAME, _setup_initial_scenario
 from testing_scripts.test_batching import assets_path

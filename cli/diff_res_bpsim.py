@@ -5,8 +5,8 @@ from pathlib import Path
 import click
 
 from bpdfr_discovery.log_parser import preprocess_xes_log
-from bpdfr_simulation_engine.simulation_engine import run_simulation
-from bpdfr_simulation_engine.simulation_setup import SimDiffSetup
+from prosimos.simulation_engine import run_simulation
+from prosimos.simulation_setup import SimDiffSetup
 
 
 @click.group()

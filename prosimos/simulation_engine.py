@@ -4,23 +4,23 @@ from typing import List
 import pytz
 import datetime
 from datetime import timedelta
-from bpdfr_simulation_engine.control_flow_manager import (
+from prosimos.control_flow_manager import (
     BPMN,
     CustomDatetimeAndSeconds,
 )
 
-from bpdfr_simulation_engine.file_manager import FileManager
-from bpdfr_simulation_engine.execution_info import Trace, TaskEvent, EnabledEvent
-from bpdfr_simulation_engine.prioritisation import CasePrioritisation
-from bpdfr_simulation_engine.resource_calendar import get_string_from_datetime
-from bpdfr_simulation_engine.resource_calendar import parse_datetime
-from bpdfr_simulation_engine.simulation_queues_ds import (
+from prosimos.file_manager import FileManager
+from prosimos.execution_info import Trace, TaskEvent, EnabledEvent
+from prosimos.prioritisation import CasePrioritisation
+from prosimos.resource_calendar import get_string_from_datetime
+from prosimos.resource_calendar import parse_datetime
+from prosimos.simulation_queues_ds import (
     PriorityQueue,
     DiffResourceQueue,
     EventQueue,
 )
-from bpdfr_simulation_engine.simulation_setup import SimDiffSetup
-from bpdfr_simulation_engine.simulation_stats_calculator import LogInfo
+from prosimos.simulation_setup import SimDiffSetup
+from prosimos.simulation_stats_calculator import LogInfo
 
 
 class SimResource:

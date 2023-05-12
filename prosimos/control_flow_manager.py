@@ -6,11 +6,11 @@ from typing import List
 
 import random
 import secrets
-from bpdfr_simulation_engine.batch_processing import BATCH_TYPE, AndFiringRule, BatchConfigPerTask
-from bpdfr_simulation_engine.probability_distributions import generate_number_from
+from prosimos.batch_processing import BATCH_TYPE, AndFiringRule, BatchConfigPerTask
+from prosimos.probability_distributions import generate_number_from
 
-from bpdfr_simulation_engine.exceptions import InvalidBpmnModelException
-from bpdfr_simulation_engine.weekday_helper import CustomDatetimeAndSeconds
+from prosimos.exceptions import InvalidBpmnModelException
+from prosimos.weekday_helper import CustomDatetimeAndSeconds
 
 seconds_per_unit = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
 

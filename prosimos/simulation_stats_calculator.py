@@ -1,12 +1,12 @@
 import sys
 import datetime
 import pytz
-from bpdfr_simulation_engine.control_flow_manager import BPMN
+from prosimos.control_flow_manager import BPMN
 
-from bpdfr_simulation_engine.resource_calendar import Interval
+from prosimos.resource_calendar import Interval
 
-from bpdfr_simulation_engine.execution_info import TaskEvent, Trace
-from bpdfr_simulation_engine.simulation_setup import SimDiffSetup
+from prosimos.execution_info import TaskEvent, Trace
+from prosimos.simulation_setup import SimDiffSetup
 
 
 class KPIInfo:

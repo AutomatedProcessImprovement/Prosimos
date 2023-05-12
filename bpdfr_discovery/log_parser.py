@@ -8,13 +8,13 @@ import pandas as pd
 import pytz
 
 from bpdfr_discovery.exceptions import InvalidInputDiscoveryParameters
-from bpdfr_simulation_engine.control_flow_manager import BPMN, BPMNGraph
-from bpdfr_simulation_engine.exceptions import InvalidBpmnModelException, InvalidLogFileException
-from bpdfr_simulation_engine.execution_info import Trace, TaskEvent
-from bpdfr_simulation_engine.file_manager import FileManager
-from bpdfr_simulation_engine.probability_distributions import best_fit_distribution
-from bpdfr_simulation_engine.resource_calendar import RCalendar, CalendarFactory
-from bpdfr_simulation_engine.simulation_properties_parser import parse_simulation_model
+from prosimos.control_flow_manager import BPMN, BPMNGraph
+from prosimos.exceptions import InvalidBpmnModelException, InvalidLogFileException
+from prosimos.execution_info import Trace, TaskEvent
+from prosimos.file_manager import FileManager
+from prosimos.probability_distributions import best_fit_distribution
+from prosimos.resource_calendar import RCalendar, CalendarFactory
+from prosimos.simulation_properties_parser import parse_simulation_model
 
 print_info = False
 

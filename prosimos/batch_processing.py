@@ -4,10 +4,10 @@ from random import choices
 import sys
 from typing import List
 from datetime import date, datetime, time, timedelta
-from bpdfr_simulation_engine.exceptions import InvalidRuleDefinition
+from prosimos.exceptions import InvalidRuleDefinition
 
-from bpdfr_simulation_engine.resource_calendar import str_week_days
-from bpdfr_simulation_engine.weekday_helper import CustomDatetimeAndSeconds, get_nearest_abs_day, get_nearest_past_day
+from prosimos.resource_calendar import str_week_days
+from prosimos.weekday_helper import CustomDatetimeAndSeconds, get_nearest_abs_day, get_nearest_past_day
 
 
 def _get_operator_symbols(operator_str: str, eq_operator: operator):

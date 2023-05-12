@@ -6,9 +6,9 @@ import pytz
 
 from bpdfr_discovery.log_parser import sort_by_completion_times, discover_arrival_calendar, discover_arrival_time_distribution, discover_resource_calendars, \
     discover_resource_task_duration_distribution, map_task_id_from_names
-from bpdfr_simulation_engine.execution_info import Trace
-from bpdfr_simulation_engine.resource_calendar import CalendarFactory
-from bpdfr_simulation_engine.simulation_properties_parser import parse_simulation_model
+from prosimos.execution_info import Trace
+from prosimos.resource_calendar import CalendarFactory
+from prosimos.simulation_properties_parser import parse_simulation_model
 from pm4py.objects.log.importer.xes import importer as xes_importer
 
 from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
