@@ -1,5 +1,5 @@
 from datetime import timedelta
-from bpdfr_simulation_engine.resource_calendar import str_week_days
+from prosimos.resource_calendar import str_week_days
 
 class CustomDatetimeAndSeconds:
     def __init__(self, seconds_from_start, datetime):

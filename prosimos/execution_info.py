@@ -1,7 +1,7 @@
 import datetime
 import pytz
 
-from bpdfr_simulation_engine.control_flow_manager import BPMN, BatchInfoForExecution
+from prosimos.control_flow_manager import BPMN, BatchInfoForExecution
 
 
 class EnabledEvent:

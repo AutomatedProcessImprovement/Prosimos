@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
-from bpdfr_simulation_engine.simulation_properties_parser import (
+from prosimos.simulation_properties_parser import (
     ARRIVAL_TIME_CALENDAR,
     BATCH_PROCESSING_SECTION,
     CASE_ATTRIBUTES_SECTION,

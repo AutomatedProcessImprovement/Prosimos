@@ -3,8 +3,8 @@ import sys
 
 import pytest
 import pytz
-from bpdfr_simulation_engine.prioritisation import CasePrioritisation
-from bpdfr_simulation_engine.weekday_helper import CustomDatetimeAndSeconds
+from prosimos.prioritisation import CasePrioritisation
+from prosimos.weekday_helper import CustomDatetimeAndSeconds
 
 defaultCustomDatetimeAndSeconds = CustomDatetimeAndSeconds(
     0, datetime.datetime.now(pytz.utc)

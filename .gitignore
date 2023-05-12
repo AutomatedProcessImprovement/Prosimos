@@ -16,3 +16,4 @@ bimp_test_examples/
 .pymon
 .DS_Store
 .vscode/
+dist/

@@ -1,8 +1,8 @@
 from enum import Enum
 from functools import reduce
 from typing import List
-from bpdfr_simulation_engine.exceptions import InvalidCaseAttributeException
-from bpdfr_simulation_engine.probability_distributions import generate_number_from
+from prosimos.exceptions import InvalidCaseAttributeException
+from prosimos.probability_distributions import generate_number_from
 from random import choices
 
 class CASE_ATTR_TYPE(Enum):

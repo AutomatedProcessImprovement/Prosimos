@@ -2,9 +2,9 @@ from datetime import timedelta
 import pytest
 import pandas as pd
 
-from bpdfr_simulation_engine.batch_processing import AndFiringRule, FiringSubRule, OrFiringRule
-from bpdfr_simulation_engine.exceptions import InvalidRuleDefinition
-from bpdfr_simulation_engine.resource_calendar import parse_datetime
+from prosimos.batch_processing import AndFiringRule, FiringSubRule, OrFiringRule
+from prosimos.exceptions import InvalidRuleDefinition
+from prosimos.resource_calendar import parse_datetime
 from testing_scripts.test_batching import SIM_LOGS_FILENAME, _verify_logs_ordered_asc, _verify_same_resource_for_batch, assets_path
 from testing_scripts.test_batching_daily_hour import _arrange_and_act
 from testing_scripts.test_batching_ready_wt import _test_range_basic

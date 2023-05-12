@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 from bpdfr_discovery.log_parser import preprocess_xes_log
-from bpdfr_simulation_engine.exceptions import InvalidBpmnModelException, InvalidLogFileException
+from prosimos.exceptions import InvalidBpmnModelException, InvalidLogFileException
 
 
 @pytest.fixture

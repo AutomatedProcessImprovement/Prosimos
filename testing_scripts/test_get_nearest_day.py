@@ -1,5 +1,5 @@
-from bpdfr_simulation_engine.resource_calendar import parse_datetime
-from bpdfr_simulation_engine.weekday_helper import get_nearest_abs_day, get_nearest_past_day
+from prosimos.resource_calendar import parse_datetime
+from prosimos.weekday_helper import get_nearest_abs_day, get_nearest_past_day
 import pytest
 
 data_abs_day = {

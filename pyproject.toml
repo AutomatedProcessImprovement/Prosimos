@@ -1,10 +1,14 @@
 [tool.poetry]
 name = "prosimos"
-version = "0.1.0"
+version = "1.2.3"
 description = ""
 authors = ["Iryna Halenok, Orlenys López Pintado"]
 readme = "README.md"
-packages = [{include = "cli"}]
+packages = [
+    {include = "cli"},
+    {include = "prosimos"},
+    {include = "bpdfr_discovery"}
+]
 
 [tool.poetry.dependencies]
 python = ">=3.8,<3.12"

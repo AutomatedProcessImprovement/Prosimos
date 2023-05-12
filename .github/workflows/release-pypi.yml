@@ -1,0 +1,74 @@
+name: Release PyPI package
+
+on:
+  # as of right now, we only release Prosimos manually
+  workflow_dispatch:
+
+jobs:
+  publish:
+    if: ${{ startsWith(github.ref, 'refs/tags') }}
+    name: Publish Prosimos package to PyPI
+    runs-on: ubuntu-latest
+    environment:
+      name: PyPI
+      url: https://pypi.org/project/prosimos/
+    permissions:
+      id-token: write
+      contents: write
+      packages: write
+    strategy:
+      matrix:
+        python-version: [3.9]
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v3
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install poetry
+        run: |
+          pip install poetry==1.4.2
+
+      - name: Configure poetry (for saving venv inside of the project)
+        run: |
+          poetry config virtualenvs.in-project true
+
+      - name: Install dependencies
+        run: |
+          poetry install
+
+      - name: Build
+        run: |
+          poetry build
+
+      - name: Get version
+        id: get_version
+        run: |
+          echo "version=$(poetry version --short)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: prosimos-py${{ matrix.python-version }}-${{ steps.get_version.outputs.version }}
+          path: dist
+
+      - name: Create the tag and push it
+        run: |
+          git tag ${{ steps.get_version.outputs.version }}
+          git push --tags
+        if: github.ref == 'refs/heads/main'
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/*
+          tag_name: ${{ steps.get_version.outputs.version }}
+          body_path: CHANGELOG.md
+        if: github.ref == 'refs/heads/main'
+
+      - name: Publish Prosimos to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

@@ -1,6 +1,6 @@
 from datetime import time
 from typing import List
-from bpdfr_simulation_engine.batch_processing import (
+from prosimos.batch_processing import (
     BATCH_TYPE,
     RULE_TYPE,
     AndFiringRule,
@@ -8,7 +8,7 @@ from bpdfr_simulation_engine.batch_processing import (
     FiringSubRule,
     OrFiringRule,
 )
-from bpdfr_simulation_engine.exceptions import InvalidRuleDefinition
+from prosimos.exceptions import InvalidRuleDefinition
 
 
 class BatchProcessingParser:

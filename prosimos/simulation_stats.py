@@ -2,8 +2,8 @@ import csv
 
 import pytz
 
-from bpdfr_simulation_engine.resource_profile import PoolInfo
-from bpdfr_simulation_engine.simulation_stats_calculator import KPIMap, KPIInfo
+from prosimos.resource_profile import PoolInfo
+from prosimos.simulation_stats_calculator import KPIMap, KPIInfo
 
 import datetime
 import re

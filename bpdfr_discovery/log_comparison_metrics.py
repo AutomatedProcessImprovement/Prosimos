@@ -1,8 +1,8 @@
 import sys
 
 from bpdfr_discovery.log_parser import event_list_from_xes_log, event_list_from_csv
-from bpdfr_simulation_engine.execution_info import Trace, TaskEvent
-from bpdfr_simulation_engine.simulation_properties_parser import parse_simulation_model
+from prosimos.execution_info import Trace, TaskEvent
+from prosimos.simulation_properties_parser import parse_simulation_model
 
 import numpy as np
 from scipy.optimize import linear_sum_assignment

@@ -1,6 +1,6 @@
 from typing import List, Tuple, Union
-from bpdfr_simulation_engine.case_attributes import AllCaseAttributes
-from bpdfr_simulation_engine.prioritisation_rules import AllPriorityRules
+from prosimos.case_attributes import AllCaseAttributes
+from prosimos.prioritisation_rules import AllPriorityRules
 
 ArrayOfTuplesOrStrings = Union[List[Tuple[str, any]], List[str]]
 

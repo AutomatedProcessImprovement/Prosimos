@@ -3,15 +3,15 @@ import json
 
 import pytest
 import pytz
-from bpdfr_simulation_engine.control_flow_manager import (
+from prosimos.control_flow_manager import (
     CustomDatetimeAndSeconds,
     EnabledTask,
 )
-from bpdfr_simulation_engine.simulation_properties_parser import (
+from prosimos.simulation_properties_parser import (
     parse_json_sim_parameters,
     parse_simulation_model,
 )
-from bpdfr_simulation_engine.simulation_setup import SimDiffSetup
+from prosimos.simulation_setup import SimDiffSetup
 
 from test_discovery import assets_path
 

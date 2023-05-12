@@ -2,8 +2,8 @@ from datetime import timedelta
 
 import pandas as pd
 import pytest
-from bpdfr_simulation_engine.batch_processing import AndFiringRule, FiringSubRule, OrFiringRule
-from bpdfr_simulation_engine.resource_calendar import parse_datetime
+from prosimos.batch_processing import AndFiringRule, FiringSubRule, OrFiringRule
+from prosimos.resource_calendar import parse_datetime
 
 from testing_scripts.test_batching import (
     SIM_LOGS_FILENAME, 

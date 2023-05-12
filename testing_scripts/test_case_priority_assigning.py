@@ -1,7 +1,7 @@
 import sys
 
 import pytest
-from bpdfr_simulation_engine.prioritisation_rules import (
+from prosimos.prioritisation_rules import (
     AllPriorityRules,
     AndPrioritisationRule,
     OrPrioritisationRule,

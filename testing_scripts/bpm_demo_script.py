@@ -2,7 +2,7 @@ import os
 import datetime
 
 from bpdfr_discovery.log_parser import preprocess_xes_log
-from bpdfr_simulation_engine.simulation_engine import run_simulation
+from prosimos.simulation_engine import run_simulation
 from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 from testing_scripts.bpm_2022_testing_files import process_files
 
