@@ -9,6 +9,8 @@ import scipy.stats as st
 from numpy import random
 from scipy.stats import wasserstein_distance
 
+from prosimos.distribution_parser import SCIPY_DIST_NAME
+
 
 def create_default_distribution(min_value, max_value):
     return {"distribution_name": "default", "distribution_params": [min_value, max_value]}
@@ -118,8 +120,33 @@ def generate_number_from(distribution_name, params):
             return duration
 
 
+def split_params_by_type(distribution_name, params):
+    """
+    Differentiate values in params array to know their types, e.g. mean, min, max
+    """
+    d_min, d_max = None, None
+
+    if SCIPY_DIST_NAME(distribution_name) == SCIPY_DIST_NAME.TRIANGULAR:
+        # [c, loc, scale]
+        arg = [params[0]]
+        loc = params[1]
+        scale = params[2]
+    elif SCIPY_DIST_NAME(distribution_name) == SCIPY_DIST_NAME.UNIFORM:
+        # [loc, scale]
+        arg = []
+        loc = params[0]
+        scale = params[1]
+    else:
+        # all other distributions support min and max boundaries
+        d_min, d_max = params[-2], params[-1]
+        arg = params[:-4]
+        loc = params[-4]
+        scale = params[-3]
+
+    return loc, scale, arg, d_min, d_max
+
 def evaluate_distribution_function(distribution_name, params):
-    if distribution_name == "fix":
+    if distribution_name == SCIPY_DIST_NAME.FIXED.value:
         return params[0]
     elif distribution_name == 'default':
         return numpy.random.uniform(params[0], params[1])
@@ -128,11 +155,10 @@ def evaluate_distribution_function(distribution_name, params):
         value_bin = np.searchsorted(params['cdf'], value)
         return params['bin_midpoints'][value_bin]
 
-    arg = params[:-4]
-    loc = params[-4]
-    scale = params[-3]
-    d_min = params[-2]
-    d_max = params[-1]
+    loc, scale, arg, d_min, d_max = split_params_by_type(
+        distribution_name,
+        params
+    )
 
     dist = getattr(st, distribution_name)
     num_param = len(arg)
@@ -155,7 +181,10 @@ def evaluate_distribution_function(distribution_name, params):
             f_dist = dist.rvs(arg[0], arg[1], arg[2], arg[3], arg[4], arg[5], loc=loc, scale=scale, size=1)[0]
         elif num_param == 7:
             f_dist = dist.rvs(arg[0], arg[1], arg[2], arg[3], arg[4], arg[5], arg[6], loc=loc, scale=scale, size=1)[0]
-        if d_min <= f_dist <= d_max:
+        if ((d_min is None and d_max is None) 
+            or
+            (d_min is not None and d_max is not None and d_min <= f_dist <= d_max)
+        ):
             break
     return f_dist
 
