@@ -35,8 +35,7 @@ def extract_dist_params(dist_name: SCIPY_DIST_NAME, dist_params):
             "distribution_name": SCIPY_DIST_NAME.UNIFORM.value,
             "distribution_params": [
                 dist_params["arg1"],
-                #TODO: verify formula correctness
-                dist_params["arg2"] - dist_params["arg2"],
+                dist_params["arg2"] - dist_params["arg1"],
             ],
         }
     if dist_name == SCIPY_DIST_NAME.GAMMA:
