@@ -28,12 +28,12 @@ def extract_dist_params(dist_name: SCIPY_DIST_NAME, dist_params, is_min_max_boun
             "distribution_name": SCIPY_DIST_NAME.NORMAL.value,
             "distribution_params": [dist_params["mean"], dist_params["arg1"]],
         }
-    if dist_name == SCIPY_DIST_NAME.FIXED:
+    elif dist_name == SCIPY_DIST_NAME.FIXED:
         dist_params_res = {
             "distribution_name": SCIPY_DIST_NAME.FIXED.value,
             "distribution_params": [dist_params["mean"], 0, 1],
         }
-    if dist_name == SCIPY_DIST_NAME.UNIFORM:
+    elif dist_name == SCIPY_DIST_NAME.UNIFORM:
         # input: loc = from, scale = to - from
         dist_params_res = {
             "distribution_name": SCIPY_DIST_NAME.UNIFORM.value,
@@ -42,14 +42,14 @@ def extract_dist_params(dist_name: SCIPY_DIST_NAME, dist_params, is_min_max_boun
                 dist_params["arg2"] - dist_params["arg1"],
             ],
         }
-    if dist_name == SCIPY_DIST_NAME.GAMMA:
+    elif dist_name == SCIPY_DIST_NAME.GAMMA:
         # input: shape, loc=0, scale
         mean, variance = dist_params["mean"], dist_params["arg1"]
         dist_params_res = {
             "distribution_name": SCIPY_DIST_NAME.GAMMA.value,
             "distribution_params": [pow(mean, 2) / variance, 0, variance / mean],
         }
-    if dist_name == SCIPY_DIST_NAME.TRIANGULAR:
+    elif dist_name == SCIPY_DIST_NAME.TRIANGULAR:
         # input: c = mode, loc = min, scale = max - min
         dist_params_res = {
             "distribution_name": SCIPY_DIST_NAME.TRIANGULAR.value,
@@ -59,7 +59,7 @@ def extract_dist_params(dist_name: SCIPY_DIST_NAME, dist_params, is_min_max_boun
                 dist_params["arg2"] - dist_params["arg1"],
             ],
         }
-    if dist_name == SCIPY_DIST_NAME.LOGNORMAL:
+    elif dist_name == SCIPY_DIST_NAME.LOGNORMAL:
         mean_2 = dist_params["mean"] ** 2
         variance = dist_params["arg1"]
         phi = sqrt([variance + mean_2])[0]
