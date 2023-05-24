@@ -2,7 +2,7 @@ import pytest
 import pandas as pd
 
 from prosimos.batch_processing import AndFiringRule, FiringSubRule, OrFiringRule
-from prosimos.resource_calendar import parse_datetime
+from prosimos.simulation_engine import parse_datetime
 from testing_scripts.test_batching import (
     _verify_logs_ordered_asc,
     _verify_same_resource_for_batch,

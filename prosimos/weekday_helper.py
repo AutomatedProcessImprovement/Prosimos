@@ -1,5 +1,7 @@
 from datetime import timedelta
-from prosimos.resource_calendar import str_week_days
+
+from pix_framework.calendar.resource_calendar import str_week_days
+
 
 class CustomDatetimeAndSeconds:
     def __init__(self, seconds_from_start, datetime):

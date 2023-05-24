@@ -6,6 +6,8 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 import pytz
+from pix_framework.calendar.resource_calendar import RCalendar
+from pix_framework.discovery.calendar_factory import CalendarFactory
 
 from bpdfr_discovery.exceptions import InvalidInputDiscoveryParameters
 from prosimos.control_flow_manager import BPMN, BPMNGraph
@@ -13,7 +15,6 @@ from prosimos.exceptions import InvalidBpmnModelException, InvalidLogFileExcepti
 from prosimos.execution_info import Trace, TaskEvent
 from prosimos.file_manager import FileManager
 from prosimos.probability_distributions import best_fit_distribution
-from prosimos.resource_calendar import RCalendar, CalendarFactory
 from prosimos.simulation_properties_parser import parse_simulation_model
 
 print_info = False

@@ -1,21 +1,19 @@
 import csv
+import datetime
+from datetime import timedelta
 from typing import List
 
 import pytz
-import datetime
-from datetime import timedelta
+from dateutil import parser
+
 from prosimos.control_flow_manager import (
     BPMN,
     CustomDatetimeAndSeconds,
 )
-
-from prosimos.file_manager import FileManager
 from prosimos.execution_info import Trace, TaskEvent, EnabledEvent
+from prosimos.file_manager import FileManager
 from prosimos.prioritisation import CasePrioritisation
-from prosimos.resource_calendar import get_string_from_datetime
-from prosimos.resource_calendar import parse_datetime
 from prosimos.simulation_queues_ds import (
-    PriorityQueue,
     DiffResourceQueue,
     EventQueue,
 )
@@ -724,7 +722,7 @@ def run_simpy_simulation(diffsim_info, stat_fwriter, log_fwriter):
 def verify_miliseconds(array):
     """
     In case of datetime.microsecond = 0, standard converter does not print microseconds
-    So we force the convertation, so that the datetime format is the same for every datetime in the final file
+    So we force the conversion, so that the datetime format is the same for every datetime in the final file
     Indexes correspond to the next values:
         2 - enabled_datetime
         3 - start_datetime
@@ -732,6 +730,29 @@ def verify_miliseconds(array):
     """
     for i in range(2, 5):
         if array[i].microsecond == 0:
-            array[i] = get_string_from_datetime(array[i])
+            array[i] = _get_string_from_datetime(array[i])
 
     return array
+
+
+def _get_string_from_datetime(datetime):
+    datetime_without_colon = datetime.strftime("%Y-%m-%d %H:%M:%S.%f%z")
+    return "{0}:{1}".format(
+        datetime_without_colon[:-2],
+        datetime_without_colon[-2:]
+    )
+
+
+def parse_datetime(time, has_date):
+    time_formats = ['%H:%M:%S.%f', '%H:%M', '%I:%M%p', '%H:%M:%S', '%I:%M:%S%p'] if not has_date \
+        else ['%Y-%m-%dT%H:%M:%S.%f%z', '%b %d %Y %I:%M%p', '%b %d %Y at %I:%M%p',
+              '%B %d, %Y, %H:%M:%S', '%a,%d/%m/%y,%I:%M%p', '%a, %d %B, %Y', '%Y-%m-%dT%H:%M:%SZ']
+    try:
+        return parser.parse(time)
+    except:
+        for time_format in time_formats:
+            try:
+                return datetime.datetime.strptime(time, time_format)
+            except ValueError:
+                pass
+    raise ValueError
