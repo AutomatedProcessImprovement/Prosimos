@@ -1,65 +1,55 @@
-from enum import Enum
-
 from numpy import exp, log, sqrt
+from pix_framework.statistics.distribution import DistributionType
 
 
-class SCIPY_DIST_NAME(Enum):
-    EXPONENTIAL = "expon"
-    NORMAL = "norm"
-    FIXED = "fix"
-    UNIFORM = "uniform"
-    GAMMA = "gamma"
-    TRIANGULAR = "triang"
-    LOGNORMAL = "lognorm"
-
-
-def extract_dist_params(dist_name: SCIPY_DIST_NAME, dist_params, is_min_max_boundaries = False):
+def extract_dist_params(dist_name: DistributionType, dist_params, is_min_max_boundaries = False):
     dist_params_res = None
 
-    if dist_name == SCIPY_DIST_NAME.EXPONENTIAL:
-        # input: loc = 0, scale = mean
+    if dist_name == DistributionType.EXPONENTIAL:
+        # input: loc = 0 / shift, scale = mean
+        shift = dist_params["exp_shift"] if "exp_shift" in dist_params else 0
         dist_params_res = {
-            "distribution_name": SCIPY_DIST_NAME.EXPONENTIAL.value,
-            "distribution_params": [0, dist_params["arg1"]],
+            "distribution_name": DistributionType.EXPONENTIAL.value,
+            "distribution_params": [shift, dist_params["arg1"]],
         }
-    elif dist_name == SCIPY_DIST_NAME.NORMAL:
+    elif dist_name == DistributionType.NORMAL:
         # input: loc = mean, scale = standard deviation
         dist_params_res = {
-            "distribution_name": SCIPY_DIST_NAME.NORMAL.value,
+            "distribution_name": DistributionType.NORMAL.value,
             "distribution_params": [dist_params["mean"], dist_params["arg1"]],
         }
-    elif dist_name == SCIPY_DIST_NAME.FIXED:
+    elif dist_name == DistributionType.FIXED:
         dist_params_res = {
-            "distribution_name": SCIPY_DIST_NAME.FIXED.value,
+            "distribution_name": DistributionType.FIXED.value,
             "distribution_params": [dist_params["mean"], 0, 1],
         }
-    elif dist_name == SCIPY_DIST_NAME.UNIFORM:
+    elif dist_name == DistributionType.UNIFORM:
         # input: loc = from, scale = to - from
         dist_params_res = {
-            "distribution_name": SCIPY_DIST_NAME.UNIFORM.value,
+            "distribution_name": DistributionType.UNIFORM.value,
             "distribution_params": [
                 dist_params["arg1"],
                 dist_params["arg2"] - dist_params["arg1"],
             ],
         }
-    elif dist_name == SCIPY_DIST_NAME.GAMMA:
+    elif dist_name == DistributionType.GAMMA:
         # input: shape, loc=0, scale
         mean, variance = dist_params["mean"], dist_params["arg1"]
         dist_params_res = {
-            "distribution_name": SCIPY_DIST_NAME.GAMMA.value,
+            "distribution_name": DistributionType.GAMMA.value,
             "distribution_params": [pow(mean, 2) / variance, 0, variance / mean],
         }
-    elif dist_name == SCIPY_DIST_NAME.TRIANGULAR:
+    elif dist_name == DistributionType.TRIANGULAR:
         # input: c = mode, loc = min, scale = max - min
         dist_params_res = {
-            "distribution_name": SCIPY_DIST_NAME.TRIANGULAR.value,
+            "distribution_name": DistributionType.TRIANGULAR.value,
             "distribution_params": [
                 dist_params["mean"],
                 dist_params["arg1"],
                 dist_params["arg2"] - dist_params["arg1"],
             ],
         }
-    elif dist_name == SCIPY_DIST_NAME.LOGNORMAL:
+    elif dist_name == DistributionType.LOG_NORMAL:
         mean_2 = dist_params["mean"] ** 2
         variance = dist_params["arg1"]
         phi = sqrt([variance + mean_2])[0]
@@ -68,14 +58,16 @@ def extract_dist_params(dist_name: SCIPY_DIST_NAME, dist_params, is_min_max_boun
 
         # input: s = sigma = standard deviation, loc = 0, scale = exp(mu)
         dist_params_res = {
-            "distribution_name": SCIPY_DIST_NAME.LOGNORMAL.value,
+            "distribution_name": DistributionType.LOG_NORMAL.value,
             "distribution_params": [sigma, 0, exp(mu)],
         }
 
     if (dist_params_res is not None and
         is_min_max_boundaries and
-        dist_name not in [SCIPY_DIST_NAME.FIXED, SCIPY_DIST_NAME.TRIANGULAR, SCIPY_DIST_NAME.UNIFORM]
+        dist_name not in [DistributionType.FIXED, DistributionType.TRIANGULAR, DistributionType.UNIFORM]
     ):
+        # we add min and max boundaries to all distributions
+        # except the ones in the list
         min, max = dist_params["min"], dist_params["max"]
         dist_params_res["distribution_params"].extend([min, max])
 
@@ -94,7 +86,7 @@ def extract_dist_params_from_qbp(dist_info):
     
     # transform distribution names to the format supported by Scipy
     # e.g. "EXPONENTIAL" -> "expon" 
-    scipy_dist_name = SCIPY_DIST_NAME[dist_name]
+    scipy_dist_name = DistributionType[dist_name]
 
     return extract_dist_params(scipy_dist_name, dist_params)
 
@@ -108,7 +100,7 @@ def get_scipy_distr(distribution_name, distribution_params):
     :return: object with distr name and parameters compliant to be used with scipy library
     """
 
-    dist_name_enum: SCIPY_DIST_NAME = SCIPY_DIST_NAME(distribution_name)
+    dist_name_enum: DistributionType = DistributionType(distribution_name)
     
     return extract_dist_params(
         dist_name_enum,
@@ -116,33 +108,34 @@ def get_scipy_distr(distribution_name, distribution_params):
         True
     )
 
-def map_dist_params(params, dist_name_enum: SCIPY_DIST_NAME):
+def map_dist_params(params, dist_name_enum: DistributionType):
     """
     Transform array of values to the array compliant with what BIMP produces
     """
-    if dist_name_enum == SCIPY_DIST_NAME.UNIFORM:
+    if dist_name_enum == DistributionType.UNIFORM:
         # no mean, min and max values
         return {
             "arg1": float(params[0]["value"]),
             "arg2": float(params[1]["value"]), 
         }
-    elif dist_name_enum == SCIPY_DIST_NAME.EXPONENTIAL:
+    elif dist_name_enum == DistributionType.EXPONENTIAL:
         return {
             "arg1": float(params[0]["value"]),
-            "min": float(params[1]["value"]),
-            "max": float(params[2]["value"])
+            "exp_shift": float(params[1]["value"]),
+            "min": float(params[2]["value"]),
+            "max": float(params[3]["value"])
         }
-    elif dist_name_enum == SCIPY_DIST_NAME.FIXED:
+    elif dist_name_enum == DistributionType.FIXED:
         return {
             "mean": float(params[0]["value"])
         }
-    elif dist_name_enum == SCIPY_DIST_NAME.TRIANGULAR:
+    elif dist_name_enum == DistributionType.TRIANGULAR:
         return {
             "mean": float(params[0]["value"]),
             "arg1": float(params[1]["value"]),
             "arg2": float(params[2]["value"])
         }
-    elif dist_name_enum in [SCIPY_DIST_NAME.NORMAL, SCIPY_DIST_NAME.GAMMA, SCIPY_DIST_NAME.LOGNORMAL]:
+    elif dist_name_enum in [DistributionType.NORMAL, DistributionType.GAMMA, DistributionType.LOG_NORMAL]:
         return {
             "mean": float(params[0]["value"]),
             "arg1": float(params[1]["value"]),

@@ -9,7 +9,7 @@ import scipy.stats as st
 from numpy import random
 from scipy.stats import wasserstein_distance
 
-from prosimos.distribution_parser import SCIPY_DIST_NAME
+from pix_framework.statistics.distribution import DistributionType
 
 
 def create_default_distribution(min_value, max_value):
@@ -126,12 +126,12 @@ def split_params_by_type(distribution_name, params):
     """
     d_min, d_max = None, None
 
-    if SCIPY_DIST_NAME(distribution_name) == SCIPY_DIST_NAME.TRIANGULAR:
+    if DistributionType(distribution_name) == DistributionType.TRIANGULAR:
         # [c, loc, scale]
         arg = [params[0]]
         loc = params[1]
         scale = params[2]
-    elif SCIPY_DIST_NAME(distribution_name) == SCIPY_DIST_NAME.UNIFORM:
+    elif DistributionType(distribution_name) == DistributionType.UNIFORM:
         # [loc, scale]
         arg = []
         loc = params[0]
@@ -146,7 +146,7 @@ def split_params_by_type(distribution_name, params):
     return loc, scale, arg, d_min, d_max
 
 def evaluate_distribution_function(distribution_name, params):
-    if distribution_name == SCIPY_DIST_NAME.FIXED.value:
+    if distribution_name == DistributionType.FIXED.value:
         return params[0]
     elif distribution_name == 'default':
         return numpy.random.uniform(params[0], params[1])
