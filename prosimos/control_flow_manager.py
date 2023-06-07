@@ -7,10 +7,10 @@ from typing import List
 import random
 import secrets
 from prosimos.batch_processing import BATCH_TYPE, AndFiringRule, BatchConfigPerTask
-from prosimos.probability_distributions import generate_number_from
 
 from prosimos.exceptions import InvalidBpmnModelException
 from prosimos.weekday_helper import CustomDatetimeAndSeconds
+from pix_framework.statistics.distribution import DurationDistribution
 
 seconds_per_unit = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
 
@@ -480,11 +480,8 @@ class BPMNGraph:
         :event_id: id of the event element
         :return: duration in seconds 
         """
-        distribution = self.event_distribution[event_id]
-        val = generate_number_from(distribution["distribution_name"],
-                                   distribution["distribution_params"]
-        )
-        return val
+        distribution: DurationDistribution = self.event_distribution[event_id]
+        return distribution.generate_sample(1)
 
 
     def reply_trace(self, task_sequence, f_arcs_frequency, post_p=True, trace=None):

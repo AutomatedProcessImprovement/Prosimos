@@ -1,14 +1,17 @@
-import pytz
 import datetime
-from datetime import timedelta
 import ntpath
-from prosimos.batch_processing import BatchConfigPerTask
+from datetime import timedelta
 from typing import Optional
 
-from prosimos.control_flow_manager import ProcessState, ElementInfo, BPMN
-from prosimos.probability_distributions import generate_number_from
+import pytz
+from pix_framework.statistics.distribution import DurationDistribution
+
+from prosimos.batch_processing import BatchConfigPerTask
+from prosimos.control_flow_manager import BPMN, ElementInfo, ProcessState
+from prosimos.histogram_distribution import HistogramDistribution
 from prosimos.resource_calendar import RCalendar
-from prosimos.simulation_properties_parser import parse_simulation_model, parse_json_sim_parameters
+from prosimos.simulation_properties_parser import (parse_json_sim_parameters,
+                                                   parse_simulation_model)
 
 
 class SimDiffSetup:
@@ -52,9 +55,13 @@ class SimDiffSetup:
         return 0
 
     def next_arrival_time(self, starting_from):
-        val = generate_number_from(self.element_probability['arrivalTime']['distribution_name'],
-                                   self.element_probability['arrivalTime']['distribution_params'])
-        return val + self.arrival_calendar.next_available_time(starting_from + timedelta(seconds=val))
+        duration: float = 0.0
+        # decide how to calculate value based on whether it is function distribution or histogram one
+        if isinstance(self.element_probability['arrivalTime'], DurationDistribution):
+            [duration] = self.element_probability['arrivalTime'].generate_sample(1)
+        elif isinstance(self.element_probability['arrivalTime'], HistogramDistribution):
+            duration = self.element_probability['arrivalTime'].generate_value()
+        return duration + self.arrival_calendar.next_available_time(starting_from + timedelta(seconds=duration))
 
     def initial_state(self):
         return ProcessState(self.bpmn_graph)
@@ -88,19 +95,19 @@ class SimDiffSetup:
         return arrival_calendar
 
     def ideal_task_duration(self, task_id, resource_id, num_tasks_in_batch):
-        val = generate_number_from(self.task_resource[task_id][resource_id]['distribution_name'],
-                        self.task_resource[task_id][resource_id]['distribution_params'])
+        # calculate duration based on defined distribution for the resource allocation
+        [duration] = self.task_resource[task_id][resource_id].generate_sample(1)
                         
         if num_tasks_in_batch == 0:
             # task executed NOT in batch
-            return val
+            return duration
         else:
             # task executed as a part of the batch
             curr_batch_info: Optional[BatchConfigPerTask] = self.batch_processing.get(task_id, None)
             if curr_batch_info == None:
                 print(f"WARNING: Could not find info about batch_processing for task {task_id}")
 
-            return curr_batch_info.calculate_ideal_duration(val, num_tasks_in_batch)
+            return curr_batch_info.calculate_ideal_duration(duration, num_tasks_in_batch)
 
 
     def real_task_duration(self, task_duration, resource_id, enabled_at):

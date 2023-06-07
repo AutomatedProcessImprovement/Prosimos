@@ -1,15 +1,17 @@
 import json
 import xml.etree.ElementTree as ET
 
+from pix_framework.statistics.distribution import DurationDistribution
+
 from prosimos.batch_processing_parser import BatchProcessingParser
 from prosimos.case_attributes import AllCaseAttributes, CaseAttribute
 from prosimos.control_flow_manager import (BPMN, EVENT_TYPE, BPMNGraph,
                                            ElementInfo)
-from prosimos.distribution_parser import (extract_dist_params_from_qbp,
-                                          get_scipy_distr)
+from prosimos.distribution_parser import extract_dist_params_from_qbp
+from prosimos.histogram_distribution import HistogramDistribution
 from prosimos.prioritisation import AllPriorityRules
 from prosimos.prioritisation_parser import PrioritisationParser
-from prosimos.probability_distributions import *
+from prosimos.probability_distributions import Choice
 from prosimos.resource_calendar import RCalendar
 from prosimos.resource_profile import PoolInfo, ResourceProfile
 
@@ -141,10 +143,8 @@ def parse_task_resource_distributions(json_data, res_pool):
             task_resource_distribution[t_id] = dict()
         for r_info in perf_info["resources"]:
             for r_id in res_pool[r_info["resource_id"]]:
-                task_resource_distribution[t_id][r_id] = get_scipy_distr(
-                    r_info["distribution_name"],
-                    r_info["distribution_params"]
-                )
+                task_resource_distribution[t_id][r_id] = DurationDistribution.from_dict(r_info)
+
     return task_resource_distribution
 
 def parse_event_distribution(event_json_data):
@@ -157,12 +157,7 @@ def parse_event_distribution(event_json_data):
         e_id = event_info["event_id"]
 
         if e_id not in event_distibution:
-            event_distibution[e_id] = dict()
-
-            event_distibution[e_id] = get_scipy_distr(
-                event_info["distribution_name"],
-                event_info["distribution_params"]
-            )
+            event_distibution[e_id] = DurationDistribution.from_dict(event_info)
 
     return event_distibution
 
@@ -201,18 +196,12 @@ def parse_arrival_branching_probabilities(arrival_json, gateway_json):
         # prosimos will take randomly a value from this list each time it needs a new
         # observation, so the output will follow (if the sample is big enough) the same
         # "unknown distribution" than the specified data.
-        element_distribution["arrivalTime"] = {
-            "distribution_name": dist_name,
-            "distribution_params": arrival_json["histogram_data"],
-        }
+        element_distribution["arrivalTime"] = HistogramDistribution.from_dict(arrival_json)
     else:
         # handling all other types apart from "histogram_sampling"
         # since end-user provides user-friendly parameters,
         # we transform them to ones suitable for being used with Scipy library
-        element_distribution["arrivalTime"] = get_scipy_distr(
-            dist_name,
-            arrival_json["distribution_params"]
-        )
+        element_distribution["arrivalTime"] = DurationDistribution.from_dict(arrival_json)
 
     for g_info in gateway_json:
         g_id = g_info["gateway_id"]

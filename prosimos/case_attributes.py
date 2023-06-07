@@ -1,9 +1,12 @@
 from enum import Enum
 from functools import reduce
-from typing import List
-from prosimos.exceptions import InvalidCaseAttributeException
-from prosimos.probability_distributions import generate_number_from
 from random import choices
+from typing import List
+
+from pix_framework.statistics.distribution import DurationDistribution
+
+from prosimos.exceptions import InvalidCaseAttributeException
+
 
 class CASE_ATTR_TYPE(Enum):
     DISCRETE = "discrete"
@@ -21,15 +24,8 @@ def parse_discrete_value(value_info_arr):
         "probabilities": prob_arr
     }
 
-def parse_continuous_value(value_info):
-    dist_params = []
-    for param_info in value_info["distribution_params"]:
-        dist_params.append(float(param_info["value"]))
-    
-    return {
-        "distribution_name": value_info["distribution_name"],
-        "distribution_params": dist_params
-    }
+def parse_continuous_value(value_info) -> "DurationDistribution":
+    return DurationDistribution.from_dict(value_info)
 
 
 class CaseAttribute():
@@ -51,7 +47,7 @@ class CaseAttribute():
             one_choice_arr = choices(self.value["options"], self.value["probabilities"])
             return one_choice_arr[0]
         else:
-            return generate_number_from(self.value["distribution_name"], self.value["distribution_params"])
+            return self.value.generate_one_value_with_boundaries()
 
     def validate(self):
         if self.case_atrr_type == CASE_ATTR_TYPE.DISCRETE:

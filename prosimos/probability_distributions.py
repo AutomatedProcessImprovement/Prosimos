@@ -4,18 +4,18 @@ import sys
 import warnings
 
 import numpy as np
-import numpy.random
 import scipy.stats as st
 from numpy import random
+from pix_framework.statistics.distribution import DistributionType
 from scipy.stats import wasserstein_distance
 
-from pix_framework.statistics.distribution import DistributionType
 
-
+# NOTE: default distribution becoming obsolete due to no support with pix_framework
 def create_default_distribution(min_value, max_value):
     return {"distribution_name": "default", "distribution_params": [min_value, max_value]}
 
 
+# TODO: consider using get_best_fitting_distribution from pix_framework
 # Create models from data
 def best_fit_distribution(data, bins=50):
     fix_value = check_fix(data)
@@ -113,11 +113,11 @@ def check_fix(data_list, delta=5):
     return None
 
 
-def generate_number_from(distribution_name, params):
-    while True:
-        duration = evaluate_distribution_function(distribution_name, params)
-        if duration >= 0:
-            return duration
+# def generate_number_from(distribution_name, params):
+#     while True:
+#         duration = evaluate_distribution_function(distribution_name, params)
+#         if duration >= 0:
+#             return duration
 
 
 def split_params_by_type(distribution_name, params):
@@ -149,11 +149,9 @@ def evaluate_distribution_function(distribution_name, params):
     if distribution_name == DistributionType.FIXED.value:
         return params[0]
     elif distribution_name == 'default':
-        return numpy.random.uniform(params[0], params[1])
-    elif distribution_name == "histogram_sampling":
-        value = np.random.rand(1)[0]
-        value_bin = np.searchsorted(params['cdf'], value)
-        return params['bin_midpoints'][value_bin]
+        return random.uniform(params[0], params[1])
+    # elif distribution_name == "histogram_sampling":
+
 
     loc, scale, arg, d_min, d_max = split_params_by_type(
         distribution_name,
@@ -206,7 +204,7 @@ class Choice:
 
 
 def random_uniform(start, end):
-    return numpy.random.uniform(low=start, high=end)
+    return random.uniform(low=start, high=end)
 
 
 def best_fit_distribution_1(data):

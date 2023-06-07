@@ -812,6 +812,7 @@ def discover_arrival_time_distribution(initial_events, arrival_calendar, use_obs
         print('---------------------------------------------------')
     # If we want to use the observed arrival times instead of fitting them to a distribution
     if use_observed_arrival_times:
+        # TODO: use pix_framework for this
         # The arrival distribution is "histogram_sampling" so we compute the CDF and BINs of the observations histogram
         num_bins = 20
         filtered_durations = _reject_outliers(durations)
