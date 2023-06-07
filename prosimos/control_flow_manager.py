@@ -463,7 +463,8 @@ class BPMNGraph:
         all_gateway_choices = dict()
         for outgoing_flow in gateway_element_info.outgoing_flows:
             event_id = self.flow_arcs[outgoing_flow][1]
-            all_gateway_choices[outgoing_flow] = self.event_duration(event_id)
+            [duration] = self.event_duration(event_id)
+            all_gateway_choices[outgoing_flow] = duration
         
         min_value = min(all_gateway_choices.values())
         res = [(key, value) for key, value in all_gateway_choices.items() if value == min_value]

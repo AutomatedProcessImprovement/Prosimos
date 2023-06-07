@@ -1,13 +1,13 @@
 import json
 import xml.etree.ElementTree as ET
 
+from numpy import exp, log, sqrt
 from pix_framework.statistics.distribution import DurationDistribution
 
 from prosimos.batch_processing_parser import BatchProcessingParser
 from prosimos.case_attributes import AllCaseAttributes, CaseAttribute
 from prosimos.control_flow_manager import (BPMN, EVENT_TYPE, BPMNGraph,
                                            ElementInfo)
-from prosimos.distribution_parser import extract_dist_params_from_qbp
 from prosimos.histogram_distribution import HistogramDistribution
 from prosimos.prioritisation import AllPriorityRules
 from prosimos.prioritisation_parser import PrioritisationParser
@@ -411,7 +411,7 @@ def parse_qbp_simulation_process(qbp_bpmn_path, out_file):
             )
 
     # 3. Extracting Arrival time distribution
-    arrival_time_dist = extract_dist_params_from_qbp(
+    arrival_time_dist = extract_dist_params(
         simod_root.find("qbp:arrivalRateDistribution", simod_ns)
     )
 
@@ -451,7 +451,7 @@ def parse_qbp_simulation_process(qbp_bpmn_path, out_file):
         )
         dist_info = e_inf.find("qbp:durationDistribution", simod_ns)
 
-        t_dist = extract_dist_params_from_qbp(dist_info)
+        t_dist = extract_dist_params(dist_info)
         if task_id not in task_resource_dist:
             task_resource_dist[task_id] = dict()
         for rp_id in resource_pools[rpool_id]:
@@ -475,3 +475,70 @@ def format_date(date_str):
     if len(date_splt) == 2 and date_splt[1] == "00:00":
         return date_splt[0]
     return date_str
+
+def extract_dist_params(dist_info):
+    # time_unit = dist_info.find("qbp:timeUnit", simod_ns).text
+    # The time_tables produced by bimp always have the parameters in seconds, although it shouws other time units in
+    # the XML file.
+    dist_params = {
+        "mean": float(dist_info.attrib["mean"]),
+        "arg1": float(dist_info.attrib["arg1"]),
+        "arg2": float(dist_info.attrib["arg2"]),
+    }
+    dist_name = dist_info.attrib["type"].upper()
+    if dist_name == "EXPONENTIAL":
+        # input: loc = 0, scale = mean
+        return {
+            "distribution_name": "expon",
+            "distribution_params": [0, dist_params["arg1"]],
+        }
+    if dist_name == "NORMAL":
+        # input: loc = mean, scale = standard deviation
+        return {
+            "distribution_name": "norm",
+            "distribution_params": [dist_params["mean"], dist_params["arg1"]],
+        }
+    if dist_name == "FIXED":
+        return {
+            "distribution_name": "fix",
+            "distribution_params": [dist_params["mean"], 0, 1],
+        }
+    if dist_name == "UNIFORM":
+        # input: loc = from, scale = to - from
+        return {
+            "distribution_name": "uniform",
+            "distribution_params": [
+                dist_params["arg1"],
+                dist_params["arg2"] - dist_params["arg1"],
+            ],
+        }
+    if dist_name == "GAMMA":
+        # input: shape, loc=0, scale
+        mean, variance = dist_params["mean"], dist_params["arg1"]
+        return {
+            "distribution_name": "gamma",
+            "distribution_params": [pow(mean, 2) / variance, 0, variance / mean],
+        }
+    if dist_name == "TRIANGULAR":
+        # input: c = mode, loc = min, scale = max - min
+        return {
+            "distribution_name": "triang",
+            "distribution_params": [
+                dist_params["mean"],
+                dist_params["arg1"],
+                dist_params["arg2"] - dist_params["arg1"],
+            ],
+        }
+    if dist_name == "LOGNORMAL":
+        mean_2 = dist_params["mean"] ** 2
+        variance = dist_params["arg1"]
+        phi = sqrt([variance + mean_2])[0]
+        mu = log(mean_2 / phi)
+        sigma = sqrt([log(phi**2 / mean_2)])[0]
+
+        # input: s = sigma = standard deviation, loc = 0, scale = exp(mu)
+        return {
+            "distribution_name": "lognorm",
+            "distribution_params": [sigma, 0, exp(mu)],
+        }
+    return None
