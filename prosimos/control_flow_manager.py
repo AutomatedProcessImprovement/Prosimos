@@ -1,16 +1,17 @@
 import copy
+import random
+import secrets
 import sys
 from collections import deque
 from enum import Enum
 from typing import List
 
-import random
-import secrets
-from prosimos.batch_processing import BATCH_TYPE, AndFiringRule, BatchConfigPerTask
+from pix_framework.statistics.distribution import DurationDistribution
 
+from prosimos.batch_processing import (BATCH_TYPE, AndFiringRule,
+                                       BatchConfigPerTask)
 from prosimos.exceptions import InvalidBpmnModelException
 from prosimos.weekday_helper import CustomDatetimeAndSeconds
-from pix_framework.statistics.distribution import DurationDistribution
 
 seconds_per_unit = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
 

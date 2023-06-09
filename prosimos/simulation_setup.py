@@ -8,6 +8,7 @@ from pix_framework.statistics.distribution import DurationDistribution
 
 from prosimos.batch_processing import BatchConfigPerTask
 from prosimos.control_flow_manager import BPMN, ElementInfo, ProcessState
+from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.histogram_distribution import HistogramDistribution
 from prosimos.resource_calendar import RCalendar
 from prosimos.simulation_properties_parser import (parse_json_sim_parameters,
@@ -56,11 +57,15 @@ class SimDiffSetup:
 
     def next_arrival_time(self, starting_from):
         duration: float = 0.0
+        
         # decide how to calculate value based on whether it is function distribution or histogram one
         if isinstance(self.element_probability['arrivalTime'], DurationDistribution):
             [duration] = self.element_probability['arrivalTime'].generate_sample(1)
         elif isinstance(self.element_probability['arrivalTime'], HistogramDistribution):
             duration = self.element_probability['arrivalTime'].generate_value()
+        else:
+            raise InvalidSimScenarioException("Not supported arrival distribution")
+
         return duration + self.arrival_calendar.next_available_time(starting_from + timedelta(seconds=duration))
 
     def initial_state(self):
