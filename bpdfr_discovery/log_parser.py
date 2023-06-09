@@ -280,8 +280,8 @@ def parse_csv(log_path):
 
 def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_confidence, min_support,
                        min_participation, fit_calendar, is_csv=False, min_bin=50):
-    print('Discovery Params: Conf: %.2f, Supp: %.2f, R. Part: %.2f, Adj. Cal: %s'
-          % (min_confidence, min_support, min_participation, str(fit_calendar)))
+    # print('Discovery Params: Conf: %.2f, Supp: %.2f, R. Part: %.2f, Adj. Cal: %s'
+    #       % (min_confidence, min_support, min_participation, str(fit_calendar)))
     bpmn_graph, log_traces = parse_and_validate_input(log_path, bpmn_path, minutes_x_granule, min_confidence,
                                                       min_support, min_participation, is_csv)
 
@@ -379,10 +379,10 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
                                                                             True,
                                                                             trace_info.event_list)
 
-    print('Processed Traces in Log ----- %d (real) / %d (total)' % (len(log_traces) - removed_traces, len(log_traces)))
-    print('Processed Events in Log ----- %d (real) / %d (total)' % (total_events - removed_events, total_events))
-    print("Total Activities in Log - %d" % len(task_events))
-    print("Total Resources in Log -- %d" % len(resource_freq))
+    # print('Processed Traces in Log ----- %d (real) / %d (total)' % (len(log_traces) - removed_traces, len(log_traces)))
+    # print('Processed Events in Log ----- %d (real) / %d (total)' % (total_events - removed_events, total_events))
+    # print("Total Activities in Log - %d" % len(task_events))
+    # print("Total Resources in Log -- %d" % len(resource_freq))
 
     if removed_traces == len(log_traces):
         raise InvalidLogFileException(

@@ -9,6 +9,9 @@ from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 from testing_scripts.fuzzy_test_files import process_files
 
 
+from log_distance_measures.config import EventLogIDs
+
+
 def main():
     for proc_id in process_files:
         # discover_prosimos_original_calendars(proc_id)
@@ -37,6 +40,13 @@ def main():
     os._exit(0)
 
 
+
+
+
+
+
+
+
 def run_crisp_prosimos(model_info, fixed_arrival_times):
     _, diff_sim_result = run_diff_res_simulation(parse_datetime(model_info['start_datetime'], True),
                                                  model_info['total_cases'],
@@ -57,6 +67,17 @@ def run_fuzzy_prosimos(model_info, fixed_arrival_times):
                                                  model_info['sim_stats'],
                                                  None, fixed_arrival_times)
     return diff_sim_result
+
+
+def run_metrics():
+    event_log_ids = EventLogIDs(  # These values are stored in DEFAULT_CSV_IDS
+        case="case_id",
+        activity="Activity",
+        start_time="start_time",
+        end_time="end_time"
+    )
+
+
 
 
 def discover_prosimos_original_calendars(model_name):

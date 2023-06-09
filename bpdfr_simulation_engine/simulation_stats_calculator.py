@@ -134,7 +134,7 @@ class LogInfo:
     def compute_process_kpi(self, bpm_env):
         process_kpi = KPIMap()
         for trace_info in self.trace_list:
-            self.compute_execution_times(trace_info, process_kpi)
+            self.compute_execution_times(trace_info, process_kpi, bpm_env.sim_setup.is_fuzzy)
 
         return [process_kpi, self.task_exec_info, compute_resource_utilization(bpm_env), self.started_at, self.ended_at]
 
@@ -194,23 +194,36 @@ class LogInfo:
 
 
 def compute_resource_utilization(bpm_env):
-    compute_resorce_availability(bpm_env)
+    if bpm_env.sim_setup.is_fuzzy:
+        compute_fuzzy_availability(bpm_env)
+    else:
+        compute_resorce_availability(bpm_env)
     resource_info = dict()
 
     available_time = dict()
     started_at = bpm_env.log_info.started_at
     completed_at = bpm_env.log_info.ended_at
-    for r_id in bpm_env.sim_setup.resources_map:
-        calendar_info = bpm_env.sim_setup.get_resource_calendar(r_id)
-        if calendar_info.calendar_id not in available_time:
-            available_time[calendar_info.calendar_id] = calendar_info.find_working_time(started_at, completed_at)
-        bpm_env.sim_resources[r_id].available_time = available_time[calendar_info.calendar_id]
 
+    for r_id in bpm_env.sim_resources:
+        # r_utilization = bpm_env.get_utilization_for(r_id)
+        # r_info = bpm_env.sim_setup.resources_map[r_id]
         resource_info[r_id] = ResourceKPI(bpm_env.sim_setup.resources_map[r_id],
                                           bpm_env.sim_resources[r_id].allocated_tasks,
                                           bpm_env.sim_resources[r_id].worked_time,
                                           bpm_env.sim_resources[r_id].available_time,
                                           bpm_env.get_utilization_for(r_id))
+
+    # for r_id in bpm_env.sim_setup.resources_map:
+    #     calendar_info = bpm_env.sim_setup.get_resource_calendar(r_id)
+    #     if calendar_info.calendar_id not in available_time:
+    #         available_time[calendar_info.calendar_id] = calendar_info.find_working_time(started_at, completed_at)
+    #     bpm_env.sim_resources[r_id].available_time = available_time[calendar_info.calendar_id]
+    #
+    #     resource_info[r_id] = ResourceKPI(bpm_env.sim_setup.resources_map[r_id],
+    #                                       bpm_env.sim_resources[r_id].allocated_tasks,
+    #                                       bpm_env.sim_resources[r_id].worked_time,
+    #                                       bpm_env.sim_resources[r_id].available_time,
+    #                                       bpm_env.get_utilization_for(r_id))
     return resource_info
 
 

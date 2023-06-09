@@ -1,0 +1,16 @@
+Traces in Logs -- Training: 1000, Testing: 1000
+Events in Logs -- Training: 11736, Testing: 11596
+Traces in Logs -- Training: 1000, Testing: 1000
+Events in Logs -- Training: 11750, Testing: 11538
+Traces in Logs -- Training: 1000, Testing: 1000
+Events in Logs -- Training: 11736, Testing: 11596
+Traces in Logs -- Training: 1000, Testing: 1000
+Events in Logs -- Training: 11750, Testing: 11538
+Traces in Logs -- Training: 1000, Testing: 1000
+Events in Logs -- Training: 11736, Testing: 11596
+Traces in Logs -- Training: 1000, Testing: 1000
+Events in Logs -- Training: 11750, Testing: 11538
+Traces in Logs -- Training: 1000, Testing: 1000
+Events in Logs -- Training: 11736, Testing: 11596
+Traces in Logs -- Training: 1000, Testing: 1000
+Events in Logs -- Training: 11750, Testing: 11538

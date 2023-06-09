@@ -18,7 +18,7 @@ def get_starting_datetimes(csv_log_path):
         current_second += (arrival_dates[i] - current_date).total_seconds()
         current_date = arrival_dates[i]
         arrival_times.append(current_second)
-    return arrival_times
+    return arrival_times, arrival_dates[0]
 
 
 def compute_log_statistics(csv_log_path, bpmn_path):

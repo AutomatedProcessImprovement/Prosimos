@@ -2,7 +2,6 @@ from datetime import datetime, timedelta
 from enum import Enum
 from numpy import random
 
-from bpdfr_simulation_engine.execution_info import Trace
 from bpdfr_simulation_engine.resource_calendar import IntervalPoint, Interval
 
 
@@ -64,6 +63,7 @@ class FuzzyModel:
         self.availability_calendar = None
         self.workload_ratio = None
         self.allocation_criteria = {FSpan.AVAILABILITY: True, FSpan.WORKLOAD: True, FSpan.TIME: True}
+        self.default_calendar = FSpan.AVAILABILITY
 
     def update_model(self, key_str, value: WeeklyFuzzyCalendar):
         if key_str == 'availability_probabilities':
@@ -74,18 +74,29 @@ class FuzzyModel:
     def update_allocation_criteria(self, criteria_type: FSpan, new_value: bool):
         self.allocation_criteria[criteria_type] = new_value
 
-    @staticmethod
-    def is_available(probability):
-        return random.choice([True, False], 1, p=[probability, 1 - probability])[0]
+    def is_available(self, week_day, i):
+        abs_prob = self.availability_calendar.probability_intervals[week_day][i]
+        rel_prob = self.workload_ratio.probability_intervals[week_day][i]
+        a_p = random.choice([True, False], 1, p=[abs_prob, 1 - abs_prob])[0]
+        r_p = random.choice([True, False], 1, p=[rel_prob, 1 - rel_prob])[0]
+
+        if a_p:
+            self.default_calendar = FSpan.AVAILABILITY
+        elif r_p:
+            self.default_calendar = FSpan.WORKLOAD
+        return a_p or r_p
+
+        # return random.choice([True, False], 1, p=[abs_prob, 1 - abs_prob])[0] or \
+        #        random.choice([True, False], 1, p=[rel_prob, 1 - rel_prob])[0]
 
     def _extract_date_info(self, current_date: datetime):
-        avail: WeeklyFuzzyCalendar = self.availability_calendar
+        avail = self.availability_calendar if self.default_calendar is FSpan.AVAILABILITY else self.workload_ratio
         return avail, avail.granule_size * 60, current_date.date().weekday(), avail.interval_index(current_date)
 
     def next_available_time(self, current_date: datetime):
         avail_info, size_seconds, week_day, from_i = self._extract_date_info(current_date)
 
-        if self.is_available(avail_info.probability_intervals[week_day][from_i]):
+        if self.is_available(week_day, from_i):
             return 0
 
         duration = avail_info.duration_to_interval_end(current_date)
@@ -96,11 +107,8 @@ class FuzzyModel:
                 i = 0
             if avail_info.probability_intervals[week_day][i] == 1.0:
                 return duration
-            elif avail_info.probability_intervals[week_day][i] == 0:
-                duration += ((avail_info.next_shift[week_day][i] - i + 1) * size_seconds)
-                i = avail_info.next_shift[week_day][i] + 1
             else:
-                if self.is_available(avail_info.probability_intervals[week_day][i]):
+                if self.is_available(week_day, i):
                     return duration
                 duration += size_seconds
                 i += 1
@@ -113,7 +121,7 @@ class FuzzyModel:
         avail_info, size_seconds, week_day, i = self._extract_date_info(current_date)
 
         real_duration = min(avail_info.duration_to_interval_end(current_date), ideal_duration)
-        if self.is_available(avail_info.probability_intervals[week_day][i]):
+        if self.is_available(week_day, i):
             to_date = it_date + timedelta(seconds=real_duration)
             worked_intervals.append(Interval(it_date, to_date))
             it_date = to_date
@@ -123,28 +131,22 @@ class FuzzyModel:
             if i >= avail_info.i_count:
                 week_day = (week_day + 1) % 7
                 i = 0
-            if avail_info.probability_intervals[week_day][i] == 0:
-                i_duration = ((avail_info.next_shift[week_day][i] - i + 1) * size_seconds)
+            if self.is_available(week_day, i):
+                i_duration = min(size_seconds, ideal_duration)
+                to_date = it_date + timedelta(seconds=i_duration)
+                worked_intervals.append(Interval(it_date, to_date))
                 it_date += timedelta(seconds=i_duration)
                 real_duration += i_duration
-                i = avail_info.next_shift[week_day][i] + 1
+                ideal_duration -= size_seconds
             else:
-                if self.is_available(avail_info.probability_intervals[week_day][i]):
-                    i_duration = min(size_seconds, ideal_duration)
-                    to_date = it_date + timedelta(seconds=i_duration)
-                    worked_intervals.append(Interval(it_date, to_date))
-                    it_date += timedelta(seconds=i_duration)
-                    real_duration += i_duration
-                    ideal_duration -= size_seconds
-                else:
-                    real_duration += size_seconds
-                    it_date += timedelta(seconds=size_seconds)
-                i += 1
+                real_duration += size_seconds
+                it_date += timedelta(seconds=size_seconds)
+            i += 1
         return real_duration
 
     def is_working_datetime(self, current_date: datetime):
         avail_info, i_size_seconds, week_day, i = self._extract_date_info(current_date)
-        if self.is_available(avail_info.probability_intervals[week_day][i]):
+        if self.is_available(week_day, i):
             return True, IntervalPoint(current_date, i, week_day, avail_info.duration_from_interval_start(current_date),
                                        avail_info.duration_to_interval_end(current_date))
         return False, None
@@ -163,11 +165,3 @@ class FuzzyModel:
             duration += fuzzy_c.probability_intervals[c_date.weekday()][fuzzy_c.interval_index(c_date)] * size_seconds
             c_date += timedelta(seconds=size_seconds)
         return duration
-
-
-
-
-
-
-
-

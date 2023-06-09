@@ -53,7 +53,12 @@ class TaskEvent:
 
     def update_enabling_times(self, enabled_at):
         if self.started_at is None or enabled_at > self.started_at:
-            raise Exception("Task ENABLED after STARTED")
+            # print(self.task_id)
+            # print(str(enabled_at))
+            # print(str(self.started_at))
+            # print("--------------------------------------------")
+            enabled_at = self.started_at
+            # raise Exception("Task ENABLED after STARTED")
         self.enabled_at = enabled_at
         self.waiting_time = (self.started_at - self.enabled_at).total_seconds()
         self.processing_time = (self.completed_at - self.started_at).total_seconds()

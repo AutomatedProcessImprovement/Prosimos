@@ -32,10 +32,14 @@ class SimBPMEnv:
         self.executed_events = 0
         self.time_update_process_state = 0
 
+        self.test_resource_events = dict()
+
         r_first_available = dict()
+
         for r_id in sim_setup.resources_map:
             self.sim_resources[r_id] = SimResource()
             r_first_available[r_id] = self.sim_setup.next_resting_time(r_id, self.sim_setup.start_datetime)
+            self.test_resource_events[r_id] = list()
 
         self.resource_queue = DiffResourceQueue(self.sim_setup.task_resource, r_first_available)
         self.events_queue = EventQueue()
@@ -56,6 +60,10 @@ class SimBPMEnv:
 
     def generate_fixed_arrival_events(self, starting_times):
         sim_setup = self.sim_setup
+        for i in range(1, len(starting_times)):
+            if starting_times[i - 1] > starting_times[i]:
+                print("Hola")
+
         p_case = 0
         for arrival_time in starting_times:
             p_state = sim_setup.initial_state()
@@ -74,6 +82,7 @@ class SimBPMEnv:
 
         r_avail_at = max(c_event.enabled_at, r_avail_at)
         avail_datetime = self._datetime_from(r_avail_at)
+
         is_working, _ = self.sim_setup.get_resource_calendar(r_id).is_working_datetime(avail_datetime)
         if not is_working:
             r_avail_at = r_avail_at + self.sim_setup.next_resting_time(r_id, avail_datetime)
@@ -192,6 +201,8 @@ def run_simpy_simulation(diffsim_info, total_cases, stat_fwriter, log_fwriter, f
     bpm_env = SimBPMEnv(diffsim_info, stat_fwriter, log_fwriter)
     add_simulation_event_log_header(log_fwriter)
     execute_full_process(bpm_env, total_cases, fixed_starting_times)
+    if fixed_starting_times is not None:
+        return bpm_env
     if log_fwriter is None and stat_fwriter is None:
         return bpm_env.log_info.compute_process_kpi(bpm_env)
     if log_fwriter:

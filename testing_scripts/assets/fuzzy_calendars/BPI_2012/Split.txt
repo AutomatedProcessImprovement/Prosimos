@@ -1,0 +1,2 @@
+Traces in Logs -- Training: 4308, Testing: 4308
+Events in Logs -- Training: 30502, Testing: 28799
