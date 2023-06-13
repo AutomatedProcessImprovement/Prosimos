@@ -334,4 +334,16 @@ Then check the information printed in the terminal.
 ```
 pytest --cov-config=.coveragerc --cov --cov-report=html --cov-branch
 ```
-* If one wants to skip running the tests and just overview a coverage report, one needs to unzip **htmlcov.zip** archive. Unpacked folder **htmlcov** contains HTML coverage report, in general and per each file. 
+* If one wants to skip running the tests and just overview a coverage report, one needs to unzip **htmlcov.zip** archive. Unpacked folder **htmlcov** contains HTML coverage report, in general and per each file.
+
+<details><summary>Development notes</summary>
+
+#### Release the new version of the API docker image
+
+In case you want to introduce and test changes both to `pix-framework` and `Prosimos`, we need to install local version of `pix-framework` instead of the PyPI released version. For this, the following command needs to be run:
+
+```
+poetry add --editable <relative-path> 
+```
+, where `<relative-path>` should be changed with the path to the root folder of `pix-framework` (e.g., ...`/pix-framework`).
+</details>

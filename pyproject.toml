@@ -19,7 +19,7 @@ python-dateutil = "^2.8.2"
 pytz = "^2023.3"
 scipy = "^1.10.1"
 pm4py = "^2.7.4"
-pix-framework = "^0.8.8"
+pix-framework = "^0.9.0"
 pylint = "^2.17.4"
 
 [tool.poetry.dev-dependencies]
