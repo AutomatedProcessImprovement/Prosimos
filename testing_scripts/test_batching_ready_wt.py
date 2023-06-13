@@ -391,8 +391,9 @@ def _arrange_and_act_exp(assets_path, firing_rules, start_date, num_cases):
     arrival_distr = {
         "distribution_name": "expon",
         "distribution_params": [
-            { "value": 7200.0 },
-            { "value": 0.0 },
+            { "value": 7200.0 }, # mean
+            { "value": 0.0 }, # min
+            { "value": 10000.0 }, # max
         ]
     }
 
