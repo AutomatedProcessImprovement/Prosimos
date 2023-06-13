@@ -8,7 +8,7 @@ from prosimos.batch_processing import (
     FiringSubRule,
     OrFiringRule,
 )
-from prosimos.resource_calendar import parse_datetime
+from prosimos.simulation_engine import parse_datetime
 from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 from testing_scripts.test_batching import (
     JSON_FILENAME,

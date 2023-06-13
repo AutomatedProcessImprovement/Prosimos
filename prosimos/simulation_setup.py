@@ -4,13 +4,13 @@ from datetime import timedelta
 from typing import Optional
 
 import pytz
+from pix_framework.calendar.resource_calendar import RCalendar
 from pix_framework.statistics.distribution import DurationDistribution
 
 from prosimos.batch_processing import BatchConfigPerTask
 from prosimos.control_flow_manager import BPMN, ElementInfo, ProcessState
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.histogram_distribution import HistogramDistribution
-from prosimos.resource_calendar import RCalendar
 from prosimos.simulation_properties_parser import (parse_json_sim_parameters,
                                                    parse_simulation_model)
 
@@ -31,7 +31,7 @@ class SimDiffSetup:
             self.arrival_calendar = self.find_arrival_calendar()
 
         self.is_event_added_to_log = is_event_added_to_log
-        self.total_num_cases = total_cases # how many process cases should be simulated
+        self.total_num_cases = total_cases  # how many process cases should be simulated
 
     def verify_simulation_input(self):
         for e_id in self.bpmn_graph.element_info:
@@ -113,7 +113,6 @@ class SimDiffSetup:
                 print(f"WARNING: Could not find info about batch_processing for task {task_id}")
 
             return curr_batch_info.calculate_ideal_duration(duration, num_tasks_in_batch)
-
 
     def real_task_duration(self, task_duration, resource_id, enabled_at):
         return self.calendars_map[self.resources_map[resource_id].calendar_id].find_idle_time(enabled_at, task_duration)

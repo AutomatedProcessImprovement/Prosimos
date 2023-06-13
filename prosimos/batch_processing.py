@@ -1,12 +1,13 @@
-from enum import Enum
 import operator as operator
-from random import choices
 import sys
-from typing import List
 from datetime import date, datetime, time, timedelta
-from prosimos.exceptions import InvalidRuleDefinitionException
+from enum import Enum
+from random import choices
+from typing import List
 
-from prosimos.resource_calendar import str_week_days
+from pix_framework.calendar.resource_calendar import str_week_days
+
+from prosimos.exceptions import InvalidRuleDefinitionException
 from prosimos.weekday_helper import CustomDatetimeAndSeconds, get_nearest_abs_day, get_nearest_past_day
 
 

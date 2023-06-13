@@ -1,4 +1,4 @@
-from prosimos.resource_calendar import parse_datetime
+from prosimos.simulation_engine import parse_datetime
 from prosimos.weekday_helper import get_nearest_abs_day, get_nearest_past_day
 import pytest
 

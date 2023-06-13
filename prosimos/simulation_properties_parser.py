@@ -2,6 +2,7 @@ import json
 import xml.etree.ElementTree as ET
 
 from numpy import exp, log, sqrt
+from pix_framework.calendar.resource_calendar import RCalendar
 from pix_framework.statistics.distribution import DurationDistribution
 
 from prosimos.batch_processing_parser import BatchProcessingParser
@@ -12,7 +13,6 @@ from prosimos.histogram_distribution import HistogramDistribution
 from prosimos.prioritisation import AllPriorityRules
 from prosimos.prioritisation_parser import PrioritisationParser
 from prosimos.probability_distributions import Choice
-from prosimos.resource_calendar import RCalendar
 from prosimos.resource_profile import PoolInfo, ResourceProfile
 
 bpmn_schema_url = "http://www.omg.org/spec/BPMN/20100524/MODEL"

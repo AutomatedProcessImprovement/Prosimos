@@ -1,5 +1,9 @@
 # Prosimos
 
+![build](https://github.com/AutomatedProcessImprovement/prosimos/actions/workflows/python.yml/badge.svg)
+![release](https://github.com/AutomatedProcessImprovement/prosimos/actions/workflows/release-pypi.yml/badge.svg)
+![version](https://img.shields.io/github/v/tag/AutomatedProcessImprovement/prosimos)
+
 Prosimos is a Business Process Simulation Engine that supports differentiated resources. 
 Prosimos considers resource pools formed by a set of resources (process participants) with different profiles. 
 For example, each resource has individual calendars, costs, and a differentiated performance to execute the process activities. 
@@ -7,7 +11,7 @@ Besides, pools can share resources, i.e., a resource may play different roles in
 
 ## Requirements
 
-- Python 3.8+
+- Python 3.9+
 - Poetry 1.4.2
 - For dependencies, please, check `pyproject.toml`
 

@@ -3,7 +3,7 @@ import datetime
 import pytz
 from prosimos.control_flow_manager import BPMN
 
-from prosimos.resource_calendar import Interval
+from pix_framework.calendar.resource_calendar import Interval
 
 from prosimos.execution_info import TaskEvent, Trace
 from prosimos.simulation_setup import SimDiffSetup

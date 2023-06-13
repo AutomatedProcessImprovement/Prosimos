@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "prosimos"
-version = "1.2.3"
+version = "1.2.4"
 description = ""
 authors = ["Iryna Halenok, Orlenys López Pintado"]
 readme = "README.md"

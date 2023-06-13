@@ -1,16 +1,16 @@
 import json
 import math
-
 import os
 
+from pix_framework.discovery.calendar_factory import CalendarFactory
+from pix_framework.calendar.resource_calendar import build_full_time_calendar
+
+from bpdfr_discovery.emd_metric import read_and_preprocess_log
 from bpdfr_discovery.log_parser import discover_aggregated_task_distributions, preprocess_xes_log, \
     discover_resource_task_duration_distribution, save_prosimos_json
 from prosimos.probability_distributions import create_default_distribution
-from prosimos.resource_calendar import build_full_time_calendar, CalendarFactory
 from testing_scripts.best_parameters_extraction import compute_median_simulation_emd
-
 from testing_scripts.bpm_2022_testing_files import experiment_logs, process_files, out_folder, canonical_json
-from bpdfr_discovery.emd_metric import read_and_preprocess_log
 
 
 def main():
