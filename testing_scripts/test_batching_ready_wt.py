@@ -386,13 +386,14 @@ def _verify_distance_outside_batch(grouped_by_start_and_resource, low_boundary):
         prev_row_enable_time = item["enable_time"]
 
 def _arrange_and_act_exp(assets_path, firing_rules, start_date, num_cases):
+    # TODO: temporarily do not support min, max
+    # should be fix when pix_framework supports that
     arrival_distr = {
         "distribution_name": "expon",
         "distribution_params": [
-            { "value": 0 },
-            { "value": 7200.0 },
-            { "value": 0.0 },
-            { "value": 100000.0 },
+            { "value": 7200.0 }, # mean
+            { "value": 0.0 }, # min
+            { "value": 10000.0 }, # max
         ]
     }
 

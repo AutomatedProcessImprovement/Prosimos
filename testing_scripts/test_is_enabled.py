@@ -1,15 +1,15 @@
 import datetime
 
+import pytest
 import pytz
-from prosimos.simulation_properties_parser import (
-    parse_json_sim_parameters,
-    parse_simulation_model,
-)
+from prosimos.simulation_properties_parser import (parse_json_sim_parameters,
+                                                   parse_simulation_model)
 from prosimos.simulation_setup import SimDiffSetup
 
 from test_discovery import assets_path
 
 
+@pytest.mark.skip(reason="EXPONNORM distribution is temporarily not supported by pix-framework")
 def test_or_gateway_one_token_before_or_true(assets_path):
     """
     OR gateway has two incoming flows
@@ -58,7 +58,7 @@ def test_or_gateway_one_token_before_or_true(assets_path):
     # ====== ASSERT ======
     assert result == True
 
-
+@pytest.mark.skip(reason="EXPONNORM distribution is temporarily not supported by pix-framework")
 def test_or_gateway_both_tokens_before_or_true(assets_path):
     """
     OR gateway has two incoming flows.
@@ -105,7 +105,7 @@ def test_or_gateway_both_tokens_before_or_true(assets_path):
     # ====== ASSERT ======
     assert result == True
 
-
+@pytest.mark.skip(reason="EXPONNORM distribution is temporarily not supported by pix-framework")
 def test_or_gateway_one_token_before_xor_false(assets_path):
     """
     OR gateway has two incoming flows

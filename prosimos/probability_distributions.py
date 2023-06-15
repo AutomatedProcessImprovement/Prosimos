@@ -4,16 +4,17 @@ import sys
 import warnings
 
 import numpy as np
-import numpy.random
 import scipy.stats as st
 from numpy import random
 from scipy.stats import wasserstein_distance
 
 
+# NOTE: default distribution becoming obsolete due to no support with pix_framework
 def create_default_distribution(min_value, max_value):
     return {"distribution_name": "default", "distribution_params": [min_value, max_value]}
 
 
+# TODO: consider using get_best_fitting_distribution from pix_framework
 # Create models from data
 def best_fit_distribution(data, bins=50):
     fix_value = check_fix(data)
@@ -111,55 +112,6 @@ def check_fix(data_list, delta=5):
     return None
 
 
-def generate_number_from(distribution_name, params):
-    while True:
-        duration = evaluate_distribution_function(distribution_name, params)
-        if duration >= 0:
-            return duration
-
-
-def evaluate_distribution_function(distribution_name, params):
-    if distribution_name == "fix":
-        return params[0]
-    elif distribution_name == 'default':
-        return numpy.random.uniform(params[0], params[1])
-    elif distribution_name == "histogram_sampling":
-        value = np.random.rand(1)[0]
-        value_bin = np.searchsorted(params['cdf'], value)
-        return params['bin_midpoints'][value_bin]
-
-    arg = params[:-4]
-    loc = params[-4]
-    scale = params[-3]
-    d_min = params[-2]
-    d_max = params[-1]
-
-    dist = getattr(st, distribution_name)
-    num_param = len(arg)
-
-    f_dist = 0
-    while True:
-        if num_param == 0:
-            f_dist = dist.rvs(loc=loc, scale=scale, size=1)[0]
-        elif num_param == 1:
-            f_dist = dist.rvs(arg[0], loc=loc, scale=scale, size=1)[0]
-        elif num_param == 2:
-            f_dist = dist.rvs(arg[0], arg[1], loc=loc, scale=scale, size=1)[0]
-        elif num_param == 3:
-            f_dist = dist.rvs(arg[0], arg[1], arg[2], loc=loc, scale=scale, size=1)[0]
-        elif num_param == 4:
-            f_dist = dist.rvs(arg[0], arg[1], arg[2], arg[3], loc=loc, scale=scale, size=1)[0]
-        elif num_param == 5:
-            f_dist = dist.rvs(arg[0], arg[1], arg[2], arg[3], arg[4], loc=loc, scale=scale, size=1)[0]
-        elif num_param == 6:
-            f_dist = dist.rvs(arg[0], arg[1], arg[2], arg[3], arg[4], arg[5], loc=loc, scale=scale, size=1)[0]
-        elif num_param == 7:
-            f_dist = dist.rvs(arg[0], arg[1], arg[2], arg[3], arg[4], arg[5], arg[6], loc=loc, scale=scale, size=1)[0]
-        if d_min <= f_dist <= d_max:
-            break
-    return f_dist
-
-
 class Choice:
     def __init__(self, candidates_list, probability_list):
         self.candidates_list = candidates_list
@@ -177,50 +129,51 @@ class Choice:
 
 
 def random_uniform(start, end):
-    return numpy.random.uniform(low=start, high=end)
+    return random.uniform(low=start, high=end)
 
 
-def best_fit_distribution_1(data):
-    fix_value = check_fix(data)
-    if fix_value is not None:
-        return {"distribution_name": "fix", "distribution_params": [check_fix(data)]}
+# TODO: consider for removal, not being used anywhere
+# def best_fit_distribution_1(data):
+#     fix_value = check_fix(data)
+#     if fix_value is not None:
+#         return {"distribution_name": "fix", "distribution_params": [check_fix(data)]}
 
-    mean = statistics.mean(data)
-    variance = statistics.variance(data)
-    st_dev = statistics.pstdev(data)
-    d_min = min(data)
-    d_max = max(data)
+#     mean = statistics.mean(data)
+#     variance = statistics.variance(data)
+#     st_dev = statistics.pstdev(data)
+#     d_min = min(data)
+#     d_max = max(data)
 
-    dist_candidates = [
-        {"distribution_name": "expon", "distribution_params": [0, mean, d_min, d_max]},
-        {"distribution_name": "norm", "distribution_params": [mean, st_dev, d_min, d_max]},
-        {"distribution_name": "uniform", "distribution_params": [d_min, d_max - d_min, d_min, d_max]},
-        {"distribution_name": "default", "distribution_params": [d_min, d_max]}
-    ]
+#     dist_candidates = [
+#         {"distribution_name": "expon", "distribution_params": [0, mean, d_min, d_max]},
+#         {"distribution_name": "norm", "distribution_params": [mean, st_dev, d_min, d_max]},
+#         {"distribution_name": "uniform", "distribution_params": [d_min, d_max - d_min, d_min, d_max]},
+#         {"distribution_name": "default", "distribution_params": [d_min, d_max]}
+#     ]
 
-    if mean != 0:
-        mean_2 = mean ** 2
-        phi = math.sqrt(variance + mean_2)
-        mu = math.log(mean_2 / phi)
-        sigma = math.sqrt(math.log(phi ** 2 / mean_2))
+#     if mean != 0:
+#         mean_2 = mean ** 2
+#         phi = math.sqrt(variance + mean_2)
+#         mu = math.log(mean_2 / phi)
+#         sigma = math.sqrt(math.log(phi ** 2 / mean_2))
 
-        dist_candidates.append({"distribution_name": "lognorm",
-                                "distribution_params": [sigma, 0, math.exp(mu), d_min, d_max]}, )
+#         dist_candidates.append({"distribution_name": "lognorm",
+#                                 "distribution_params": [sigma, 0, math.exp(mu), d_min, d_max]}, )
 
-    if mean != 0 and variance != 0:
-        dist_candidates.append({"distribution_name": "gamma",
-                                "distribution_params": [pow(mean, 2) / variance, 0, variance / mean, d_min, d_max]}, )
+#     if mean != 0 and variance != 0:
+#         dist_candidates.append({"distribution_name": "gamma",
+#                                 "distribution_params": [pow(mean, 2) / variance, 0, variance / mean, d_min, d_max]}, )
 
-    best_dist = None
-    best_emd = sys.float_info.max
-    for dist_c in dist_candidates:
-        ev_list = list()
-        for i in range(0, len(data)):
-            ev_list.append(evaluate_distribution_function(dist_c["distribution_name"], dist_c["distribution_params"]))
+#     best_dist = None
+#     best_emd = sys.float_info.max
+#     for dist_c in dist_candidates:
+#         ev_list = list()
+#         for i in range(0, len(data)):
+#             ev_list.append(evaluate_distribution_function(dist_c["distribution_name"], dist_c["distribution_params"]))
 
-        emd = wasserstein_distance(data, ev_list)
-        if emd < best_emd:
-            best_emd = emd
-            best_dist = dist_c
+#         emd = wasserstein_distance(data, ev_list)
+#         if emd < best_emd:
+#             best_emd = emd
+#             best_dist = dist_c
 
-    return best_dist
+#     return best_dist

@@ -531,7 +531,7 @@ class SimBPMEnv:
         # Handle event types separately (they don't need assigned resource)
         event_duration_seconds = None
         event_element = self.sim_setup.bpmn_graph.element_info[c_event.task_id]
-        event_duration_seconds = self.sim_setup.bpmn_graph.event_duration(
+        [event_duration_seconds] = self.sim_setup.bpmn_graph.event_duration(
             event_element.id
         )
 

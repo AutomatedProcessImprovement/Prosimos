@@ -3,18 +3,16 @@ import xml.etree.ElementTree as ET
 
 from numpy import exp, log, sqrt
 from pix_framework.calendar.resource_calendar import RCalendar
+from pix_framework.statistics.distribution import DurationDistribution
 
 from prosimos.batch_processing_parser import BatchProcessingParser
 from prosimos.case_attributes import AllCaseAttributes, CaseAttribute
-from prosimos.control_flow_manager import (
-    BPMN,
-    EVENT_TYPE,
-    BPMNGraph,
-    ElementInfo,
-)
+from prosimos.control_flow_manager import (BPMN, EVENT_TYPE, BPMNGraph,
+                                           ElementInfo)
+from prosimos.histogram_distribution import HistogramDistribution
 from prosimos.prioritisation import AllPriorityRules
 from prosimos.prioritisation_parser import PrioritisationParser
-from prosimos.probability_distributions import *
+from prosimos.probability_distributions import Choice
 from prosimos.resource_profile import PoolInfo, ResourceProfile
 
 bpmn_schema_url = "http://www.omg.org/spec/BPMN/20100524/MODEL"
@@ -144,16 +142,10 @@ def parse_task_resource_distributions(json_data, res_pool):
         if t_id not in task_resource_distribution:
             task_resource_distribution[t_id] = dict()
         for r_info in perf_info["resources"]:
-            dist_params = []
-            for param_info in r_info["distribution_params"]:
-                dist_params.append(float(param_info["value"]))
             for r_id in res_pool[r_info["resource_id"]]:
-                task_resource_distribution[t_id][r_id] = {
-                    "distribution_name": r_info["distribution_name"],
-                    "distribution_params": dist_params,
-                }
-    return task_resource_distribution
+                task_resource_distribution[t_id][r_id] = DurationDistribution.from_dict(r_info)
 
+    return task_resource_distribution
 
 def parse_event_distribution(event_json_data):
     """
@@ -165,16 +157,7 @@ def parse_event_distribution(event_json_data):
         e_id = event_info["event_id"]
 
         if e_id not in event_distibution:
-            event_distibution[e_id] = dict()
-            dist_params = []
-
-            for param_info in event_info["distribution_params"]:
-                dist_params.append(float(param_info["value"]))
-
-            event_distibution[e_id] = {
-                "distribution_name": event_info["distribution_name"],
-                "distribution_params": dist_params,
-            }
+            event_distibution[e_id] = DurationDistribution.from_dict(event_info)
 
     return event_distibution
 
@@ -207,20 +190,18 @@ def parse_case_attr(json_data) -> AllCaseAttributes:
 def parse_arrival_branching_probabilities(arrival_json, gateway_json):
     element_distribution = dict()
 
-    dist_params = []
-    if arrival_json["distribution_name"] == "histogram_sampling":
+    dist_name = arrival_json["distribution_name"] 
+    if dist_name == "histogram_sampling":
         # Custom distribution: we expect a list of inter-arrival interval values (floats),
         # prosimos will take randomly a value from this list each time it needs a new
         # observation, so the output will follow (if the sample is big enough) the same
         # "unknown distribution" than the specified data.
-        dist_params = arrival_json["histogram_data"]
+        element_distribution["arrivalTime"] = HistogramDistribution.from_dict(arrival_json)
     else:
-        for param_info in arrival_json["distribution_params"]:
-            dist_params.append(float(param_info["value"]))
-    element_distribution["arrivalTime"] = {
-        "distribution_name": arrival_json["distribution_name"],
-        "distribution_params": dist_params,
-    }
+        # handling all other types apart from "histogram_sampling"
+        # since end-user provides user-friendly parameters,
+        # we transform them to ones suitable for being used with Scipy library
+        element_distribution["arrivalTime"] = DurationDistribution.from_dict(arrival_json)
 
     for g_info in gateway_json:
         g_id = g_info["gateway_id"]
@@ -489,6 +470,11 @@ def parse_qbp_simulation_process(qbp_bpmn_path, out_file):
     with open(out_file, "w") as file_writter:
         json.dump(to_save, file_writter)
 
+def format_date(date_str):
+    date_splt = date_str.split("+")
+    if len(date_splt) == 2 and date_splt[1] == "00:00":
+        return date_splt[0]
+    return date_str
 
 def extract_dist_params(dist_info):
     # time_unit = dist_info.find("qbp:timeUnit", simod_ns).text
@@ -523,7 +509,7 @@ def extract_dist_params(dist_info):
             "distribution_name": "uniform",
             "distribution_params": [
                 dist_params["arg1"],
-                dist_params["arg2"] - dist_params["arg2"],
+                dist_params["arg2"] - dist_params["arg1"],
             ],
         }
     if dist_name == "GAMMA":
@@ -556,10 +542,3 @@ def extract_dist_params(dist_info):
             "distribution_params": [sigma, 0, exp(mu)],
         }
     return None
-
-
-def format_date(date_str):
-    date_splt = date_str.split("+")
-    if len(date_splt) == 2 and date_splt[1] == "00:00":
-        return date_splt[0]
-    return date_str

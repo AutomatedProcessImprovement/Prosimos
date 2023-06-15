@@ -1,14 +1,15 @@
 import copy
+import random
+import secrets
 import sys
 from collections import deque
 from enum import Enum
 from typing import List
 
-import random
-import secrets
-from prosimos.batch_processing import BATCH_TYPE, AndFiringRule, BatchConfigPerTask
-from prosimos.probability_distributions import generate_number_from
+from pix_framework.statistics.distribution import DurationDistribution
 
+from prosimos.batch_processing import (BATCH_TYPE, AndFiringRule,
+                                       BatchConfigPerTask)
 from prosimos.exceptions import InvalidBpmnModelException
 from prosimos.weekday_helper import CustomDatetimeAndSeconds
 
@@ -463,7 +464,8 @@ class BPMNGraph:
         all_gateway_choices = dict()
         for outgoing_flow in gateway_element_info.outgoing_flows:
             event_id = self.flow_arcs[outgoing_flow][1]
-            all_gateway_choices[outgoing_flow] = self.event_duration(event_id)
+            [duration] = self.event_duration(event_id)
+            all_gateway_choices[outgoing_flow] = duration
         
         min_value = min(all_gateway_choices.values())
         res = [(key, value) for key, value in all_gateway_choices.items() if value == min_value]
@@ -480,11 +482,8 @@ class BPMNGraph:
         :event_id: id of the event element
         :return: duration in seconds 
         """
-        distribution = self.event_distribution[event_id]
-        val = generate_number_from(distribution["distribution_name"],
-                                   distribution["distribution_params"]
-        )
-        return val
+        distribution: DurationDistribution = self.event_distribution[event_id]
+        return distribution.generate_sample(1)
 
 
     def reply_trace(self, task_sequence, f_arcs_frequency, post_p=True, trace=None):

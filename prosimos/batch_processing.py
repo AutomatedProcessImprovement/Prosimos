@@ -7,7 +7,7 @@ from typing import List
 
 from pix_framework.calendar.resource_calendar import str_week_days
 
-from prosimos.exceptions import InvalidRuleDefinition
+from prosimos.exceptions import InvalidRuleDefinitionException
 from prosimos.weekday_helper import CustomDatetimeAndSeconds, get_nearest_abs_day, get_nearest_past_day
 
 
@@ -405,9 +405,9 @@ class AndFiringRule():
                 daily_hour_count += 1
 
         if week_day_count > 1:
-            raise InvalidRuleDefinition("Only one WEEK_DAY subrule is allowed inside AND rule.")
+            raise InvalidRuleDefinitionException("Only one WEEK_DAY subrule is allowed inside AND rule.")
         elif daily_hour_count > 2:
-            raise InvalidRuleDefinition("Only one or two subrules of DAILY_HOUR type is allowed inside AND rule.")
+            raise InvalidRuleDefinitionException("Only one or two subrules of DAILY_HOUR type is allowed inside AND rule.")
 
 
     def _get_low_and_high_boundaries(self, rule_name: RULE_TYPE, diff_units):

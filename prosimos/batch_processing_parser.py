@@ -8,7 +8,7 @@ from prosimos.batch_processing import (
     FiringSubRule,
     OrFiringRule,
 )
-from prosimos.exceptions import InvalidRuleDefinition
+from prosimos.exceptions import InvalidRuleDefinitionException
 
 
 class BatchProcessingParser:
@@ -102,7 +102,7 @@ class BatchProcessingParser:
 
         if attribute == RULE_TYPE.WEEK_DAY.value and comparison != "=":
             # only "=" operator is allowed to be used with the week_day type of rule
-            raise InvalidRuleDefinition(
+            raise InvalidRuleDefinitionException(
                 f"'{comparison}' is not allowed operator for the week_day type of rule."
             )
 

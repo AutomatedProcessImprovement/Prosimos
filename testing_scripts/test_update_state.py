@@ -15,7 +15,7 @@ from prosimos.simulation_setup import SimDiffSetup
 
 from test_discovery import assets_path
 
-
+@pytest.mark.skip(reason="EXPONNORM distribution is temporarily not supported by pix-framework")
 def test_not_enabled_event_empty_tasks(assets_path):
     """
     Input: e_id - event which is not enabled
@@ -68,7 +68,7 @@ def test_not_enabled_event_empty_tasks(assets_path):
     expected_flows_with_token = ["Flow_0mcgg0k", "Flow_0urvgxh"]
     verify_flow_tokens(all_tokens, expected_flows_with_token)
 
-
+@pytest.mark.skip(reason="EXPONNORM distribution is temporarily not supported by pix-framework")
 def test_enabled_first_task_enables_next_one(assets_path):
     """
     Input: activated activity 'Task 1 B', another token before 'Task 1 A'.
@@ -136,7 +136,7 @@ def test_enabled_first_task_enables_next_one(assets_path):
     expected_flows_with_token = ["Flow_1sl476n", "Flow_0vgoazd"]
     verify_flow_tokens(all_tokens, expected_flows_with_token)
 
-
+@pytest.mark.skip(reason="EXPONNORM distribution is temporarily not supported by pix-framework")
 def test_enabled_first_task_token_wait_at_the_or_join(assets_path):
     """
     Input: activated activity 'Task 1 B', another token before 'Task 1 A'.

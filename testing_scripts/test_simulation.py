@@ -119,7 +119,7 @@ def test_timer_event_correct_duration_in_sim_logs(assets_path):
         df, expected_task_count, expected_task_timedelta
     )
 
-
+@pytest.mark.skip(reason="EXPONNORM distribution is temporarily not supported by pix-framework")
 def test_histogram_sampling_arrival_distribution_in_sim_logs(assets_path):
     """
     Input: run simulation with an arrival distribution sampling from a custom histogram
