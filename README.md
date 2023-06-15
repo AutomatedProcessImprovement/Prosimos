@@ -342,7 +342,7 @@ pytest --cov-config=.coveragerc --cov --cov-report=html --cov-branch
 
 <details><summary>Development notes</summary>
 
-#### Release the new version of the API docker image
+#### Use local version of `pix-framework`
 
 In case you want to introduce and test changes both to `pix-framework` and `Prosimos`, we need to install local version of `pix-framework` instead of the PyPI released version. For this, the following command needs to be run:
 
