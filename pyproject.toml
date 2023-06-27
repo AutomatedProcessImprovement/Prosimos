@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "prosimos"
-version = "1.2.6"
+version = "1.2.7"
 description = ""
 authors = ["Iryna Halenok, Orlenys López Pintado"]
 readme = "README.md"
@@ -19,7 +19,7 @@ python-dateutil = "^2.8.2"
 pytz = "^2023.3"
 scipy = "^1.10.1"
 pm4py = "^2.7.4"
-pix-framework = "^0.9.0"
+pix-framework = "^0.10.0"
 pylint = "^2.17.4"
 
 [tool.poetry.dev-dependencies]

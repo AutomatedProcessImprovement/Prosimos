@@ -37,26 +37,26 @@ def best_fit_distribution(data, bins=50):
     ]
 
     # Discrete distributions
-    disc_distributions = [
-        st.bernoulli, st.betabinom, st.binom, st.boltzmann, st.planck, st.poisson, st.geom, st.nbinom, st.hypergeom,
-        st.nchypergeom_fisher, st.nchypergeom_wallenius, st.nhypergeom, st.zipf, st.zipfian, st.logser, st.randint,
-        st.dlaplace, st.yulesimon, st.norm, st.expon, st.exponnorm, st.gamma, st.triang, st.lognorm, st.uniform
-    ]
+    # disc_distributions = [
+    #     st.bernoulli, st.betabinom, st.binom, st.boltzmann, st.planck, st.poisson, st.geom, st.nbinom, st.hypergeom,
+    #     st.nchypergeom_fisher, st.nchypergeom_wallenius, st.nhypergeom, st.zipf, st.zipfian, st.logser, st.randint,
+    #     st.dlaplace, st.yulesimon, st.norm, st.expon, st.exponnorm, st.gamma, st.triang, st.lognorm, st.uniform
+    # ]
 
     # Distributions to check
-    all_distributions = [
-        st.alpha, st.anglit, st.arcsine, st.beta, st.betaprime, st.bradford, st.burr, st.cauchy, st.chi, st.chi2,
-        st.cosine, st.dgamma, st.dweibull, st.erlang, st.expon, st.exponnorm, st.exponweib, st.exponpow, st.f,
-        st.fatiguelife, st.fisk, st.foldcauchy, st.foldnorm, st.genlogistic, st.genpareto,
-        st.gennorm, st.gausshyper, st.gamma, st.gengamma, st.genhalflogistic, st.gilbrat, st.gompertz,
-        st.gumbel_r, st.gumbel_l, st.halfcauchy, st.halflogistic, st.halfnorm, st.halfgennorm, st.hypsecant,
-        st.invgamma, st.invgauss, st.invweibull, st.johnsonsb, st.johnsonsu, st.ksone, st.kstwobign, st.laplace,
-        st.levy, st.levy_l, st.logistic, st.loggamma, st.loglaplace, st.lognorm, st.lomax, st.maxwell, st.mielke,
-        st.nakagami, st.ncx2, st.ncf, st.nct, st.norm, st.pareto, st.pearson3, st.powerlaw, st.powerlognorm,
-        st.powernorm, st.rdist, st.reciprocal, st.rayleigh, st.rice, st.semicircular, st.t, st.triang, st.truncexpon,
-        st.truncnorm, st.tukeylambda, st.uniform, st.vonmises, st.vonmises_line, st.wald, st.weibull_min,
-        st.weibull_max, st.wrapcauchy
-    ]
+    # all_distributions = [
+    #     st.alpha, st.anglit, st.arcsine, st.beta, st.betaprime, st.bradford, st.burr, st.cauchy, st.chi, st.chi2,
+    #     st.cosine, st.dgamma, st.dweibull, st.erlang, st.expon, st.exponnorm, st.exponweib, st.exponpow, st.f,
+    #     st.fatiguelife, st.fisk, st.foldcauchy, st.foldnorm, st.genlogistic, st.genpareto,
+    #     st.gennorm, st.gausshyper, st.gamma, st.gengamma, st.genhalflogistic, st.gilbrat, st.gompertz,
+    #     st.gumbel_r, st.gumbel_l, st.halfcauchy, st.halflogistic, st.halfnorm, st.halfgennorm, st.hypsecant,
+    #     st.invgamma, st.invgauss, st.invweibull, st.johnsonsb, st.johnsonsu, st.ksone, st.kstwobign, st.laplace,
+    #     st.levy, st.levy_l, st.logistic, st.loggamma, st.loglaplace, st.lognorm, st.lomax, st.maxwell, st.mielke,
+    #     st.nakagami, st.ncx2, st.ncf, st.nct, st.norm, st.pareto, st.pearson3, st.powerlaw, st.powerlognorm,
+    #     st.powernorm, st.rdist, st.reciprocal, st.rayleigh, st.rice, st.semicircular, st.t, st.triang, st.truncexpon,
+    #     st.truncnorm, st.tukeylambda, st.uniform, st.vonmises, st.vonmises_line, st.wald, st.weibull_min,
+    #     st.weibull_max, st.wrapcauchy
+    # ]
 
     # Best holders
     best_distribution = st.norm
