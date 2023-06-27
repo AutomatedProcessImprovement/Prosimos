@@ -104,224 +104,7 @@ Note that the order of the sections is not relevant, i.e., they can appear in an
   * `firing_rules`. 
 * "case_attributes": Description on which case attributes should be generated during the simulation and what value it should have. There is a possibility to introduce two types of case attributes: `discrete` and `continuous`. The `values` property of the `continuous` case attribute is defined as a distribution function selected from the Python library [Scipy Stats](https://docs.scipy.org/doc/scipy/reference/stats.html#module-scipy.stats). The unit of measurement of values provided as `distribution_params` is seconds. The `values` property of the `discrete` case attribute is defined as an array of possible choices with theirs probability accordingly. The sum of probabilities should be equal to 1. 
 
-The following snippet outlines an example of the general structure of the input JSON parameters with the simulation parameters.
-
-```json
-{
-    "resource_profiles": [
-        {
-            "id": "Profile ID_1",
-            "name": "Credit Officer",
-            "resource_list": [
-                {
-                    "id": "resource_id_1",
-                    "name": "Credit Officer_1",
-                    "cost_per_hour": "35",
-                    "amount": 1,
-                    "calendar": "sid-222A1118-4766-43B2-A004-7DADE521982D",
-                    "assignedTasks": [
-                        "sid-622A1118-4766-43B2-A004-7DADE521982D"
-                    ]
-                },
-                {
-                    "id": "resource_id_2",
-                    "name": "Credit Officer_2",
-                    "cost_per_hour": "35",
-                    "amount": 1,
-                    "calendar": "sid-222A1118-4766-43B2-A004-7DADE521982D",
-                    "assignedTasks": [
-                        "sid-622A1118-4766-43B2-A004-7DADE521982D"
-                    ]
-                }
-            ]
-        }
-    ],
-    "arrival_time_distribution": {
-        "distribution_name": "expon",
-        "distribution_params": [
-            {
-                "value": 0
-            },
-            {
-                "value": 1800.0
-            },
-            {
-                "value": 90.0
-            }
-        ]
-    },
-    "arrival_time_calendar": [
-        {
-            "from": "MONDAY",
-            "to": "FRIDAY",
-            "beginTime": "09:00:00.000",
-            "endTime": "17:00:00.000"
-        }
-    ],
-    "gateway_branching_probabilities": [
-        {
-            "gateway_id": "sid-64FC5B46-47E5-4940-A0AF-ECE87483967D",
-            "probabilities": [
-                {
-                    "path_id": "sid-8AE82A7B-75EE-401B-8ABE-279FB05A3946",
-                    "value": "0.7"
-                },
-                {
-                    "path_id": "sid-789335C6-205C-4A03-9AD6-9655893C1FFB",
-                    "value": "0.3"
-                }
-            ]
-        },
-        {
-            "gateway_id": "sid-FACFF0AE-6A1B-47AC-B289-F5E60CB12B2A",
-            "probabilities": [
-                {
-                    "path_id": "sid-AFEC7074-8C12-43E2-A1FE-87D5CEF395C8",
-                    "value": "0.3"
-                },
-                {
-                    "path_id": "sid-AE313010-5715-438C-AD61-1C02F03DCF77",
-                    "value": "0.7"
-                }
-            ]
-        }
-    ],
-    "task_resource_distribution": [
-        {
-            "task_id": "sid-622A1118-4766-43B2-A004-7DADE521982D",
-            "resources": [
-                {
-                    "resource_id": "resource_id_1",
-                    "distribution_name": "norm",
-                    "distribution_params": [
-                        {
-                            "value": 600.0
-                        },
-                        {
-                            "value": 120.0
-                        }
-                    ]
-                },
-                {
-                    "resource_id": "resource_id_2",
-                    "distribution_name": "norm",
-                    "distribution_params": [
-                        {
-                            "value": 60.0
-                        },
-                        {
-                            "value": 12.0
-                        }
-                    ]
-                }
-            ]
-        }
-    ],
-    "resource_calendars": [
-        {
-            "id": "sid-222A1118-4766-43B2-A004-7DADE521982D",
-            "name": "calendar1",
-            "time_periods": [
-                {
-                    "from": "MONDAY",
-                    "to": "FRIDAY",
-                    "beginTime": "09:00:00.000",
-                    "endTime": "17:00:00.000"
-                },
-                {
-                    "from": "SATURDAY",
-                    "to": "SATURDAY",
-                    "beginTime": "09:00:00.000",
-                    "endTime": "13:00:00.000"
-                }
-            ]
-        }
-    ],
-    "batch_processing": [
-        {
-            "task_id": "sid-503A048D-6344-446A-8D67-172B164CF8FA",
-            "type": "Sequential",
-            "size_distrib": [
-                {
-                    "key": "1",
-                    "value": 0.25
-                },
-                {
-                    "key": "3",
-                    "value": 0.5
-                },
-                {
-                    "key": "4",
-                    "value": 0.25
-                }
-            ],
-            "duration_distrib": [
-                {
-                    "key": "3",
-                    "value": 0.8
-                }
-            ],
-            "firing_rules": [
-                [
-                    {
-                        "attribute": "size",
-                        "comparison": "=",
-                        "value": 3
-                    }
-                ]
-            ]
-        }
-    ],
-    "case_attributes": [
-        {
-            "name": "client_type",
-            "type": "discrete",
-            "values": [
-                {
-                    "key": "REGULAR",
-                    "value": 0.8
-                },
-                {
-                    "key": "BUSINESS",
-                    "value": 0.2
-                }
-            ]
-        },
-        {
-            "name": "loan_amount",
-            "type": "continuous",
-            "values": {
-                "distribution_name": "fix",
-                "distribution_params": [
-                    {
-                        "value": 240
-                    },
-                    {
-                        "value": 0
-                    },
-                    {
-                        "value": 1
-                    }
-                ]
-            }
-        }
-    ],
-    "prioritisation_rules": [
-        {
-            "priority_level": 1,
-            "rules": [
-                [
-                    {
-                        "attribute": "client_type",
-                        "comparison": "=",
-                        "value": "BUSINESS"
-                    }
-                ]
-            ]
-        }
-    ]
-}
-```
+An example of the general structure of the input JSON parameters with the simulation parameters could be found [here](./simulation_scenario_example.json).
 
 ## Running Experiments BPM-2022
 
@@ -339,6 +122,17 @@ Then check the information printed in the terminal.
 pytest --cov-config=.coveragerc --cov --cov-report=html --cov-branch
 ```
 * If one wants to skip running the tests and just overview a coverage report, one needs to unzip **htmlcov.zip** archive. Unpacked folder **htmlcov** contains HTML coverage report, in general and per each file.
+
+## Notes on releasing a new version
+
+Once you are done with the development and all changes are in `master` branch, we can move forward with releasing PyPI package. The workflow grabs the package version from `pyproject.toml`. So before proceeding further, make sure that you updated a version of the package to-be-released in `pyproject.toml` file. Next, take the following steps to release the new version:
+
+0. `Build & Test` job succeeded on the `master` branch. This means all tests are passing. (The job is triggered automatically when you push new changes to `master`)
+1. Go to `Actions` tab.
+2. Find `Release PyPI package` from the list of all existing actions on the left-side menu.
+3. Start the workflow by clicking on `Run workflow` button.
+4. After the task success, double verify that the new version was published on PyPI (https://pypi.org/project/prosimos/).
+
 
 <details><summary>Development notes</summary>
 
