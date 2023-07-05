@@ -11,13 +11,12 @@ from fuzzy_engine.fuzzy_parser import parse_json_sim_parameters
 
 
 class SimDiffSetup:
-    def __init__(self, bpmn_path, json_path, is_fuzzy=False):
-        self.is_fuzzy = is_fuzzy
+    def __init__(self, bpmn_path, json_path):
         self.process_name = ntpath.basename(bpmn_path).split(".")[0]
         self.start_datetime = datetime.datetime.now(pytz.utc)
 
-        self.resources_map, self.calendars_map, self.element_probability, self.task_resource, self.arrival_calendar \
-            = parse_json_sim_parameters(json_path, is_fuzzy)
+        self.resources_map, self.calendars_map, self.element_probability, self.task_resource, self.arrival_calendar, \
+            self.model_type = parse_json_sim_parameters(json_path)
 
         self.bpmn_graph = parse_simulation_model(bpmn_path)
         self.bpmn_graph.set_element_probabilities(self.element_probability, self.task_resource)
@@ -78,7 +77,7 @@ class SimDiffSetup:
         return val
 
     def real_task_duration(self, task_duration, resource_id, enabled_at, worked_intervals=None):
-        if self.is_fuzzy:
+        if self.model_type == "FUZZY":
             return self.calendars_map[self.resources_map[resource_id].calendar_id].find_idle_time(enabled_at,
                                                                                                   task_duration,
                                                                                                   worked_intervals)

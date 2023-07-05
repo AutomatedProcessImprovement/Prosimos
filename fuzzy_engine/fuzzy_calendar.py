@@ -66,7 +66,7 @@ class FuzzyModel:
         self.default_calendar = FSpan.AVAILABILITY
 
     def update_model(self, key_str, value: WeeklyFuzzyCalendar):
-        if key_str == 'availability_probabilities':
+        if key_str == 'availability_probabilities' or key_str == 'time_periods':
             self.availability_calendar = value
         elif key_str == "workload_ratio":
             self.workload_ratio = value
