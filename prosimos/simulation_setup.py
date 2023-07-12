@@ -22,7 +22,7 @@ class SimDiffSetup:
 
         self.resources_map, self.calendars_map, self.element_probability, self.task_resource, self.arrival_calendar, \
             self.event_distibution, self.batch_processing, self.case_attributes, self.prioritisation_rules, \
-            self.branch_conditions = parse_json_sim_parameters(json_path)
+            self.branch_conditions, self.event_attributes = parse_json_sim_parameters(json_path)
 
         self.bpmn_graph = parse_simulation_model(bpmn_path)
         self.bpmn_graph.set_additional_fields_from_json(self.element_probability, \

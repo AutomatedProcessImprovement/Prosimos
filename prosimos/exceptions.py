@@ -20,4 +20,7 @@ class InvalidRuleDefinitionException(Error):
 
 class InvalidCaseAttributeException(Error):
     """Raised when the defined case attribute is invalid"""
+
+class InvalidEventAttributeException(Error):
+    """Raised when the defined event attribute is invalid"""
     

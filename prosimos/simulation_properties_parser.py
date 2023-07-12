@@ -16,6 +16,8 @@ from prosimos.probability_distributions import Choice
 from prosimos.resource_profile import PoolInfo, ResourceProfile
 from prosimos.branch_condition_parser import BranchConditionParser
 from prosimos.branch_condition_rules import AllBranchConditionRules
+from prosimos.event_attributes import AllEventAttributes
+from prosimos.event_attributes_parser import EventAttributesParser
 
 bpmn_schema_url = "http://www.omg.org/spec/BPMN/20100524/MODEL"
 simod_ns = {"qbp": "http://www.qbp-simulator.com/Schema201212"}
@@ -28,6 +30,7 @@ PRIORITISATION_RULES_SECTION = "prioritisation_rules"
 ARRIVAL_TIME_CALENDAR = "arrival_time_calendar"
 RESOURCE_CALENDARS = "resource_calendars"
 BRANCH_CONDITIONS = "branch_conditions"
+EVENT_ATTRIBUTES = "event_attributes"
 
 
 def parse_json_sim_parameters(json_path):
@@ -74,7 +77,11 @@ def parse_json_sim_parameters(json_path):
             if PRIORITISATION_RULES_SECTION in json_data
             else AllPriorityRules([])
         )
-
+        event_attributes = (
+            EventAttributesParser(json_data[EVENT_ATTRIBUTES]).parse()
+            if EVENT_ATTRIBUTES in json_data
+            else AllEventAttributes([])
+        )
 
         return (
             resources_map,
@@ -86,7 +93,8 @@ def parse_json_sim_parameters(json_path):
             batch_processing,
             case_attributes,
             prioritisation_rules,
-            branch_conditions
+            branch_conditions,
+            event_attributes
         )
 
 
