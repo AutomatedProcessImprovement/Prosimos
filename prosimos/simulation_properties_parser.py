@@ -42,9 +42,16 @@ def parse_json_sim_parameters(json_path):
             json_data["task_resource_distribution"], res_pool
         )
 
+        branch_conditions = (
+            BranchConditionParser(json_data[BRANCH_CONDITIONS]).parse()
+            if BRANCH_CONDITIONS in json_data
+            else AllBranchConditionRules([])
+        )
+
         element_distribution = parse_arrival_branching_probabilities(
             json_data["arrival_time_distribution"],
             json_data["gateway_branching_probabilities"],
+            branch_conditions
         )
         arrival_calendar = parse_arrival_calendar(json_data)
         event_distibution = (
@@ -67,11 +74,7 @@ def parse_json_sim_parameters(json_path):
             if PRIORITISATION_RULES_SECTION in json_data
             else AllPriorityRules([])
         )
-        branch_conditions = (
-            BranchConditionParser(json_data[BRANCH_CONDITIONS]).parse()
-            if BRANCH_CONDITIONS in json_data
-            else AllBranchConditionRules([])
-        )
+
 
         return (
             resources_map,
@@ -196,10 +199,9 @@ def parse_case_attr(json_data) -> AllCaseAttributes:
 #     return resources_map, calendars_map
 
 
-def parse_arrival_branching_probabilities(arrival_json, gateway_json):
+def parse_arrival_branching_probabilities(arrival_json, gateway_json, branch_conditions):
     element_distribution = dict()
-
-    dist_name = arrival_json["distribution_name"] 
+    dist_name = arrival_json["distribution_name"]
     if dist_name == "histogram_sampling":
         # Custom distribution: we expect a list of inter-arrival interval values (floats),
         # prosimos will take randomly a value from this list each time it needs a new
@@ -215,11 +217,14 @@ def parse_arrival_branching_probabilities(arrival_json, gateway_json):
     for g_info in gateway_json:
         g_id = g_info["gateway_id"]
         probability_list = list()
+        #TODO: handle lack of condition or probability value
         out_arc = list()
+        conditions_list = list()
         for prob_info in g_info["probabilities"]:
             out_arc.append(prob_info["path_id"])
             probability_list.append(float(prob_info["value"]))
-        element_distribution[g_id] = Choice(out_arc, probability_list)
+            conditions_list.append(branch_conditions.get_branch_condition_by_id(prob_info["condition_id"]))
+        element_distribution[g_id] = Choice(out_arc, probability_list, conditions_list)
 
     return element_distribution
 
