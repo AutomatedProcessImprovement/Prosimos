@@ -18,6 +18,7 @@ from prosimos.branch_condition_parser import BranchConditionParser
 from prosimos.branch_condition_rules import AllBranchConditionRules
 from prosimos.event_attributes import AllEventAttributes
 from prosimos.event_attributes_parser import EventAttributesParser
+from prosimos.gateway_condition_choice import GatewayConditionChoice
 
 bpmn_schema_url = "http://www.omg.org/spec/BPMN/20100524/MODEL"
 simod_ns = {"qbp": "http://www.qbp-simulator.com/Schema201212"}
@@ -29,12 +30,13 @@ CASE_ATTRIBUTES_SECTION = "case_attributes"
 PRIORITISATION_RULES_SECTION = "prioritisation_rules"
 ARRIVAL_TIME_CALENDAR = "arrival_time_calendar"
 RESOURCE_CALENDARS = "resource_calendars"
-BRANCH_CONDITIONS = "branch_conditions"
+BRANCH_RULES = "branch_rules"
 EVENT_ATTRIBUTES = "event_attributes"
 
 
 def parse_json_sim_parameters(json_path):
     with open(json_path) as json_file:
+        print("PARSING START")
         json_data = json.load(json_file)
 
         resources_map, res_pool = parse_resource_profiles(
@@ -45,17 +47,20 @@ def parse_json_sim_parameters(json_path):
             json_data["task_resource_distribution"], res_pool
         )
 
-        branch_conditions = (
-            BranchConditionParser(json_data[BRANCH_CONDITIONS]).parse()
-            if BRANCH_CONDITIONS in json_data
+        branch_rules = (
+            BranchConditionParser(json_data[BRANCH_RULES]).parse()
+            if BRANCH_RULES in json_data
             else AllBranchConditionRules([])
         )
 
         element_distribution = parse_arrival_branching_probabilities(
             json_data["arrival_time_distribution"],
-            json_data["gateway_branching_probabilities"],
-            branch_conditions
+            json_data["gateway_branching_probabilities"]
         )
+
+        gateway_conditions = parse_gateway_conditions(json_data["gateway_branching_probabilities"], 
+                                                      branch_rules)
+
         arrival_calendar = parse_arrival_calendar(json_data)
         event_distibution = (
             parse_event_distribution(json_data[EVENT_DISTRIBUTION_SECTION])
@@ -83,6 +88,7 @@ def parse_json_sim_parameters(json_path):
             else AllEventAttributes([])
         )
 
+        print("PARSING END")
         return (
             resources_map,
             calendars_map,
@@ -93,8 +99,9 @@ def parse_json_sim_parameters(json_path):
             batch_processing,
             case_attributes,
             prioritisation_rules,
-            branch_conditions,
-            event_attributes
+            branch_rules,
+            event_attributes,
+            gateway_conditions
         )
 
 
@@ -206,8 +213,26 @@ def parse_case_attr(json_data) -> AllCaseAttributes:
 #         calendars_map[r_calendar.calendar_id] = r_calendar
 #     return resources_map, calendars_map
 
+def parse_gateway_conditions(gateway_json, branch_rules):
+    gateway_conditions = dict()
 
-def parse_arrival_branching_probabilities(arrival_json, gateway_json, branch_conditions):
+    for g_info in gateway_json:
+        g_id = g_info["gateway_id"]
+        gateway_rules = list()
+        out_arc = list()
+        for prob_info in g_info["probabilities"]:
+            if "condition_id" in prob_info:
+                out_arc.append(prob_info["path_id"])
+                curr_branch_rules = branch_rules.get_branch_condition_by_id(prob_info["condition_id"])
+                gateway_rules.append(curr_branch_rules)      
+        if len(prob_info) > 0:
+            gateway_conditions[g_id] = GatewayConditionChoice(out_arc, gateway_rules)
+    print("SAVED CONDITIONS:")
+    print(str(gateway_conditions))
+    return gateway_conditions
+
+
+def parse_arrival_branching_probabilities(arrival_json, gateway_json):
     element_distribution = dict()
     dist_name = arrival_json["distribution_name"]
     if dist_name == "histogram_sampling":
@@ -225,15 +250,11 @@ def parse_arrival_branching_probabilities(arrival_json, gateway_json, branch_con
     for g_info in gateway_json:
         g_id = g_info["gateway_id"]
         probability_list = list()
-        #TODO: handle lack of condition or probability value
         out_arc = list()
-        conditions_list = list()
         for prob_info in g_info["probabilities"]:
             out_arc.append(prob_info["path_id"])
             probability_list.append(float(prob_info["value"]))
-            conditions_list.append(branch_conditions.get_branch_condition_by_id(prob_info["condition_id"]))
-        element_distribution[g_id] = Choice(out_arc, probability_list, conditions_list)
-
+        element_distribution[g_id] = Choice(out_arc, probability_list)
     return element_distribution
 
 

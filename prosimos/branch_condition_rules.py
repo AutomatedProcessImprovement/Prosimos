@@ -37,7 +37,6 @@ class BranchConditionRule:
             evaluator = InOperatorEvaluator(self.value, case_value)
             return evaluator.eval()
         else:
-            # TODO: clarify whether == is the only possible option
             return self.value == case_value
 
 
@@ -49,7 +48,6 @@ class AndBranchConditionRule:
         init_val = True
         for item in self.and_rules:
             init_val = init_val and item.is_rule_true(all_case_values)
-
         return init_val
 
 
@@ -61,7 +59,6 @@ class OrBranchConditionRule:
         init_val = False
         for item in self.or_rules:
             init_val = init_val or item.is_and_rule_true(all_case_values)
-
         return init_val
 
 
@@ -78,7 +75,7 @@ class AllBranchConditionRules:
     def __init__(self, rules_array: List[BranchConditionWithRule]):
         self.all_rules = rules_array
 
-    def get_branch_condition_by_id(self, branch_condition_id):
+    def get_branch_condition_by_id(self, branch_condition_id) -> BranchConditionWithRule | None:
         for rule in self.all_rules:
             if rule.id == branch_condition_id:
                 return rule

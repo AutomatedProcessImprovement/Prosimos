@@ -22,11 +22,13 @@ class SimDiffSetup:
 
         self.resources_map, self.calendars_map, self.element_probability, self.task_resource, self.arrival_calendar, \
             self.event_distibution, self.batch_processing, self.case_attributes, self.prioritisation_rules, \
-            self.branch_conditions, self.event_attributes = parse_json_sim_parameters(json_path)
+            self.branch_rules, self.event_attributes, self.gateway_conditions = parse_json_sim_parameters(json_path)
 
         self.bpmn_graph = parse_simulation_model(bpmn_path)
-        self.bpmn_graph.set_additional_fields_from_json(self.element_probability, \
-            self.task_resource, self.event_distibution, self.batch_processing)
+        self.bpmn_graph.set_additional_fields_from_json(self.element_probability,
+                                                        self.task_resource, self.event_distibution,
+                                                        self.batch_processing, self.case_attributes,
+                                                        self.gateway_conditions)
         if not self.arrival_calendar:
             self.arrival_calendar = self.find_arrival_calendar()
 
@@ -57,7 +59,7 @@ class SimDiffSetup:
 
     def next_arrival_time(self, starting_from):
         duration: float = 0.0
-        
+
         # decide how to calculate value based on whether it is function distribution or histogram one
         if isinstance(self.element_probability['arrivalTime'], DurationDistribution):
             [duration] = self.element_probability['arrivalTime'].generate_sample(1)
@@ -102,7 +104,7 @@ class SimDiffSetup:
     def ideal_task_duration(self, task_id, resource_id, num_tasks_in_batch):
         # calculate duration based on defined distribution for the resource allocation
         [duration] = self.task_resource[task_id][resource_id].generate_sample(1)
-                        
+
         if num_tasks_in_batch == 0:
             # task executed NOT in batch
             return duration

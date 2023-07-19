@@ -113,13 +113,11 @@ def check_fix(data_list, delta=5):
 
 
 class Choice:
-    def __init__(self, candidates_list, probability_list, conditions_list=[]):
+    def __init__(self, candidates_list, probability_list):
         self.candidates_list = candidates_list
         self.probability_list = probability_list
-        self.conditions_list = conditions_list
 
     def get_outgoing_flow(self):
-        #TODO: Add choice based on condition
         return random.choice(self.candidates_list, 1, p=self.probability_list)[0]
 
     def get_multiple_flows(self):

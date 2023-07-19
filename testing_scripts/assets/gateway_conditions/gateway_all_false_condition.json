@@ -1,0 +1,150 @@
+{
+  "task_resource_distribution": [
+    {
+      "task_id": "Activity_0ydef2v",
+      "resources": [
+        {
+          "distribution_name": "fix",
+          "distribution_params": [{ "value": 1 }],
+          "resource_id": "sid-72c14c8e-c5d3-4684-bded-582d11757403_1"
+        }
+      ]
+    },
+    {
+      "task_id": "Activity_1tvjx3e",
+      "resources": [
+        {
+          "distribution_name": "fix",
+          "distribution_params": [{ "value": 2 }],
+          "resource_id": "sid-72c14c8e-c5d3-4684-bded-582d11757403_1"
+        }
+      ]
+    },
+    {
+      "task_id": "Activity_0paaiex",
+      "resources": [
+        {
+          "distribution_name": "fix",
+          "distribution_params": [{ "value": 3 }],
+          "resource_id": "sid-72c14c8e-c5d3-4684-bded-582d11757403_1"
+        }
+      ]
+    }
+  ],
+  "resource_calendars": [
+    {
+      "id": "sid-d698edda-4503-406b-bd50-4c76a720cbd8",
+      "name": "default schedule",
+      "time_periods": [
+        {
+          "from": "MONDAY",
+          "to": "FRIDAY",
+          "beginTime": "00:00:00.000",
+          "endTime": "23:59:00.000"
+        }
+      ]
+    }
+  ],
+  "gateway_branching_probabilities": [
+    {
+      "gateway_id": "Gateway_004nfcw",
+      "probabilities": [
+        {
+          "path_id": "Flow_0cn0o08",
+          "value": "0.1",
+          "condition_id": "condition1"
+        },
+        {
+          "path_id": "Flow_1rd4tfv",
+          "value": "0.3",
+          "condition_id": "condition2"
+        },
+        {
+          "path_id": "Flow_0qke4ke",
+          "value": "0.6",
+          "condition_id": "condition3"
+        }
+      ]
+    },
+    {
+      "gateway_id": "Gateway_18j0t4m",
+      "probabilities": [{ "path_id": "Flow_1n9agtn", "value": "1" }]
+    }
+  ],
+  "arrival_time_distribution": {
+    "distribution_name": "fix",
+    "distribution_params": [{ "value": 30 }]
+  },
+  "arrival_time_calendar": [
+    {
+      "from": "MONDAY",
+      "to": "SUNDAY",
+      "beginTime": "00:00:00.000",
+      "endTime": "23:59:00.000"
+    }
+  ],
+  "resource_profiles": [
+    {
+      "id": "sid-72c14c8e-c5d3-4684-bded-582d11757403",
+      "name": "Default resource profile",
+      "resource_list": [
+        {
+          "id": "sid-72c14c8e-c5d3-4684-bded-582d11757403_1",
+          "name": "Default resource profile 1",
+          "cost_per_hour": "0",
+          "amount": 1,
+          "calendar": "sid-d698edda-4503-406b-bd50-4c76a720cbd8",
+          "assignedTasks": []
+        }
+      ]
+    }
+  ],
+  "event_distribution": [],
+  "batch_processing": [],
+  "case_attributes": [
+  {
+      "name": "client_type",
+      "type": "discrete",
+      "values": [{"key": "REGULAR", "value": 1}]
+    }
+  ],
+  "prioritisation_rules": [],
+  "branch_rules": [
+      {
+          "id": "condition1",
+          "rules": [
+              [
+                  {
+                      "attribute": "client_type",
+                      "comparison": "=",
+                      "value": "NONE"
+                  }
+              ]
+          ]
+      },
+      {
+          "id": "condition2",
+          "rules": [
+              [
+                  {
+                      "attribute": "client_type",
+                      "comparison": "=",
+                      "value": "NONE"
+                  }
+              ]
+          ]
+      },
+      {
+          "id": "condition3",
+          "rules": [
+              [
+                  {
+                      "attribute": "client_type",
+                      "comparison": "=",
+                      "value": "NONE"
+                  }
+              ]
+          ]
+      }
+  ]
+}
