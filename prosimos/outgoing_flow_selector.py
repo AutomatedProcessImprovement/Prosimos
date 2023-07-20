@@ -63,7 +63,7 @@ class OutgoingFlowSelector:
 
         # All false (use probabilities)
         if not passed_arcs_ids:
-            return OutgoingFlowSelector._use_probabilities(e_info, element_probability)
+            return element_probability[e_info.id].get_multiple_flows()
         else:
             return [(flow, None) for flow in passed_arcs_ids]
         
