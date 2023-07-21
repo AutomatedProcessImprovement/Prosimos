@@ -59,7 +59,7 @@ class CaseAttribute():
         return True
 
 
-class AllCaseAttributes():
+class AllCaseAttributes:
     def __init__(self, case_attr_arr: List[CaseAttribute]):
         self.attributes = case_attr_arr
 

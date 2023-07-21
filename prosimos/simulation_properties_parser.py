@@ -77,15 +77,18 @@ def parse_json_sim_parameters(json_path):
             if CASE_ATTRIBUTES_SECTION in json_data
             else AllCaseAttributes([])
         )
-        prioritisation_rules = (
-            PrioritisationParser(json_data[PRIORITISATION_RULES_SECTION]).parse()
-            if PRIORITISATION_RULES_SECTION in json_data
-            else AllPriorityRules([])
-        )
         event_attributes = (
             EventAttributesParser(json_data[EVENT_ATTRIBUTES]).parse()
             if EVENT_ATTRIBUTES in json_data
             else AllEventAttributes([])
+        )
+
+        event_attributes.validate(case_attributes)
+
+        prioritisation_rules = (
+            PrioritisationParser(json_data[PRIORITISATION_RULES_SECTION]).parse()
+            if PRIORITISATION_RULES_SECTION in json_data
+            else AllPriorityRules([])
         )
 
         print("PARSING END")
@@ -227,8 +230,6 @@ def parse_gateway_conditions(gateway_json, branch_rules):
                 gateway_rules.append(curr_branch_rules)      
         if len(prob_info) > 0:
             gateway_conditions[g_id] = GatewayConditionChoice(out_arc, gateway_rules)
-    print("SAVED CONDITIONS:")
-    print(str(gateway_conditions))
     return gateway_conditions
 
 
