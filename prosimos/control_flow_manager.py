@@ -157,14 +157,16 @@ class BPMNGraph:
         self.last_datetime = dict()
         self.case_attributes = None
         self.gateway_conditions = None
+        self.event_attributes = None
 
     def set_additional_fields_from_json(self, element_probability, task_resource_probability,
-                                        event_distribution, batch_processing, case_attributes, gateway_conditions):
+                                        event_distribution, batch_processing, case_attributes, event_attributes, gateway_conditions):
         self.element_probability = element_probability
         self.task_resource_probability = task_resource_probability
         self.event_distribution = event_distribution
         self.batch_info = batch_processing
         self.case_attributes = case_attributes
+        self.event_attributes = event_attributes
         self.gateway_conditions = gateway_conditions
 
     def add_bpmn_element(self, element_id, element_info):

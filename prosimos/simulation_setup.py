@@ -28,7 +28,7 @@ class SimDiffSetup:
         self.bpmn_graph.set_additional_fields_from_json(self.element_probability,
                                                         self.task_resource, self.event_distibution,
                                                         self.batch_processing, self.case_attributes,
-                                                        self.gateway_conditions)
+                                                        self.event_attributes, self.gateway_conditions)
         if not self.arrival_calendar:
             self.arrival_calendar = self.find_arrival_calendar()
 
