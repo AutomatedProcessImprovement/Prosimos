@@ -1,0 +1,5 @@
+01: SKD
+02: RES
+03: SKD U RES
+04: SKD -> RES
+05: RES -> SKD

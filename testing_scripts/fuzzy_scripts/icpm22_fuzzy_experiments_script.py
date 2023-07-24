@@ -52,11 +52,11 @@ granule_sizes = [60]
 trapezoidal_angles = [0, 0.25, 0.5, 0.75, 1.0]
 
 active_steps = {
-    Steps.LOG_INFO: False,
+    Steps.LOG_INFO: True,
     Steps.TO_UTC: False,
     Steps.LOCALIZE: False,
-    Steps.SYNTETIC_LOG_GEN: True,
-    Steps.SPLIT_LOG: True,
+    Steps.SYNTETIC_LOG_GEN: False,
+    Steps.SPLIT_LOG: False,
     Steps.FUZZY_DISCOVERY: False,
     Steps.FUZZY_SIMULATION: False,
     Steps.CRISP_DISCOVERY: False,
@@ -68,12 +68,13 @@ print_stats = False
 
 
 def main():
-    for i in range(3, len(test_processes)):
+    for i in range(6, len(test_processes)):
         proc_name = test_processes[i]
         synthetic = is_syntetic[proc_name]
 
         if active_steps[Steps.LOG_INFO]:
-            get_log_info()
+            # get_log_info()
+            print_log_sequences(proc_name)
 
         if active_steps[Steps.LOCALIZE]:
             localize_datetimes(get_file_path(proc_name, FileType.GENERATOR_LOG))
@@ -179,6 +180,22 @@ def print_log_info(file_path):
     print("Total Activities: %d" % len(activities))
     print("Total Resources: %d" % len(resources))
     print('----------------------------------------------------------')
+
+
+def print_log_sequences(proc_name):
+    file_path = get_file_path(proc_name, FileType.TESTING_CSV_LOG, 60, 0, 1)
+    traces = event_list_from_csv(file_path)
+    t_map = dict()
+    for trace in traces:
+        t_str = ""
+        for ev in trace.event_list:
+            t_str += (str(ev.task_id) + ",")
+        if t_str not in t_map:
+            t_map[t_str] = 0
+        t_map[t_str] += 1
+    for x in t_map:
+        if t_map[x] > 500:
+            print("%d) %s" % (t_map[x], x))
 
 
 def split_synthetic_log(proc_name):
@@ -459,10 +476,6 @@ def _compute_log_resource_stats(log_traces):
     for r_id in resources:
         allocations[r_id][0] = allocations[r_id][0] / possible_allocations[r_id]
         allocations[r_id][1] = allocations[r_id][1] / process_duration
-        if allocations[r_id][0] > 1:
-            print("Hello 1")
-        if allocations[r_id][0] > 1:
-            print("Hello 2")
 
     return resources, allocations
 
@@ -556,6 +569,7 @@ def _save_simulation_log(out_csv_log_path, bpm_env: SimBPMEnv):
         f_writer = csv.writer(log_csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
         add_simulation_event_log_header(f_writer)
         log_writer = FileManager(10000, f_writer)
+
         for trace in bpm_env.log_info.trace_list:
             for ev in trace.event_list:
                 log_writer.add_csv_row([ev.p_case,

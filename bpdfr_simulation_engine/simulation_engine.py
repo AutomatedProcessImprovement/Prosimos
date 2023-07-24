@@ -60,9 +60,6 @@ class SimBPMEnv:
 
     def generate_fixed_arrival_events(self, starting_times):
         sim_setup = self.sim_setup
-        for i in range(1, len(starting_times)):
-            if starting_times[i - 1] > starting_times[i]:
-                print("Hola")
 
         p_case = 0
         for arrival_time in starting_times:
@@ -100,6 +97,8 @@ class SimBPMEnv:
         self.resource_queue.upddate_resource_availability(r_id, r_next_available)
         self.sim_resources[r_id].worked_time += full_evt.ideal_duration
 
+        if full_evt.enabled_datetime > full_evt.started_datetime:
+            print("hola")
         self.log_writer.add_csv_row([c_event.p_case,
                                      self.sim_setup.bpmn_graph.element_info[c_event.task_id].name,
                                      full_evt.enabled_datetime,
