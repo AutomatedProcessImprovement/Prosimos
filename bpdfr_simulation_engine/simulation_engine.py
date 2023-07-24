@@ -163,9 +163,9 @@ def execute_full_process(bpm_env: SimBPMEnv, total_cases, fixed_starting_times=N
         current_event = bpm_env.events_queue.pop_next_event()
 
 
-def run_simulation(bpmn_path, json_path, tot_cases, is_fuzzy, stat_out_path=None, log_out_path=None, starting_at=None,
+def run_simulation(bpmn_path, json_path, tot_cases, stat_out_path=None, log_out_path=None, starting_at=None,
                    fixed_arrival_times=None):
-    diffsim_info = SimDiffSetup(bpmn_path, json_path, is_fuzzy)
+    diffsim_info = SimDiffSetup(bpmn_path, json_path)
 
     if not diffsim_info:
         return None
