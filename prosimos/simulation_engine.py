@@ -63,6 +63,8 @@ class SimBPMEnv:
             self.sim_setup.prioritisation_rules,
         )
 
+        self.sim_setup.bpmn_graph.case_attributes = self.case_prioritisation.all_case_attributes
+
     def calc_priority_and_append_to_queue(
         self, enabled_event: EnabledEvent, is_arrival_event: bool
     ):

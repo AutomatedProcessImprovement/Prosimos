@@ -24,10 +24,9 @@ class OutgoingFlowSelector:
         # No conditions (use probabilities)
         if not candidates_list:
             return OutgoingFlowSelector._use_probabilities(e_info, element_probability)
-
-        curr_case_attrs = case_attributes.get_values_calculated()
+        
         condition_choice = GatewayConditionChoice(candidates_list, curr_gateway_conditions.rules_list)
-        passed_arcs_ids = condition_choice.get_outgoing_flow(curr_case_attrs)
+        passed_arcs_ids = condition_choice.get_outgoing_flow(case_attributes)
 
         # One true condition
         if len(passed_arcs_ids) == 1:
@@ -57,9 +56,8 @@ class OutgoingFlowSelector:
         if not candidates_list:
             return element_probability[e_info.id].get_multiple_flows()
 
-        curr_case_attrs = case_attributes.get_values_calculated()
         condition_choice = GatewayConditionChoice(candidates_list, curr_gateway_conditions.rules_list)
-        passed_arcs_ids = condition_choice.get_outgoing_flow(curr_case_attrs)
+        passed_arcs_ids = condition_choice.get_outgoing_flow(case_attributes)
 
         # All false (use probabilities)
         if not passed_arcs_ids:

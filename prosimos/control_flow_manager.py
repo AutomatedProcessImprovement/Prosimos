@@ -160,12 +160,11 @@ class BPMNGraph:
         self.event_attributes = None
 
     def set_additional_fields_from_json(self, element_probability, task_resource_probability,
-                                        event_distribution, batch_processing, case_attributes, event_attributes, gateway_conditions):
+                                        event_distribution, batch_processing, event_attributes, gateway_conditions):
         self.element_probability = element_probability
         self.task_resource_probability = task_resource_probability
         self.event_distribution = event_distribution
         self.batch_info = batch_processing
-        self.case_attributes = case_attributes
         self.event_attributes = event_attributes
         self.gateway_conditions = gateway_conditions
 
@@ -340,7 +339,7 @@ class BPMNGraph:
                     f_arcs = [self.get_event_gateway_choice(e_info, last_enabled.datetime)]
                 else:
                     f_arcs = OutgoingFlowSelector.choose_outgoing_flow(e_info, self.element_probability,
-                                                                       self.case_attributes, self.gateway_conditions)
+                                                                       self.case_attributes[case_id], self.gateway_conditions)
                 random.shuffle(f_arcs)
 
             for f_arc in f_arcs:
