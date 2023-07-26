@@ -35,9 +35,11 @@ class SimBPMEnv:
         self.sim_setup = sim_setup
         self.sim_resources = dict()
         self.stat_fwriter = stat_fwriter
-        self.log_writer = FileManager(
-            10000, log_fwriter, self.sim_setup.case_attributes.get_columns_generated()
-        )
+
+        additional_columns = self.sim_setup.case_attributes.get_columns_generated()
+        additional_columns.extend(self.sim_setup.event_attributes.get_columns_generated())
+
+        self.log_writer = FileManager(10000, log_fwriter, additional_columns)
         self.log_info = LogInfo(sim_setup)
         self.executed_events = 0
         self.time_update_process_state = 0

@@ -63,12 +63,12 @@ class EventAttribute:
         return True
 
 
-class AllEventAttributes():
+class AllEventAttributes:
     def __init__(self, event_attr_arr: Dict[str, Dict[str, EventAttribute]]):
         self.attributes = event_attr_arr
 
     def get_columns_generated(self):
-        return [attr.name for event_id in self.attributes for attr in self.attributes[event_id].values()]
+        return list({attr.name for event_id in self.attributes for attr in self.attributes[event_id].values()})
 
     def get_values_calculated(self):
         return {attr.name: attr.get_next_value() for event_id in self.attributes for attr in self.attributes[event_id].values()}

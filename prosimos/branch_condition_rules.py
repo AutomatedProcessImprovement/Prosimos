@@ -32,6 +32,9 @@ class BranchConditionRule:
             return value
 
     def is_rule_true(self, all_case_values):
+        if self.attribute not in all_case_values:
+            return False
+
         case_value = all_case_values[self.attribute]
         if self.condition == "in":
             evaluator = InOperatorEvaluator(self.value, case_value)
