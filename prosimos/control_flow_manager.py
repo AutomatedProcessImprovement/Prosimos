@@ -155,7 +155,7 @@ class BPMNGraph:
         self.batch_count = dict()
         self.batch_waiting_processes = dict()
         self.last_datetime = dict()
-        self.case_attributes = None
+        self.all_attributes = None
         self.gateway_conditions = None
         self.event_attributes = None
 
@@ -339,7 +339,7 @@ class BPMNGraph:
                     f_arcs = [self.get_event_gateway_choice(e_info, last_enabled.datetime)]
                 else:
                     f_arcs = OutgoingFlowSelector.choose_outgoing_flow(e_info, self.element_probability,
-                                                                       self.case_attributes[case_id], self.gateway_conditions)
+                                                                       self.all_attributes[case_id], self.gateway_conditions)
                 random.shuffle(f_arcs)
 
             for f_arc in f_arcs:

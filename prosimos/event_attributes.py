@@ -1,7 +1,7 @@
 from enum import Enum
 from functools import reduce
 from random import choices
-from typing import List
+from typing import Dict
 
 from pix_framework.statistics.distribution import DurationDistribution
 
@@ -64,23 +64,21 @@ class EventAttribute:
 
 
 class AllEventAttributes():
-    def __init__(self, event_attr_arr: List[EventAttribute]):
+    def __init__(self, event_attr_arr: Dict[str, Dict[str, EventAttribute]]):
         self.attributes = event_attr_arr
 
     def get_columns_generated(self):
-        return [attr.name for attr in self.attributes]
+        return [attr.name for event_id in self.attributes for attr in self.attributes[event_id].values()]
 
     def get_values_calculated(self):
-        # return the list of calculated values specified
-        # the order should reflect the one with headers
-
-        return {attr.name: attr.get_next_value() for attr in self.attributes}
+        return {attr.name: attr.get_next_value() for event_id in self.attributes for attr in self.attributes[event_id].values()}
 
     def validate(self, case_attributes):
         case_attribute_names = [attr.name for attr in case_attributes.attributes]
-        attribute_duplicates = [attr.name for attr in self.attributes if attr.name in case_attribute_names]
+        event_attribute_names = [attr.name for event_id in self.attributes for attr in self.attributes[event_id].values()]
 
-        if attribute_duplicates:
-            raise ValueError(f"Event attributes: {attribute_duplicates} already defined in case attributes")
-
+        for attr_name in event_attribute_names:
+            if attr_name in case_attribute_names:
+                raise ValueError(f"Event attribute: {attr_name} already defined in case attributes")
+        
         return True

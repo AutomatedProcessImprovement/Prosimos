@@ -6,18 +6,18 @@ from prosimos.gateway_condition_choice import GatewayConditionChoice
 
 class OutgoingFlowSelector:
     @staticmethod
-    def choose_outgoing_flow(e_info, element_probability, case_attributes, gateway_conditions):
+    def choose_outgoing_flow(e_info, element_probability, all_attributes, gateway_conditions):
         if e_info.type is BPMN.EXCLUSIVE_GATEWAY:
-            return OutgoingFlowSelector._handle_exclusive_gateway(e_info, element_probability, case_attributes,
+            return OutgoingFlowSelector._handle_exclusive_gateway(e_info, element_probability, all_attributes,
                                                                   gateway_conditions)
         elif e_info.type is BPMN.INCLUSIVE_GATEWAY:
-            return OutgoingFlowSelector._handle_inclusive_gateway(e_info, element_probability, case_attributes,
+            return OutgoingFlowSelector._handle_inclusive_gateway(e_info, element_probability, all_attributes,
                                                                   gateway_conditions)
         elif e_info.type in [BPMN.TASK, BPMN.PARALLEL_GATEWAY, BPMN.START_EVENT, BPMN.INTERMEDIATE_EVENT]:
             return OutgoingFlowSelector._handle_parallel_events(e_info)
 
     @staticmethod
-    def _handle_exclusive_gateway(e_info, element_probability, case_attributes, gateway_conditions):
+    def _handle_exclusive_gateway(e_info, element_probability, all_attributes, gateway_conditions):
         curr_gateway_conditions = gateway_conditions[e_info.id]
         candidates_list = curr_gateway_conditions.candidates_list
 
@@ -26,7 +26,7 @@ class OutgoingFlowSelector:
             return OutgoingFlowSelector._use_probabilities(e_info, element_probability)
         
         condition_choice = GatewayConditionChoice(candidates_list, curr_gateway_conditions.rules_list)
-        passed_arcs_ids = condition_choice.get_outgoing_flow(case_attributes)
+        passed_arcs_ids = condition_choice.get_outgoing_flow(all_attributes)
 
         # One true condition
         if len(passed_arcs_ids) == 1:
@@ -48,7 +48,7 @@ class OutgoingFlowSelector:
 
 
     @staticmethod
-    def _handle_inclusive_gateway(e_info, element_probability, case_attributes, gateway_conditions):
+    def _handle_inclusive_gateway(e_info, element_probability, all_attributes, gateway_conditions):
         curr_gateway_conditions = gateway_conditions[e_info.id]
         candidates_list = curr_gateway_conditions.candidates_list
 
@@ -57,7 +57,7 @@ class OutgoingFlowSelector:
             return element_probability[e_info.id].get_multiple_flows()
 
         condition_choice = GatewayConditionChoice(candidates_list, curr_gateway_conditions.rules_list)
-        passed_arcs_ids = condition_choice.get_outgoing_flow(case_attributes)
+        passed_arcs_ids = condition_choice.get_outgoing_flow(all_attributes)
 
         # All false (use probabilities)
         if not passed_arcs_ids:

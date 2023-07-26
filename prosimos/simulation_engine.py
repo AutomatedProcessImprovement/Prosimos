@@ -63,7 +63,7 @@ class SimBPMEnv:
             self.sim_setup.prioritisation_rules,
         )
 
-        self.sim_setup.bpmn_graph.case_attributes = self.case_prioritisation.all_case_attributes
+        self.sim_setup.bpmn_graph.all_attributes = self.case_prioritisation.all_case_attributes
 
     def calc_priority_and_append_to_queue(
         self, enabled_event: EnabledEvent, is_arrival_event: bool
@@ -250,7 +250,16 @@ class SimBPMEnv:
         completed_at = full_evt.completed_at
         completed_datetime = full_evt.completed_datetime
 
+        self.update_event_attributes(c_event)
+
         return completed_at, completed_datetime
+    
+    def update_event_attributes(self, c_event):
+        if c_event.task_id in self.sim_setup.event_attributes.attributes:
+            c_attributes = self.sim_setup.event_attributes.attributes[c_event.task_id]
+            c_event_attribute_values = {key: value.get_next_value() for key, value in c_attributes.items()}            
+            self.sim_setup.bpmn_graph.all_attributes[c_event.p_case].update(c_event_attribute_values)
+
 
     def get_csv_row_data(self, full_event: TaskEvent):
         """

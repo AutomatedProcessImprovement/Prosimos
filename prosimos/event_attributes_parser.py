@@ -6,14 +6,18 @@ class EventAttributesParser:
         self.data = json_data_with_event_attributes
 
     def parse(self):
-        event_attributes = []
+        event_attributes = {}
         for curr_event_attr in self.data:
-            event_attr = EventAttribute(
-                curr_event_attr["event_id"],
-                curr_event_attr["name"],
-                curr_event_attr["type"],
-                curr_event_attr["values"]
-            )
-            event_attributes.append(event_attr)
+            event_id = curr_event_attr["event_id"]
+            event_attributes[event_id] = {}
+            for attr in curr_event_attr["attributes"]:
+                event_attr = EventAttribute(
+                    event_id,
+                    attr["name"],
+                    attr["type"],
+                    attr["values"]
+                )
+                event_attributes[event_id][attr["name"]] = event_attr
 
         return AllEventAttributes(event_attributes)
+    

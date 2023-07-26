@@ -36,7 +36,6 @@ EVENT_ATTRIBUTES = "event_attributes"
 
 def parse_json_sim_parameters(json_path):
     with open(json_path) as json_file:
-        print("PARSING START")
         json_data = json.load(json_file)
 
         resources_map, res_pool = parse_resource_profiles(
@@ -80,18 +79,16 @@ def parse_json_sim_parameters(json_path):
         event_attributes = (
             EventAttributesParser(json_data[EVENT_ATTRIBUTES]).parse()
             if EVENT_ATTRIBUTES in json_data
-            else AllEventAttributes([])
+            else AllEventAttributes({})
         )
 
         event_attributes.validate(case_attributes)
-
         prioritisation_rules = (
             PrioritisationParser(json_data[PRIORITISATION_RULES_SECTION]).parse()
             if PRIORITISATION_RULES_SECTION in json_data
             else AllPriorityRules([])
         )
 
-        print("PARSING END")
         return (
             resources_map,
             calendars_map,
