@@ -37,7 +37,7 @@ def contains_all(sequence, pattern):
     return all(element in sequence for element in pattern)
 
 
-def test_run_simulation(assets_path):
+def test_validate_flows_based_on_event_attributes(assets_path):
     model_path = assets_path / "event_attributes_model.bpmn"
     json_path = assets_path / "event_attributes.json"
     sim_stats = assets_path / "event_attributes_stats.csv"
