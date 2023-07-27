@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:qbp="http://www.qbp-simulator.com/Schema201212" xmlns:ap="http://apromore.org" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:extensionElements>
+      <qbp:processSimulationInfo id="qbp_b1813431-c5c6-45c1-ba6e-e9614b4f44ea" processInstances="" currency="EUR" startDateTime="2023-07-27T09:00:00.000Z">
+        <qbp:errors>
+          <qbp:error id="processInstances" elementId="Total number of cases" message="Total number of cases must not be empty" />
+          <qbp:error id="probability-field-Flow_03d21qd" elementId="Gateway_19b9wcy" message="Probability must not be empty" />
+          <qbp:error id="probability-field-Flow_0g3oz9z" elementId="Gateway_19b9wcy" message="Probability must not be empty" />
+          <qbp:error id="qbp_b1813431-c5c6-45c1-ba6e-e9614b4f44eaFIXED-mean" elementId="Inter arrival time" message="Value must not be empty" />
+          <qbp:error id="Activity_0xj7kbsFIXED-mean" elementId="Activity_0xj7kbs" message="Value must not be empty" />
+          <qbp:error id="Activity_1945c0jFIXED-mean" elementId="Activity_1945c0j" message="Value must not be empty" />
+          <qbp:error id="Activity_0zo2yyfFIXED-mean" elementId="Activity_0zo2yyf" message="Value must not be empty" />
+        </qbp:errors>
+        <qbp:arrivalRateDistribution type="FIXED" mean="NaN" arg1="NaN" arg2="NaN" rawMean="NaN" rawArg1="NaN" rawArg2="NaN">
+          <qbp:timeUnit>seconds</qbp:timeUnit>
+        </qbp:arrivalRateDistribution>
+        <qbp:statsOptions />
+        <qbp:timetables>
+          <qbp:timetable id="DEFAULT_TIMETABLE" default="true" name="Arrival timetable">
+            <qbp:rules>
+              <qbp:rule id="a126500b-678e-4f88-8517-80359460cf7d" name="Timeslot" fromTime="09:00:00.000+00:00" toTime="17:00:00.000+00:00" fromWeekDay="MONDAY" toWeekDay="FRIDAY" />
+            </qbp:rules>
+          </qbp:timetable>
+        </qbp:timetables>
+        <qbp:resources>
+          <qbp:resource id="QBP_DEFAULT_RESOURCE" name="Default resource" totalAmount="1" timetableId="DEFAULT_TIMETABLE" />
+        </qbp:resources>
+        <qbp:elements>
+          <qbp:element elementId="Activity_0xj7kbs">
+            <qbp:durationDistribution type="FIXED" mean="NaN" arg1="NaN" arg2="NaN" rawMean="NaN" rawArg1="NaN" rawArg2="NaN">
+              <qbp:timeUnit>seconds</qbp:timeUnit>
+            </qbp:durationDistribution>
+            <qbp:resourceIds>
+              <qbp:resourceId>QBP_DEFAULT_RESOURCE</qbp:resourceId>
+            </qbp:resourceIds>
+          </qbp:element>
+          <qbp:element elementId="Activity_1945c0j">
+            <qbp:durationDistribution type="FIXED" mean="NaN" arg1="NaN" arg2="NaN" rawMean="NaN" rawArg1="NaN" rawArg2="NaN">
+              <qbp:timeUnit>seconds</qbp:timeUnit>
+            </qbp:durationDistribution>
+            <qbp:resourceIds>
+              <qbp:resourceId>QBP_DEFAULT_RESOURCE</qbp:resourceId>
+            </qbp:resourceIds>
+          </qbp:element>
+          <qbp:element elementId="Activity_0zo2yyf">
+            <qbp:durationDistribution type="FIXED" mean="NaN" arg1="NaN" arg2="NaN" rawMean="NaN" rawArg1="NaN" rawArg2="NaN">
+              <qbp:timeUnit>seconds</qbp:timeUnit>
+            </qbp:durationDistribution>
+            <qbp:resourceIds>
+              <qbp:resourceId>QBP_DEFAULT_RESOURCE</qbp:resourceId>
+            </qbp:resourceIds>
+          </qbp:element>
+        </qbp:elements>
+        <qbp:sequenceFlows>
+          <qbp:sequenceFlow elementId="Flow_03d21qd" executionProbability="" rawExecutionProbability="" />
+          <qbp:sequenceFlow elementId="Flow_0g3oz9z" executionProbability="" rawExecutionProbability="" />
+        </qbp:sequenceFlows>
+      </qbp:processSimulationInfo>
+      <ap:img src="" />
+      <ap:icon elIconName="" />
+      <ap:icons />
+    </bpmn:extensionElements>
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:extensionElements>
+        <ap:img src="" />
+        <ap:icon elIconName="" />
+        <ap:icons />
+      </bpmn:extensionElements>
+      <bpmn:outgoing>Flow_0nqtdm2</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:task id="Activity_0xj7kbs" name="A">
+      <bpmn:extensionElements>
+        <ap:img src="" />
+        <ap:icon elIconName="" />
+        <ap:icons />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0nqtdm2</bpmn:incoming>
+      <bpmn:outgoing>Flow_0ekixgf</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:sequenceFlow id="Flow_0nqtdm2" sourceRef="StartEvent_1" targetRef="Activity_0xj7kbs" />
+    <bpmn:exclusiveGateway id="Gateway_19b9wcy">
+      <bpmn:extensionElements>
+        <ap:img src="" />
+        <ap:icon elIconName="" />
+        <ap:icons />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0ekixgf</bpmn:incoming>
+      <bpmn:outgoing>Flow_03d21qd</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0g3oz9z</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_0ekixgf" sourceRef="Activity_0xj7kbs" targetRef="Gateway_19b9wcy" />
+    <bpmn:task id="Activity_1945c0j" name="B">
+      <bpmn:extensionElements>
+        <ap:img src="" />
+        <ap:icon elIconName="" />
+        <ap:icons />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_03d21qd</bpmn:incoming>
+      <bpmn:outgoing>Flow_0f9t2bj</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:sequenceFlow id="Flow_03d21qd" sourceRef="Gateway_19b9wcy" targetRef="Activity_1945c0j">
+      <bpmn:extensionElements>
+        <ap:img src="" />
+        <ap:icon elIconName="" />
+        <ap:icons />
+      </bpmn:extensionElements>
+    </bpmn:sequenceFlow>
+    <bpmn:task id="Activity_0zo2yyf" name="C">
+      <bpmn:extensionElements>
+        <ap:img src="" />
+        <ap:icon elIconName="" />
+        <ap:icons />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0g3oz9z</bpmn:incoming>
+      <bpmn:outgoing>Flow_1nqh6ep</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:sequenceFlow id="Flow_0g3oz9z" sourceRef="Gateway_19b9wcy" targetRef="Activity_0zo2yyf">
+      <bpmn:extensionElements>
+        <ap:img src="" />
+        <ap:icon elIconName="" />
+        <ap:icons />
+      </bpmn:extensionElements>
+    </bpmn:sequenceFlow>
+    <bpmn:exclusiveGateway id="Gateway_1ljpb7c">
+      <bpmn:extensionElements>
+        <ap:img src="" />
+        <ap:icon elIconName="" />
+        <ap:icons />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0f9t2bj</bpmn:incoming>
+      <bpmn:incoming>Flow_1nqh6ep</bpmn:incoming>
+      <bpmn:outgoing>Flow_1rwcn31</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_0f9t2bj" sourceRef="Activity_1945c0j" targetRef="Gateway_1ljpb7c" />
+    <bpmn:sequenceFlow id="Flow_1nqh6ep" sourceRef="Activity_0zo2yyf" targetRef="Gateway_1ljpb7c" />
+    <bpmn:endEvent id="Event_0um5e14">
+      <bpmn:extensionElements>
+        <ap:img src="" />
+        <ap:icon elIconName="" />
+        <ap:icons />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1rwcn31</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1rwcn31" sourceRef="Gateway_1ljpb7c" targetRef="Event_0um5e14" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_1">
+      <bpmndi:BPMNEdge id="Flow_0nqtdm2_di" bpmnElement="Flow_0nqtdm2">
+        <di:waypoint x="-92" y="20" />
+        <di:waypoint x="-40" y="20" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0ekixgf_di" bpmnElement="Flow_0ekixgf">
+        <di:waypoint x="60" y="20" />
+        <di:waypoint x="115" y="20" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_03d21qd_di" bpmnElement="Flow_03d21qd">
+        <di:waypoint x="140" y="-5" />
+        <di:waypoint x="140" y="-50" />
+        <di:waypoint x="210" y="-50" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0g3oz9z_di" bpmnElement="Flow_0g3oz9z">
+        <di:waypoint x="140" y="45" />
+        <di:waypoint x="140" y="90" />
+        <di:waypoint x="210" y="90" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0f9t2bj_di" bpmnElement="Flow_0f9t2bj">
+        <di:waypoint x="310" y="-50" />
+        <di:waypoint x="380" y="-50" />
+        <di:waypoint x="380" y="-5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1nqh6ep_di" bpmnElement="Flow_1nqh6ep">
+        <di:waypoint x="310" y="90" />
+        <di:waypoint x="380" y="90" />
+        <di:waypoint x="380" y="45" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1rwcn31_di" bpmnElement="Flow_1rwcn31">
+        <di:waypoint x="405" y="20" />
+        <di:waypoint x="452" y="20" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="-128" y="2" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0xj7kbs_di" bpmnElement="Activity_0xj7kbs">
+        <dc:Bounds x="-40" y="-20" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_19b9wcy_di" bpmnElement="Gateway_19b9wcy" isMarkerVisible="true">
+        <dc:Bounds x="115" y="-5" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0zo2yyf_di" bpmnElement="Activity_0zo2yyf">
+        <dc:Bounds x="210" y="50" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1945c0j_di" bpmnElement="Activity_1945c0j">
+        <dc:Bounds x="210" y="-90" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_1ljpb7c_di" bpmnElement="Gateway_1ljpb7c" isMarkerVisible="true">
+        <dc:Bounds x="355" y="-5" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0um5e14_di" bpmnElement="Event_0um5e14">
+        <dc:Bounds x="452" y="2" width="36" height="36" />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

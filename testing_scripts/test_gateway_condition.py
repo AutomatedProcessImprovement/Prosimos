@@ -44,11 +44,12 @@ def sum_mapped_values(input_set, mapping_dict, n, reverse=False):
     return sum(mapped_values[:n])
 
 
-def generate_test_config(activities, json_filename, bpmn_filename, total_cases, activities_per_case):
+def generate_test_config(test_name, activities, json_filename, bpmn_filename, total_cases, activities_per_case):
     min_activity_duration = sum_mapped_values(activities, ACTIVITY_DURATIONS, activities_per_case[0])
     max_activity_duration = sum_mapped_values(activities, ACTIVITY_DURATIONS, activities_per_case[1], True)
 
     return {
+        "test_name": test_name,
         "json_filename": json_filename,
         "bpmn_filename": bpmn_filename,
         "expected_results": {
@@ -67,57 +68,69 @@ def generate_test_config(activities, json_filename, bpmn_filename, total_cases, 
 
 
 TEST_CONFIGS = [
-    (lambda bpmn_filename="gateway_condition_or_model.bpmn", json_filename="gateway_all_false_condition.json",
+    (lambda test_name="Test OR with all false conditions should use probabilities",
+            bpmn_filename="gateway_condition_or_model.bpmn", json_filename="gateway_all_false_condition.json",
             activities=set(["A", "B", "C"]), activities_per_case=[1, 3], total_cases=TOTAL_CASES:
-     generate_test_config(activities, json_filename, bpmn_filename, total_cases, activities_per_case))(),
+     generate_test_config(test_name, activities, json_filename, bpmn_filename, total_cases, activities_per_case))(),
 
-    (lambda bpmn_filename="gateway_condition_or_model.bpmn", json_filename="gateway_all_true_condition.json",
+    (lambda test_name="Test OR with all true conditions should use all flows",
+            bpmn_filename="gateway_condition_or_model.bpmn", json_filename="gateway_all_true_condition.json",
             activities=set(["A", "B", "C"]), activities_per_case=[3, 3], total_cases=TOTAL_CASES:
-     generate_test_config(activities, json_filename, bpmn_filename, total_cases, activities_per_case))(),
+     generate_test_config(test_name, activities, json_filename, bpmn_filename, total_cases, activities_per_case))(),
 
-    (lambda bpmn_filename="gateway_condition_or_model.bpmn", json_filename="gateway_multiple_true_condition.json",
+    (lambda test_name="Test OR with multiple true conditions should use all true flows",
+            bpmn_filename="gateway_condition_or_model.bpmn", json_filename="gateway_multiple_true_condition.json",
             activities=set(["A", "B"]), activities_per_case=[2, 2], total_cases=TOTAL_CASES:
-     generate_test_config(activities, json_filename, bpmn_filename, total_cases, activities_per_case))(),
+     generate_test_config(test_name, activities, json_filename, bpmn_filename, total_cases, activities_per_case))(),
 
-    (lambda bpmn_filename="gateway_condition_or_model.bpmn", json_filename="gateway_one_true_condition.json",
+    (lambda test_name="Test OR with one true condition should use only 1 true flow",
+            bpmn_filename="gateway_condition_or_model.bpmn", json_filename="gateway_one_true_condition.json",
             activities=set(["B"]), activities_per_case=[1, 1], total_cases=TOTAL_CASES:
-     generate_test_config(activities, json_filename, bpmn_filename, total_cases, activities_per_case))(),
+     generate_test_config(test_name, activities, json_filename, bpmn_filename, total_cases, activities_per_case))(),
 
-    (lambda bpmn_filename="gateway_condition_or_model.bpmn", json_filename="gateway_one_condition.json",
+    (lambda test_name="Test OR with only one condition should use only 1 true condition",
+            bpmn_filename="gateway_condition_or_model.bpmn", json_filename="gateway_one_condition.json",
             activities=set(["A"]), activities_per_case=[1, 1], total_cases=TOTAL_CASES:
-     generate_test_config(activities, json_filename, bpmn_filename, total_cases, activities_per_case))(),
+     generate_test_config(test_name, activities, json_filename, bpmn_filename, total_cases, activities_per_case))(),
 
-    (lambda bpmn_filename="gateway_condition_or_model.bpmn", json_filename="gateway_no_condition.json",
+    (lambda test_name="Test OR with no conditions should use probabilities",
+            bpmn_filename="gateway_condition_or_model.bpmn", json_filename="gateway_no_condition.json",
             activities=set(["A", "B", "C"]), activities_per_case=[1, 3], total_cases=TOTAL_CASES:
-     generate_test_config(activities, json_filename, bpmn_filename, total_cases, activities_per_case))(),
+     generate_test_config(test_name, activities, json_filename, bpmn_filename, total_cases, activities_per_case))(),
 
-    (lambda bpmn_filename="gateway_condition_xor_model.bpmn", json_filename="gateway_all_false_condition.json",
+    (lambda test_name="Test XOR with all false conditions should use probabilities and use 1 flow",
+            bpmn_filename="gateway_condition_xor_model.bpmn", json_filename="gateway_all_false_condition.json",
             activities=set(["A", "B", "C"]), activities_per_case=[1, 1], total_cases=TOTAL_CASES:
-     generate_test_config(activities, json_filename, bpmn_filename, total_cases, activities_per_case))(),
+     generate_test_config(test_name, activities, json_filename, bpmn_filename, total_cases, activities_per_case))(),
 
-    (lambda bpmn_filename="gateway_condition_xor_model.bpmn", json_filename="gateway_all_true_condition.json",
+    (lambda test_name="Test XOR with all true conditions should use probabilities and use 1 flow",
+            bpmn_filename="gateway_condition_xor_model.bpmn", json_filename="gateway_all_true_condition.json",
             activities=set(["A", "B", "C"]), activities_per_case=[1, 1], total_cases=TOTAL_CASES:
-     generate_test_config(activities, json_filename, bpmn_filename, total_cases, activities_per_case))(),
+     generate_test_config(test_name, activities, json_filename, bpmn_filename, total_cases, activities_per_case))(),
 
-    (lambda bpmn_filename="gateway_condition_xor_model.bpmn", json_filename="gateway_multiple_true_condition.json",
+    (lambda test_name="Test XOR with multiple true conditions should use probabilities on true conditions and use 1 flow",
+            bpmn_filename="gateway_condition_xor_model.bpmn", json_filename="gateway_multiple_true_condition.json",
             activities=set(["A", "B"]), activities_per_case=[1, 1], total_cases=TOTAL_CASES:
-     generate_test_config(activities, json_filename, bpmn_filename, total_cases, activities_per_case))(),
+     generate_test_config(test_name, activities, json_filename, bpmn_filename, total_cases, activities_per_case))(),
 
-    (lambda bpmn_filename="gateway_condition_xor_model.bpmn", json_filename="gateway_one_true_condition.json",
+    (lambda test_name="Test XOR with one true condition should use 1 true flow",
+            bpmn_filename="gateway_condition_xor_model.bpmn", json_filename="gateway_one_true_condition.json",
             activities=set(["B"]), activities_per_case=[1, 1], total_cases=TOTAL_CASES:
-     generate_test_config(activities, json_filename, bpmn_filename, total_cases, activities_per_case))(),
+     generate_test_config(test_name, activities, json_filename, bpmn_filename, total_cases, activities_per_case))(),
 
-    (lambda bpmn_filename="gateway_condition_xor_model.bpmn", json_filename="gateway_one_condition.json",
+    (lambda test_name="Test XOR with one condition should use 1 true flow",
+            bpmn_filename="gateway_condition_xor_model.bpmn", json_filename="gateway_one_condition.json",
             activities=set(["A"]), activities_per_case=[1, 1], total_cases=TOTAL_CASES:
-     generate_test_config(activities, json_filename, bpmn_filename, total_cases, activities_per_case))(),
+     generate_test_config(test_name, activities, json_filename, bpmn_filename, total_cases, activities_per_case))(),
 
-    (lambda bpmn_filename="gateway_condition_xor_model.bpmn", json_filename="gateway_no_condition.json",
+    (lambda test_name="Test XOR with no conditions should use probabilities and use 1 flow",
+            bpmn_filename="gateway_condition_xor_model.bpmn", json_filename="gateway_no_condition.json",
             activities=set(["A", "B", "C"]), activities_per_case=[1, 1], total_cases=TOTAL_CASES:
-     generate_test_config(activities, json_filename, bpmn_filename, total_cases, activities_per_case))()
+     generate_test_config(test_name, activities, json_filename, bpmn_filename, total_cases, activities_per_case))()
 ]
+TEST_NAMES = [test['test_name'] for test in TEST_CONFIGS]
 
-
-@pytest.mark.parametrize("config", TEST_CONFIGS)
+@pytest.mark.parametrize("config", TEST_CONFIGS, ids=TEST_NAMES)
 def test_run_simulation(assets_path, config):
     json_filename = config["json_filename"]
     bpmn_filename = config["bpmn_filename"]
@@ -137,14 +150,6 @@ def test_run_simulation(assets_path, config):
 
     processing_time_total = sim_results.process_kpi_map.processing_time.total
     expected_processing_total = df["activity"].map(ACTIVITY_DURATIONS).sum()
-
-    df_string = '\t'.join(df.groupby('case_id')['activity'].apply(list).reset_index()
-                          .apply(lambda row: f"[{row['case_id']} -> ({', '.join(row['activity'])})]", axis=1))
-
-    LOGGER.info(f"Gateway type: {bpmn_filename}")
-    LOGGER.info(f"Condition type: {json_filename}")
-    LOGGER.info(f"All routes: {df['activity'].sum()}")
-    LOGGER.info(f"By case id: {df_string}")
 
     total_duration = df['activity'].map(ACTIVITY_DURATIONS).sum()
     activities_count_by_case = df.groupby('case_id')['activity'].count()

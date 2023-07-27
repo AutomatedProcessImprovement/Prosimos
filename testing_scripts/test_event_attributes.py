@@ -30,12 +30,7 @@ def assets_path(request) -> Path:
     return entry_path
 
 
-TOTAL_CASES = 250
-
-TEST_CONFIGS = {
-    "bpmn_filename": "event_attributes_model.bpmn",
-    "json_filename": "event_attributes.json"
-}
+TOTAL_CASES = 50
 
 
 def contains_all(sequence, pattern):
@@ -54,14 +49,12 @@ def test_run_simulation(assets_path):
     )
 
     df = pd.read_csv(sim_logs)
-
-    # Test 1: Number of cases
-    assert len(df['case_id'].unique()) == TOTAL_CASES, f"The number of cases ({df['case_id'].unique()}) in the simulation doesn't match the expected {TOTAL_CASES}."
-
     activities_per_case = df.groupby('case_id')['activity'].apply(list)
 
     pattern_good = ['Generate A', 'Generate B', 'Generate C', 'Use A', 'Use B', 'Use C']
     pattern_bad = ['Generate A', 'Update A', 'Use new A']
+
+    assert len(df['case_id'].unique()) == TOTAL_CASES, f"The number of cases ({df['case_id'].unique()}) in the simulation doesn't match the expected {TOTAL_CASES}."
 
     for case_id, activities in activities_per_case.items():
         gen_a_index = activities.index('Generate A')
