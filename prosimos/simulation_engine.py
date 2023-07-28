@@ -255,13 +255,14 @@ class SimBPMEnv:
         self.update_event_attributes(c_event)
 
         return completed_at, completed_datetime
-    
+
     def update_event_attributes(self, c_event):
+        c_all_attribute_values = self.sim_setup.bpmn_graph.all_attributes[c_event.p_case]
+        
         if c_event.task_id in self.sim_setup.event_attributes.attributes:
             c_attributes = self.sim_setup.event_attributes.attributes[c_event.task_id]
-            c_event_attribute_values = {key: value.get_next_value() for key, value in c_attributes.items()}            
+            c_event_attribute_values = {key: value.get_next_value(c_all_attribute_values) for key, value in c_attributes.items()}            
             self.sim_setup.bpmn_graph.all_attributes[c_event.p_case].update(c_event_attribute_values)
-
 
     def get_csv_row_data(self, full_event: TaskEvent):
         """
