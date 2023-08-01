@@ -336,8 +336,12 @@ class BPMNGraph:
                 if e_info.type is BPMN.EVENT_BASED_GATEWAY:
                     f_arcs = [self.get_event_gateway_choice(e_info, last_enabled.datetime)]
                 else:
+                    all_curr_attributes = {}
+                    all_curr_attributes.update(self.all_attributes["global"])
+                    all_curr_attributes.update(self.all_attributes[case_id])
+
                     f_arcs = OutgoingFlowSelector.choose_outgoing_flow(e_info, self.element_probability,
-                                                                       self.all_attributes[case_id], self.gateway_conditions)
+                                                                       all_curr_attributes, self.gateway_conditions)
                 random.shuffle(f_arcs)
 
             for f_arc in f_arcs:

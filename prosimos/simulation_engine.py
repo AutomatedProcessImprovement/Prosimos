@@ -36,7 +36,8 @@ class SimBPMEnv:
         self.sim_resources = dict()
         self.stat_fwriter = stat_fwriter
 
-        additional_columns = self.sim_setup.case_attributes.get_columns_generated()
+        additional_columns = self.sim_setup.global_attributes.get_columns_generated()
+        additional_columns.extend(self.sim_setup.case_attributes.get_columns_generated())
         additional_columns.extend(self.sim_setup.event_attributes.get_columns_generated())
 
         self.log_writer = FileManager(10000, log_fwriter, additional_columns)
@@ -65,7 +66,13 @@ class SimBPMEnv:
             self.sim_setup.prioritisation_rules,
         )
 
-        self.sim_setup.bpmn_graph.all_attributes = self.case_prioritisation.all_case_attributes
+        all_attributes = {
+            "global": self.sim_setup.global_attributes.get_values_calculated(),
+            **self.case_prioritisation.all_case_attributes
+        }
+
+        self.sim_setup.bpmn_graph.all_attributes = all_attributes
+        print(f"BASE ATTRIBUTES:\n{self.sim_setup.bpmn_graph.all_attributes}")
 
     def calc_priority_and_append_to_queue(
         self, enabled_event: EnabledEvent, is_arrival_event: bool
@@ -252,17 +259,29 @@ class SimBPMEnv:
         completed_at = full_evt.completed_at
         completed_datetime = full_evt.completed_datetime
 
-        self.update_event_attributes(c_event)
+        self.update_attributes(c_event)
 
         return completed_at, completed_datetime
 
-    def update_event_attributes(self, c_event):
-        c_all_attribute_values = self.sim_setup.bpmn_graph.all_attributes[c_event.p_case]
-        
-        if c_event.task_id in self.sim_setup.event_attributes.attributes:
-            c_attributes = self.sim_setup.event_attributes.attributes[c_event.task_id]
-            c_event_attribute_values = {key: value.get_next_value(c_all_attribute_values) for key, value in c_attributes.items()}            
-            self.sim_setup.bpmn_graph.all_attributes[c_event.p_case].update(c_event_attribute_values)
+    def update_attributes(self, c_event):
+        event_attributes = self.sim_setup.event_attributes.attributes
+
+        if c_event.task_id in event_attributes:
+            c_attributes = event_attributes[c_event.task_id]
+
+            c_local_values = self.sim_setup.bpmn_graph.all_attributes[c_event.p_case]
+            c_global_values = self.sim_setup.bpmn_graph.all_attributes["global"]
+
+            new_global_attributes = {}
+            new_event_attributes = {}
+            for key, value in c_attributes.items():
+                if key in c_global_values:
+                    new_global_attributes[key] = value.get_next_value(c_local_values)
+                else:
+                    new_event_attributes[key] = value.get_next_value(c_local_values)
+
+            self.sim_setup.bpmn_graph.all_attributes["global"].update(new_global_attributes)
+            self.sim_setup.bpmn_graph.all_attributes[c_event.p_case].update(new_event_attributes)
 
     def get_csv_row_data(self, full_event: TaskEvent):
         """
