@@ -72,7 +72,6 @@ class SimBPMEnv:
         }
 
         self.sim_setup.bpmn_graph.all_attributes = all_attributes
-        print(f"BASE ATTRIBUTES:\n{self.sim_setup.bpmn_graph.all_attributes}")
 
     def calc_priority_and_append_to_queue(
         self, enabled_event: EnabledEvent, is_arrival_event: bool
@@ -663,18 +662,9 @@ def execute_full_process(bpm_env: SimBPMEnv):
             current_event = bpm_env.events_queue.pop_next_event()
 
 
-def run_simulation(
-    bpmn_path,
-    json_path,
-    total_cases,
-    stat_out_path=None,
-    log_out_path=None,
-    starting_at=None,
-    is_event_added_to_log=False,
-):
-    diffsim_info = SimDiffSetup(
-        bpmn_path, json_path, is_event_added_to_log, total_cases
-    )
+def run_simulation(bpmn_path, json_path, total_cases,
+                   stat_out_path=None, log_out_path=None, starting_at=None, is_event_added_to_log=False):
+    diffsim_info = SimDiffSetup(bpmn_path, json_path, is_event_added_to_log, total_cases)
 
     if not diffsim_info:
         return None
@@ -686,56 +676,20 @@ def run_simulation(
     )
     diffsim_info.set_starting_datetime(starting_at_datetime)
 
-    # if not stat_out_path and not log_out_path:
-    #     stat_out_path = os.path.join(os.path.dirname(__file__), Path("%s.csv" % diffsim_info.process_name))
     if stat_out_path is None and log_out_path is None:
         return run_simpy_simulation(diffsim_info, None, None)
-    elif stat_out_path:
-        with open(
-            stat_out_path, mode="w", newline="", encoding="utf-8"
-        ) as stat_csv_file:
-            if log_out_path:
-                with open(
-                    log_out_path, mode="w", newline="", encoding="utf-8"
-                ) as log_csv_file:
-                    return run_simpy_simulation(
-                        diffsim_info,
-                        csv.writer(
-                            stat_csv_file,
-                            delimiter=",",
-                            quotechar='"',
-                            quoting=csv.QUOTE_MINIMAL,
-                        ),
-                        csv.writer(
-                            log_csv_file,
-                            delimiter=",",
-                            quotechar='"',
-                            quoting=csv.QUOTE_MINIMAL,
-                        ),
-                    )
-            else:
-                return run_simpy_simulation(
-                    diffsim_info,
-                    csv.writer(
-                        stat_csv_file,
-                        delimiter=",",
-                        quotechar='"',
-                        quoting=csv.QUOTE_MINIMAL,
-                    ),
-                    None,
-                )
-    else:
-        with open(log_out_path, mode="w", newline="", encoding="utf-8") as log_csv_file:
-            return run_simpy_simulation(
-                diffsim_info,
-                None,
-                csv.writer(
-                    log_csv_file,
-                    delimiter=",",
-                    quotechar='"',
-                    quoting=csv.QUOTE_MINIMAL,
-                ),
-            )
+
+    with open(stat_out_path or log_out_path, mode="w", newline="", encoding="utf-8") as file:
+        stat_writer = None
+        log_writer = None
+
+        if stat_out_path:
+            stat_writer = csv.writer(file, delimiter=",", quotechar='"', quoting=csv.QUOTE_MINIMAL)
+
+        if log_out_path:
+            log_writer = csv.writer(file, delimiter=",", quotechar='"', quoting=csv.QUOTE_MINIMAL)
+
+        return run_simpy_simulation(diffsim_info, stat_writer, log_writer)
 
 
 def run_simpy_simulation(diffsim_info, stat_fwriter, log_fwriter):

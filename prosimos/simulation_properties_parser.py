@@ -35,6 +35,9 @@ RESOURCE_CALENDARS = "resource_calendars"
 BRANCH_RULES = "branch_rules"
 EVENT_ATTRIBUTES = "event_attributes"
 GLOBAL_ATTRIBUTES = "global_attributes"
+GATEWAY_EXECUTION_LIMIT = "gateway_execution_limit"
+
+DEFAULT_GATEWAY_EXECUTION_LIMIT = 1000
 
 
 def parse_json_sim_parameters(json_path):
@@ -99,6 +102,10 @@ def parse_json_sim_parameters(json_path):
             else AllPriorityRules([])
         )
 
+        gateway_execution_limit = json_data[GATEWAY_EXECUTION_LIMIT] \
+            if GATEWAY_EXECUTION_LIMIT in json_data \
+            else DEFAULT_GATEWAY_EXECUTION_LIMIT
+
         return (
             resources_map,
             calendars_map,
@@ -112,7 +119,8 @@ def parse_json_sim_parameters(json_path):
             branch_rules,
             event_attributes,
             gateway_conditions,
-            global_attributes
+            global_attributes,
+            gateway_execution_limit
         )
 
 

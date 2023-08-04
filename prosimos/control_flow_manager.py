@@ -12,6 +12,7 @@ from prosimos.batch_processing import (BATCH_TYPE, AndFiringRule,
                                        BatchConfigPerTask)
 from prosimos.exceptions import InvalidBpmnModelException
 from prosimos.weekday_helper import CustomDatetimeAndSeconds
+from prosimos.graph_usage_stats import GraphUsageStats
 
 seconds_per_unit = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
 
@@ -157,14 +158,18 @@ class BPMNGraph:
         self.last_datetime = dict()
         self.all_attributes = None
         self.gateway_conditions = None
+        self.gateway_execution_limit = 1000
+        self.graph_element_usages = GraphUsageStats()
 
     def set_additional_fields_from_json(self, element_probability, task_resource_probability,
-                                        event_distribution, batch_processing, gateway_conditions):
+                                        event_distribution, batch_processing, gateway_conditions,
+                                        gateway_execution_limit):
         self.element_probability = element_probability
         self.task_resource_probability = task_resource_probability
         self.event_distribution = event_distribution
         self.batch_info = batch_processing
         self.gateway_conditions = gateway_conditions
+        self.gateway_execution_limit = gateway_execution_limit
 
     def add_bpmn_element(self, element_id, element_info):
         if element_info.type == BPMN.START_EVENT:
@@ -333,6 +338,9 @@ class BPMNGraph:
             f_arcs = [(flow, None) for flow in flows]
 
             if len(f_arcs) > 1:
+                if self.is_gateway_execution_limit_exceeded(case_id, e_info.id):
+                    break
+
                 if e_info.type is BPMN.EVENT_BASED_GATEWAY:
                     f_arcs = [self.get_event_gateway_choice(e_info, last_enabled.datetime)]
                 else:
@@ -342,6 +350,7 @@ class BPMNGraph:
 
                     f_arcs = OutgoingFlowSelector.choose_outgoing_flow(e_info, self.element_probability,
                                                                        all_curr_attributes, self.gateway_conditions)
+                self.graph_element_usages.update_gateway(case_id, e_info, f_arcs)
                 random.shuffle(f_arcs)
 
             for f_arc in f_arcs:
@@ -354,6 +363,11 @@ class BPMNGraph:
     def is_task_batched(self, task_id):
         return self.batch_info.get(task_id, None) != None
 
+    def is_gateway_execution_limit_exceeded(self, case_id, e_id):
+        element_executions = self.graph_element_usages.get_element_executions(case_id, e_id)
+        if element_executions >= self.gateway_execution_limit:
+            return True
+        return False
 
     def is_batched_task_enabled(self, task_id: str, enabled_at: CustomDatetimeAndSeconds):
         """
