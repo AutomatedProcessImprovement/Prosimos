@@ -17,3 +17,4 @@ bimp_test_examples/
 .DS_Store
 .vscode/
 dist/
+poetry.lock
