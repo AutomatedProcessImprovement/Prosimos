@@ -122,14 +122,3 @@ class AllEventAttributes:
     def get_values_calculated(self):
         return {attr.name: attr.get_next_value() for event_id in self.attributes for attr in
                 self.attributes[event_id].values()}
-
-    def validate(self, case_attributes):
-        case_attribute_names = [attr.name for attr in case_attributes.attributes]
-        event_attribute_names = [attr.name for event_id in self.attributes for attr in
-                                 self.attributes[event_id].values()]
-
-        for attr_name in event_attribute_names:
-            if attr_name in case_attribute_names:
-                raise ValueError(f"Event attribute: {attr_name} already defined in case attributes")
-
-        return True

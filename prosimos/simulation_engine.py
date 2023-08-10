@@ -35,12 +35,7 @@ class SimBPMEnv:
         self.sim_setup = sim_setup
         self.sim_resources = dict()
         self.stat_fwriter = stat_fwriter
-
-        additional_columns = self.sim_setup.global_attributes.get_columns_generated()
-        additional_columns.extend(self.sim_setup.case_attributes.get_columns_generated())
-        additional_columns.extend(self.sim_setup.event_attributes.get_columns_generated())
-
-        self.log_writer = FileManager(10000, log_fwriter, additional_columns)
+        self.log_writer = FileManager(10000, log_fwriter, self.sim_setup.all_attributes.get_all_columns_generated())
         self.log_info = LogInfo(sim_setup)
         self.executed_events = 0
         self.time_update_process_state = 0
@@ -67,7 +62,7 @@ class SimBPMEnv:
         )
 
         all_attributes = {
-            "global": self.sim_setup.global_attributes.get_values_calculated(),
+            "global": self.sim_setup.all_attributes.global_attributes.get_values_calculated(),
             **self.case_prioritisation.all_case_attributes
         }
 
@@ -262,25 +257,30 @@ class SimBPMEnv:
 
         return completed_at, completed_datetime
 
-    def update_attributes(self, c_event):
-        event_attributes = self.sim_setup.event_attributes.attributes
+    def update_attributes(self, current_event):
+        event_attributes = self.sim_setup.all_attributes.event_attributes.attributes
+        global_event_attributes = self.sim_setup.all_attributes.global_event_attributes.attributes
 
-        if c_event.task_id in event_attributes:
-            c_attributes = event_attributes[c_event.task_id]
+        all_attribute_values = {
+            **self.sim_setup.bpmn_graph.all_attributes["global"],
+            **self.sim_setup.bpmn_graph.all_attributes[current_event.p_case]
+        }
 
-            c_local_values = self.sim_setup.bpmn_graph.all_attributes[c_event.p_case]
-            c_global_values = self.sim_setup.bpmn_graph.all_attributes["global"]
+        new_global_attr_values = self._extract_attributes_for_event(current_event.task_id, global_event_attributes, all_attribute_values)
+        new_event_attr_values = self._extract_attributes_for_event(current_event.task_id, event_attributes, all_attribute_values)
 
-            new_global_attributes = {}
-            new_event_attributes = {}
-            for key, value in c_attributes.items():
-                if key in c_global_values:
-                    new_global_attributes[key] = value.get_next_value(c_local_values)
-                else:
-                    new_event_attributes[key] = value.get_next_value(c_local_values)
+        self.sim_setup.bpmn_graph.all_attributes["global"].update(new_global_attr_values)
+        self.sim_setup.bpmn_graph.all_attributes[current_event.p_case].update(new_event_attr_values)
 
-            self.sim_setup.bpmn_graph.all_attributes["global"].update(new_global_attributes)
-            self.sim_setup.bpmn_graph.all_attributes[c_event.p_case].update(new_event_attributes)
+    def _extract_attributes_for_event(self, task_id, source_attributes, all_attribute_values):
+        new_attributes = {}
+
+        if task_id in source_attributes:
+            task_attributes = source_attributes[task_id]
+            for key, value in task_attributes.items():
+                new_attributes[key] = value.get_next_value(all_attribute_values)
+
+        return new_attributes
 
     def get_csv_row_data(self, full_event: TaskEvent):
         """
@@ -637,7 +637,15 @@ def execute_full_process(bpm_env: SimBPMEnv):
     # print("Generation of all cases: %s" %
     #       str(datetime.timedelta(seconds=(datetime.datetime.now() - s_t).total_seconds())))
     current_event = bpm_env.events_queue.pop_next_event()
-    while current_event is not None:
+    executed_cases = set()
+
+    while current_event:
+        if current_event.p_case not in executed_cases:
+            executed_cases.add(current_event.p_case)
+            global_case_attributes = bpm_env.sim_setup.all_attributes.global_case_attributes.attributes
+            new_attributes = {attr.name: attr.get_next_value() for attr in global_case_attributes}
+            bpm_env.sim_setup.bpmn_graph.all_attributes["global"].update(new_attributes)
+
         bpm_env.execute_enabled_event(current_event)
 
         # find the next event to be executed
@@ -679,15 +687,16 @@ def run_simulation(bpmn_path, json_path, total_cases,
     if stat_out_path is None and log_out_path is None:
         return run_simpy_simulation(diffsim_info, None, None)
 
-    with open(stat_out_path or log_out_path, mode="w", newline="", encoding="utf-8") as file:
-        stat_writer = None
-        log_writer = None
+    csv_writer_config = {
+        'delimiter': ',',
+        'quotechar': '"',
+        'quoting': csv.QUOTE_MINIMAL
+    }
 
-        if stat_out_path:
-            stat_writer = csv.writer(file, delimiter=",", quotechar='"', quoting=csv.QUOTE_MINIMAL)
-
-        if log_out_path:
-            log_writer = csv.writer(file, delimiter=",", quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    with (open(stat_out_path, mode="w", newline="", encoding="utf-8") if stat_out_path else None) as stat_csv_file, \
+         (open(log_out_path, mode="w", newline="", encoding="utf-8") if log_out_path else None) as log_csv_file:
+        stat_writer = csv.writer(stat_csv_file, **csv_writer_config) if stat_csv_file else None
+        log_writer = csv.writer(log_csv_file, **csv_writer_config) if log_csv_file else None
 
         return run_simpy_simulation(diffsim_info, stat_writer, log_writer)
 

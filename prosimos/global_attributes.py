@@ -71,14 +71,3 @@ class AllGlobalAttributes:
 
     def get_values_calculated(self):
         return {attr_name: attr.get_next_value() for attr_name, attr in self.attributes.items()}
-
-    def validate(self, case_attributes):
-        case_attribute_names = [attr.name for attr in case_attributes.attributes]
-        global_attribute_names = [attr_name for attr_name in self.attributes]
-
-        for attr_name in global_attribute_names:
-            if attr_name in case_attribute_names:
-                raise ValueError(f"Global attribute: {attr_name} already defined in case attributes")
-
-        return True
-

@@ -21,6 +21,7 @@ from prosimos.event_attributes_parser import EventAttributesParser
 from prosimos.gateway_condition_choice import GatewayConditionChoice
 from prosimos.global_attributes_parser import GlobalAttributesParser
 from prosimos.global_attributes import AllGlobalAttributes
+from prosimos.all_attributes import AllAttributes
 
 bpmn_schema_url = "http://www.omg.org/spec/BPMN/20100524/MODEL"
 simod_ns = {"qbp": "http://www.qbp-simulator.com/Schema201212"}
@@ -87,14 +88,14 @@ def parse_json_sim_parameters(json_path):
             if EVENT_ATTRIBUTES in json_data
             else AllEventAttributes({})
         )
-        event_attributes.validate(case_attributes)
 
         global_attributes = (
             GlobalAttributesParser(json_data[GLOBAL_ATTRIBUTES]).parse()
             if GLOBAL_ATTRIBUTES in json_data
             else AllGlobalAttributes({})
         )
-        global_attributes.validate(case_attributes)
+
+        all_attributes = AllAttributes(global_attributes, case_attributes, event_attributes)
 
         prioritisation_rules = (
             PrioritisationParser(json_data[PRIORITISATION_RULES_SECTION]).parse()
@@ -114,15 +115,12 @@ def parse_json_sim_parameters(json_path):
             arrival_calendar,
             event_distibution,
             batch_processing,
-            case_attributes,
             prioritisation_rules,
             branch_rules,
-            event_attributes,
             gateway_conditions,
-            global_attributes,
+            all_attributes,
             gateway_execution_limit
         )
-
 
 # def parse_pool_info(json_data, resources_map):
 #     for pool_id in json_data:
