@@ -54,6 +54,7 @@ class SimulationExecutionStats:
         total_usages = sum(case_data['executions'] for case_data in element_data['case_executions'].values())
         arcs_info = self._collate_arcs_info(element_data)
         return {
+            'id': element_id,
             'name': element_data['name'],
             'type': element_data['BPMN_type'],
             'total_usages': total_usages,
