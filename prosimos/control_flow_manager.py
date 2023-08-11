@@ -12,7 +12,7 @@ from prosimos.batch_processing import (BATCH_TYPE, AndFiringRule,
                                        BatchConfigPerTask)
 from prosimos.exceptions import InvalidBpmnModelException
 from prosimos.weekday_helper import CustomDatetimeAndSeconds
-from prosimos.graph_usage_stats import GraphUsageStats
+from prosimos.simulation_execution_stats import SimulationExecutionStats
 
 seconds_per_unit = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
 
@@ -159,7 +159,7 @@ class BPMNGraph:
         self.all_attributes = None
         self.gateway_conditions = None
         self.gateway_execution_limit = 1000
-        self.graph_element_usages = GraphUsageStats()
+        self.simulation_execution_stats = SimulationExecutionStats()
 
     def set_additional_fields_from_json(self, element_probability, task_resource_probability,
                                         event_distribution, batch_processing, gateway_conditions,
@@ -181,6 +181,7 @@ class BPMNGraph:
         self.from_name[element_info.name] = element_id
         self.nodes_bitset[element_id] = (1 << len(self.element_info))
         self.last_datetime[element_id] = dict()
+        self.simulation_execution_stats.add_element(element_info, element_id)
 
     def add_flow_arc(self, flow_id, source_id, target_id):
         for node_id in [source_id, target_id]:
@@ -350,8 +351,9 @@ class BPMNGraph:
 
                     f_arcs = OutgoingFlowSelector.choose_outgoing_flow(e_info, self.element_probability,
                                                                        all_curr_attributes, self.gateway_conditions)
-                self.graph_element_usages.update_gateway(case_id, e_info, f_arcs)
                 random.shuffle(f_arcs)
+
+            self.simulation_execution_stats.update_element_execution(case_id, e_info, f_arcs)
 
             for f_arc in f_arcs:
                 self._find_next(f_arc, case_id, p_state, enabled_tasks, to_execute, last_enabled, visited_at)
@@ -364,7 +366,7 @@ class BPMNGraph:
         return self.batch_info.get(task_id, None) != None
 
     def is_gateway_execution_limit_exceeded(self, case_id, e_id):
-        element_executions = self.graph_element_usages.get_element_executions(case_id, e_id)
+        element_executions = self.simulation_execution_stats.get_element_executions(case_id, e_id)
         if element_executions >= self.gateway_execution_limit:
             return True
         return False
