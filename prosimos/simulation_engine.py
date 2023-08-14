@@ -1,5 +1,6 @@
 import csv
 import datetime
+import os
 from datetime import timedelta
 from typing import List
 
@@ -19,6 +20,7 @@ from prosimos.simulation_queues_ds import (
 )
 from prosimos.simulation_setup import SimDiffSetup
 from prosimos.simulation_stats_calculator import LogInfo
+from prosimos.warning_logger import warning_logger
 
 
 class SimResource:
@@ -694,11 +696,24 @@ def run_simulation(bpmn_path, json_path, total_cases,
     }
 
     with (open(stat_out_path, mode="w", newline="", encoding="utf-8") if stat_out_path else None) as stat_csv_file, \
-         (open(log_out_path, mode="w", newline="", encoding="utf-8") if log_out_path else None) as log_csv_file:
+            (open(log_out_path, mode="w", newline="", encoding="utf-8") if log_out_path else None) as log_csv_file:
         stat_writer = csv.writer(stat_csv_file, **csv_writer_config) if stat_csv_file else None
         log_writer = csv.writer(log_csv_file, **csv_writer_config) if log_csv_file else None
 
-        return run_simpy_simulation(diffsim_info, stat_writer, log_writer)
+        result = run_simpy_simulation(diffsim_info, stat_writer, log_writer)
+
+        if stat_out_path:
+            warning_file_path = os.path.join(os.path.dirname(stat_out_path), "simulation_warnings.txt")
+        elif log_out_path:
+            warning_file_path = os.path.join(os.path.dirname(log_out_path), "simulation_warnings.txt")
+        else:
+            warning_file_path = "simulation_warnings.txt"
+
+        with open(warning_file_path, "w") as warning_file:
+            for warning in warning_logger.get_all_warnings():
+                warning_file.write(f"{warning}\n")
+
+        return result
 
 
 def run_simpy_simulation(diffsim_info, stat_fwriter, log_fwriter):
@@ -711,6 +726,8 @@ def run_simpy_simulation(diffsim_info, stat_fwriter, log_fwriter):
         bpm_env.log_writer.force_write()
     if stat_fwriter:
         bpm_env.log_info.save_joint_statistics(bpm_env)
+
+    warning_logger.add_warnings(bpm_env.sim_setup.bpmn_graph.simulation_execution_stats.find_issues())
 
     return None
 

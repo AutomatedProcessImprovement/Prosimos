@@ -2,6 +2,7 @@ import copy
 from prosimos.control_flow_manager import BPMN
 from prosimos.probability_distributions import Choice
 from prosimos.gateway_condition_choice import GatewayConditionChoice
+from prosimos.warning_logger import warning_logger
 
 
 class OutgoingFlowSelector:
@@ -34,6 +35,7 @@ class OutgoingFlowSelector:
 
         # All true or all false
         if len(passed_arcs_ids) in [0, len(candidates_list)]:
+            warning_logger.add_warning(f"{e_info.id} all XOR gateway conditions evaluated to the same result ")
             return OutgoingFlowSelector._use_probabilities(e_info, element_probability)
 
         # More than 1 true (use scaled probabilities)
@@ -44,6 +46,8 @@ class OutgoingFlowSelector:
 
         scaled_probabilities = OutgoingFlowSelector._scale_to_one(passed_arcs_probs)
         choice = Choice(passed_arcs_ids, scaled_probabilities)
+
+        warning_logger.add_warning(f"{e_info.id} more than 1 XOR gateway conditions evaluated to positive result. Scaled probabilities were used.")
         return [(choice.get_outgoing_flow(), None)]
 
 
@@ -61,6 +65,7 @@ class OutgoingFlowSelector:
 
         # All false (use probabilities)
         if not passed_arcs_ids:
+            warning_logger.add_warning(f"{e_info.id} all OR gateway conditions evaluated to negative result. Probabilities were used.")
             return element_probability[e_info.id].get_multiple_flows()
         else:
             return [(flow, None) for flow in passed_arcs_ids]

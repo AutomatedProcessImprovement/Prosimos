@@ -22,6 +22,7 @@ from prosimos.gateway_condition_choice import GatewayConditionChoice
 from prosimos.global_attributes_parser import GlobalAttributesParser
 from prosimos.global_attributes import AllGlobalAttributes
 from prosimos.all_attributes import AllAttributes
+from prosimos.warning_logger import warning_logger
 
 bpmn_schema_url = "http://www.omg.org/spec/BPMN/20100524/MODEL"
 simod_ns = {"qbp": "http://www.qbp-simulator.com/Schema201212"}
@@ -237,13 +238,22 @@ def parse_gateway_conditions(gateway_json, branch_rules):
         g_id = g_info["gateway_id"]
         gateway_rules = list()
         out_arc = list()
+        missing_conditions = list()
+
         for prob_info in g_info["probabilities"]:
             if "condition_id" in prob_info:
                 out_arc.append(prob_info["path_id"])
                 curr_branch_rules = branch_rules.get_branch_condition_by_id(prob_info["condition_id"])
-                gateway_rules.append(curr_branch_rules)      
+                gateway_rules.append(curr_branch_rules)
+            else:
+                missing_conditions.append(prob_info["path_id"])
+
         if len(prob_info) > 0:
             gateway_conditions[g_id] = GatewayConditionChoice(out_arc, gateway_rules)
+
+        if len(missing_conditions) > 0 and len(gateway_rules) != len(g_info["probabilities"]):
+            warning_logger.add_warning(f"Gateway {g_id} is using conditions, but some are missing. Flows without conditions: {', '.join(missing_conditions)}")
+
     return gateway_conditions
 
 
@@ -266,9 +276,25 @@ def parse_arrival_branching_probabilities(arrival_json, gateway_json):
         g_id = g_info["gateway_id"]
         probability_list = list()
         out_arc = list()
+
+        total_probability = sum([prob_info.get("value", 0) for prob_info in g_info["probabilities"]])
+        missing_probability = 1 - total_probability
+        missing_values_count = sum(1 for prob_info in g_info["probabilities"] if "value" not in prob_info)
+        value_to_assign = missing_probability / missing_values_count if missing_values_count else 0
+        auto_assigned = {}
+
         for prob_info in g_info["probabilities"]:
             out_arc.append(prob_info["path_id"])
+            if "value" not in prob_info:
+                prob_info["value"] = value_to_assign
+                auto_assigned[prob_info["path_id"]] = value_to_assign
+
             probability_list.append(float(prob_info["value"]))
+
+        if auto_assigned:
+            auto_assigned_flows = ", ".join([f"{key}: {value}" for key, value in auto_assigned.items()])
+            warning_logger.add_warning(f"Gateway {g_id} has auto-assigned probabilities for flows: {auto_assigned_flows}")
+
         element_distribution[g_id] = Choice(out_arc, probability_list)
     return element_distribution
 

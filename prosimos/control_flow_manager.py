@@ -13,6 +13,7 @@ from prosimos.batch_processing import (BATCH_TYPE, AndFiringRule,
 from prosimos.exceptions import InvalidBpmnModelException
 from prosimos.weekday_helper import CustomDatetimeAndSeconds
 from prosimos.simulation_execution_stats import SimulationExecutionStats
+from prosimos.warning_logger import warning_logger
 
 seconds_per_unit = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
 
@@ -368,6 +369,7 @@ class BPMNGraph:
     def is_gateway_execution_limit_exceeded(self, case_id, e_id):
         element_executions = self.simulation_execution_stats.get_element_executions(case_id, e_id)
         if element_executions >= self.gateway_execution_limit:
+            warning_logger.add_warning(f"Infinite loop was detected in case #{case_id} on element {e_id}. Case has been terminated")
             return True
         return False
 

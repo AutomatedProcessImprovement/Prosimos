@@ -70,8 +70,7 @@ class SimulationExecutionStats:
 
     def display_executions(self):
         if not self.stats:
-            print("No stats calculated yet.")
-            return
+            self.analyze_executions()
         self._display_element_stats()
 
     def _display_element_stats(self):
@@ -94,10 +93,37 @@ class SimulationExecutionStats:
         else:
             print(f"{element_type} '{name}' {element_type} (ID: {element_id}) has been used {element_data['total_usages']} times out of {total_cases} ({usage_percentage:.2f}%).")
 
+    def find_issues(self):
+        if not self.stats:
+            self.analyze_executions()
+
+        total_cases = self.stats['total_cases']
+        warnings = []
+
+        for element_id, element_data in self.stats['elements'].items():
+            usage_percentage = (element_data['total_usages'] / total_cases) * 100 if total_cases else 0
+
+            if usage_percentage < 1:
+                warnings.append(
+                    f"{element_data['type']} '{element_data['name']}' (ID: {element_id}) is used less frequently, only in {element_data['total_usages']} out of {total_cases} cases ({usage_percentage:.2f}%).")
+            elif usage_percentage > 100:
+                warnings.append(
+                    f"{element_data['type']} '{element_data['name']}' (ID: {element_id}) is used more frequently than expected, in {element_data['total_usages']} out of {total_cases} cases ({usage_percentage:.2f}%).")
+
+            for arc_id, arc_usages in element_data['arcs'].items():
+                arc_usage_percentage = (arc_usages / total_cases) * 100 if total_cases else 0
+                if arc_usage_percentage < 1:
+                    warnings.append(
+                        f"Flow {arc_id} from {element_data['type']} '{element_data['name']}' (ID: {element_id}) is used less frequently, only in {arc_usages} out of {total_cases} cases ({arc_usage_percentage:.2f}%).")
+                elif arc_usage_percentage > 100:
+                    warnings.append(
+                        f"Flow {arc_id} from {element_data['type']} '{element_data['name']}' (ID: {element_id}) is used more frequently than expected, in {arc_usages} out of {total_cases} cases ({arc_usage_percentage:.2f}%).")
+
+        return warnings
+
     def display_stats(self):
         if not self.stats:
-            print("No stats calculated yet.")
-            return
+            self.analyze_executions()
         print(json.dumps(self.stats, indent=4))
 
     def display_data(self):
