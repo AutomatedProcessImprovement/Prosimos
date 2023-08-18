@@ -1,0 +1,25 @@
+Function Evaluations:  3381
+Solutions Explored:    3381
+Pareto front size:     12
+In Joint Pareto:       2
+Not In Joint Pareto:   10
+Average Cycle Time:    8 days, 17:46:58.571045
+Average Resource Cost: 44373.941512
+------------------------- METRICS --------------------------
+# Hyperarea Ratio:     0.946349
+# Hausdorff Distance:  22110.798744
+# Delta Metric:        0.853173
+# Purity Metric:       0.166667
+--------------- OPTIMAL RESOURCE ALLOCATIONS ----------------
+[48f07b01c4aace6af261c159964e0a6d437b3541] -> [aCost: 52079.52, cTime: 7 days, 21:33:07.979561]
+[882d71c87ebb15e36e20a818f5b8f3404f1ac396] -> [aCost: 39829.36, cTime: 9 days, 7:48:38.164317]
+[bd78d621c468e3b5c255d9eb3319a7197ec3dc45] -> [aCost: 47890.12, cTime: 8 days, 0:31:32.678981]
+[06a2a88298dc54ba97cde20321986fd2663fa190] -> [aCost: 43887.68, cTime: 8 days, 5:49:51.322702]
+[bb2b510239e352cb6cc04f2144f73c937cc7bded] -> [aCost: 55332.56, cTime: 7 days, 19:36:05.847779]
+[4592a27de02764c4205a8d781e17271d4701b72b] -> [aCost: 45226.82, cTime: 8 days, 3:32:01.193845]
+[0f98d1452ede1b177f9cf5f915431c20fed4aec1] -> [aCost: 43862.32, cTime: 8 days, 13:22:55.466534]
+[f48a6644ad040dd4e71aca9f2bafcf3e3f715ce4] -> [aCost: 42489.60, cTime: 8 days, 13:25:17.727962]
+[37635dab932feea4de7dd58ceaf9041f3db9a228] -> [aCost: 42464.51, cTime: 8 days, 20:15:55.087405]
+[19f04e65d9a33e1baa2842bf8b0fe76e6b2af6df] -> [aCost: 41218.05, cTime: 8 days, 22:24:19.190876]
+[7a46a87dd55a510971400d8da1f06c88460a7b35] -> [aCost: 39826.47, cTime: 10 days, 5:41:11.537646]
+[e177e3231ec4839871c5f993ca88716fb01370f5] -> [aCost: 38380.29, cTime: 10 days, 7:22:46.654938]

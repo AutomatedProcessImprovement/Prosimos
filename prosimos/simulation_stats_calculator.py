@@ -79,7 +79,7 @@ class LogInfo:
         trace_info.event_list.append(event_info)
         self._update_global_task_stats(event_info, task_cost)
 
-    def compute_execution_times(self, trace_info: Trace, process_kpi: KPIMap):
+    def compute_execution_times(self, trace_info: Trace, process_kpi: KPIMap, model_type="CRISP"):
         processing_intervals = list()
         waiting_intervals = list()
         real_work_intervals = list()
@@ -87,9 +87,12 @@ class LogInfo:
             if (event_info.type == BPMN.TASK):
                 r_calendar = self.sim_setup.calendars_map[self.sim_setup.resources_map[event_info.resource_id].calendar_id]
 
-                r_calendar.remove_idle_times(event_info.started_datetime, event_info.completed_datetime,
-                                            real_work_intervals)
-                                            
+                if model_type == "FUZZY":
+                    for interval in event_info.worked_intervals:
+                        real_work_intervals.append(interval)
+                else:
+                    r_calendar.remove_idle_times(event_info.started_datetime, event_info.completed_datetime,
+                                                 real_work_intervals)
             processing_intervals.append(Interval(event_info.started_datetime, event_info.completed_datetime))
             waiting_intervals.append(Interval(event_info.enabled_datetime, event_info.started_datetime))
 
@@ -128,12 +131,12 @@ class LogInfo:
         save_resource_utilization(bpm_env)
         self.compute_individual_task_stats(bpm_env.stat_fwriter)
         bpm_env.stat_fwriter.writerow([""])
-        self.compute_full_simulation_statistics(bpm_env.stat_fwriter)
+        self.compute_full_simulation_statistics(bpm_env.stat_fwriter, bpm_env.sim_setup.model_type)
 
     def compute_process_kpi(self, bpm_env):
         process_kpi = KPIMap()
         for trace_info in self.trace_list:
-            self.compute_execution_times(trace_info, process_kpi)
+            self.compute_execution_times(trace_info, process_kpi, bpm_env.sim_setup.model_type)
 
         return [process_kpi, self.task_exec_info, compute_resource_utilization(bpm_env), self.started_at, self.ended_at]
 
@@ -169,10 +172,10 @@ class LogInfo:
                                    t_info.idle_processing_time.total, t_info.cost.min, t_info.cost.max,
                                    t_info.cost.avg, t_info.cost.total])
 
-    def compute_full_simulation_statistics(self, stat_fwriter):
+    def compute_full_simulation_statistics(self, stat_fwriter, model_type):
         process_kpi = KPIMap()
         for trace_info in self.trace_list:
-            self.compute_execution_times(trace_info, process_kpi)
+            self.compute_execution_times(trace_info, process_kpi, model_type)
 
         kpi_map = {"cycle_time": process_kpi.cycle_time,
                    "processing_time": process_kpi.processing_time,
@@ -193,23 +196,36 @@ class LogInfo:
 
 
 def compute_resource_utilization(bpm_env):
-    compute_resorce_availability(bpm_env)
+    if bpm_env.sim_setup.model_type == "FUZZY":
+        compute_fuzzy_availability(bpm_env)
+    else:
+        compute_resorce_availability(bpm_env)
     resource_info = dict()
 
     available_time = dict()
     started_at = bpm_env.log_info.started_at
     completed_at = bpm_env.log_info.ended_at
-    for r_id in bpm_env.sim_setup.resources_map:
-        calendar_info = bpm_env.sim_setup.get_resource_calendar(r_id)
-        if calendar_info.calendar_id not in available_time:
-            available_time[calendar_info.calendar_id] = calendar_info.find_working_time(started_at, completed_at)
-        bpm_env.sim_resources[r_id].available_time = available_time[calendar_info.calendar_id]
 
+    for r_id in bpm_env.sim_resources:
+        # r_utilization = bpm_env.get_utilization_for(r_id)
+        # r_info = bpm_env.sim_setup.resources_map[r_id]
         resource_info[r_id] = ResourceKPI(bpm_env.sim_setup.resources_map[r_id],
                                           bpm_env.sim_resources[r_id].allocated_tasks,
                                           bpm_env.sim_resources[r_id].worked_time,
                                           bpm_env.sim_resources[r_id].available_time,
                                           bpm_env.get_utilization_for(r_id))
+
+    # for r_id in bpm_env.sim_setup.resources_map:
+    #     calendar_info = bpm_env.sim_setup.get_resource_calendar(r_id)
+    #     if calendar_info.calendar_id not in available_time:
+    #         available_time[calendar_info.calendar_id] = calendar_info.find_working_time(started_at, completed_at)
+    #     bpm_env.sim_resources[r_id].available_time = available_time[calendar_info.calendar_id]
+    #
+    #     resource_info[r_id] = ResourceKPI(bpm_env.sim_setup.resources_map[r_id],
+    #                                       bpm_env.sim_resources[r_id].allocated_tasks,
+    #                                       bpm_env.sim_resources[r_id].worked_time,
+    #                                       bpm_env.sim_resources[r_id].available_time,
+    #                                       bpm_env.get_utilization_for(r_id))
     return resource_info
 
 
@@ -237,14 +253,72 @@ def save_resource_utilization(bpm_env):
 
 
 def compute_resorce_availability(bpm_env):
-    available_time = dict()
+    if bpm_env.sim_setup.model_type == "FUZZY":
+        compute_fuzzy_availability(bpm_env)
+    else:
+        available_time = dict()
+        started_at = bpm_env.log_info.started_at
+        completed_at = bpm_env.log_info.ended_at
+        for r_id in bpm_env.sim_setup.resources_map:
+            calendar_info = bpm_env.sim_setup.get_resource_calendar(r_id)
+            if calendar_info.calendar_id not in available_time:
+                available_time[calendar_info.calendar_id] = calendar_info.find_working_time(started_at, completed_at)
+            bpm_env.sim_resources[r_id].available_time = available_time[calendar_info.calendar_id]
+
+
+def compute_fuzzy_availability(bpm_env):
+    trace_list = bpm_env.log_info.trace_list
+    r_working_intervals = dict()
+    # Grouping the timeintervals each resource was working on the allocated tasks
+    for trace in trace_list:
+        for ev in trace.event_list:
+            if ev.resource_id not in r_working_intervals:
+                r_working_intervals[ev.resource_id] = []
+            for interval in ev.worked_intervals:
+                r_working_intervals[ev.resource_id].append(interval)
+
+    #
     started_at = bpm_env.log_info.started_at
     completed_at = bpm_env.log_info.ended_at
-    for r_id in bpm_env.sim_setup.resources_map:
-        calendar_info = bpm_env.sim_setup.get_resource_calendar(r_id)
-        if calendar_info.calendar_id not in available_time:
-            available_time[calendar_info.calendar_id] = calendar_info.find_working_time(started_at, completed_at)
-        bpm_env.sim_resources[r_id].available_time = available_time[calendar_info.calendar_id]
+    full_simulation_duration = (completed_at - started_at).total_seconds()
+
+    # Sorting (by starting time) the working intervals of each resource to perform a sweep-line
+    cumulative_worked_time = dict()
+    cumulative_available_time = dict()
+    for r_id in r_working_intervals:
+        f_calendar = bpm_env.sim_setup.get_resource_calendar(r_id)
+        i_len = len(r_working_intervals[r_id])
+        if i_len == 0:
+            cumulative_worked_time[r_id] = 0
+            cumulative_available_time[r_id] = f_calendar.estimate_available_time(started_at, completed_at)
+            bpm_env.sim_resources[r_id].available_time = cumulative_available_time[r_id]
+            continue
+
+        r_working_intervals[r_id].sort(key=lambda i_info: i_info.start)
+        worked_time = r_working_intervals[r_id][0].duration
+
+        available_time = f_calendar.estimate_available_time(started_at, r_working_intervals[r_id][0].start)
+        available_time += r_working_intervals[r_id][0].duration
+        available_time += f_calendar.estimate_available_time(r_working_intervals[r_id][i_len - 1].end, completed_at)
+
+        last_date = r_working_intervals[r_id][0].end
+        for i in range(1, i_len):
+            c_interval = r_working_intervals[r_id][i]
+            if last_date > c_interval.end:
+                continue
+            if last_date < c_interval.start:
+                available_time += f_calendar.estimate_available_time(last_date, c_interval.start)
+            if last_date > c_interval.start:
+                i_duration = (c_interval.end - last_date).total_seconds()
+                worked_time += i_duration
+                available_time += i_duration
+            else:
+                worked_time += c_interval.duration
+                available_time += c_interval.duration
+            last_date = c_interval.end
+        cumulative_worked_time[r_id] = worked_time
+        cumulative_available_time[r_id] = available_time
+        bpm_env.sim_resources[r_id].available_time = available_time
 
 
 def update_min_max(trace_info, duration_array, case_duration):

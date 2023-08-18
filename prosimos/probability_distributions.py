@@ -1,4 +1,6 @@
 import math
+
+import numpy
 import statistics
 import sys
 import warnings
@@ -110,6 +112,51 @@ def check_fix(data_list, delta=5):
         if count / len(data_list) > 0.9:
             return d1
     return None
+
+
+def generate_number_from(distribution_name, params):
+    while True:
+        duration = evaluate_distribution_function(distribution_name, params)
+        if duration >= 0:
+            return duration
+
+
+def evaluate_distribution_function(distribution_name, params):
+    if distribution_name == "fix":
+        return params[0]
+    elif distribution_name == 'default':
+        return numpy.random.uniform(params[0], params[1])
+
+    arg = params[:-4]
+    loc = params[-4]
+    scale = params[-3]
+    d_min = params[-2]
+    d_max = params[-1]
+
+    dist = getattr(st, distribution_name)
+    num_param = len(arg)
+
+    f_dist = 0
+    while True:
+        if num_param == 0:
+            f_dist = dist.rvs(loc=loc, scale=scale, size=1)[0]
+        elif num_param == 1:
+            f_dist = dist.rvs(arg[0], loc=loc, scale=scale, size=1)[0]
+        elif num_param == 2:
+            f_dist = dist.rvs(arg[0], arg[1], loc=loc, scale=scale, size=1)[0]
+        elif num_param == 3:
+            f_dist = dist.rvs(arg[0], arg[1], arg[2], loc=loc, scale=scale, size=1)[0]
+        elif num_param == 4:
+            f_dist = dist.rvs(arg[0], arg[1], arg[2], arg[3], loc=loc, scale=scale, size=1)[0]
+        elif num_param == 5:
+            f_dist = dist.rvs(arg[0], arg[1], arg[2], arg[3], arg[4], loc=loc, scale=scale, size=1)[0]
+        elif num_param == 6:
+            f_dist = dist.rvs(arg[0], arg[1], arg[2], arg[3], arg[4], arg[5], loc=loc, scale=scale, size=1)[0]
+        elif num_param == 7:
+            f_dist = dist.rvs(arg[0], arg[1], arg[2], arg[3], arg[4], arg[5], arg[6], loc=loc, scale=scale, size=1)[0]
+        if d_min <= f_dist <= d_max:
+            break
+    return f_dist
 
 
 class Choice:

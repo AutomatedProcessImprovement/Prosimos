@@ -15,7 +15,7 @@ from testing_scripts.bpm_2022_testing_files import experiment_logs, process_file
 
 def main():
 
-    for i in range(0, 9):
+    for i in range(5, 9):
         model_name = experiment_logs[i]
         # transform_xes_to_csv(process_files[model_name]['xes_log'], process_files[model_name]['real_csv_log'])
 

@@ -1,0 +1,29 @@
+Function Evaluations:  2540
+Solutions Explored:    2540
+Pareto front size:     16
+In Joint Pareto:       0
+Not In Joint Pareto:   16
+Average Cycle Time:    1 day, 17:17:38.968117
+Average Resource Cost: 90821.939570
+------------------------- METRICS --------------------------
+# Hyperarea Ratio:     0.983688
+# Hausdorff Distance:  6831.301266
+# Delta Metric:        0.681288
+# Purity Metric:       0.000000
+--------------- OPTIMAL RESOURCE ALLOCATIONS ----------------
+[f8fab17afc1ca072cad61d10aab0d12035a7e34b] -> [aCost:  82307.71, cTime: 2 days, 23:15:19.885353]
+[ebd0830972102ba91c1a27d4a825a65585d30582] -> [aCost:  82681.77, cTime: 2 days, 19:07:00.560789]
+[feb2981d35e1a198a0d17b1b8e9ddfd9100c72d0] -> [aCost:  85850.58, cTime: 2 days, 0:34:59.663613]
+[99237a87d085ed02963b4b75fc4a132dcfb991b2] -> [aCost:  87272.86, cTime: 1 days, 15:21:35.374163]
+[99810b65523716fd84a6ea657b85c5c6ce5c9759] -> [aCost:  85889.69, cTime: 1 days, 22:29:17.281727]
+[51eedd00671777a76293d212e02338afc65fef78] -> [aCost:  85419.98, cTime: 2 days, 8:44:37.454130]
+[94046c115ec8858bddf024e2bcc6bc25e9caf0b0] -> [aCost:  91432.62, cTime: 1 days, 7:19:08.644006]
+[1454c257078c4b4717204860d8668cf749656f35] -> [aCost:  90047.38, cTime: 1 days, 12:21:09.709799]
+[3d44665cb1e80a2cb88ee125a03ba9fd194aec04] -> [aCost:  85907.27, cTime: 1 days, 19:44:59.557890]
+[ca3330849b724da4879b229f841085f6562c5cdd] -> [aCost:  91213.75, cTime: 1 days, 7:52:38.162292]
+[7768849b3d119c2e77e406ca946f67922bf0afb3] -> [aCost:  88337.19, cTime: 1 days, 12:35:22.799475]
+[c793b46c6d66f1213b2fb111b388f6d9da26d07c] -> [aCost:  99686.05, cTime: 1 days, 4:46:56.812441]
+[608ac0582020970b4682212953a8c8748ca14086] -> [aCost:  87686.22, cTime: 1 days, 14:07:01.051556]
+[f4d451f2992566532f6d11d3ea83a3751dc8d05c] -> [aCost: 110882.80, cTime: 1 days, 3:08:06.023828]
+[a2b67ea6ea0be9143e573f3f6a31f94a1572d831] -> [aCost: 102975.55, cTime: 1 days, 3:46:31.762489]
+[36eb598d902b301362974f68c460ea368632fc0b] -> [aCost:  95559.62, cTime: 1 days, 5:27:38.746326]

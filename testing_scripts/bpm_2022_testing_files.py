@@ -34,13 +34,13 @@ process_files = {
         'disc_params': [60, 0.1, 0.9, 0.6, True]
     },
     'demo_example': {
-        'xes_log': './../input_output_files/discovery_input_files/xes_logs/log_demo_filtered.xes',
-        'csv_log': './../input_output_files/discovery_input_files/csv_logs/log_demo_filtered.csv',
-        'real_csv_log': './../input_output_files/discovery_output_files/real_csv_logs/pending.csv',
-        'bpmn': './../input_output_files/discovery_input_files/bpmn_models/Credit_Application_Simulation.bpmn',
-        'json': './../input_output_files/discovery_output_files/json/demo_example.json',
-        'sim_log': './../input_output_files/discovery_output_files/prosimos_logs/demo_example.csv',
-        'demo_stats': './../input_output_files/discovery_output_files/prosimos_logs/demo_stats.csv',
+        'xes_log': './assets/demo_example/log_demo_filtered.xes',
+        'csv_log': './assets/demo_example/log_demo_filtered.csv',
+        'real_csv_log': './assets/demo_example/real_csv_logs/pending.csv',
+        'bpmn': './assets/demo_example/Credit_Application_Simulation.bpmn',
+        'json': './assets/demo_example/demo_example.json',
+        'sim_log': './assets/demo_example/demo_example.csv',
+        'demo_stats': './assets/demo_example/demo_stats.csv',
         'start_datetime': '2022-06-21 13:22:30.035185+03:00',
         'total_cases': 100,
         'disc_params': [60, 0.1, 0.9, 0.6, True]

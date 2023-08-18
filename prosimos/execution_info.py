@@ -34,6 +34,7 @@ class TaskEvent:
         self.processing_time = None
         self.normalized_waiting = None
         self.normalized_processing = None
+        self.worked_intervals = []
 
         if resource_available_at is not None:
             # Time moment in seconds from beginning, i.e., first event has time = 0
@@ -49,9 +50,8 @@ class TaskEvent:
             # Ideal duration from the distribution-function if allocate resource doesn't rest
             self.ideal_duration = bpm_env.sim_setup.ideal_task_duration(task_id, resource_id, num_tasks_in_batch)
             # Actual duration adding the resource resting-time according to their calendar
-            self.real_duration = bpm_env.sim_setup.real_task_duration(self.ideal_duration,
-                                                                      self.resource_id,
-                                                                      self.started_datetime)
+            self.real_duration = bpm_env.sim_setup.real_task_duration(self.ideal_duration, self.resource_id,
+                                                                      self.started_datetime, self.worked_intervals)
 
             # Time moment in seconds from beginning, i.e., first event has time = 0
             self.completed_at = self.started_at + self.real_duration
@@ -97,7 +97,12 @@ class TaskEvent:
     def update_enabling_times(self, enabled_at):
         # what's the use case ?
         if self.started_at is None or enabled_at > self.started_at:
-            raise Exception("Task ENABLED after STARTED")
+            # print(self.task_id)
+            # print(str(enabled_at))
+            # print(str(self.started_at))
+            # print("--------------------------------------------")
+            enabled_at = self.started_at
+            # raise Exception("Task ENABLED after STARTED")
         self.enabled_at = enabled_at
         self.waiting_time = (self.started_at - self.enabled_at).total_seconds()
         self.processing_time = (self.completed_at - self.started_at).total_seconds()

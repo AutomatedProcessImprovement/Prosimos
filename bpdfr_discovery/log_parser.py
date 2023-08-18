@@ -2,19 +2,22 @@ import csv
 import json
 import sys
 from datetime import datetime
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytz
 from pix_framework.calendar.resource_calendar import RCalendar
 from pix_framework.discovery.calendar_factory import CalendarFactory
+from pix_framework.discovery.resource_activity_performances import discover_activity_resource_distribution
 
 from bpdfr_discovery.exceptions import InvalidInputDiscoveryParameters
 from prosimos.control_flow_manager import BPMN, BPMNGraph
 from prosimos.exceptions import InvalidBpmnModelException, InvalidLogFileException
 from prosimos.execution_info import Trace, TaskEvent
 from prosimos.file_manager import FileManager
-from prosimos.probability_distributions import best_fit_distribution
+from pix_framework.statistics.distribution import get_best_fitting_distribution, DurationDistribution
+
 from prosimos.simulation_properties_parser import parse_simulation_model
 
 print_info = False
@@ -381,10 +384,10 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
                                                                             True,
                                                                             trace_info.event_list)
 
-    print('Processed Traces in Log ----- %d (real) / %d (total)' % (len(log_traces) - removed_traces, len(log_traces)))
-    print('Processed Events in Log ----- %d (real) / %d (total)' % (total_events - removed_events, total_events))
-    print("Total Activities in Log - %d" % len(task_events))
-    print("Total Resources in Log -- %d" % len(resource_freq))
+    # print('Processed Traces in Log ----- %d (real) / %d (total)' % (len(log_traces) - removed_traces, len(log_traces)))
+    # print('Processed Events in Log ----- %d (real) / %d (total)' % (total_events - removed_events, total_events))
+    # print("Total Activities in Log - %d" % len(task_events))
+    # print("Total Resources in Log -- %d" % len(resource_freq))
 
     if removed_traces == len(log_traces):
         raise InvalidLogFileException(
@@ -415,9 +418,12 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
                                            joint_resource_events,
                                            coverage_map)
 
-    res_json_calendar = dict()
+    res_json_calendar = []
     for r_id in res_calendars:
-        res_json_calendar[r_id] = res_calendars[r_id].to_json()
+        res_json_calendar.append({
+            "id": "%s_timetable" % r_id,
+            "name": "%s_timetable" % r_id,
+            "time_periods": res_calendars[r_id].to_json()})
 
     # # (2) Discovering Arrival Time Calendar
     arrival_calendar = discover_arrival_calendar(initial_events, 60, 0.1, 1.0)
@@ -440,14 +446,17 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
     gateways_branching = bpmn_graph.compute_branching_probability(flow_arcs_frequency)
 
     to_save = {
-        "resource_profiles": map_task_id_from_names(pools_json, bpmn_graph.from_name),
-        "arrival_time_distribution": arrival_time_dist,
+        "model_type": "CRISP",
+        "resource_profiles": build_resource_profiles(task_resource_dist, bpmn_graph.from_name),
+        "arrival_time_distribution": arrival_time_dist.to_prosimos_distribution(),
         "arrival_time_calendar": json_arrival_calendar,
-        "gateway_branching_probabilities": gateways_branching,
-        "task_resource_distribution": map_task_id_from_names(task_resource_dist, bpmn_graph.from_name),
+        "gateway_branching_probabilities": gateway_branching_to_json(gateways_branching),
+        # "task_resource_distribution": map_task_id_from_names(task_resource_dist, bpmn_graph.from_name),
+        "task_resource_distribution": processing_times_json(task_resource_dist, task_resources, bpmn_graph),
         "resource_calendars": res_json_calendar
     }
-    save_prosimos_json(to_save, out_f_path)
+    # save_prosimos_json(to_save, out_f_path)
+    save_json(out_f_path, to_save)
     return [map_task_id_from_names(pools_json, bpmn_graph.from_name),
             arrival_time_dist,
             json_arrival_calendar,
@@ -458,6 +467,40 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
             task_events,
             task_resource_events,
             bpmn_graph.from_name]
+
+
+def save_json(json_path, simulation_params):
+    json_path = Path(json_path)
+
+    if json_path is not None:
+        json_path.parent.mkdir(parents=True, exist_ok=True)
+        with json_path.open("w") as f:
+            json.dump(simulation_params, f)
+
+
+def processing_times_json(res_task_distr, task_resources, bpmn_graph):
+    distributions = []
+
+    for t_name in task_resources:
+        resources = []
+        for r_id in task_resources[t_name]:
+            if r_id not in res_task_distr[t_name]:
+                continue
+
+            distribution: DurationDistribution = res_task_distr[t_name][r_id]
+            distribution_prosimos = distribution.to_prosimos_distribution()
+
+            resources.append(
+                {
+                    "resource_id": r_id,
+                    "distribution_name": distribution_prosimos["distribution_name"],
+                    "distribution_params": distribution_prosimos["distribution_params"],
+                }
+            )
+
+        distributions.append({"task_id": bpmn_graph.from_name[t_name], "resources": resources})
+
+    return distributions
 
 
 def validate_and_get_resource(event, bpmn_graph: BPMNGraph):
@@ -608,7 +651,7 @@ def save_prosimos_json(to_save, file_path):
             "resource_profiles": resource_profiles,
             "arrival_time_distribution": arrival_time_distribution,
             "arrival_time_calendar": to_save["arrival_time_calendar"],
-            "gateway_branching_probabilities": gateway_branching,
+            "gateway_branching_probabilities": gateway_branching_to_json,
             "task_resource_distribution": task_resource_distribution,
             "resource_calendars": resource_calendars,
         }, file_writter)
@@ -627,6 +670,43 @@ def map_task_id_from_names(task_resource_dist, from_name):
     for t_name in task_resource_dist:
         id_task_resource_dist[from_name[t_name]] = task_resource_dist[t_name]
     return id_task_resource_dist
+
+
+def build_resource_profiles(task_resource_dist, from_name):
+    resource_profiles = []
+    for t_name in task_resource_dist:
+        t_id = from_name[t_name]
+        resource_list = []
+        for r_id in task_resource_dist[t_name]:
+            assigned_tasks = []
+            for t_cand in task_resource_dist:
+                if r_id in task_resource_dist[t_cand]:
+                    assigned_tasks.append(from_name[t_cand])
+
+            resource_list.append(
+                {
+                    "id": r_id,
+                    "name": r_id,
+                    "cost_per_hour": 1,
+                    "amount": 1,
+                    "calendar": "%s_timetable" % r_id,
+                    "assigned_tasks": assigned_tasks,
+                }
+            )
+        resource_profiles.append({"id": t_id, "name": t_name, "resource_list": resource_list})
+    return resource_profiles
+
+
+def gateway_branching_to_json(gateways_branching):
+    gateways_json = []
+    for g_id in gateways_branching:
+        probabilities = []
+        g_prob = gateways_branching[g_id]
+        for flow_arc in g_prob:
+            probabilities.append({"path_id": flow_arc, "value": g_prob[flow_arc]})
+
+        gateways_json.append({"gateway_id": g_id, "probabilities": probabilities})
+    return gateways_json
 
 
 def fix_enablement_from_incorrect_models(from_i: int, task_enablement: list, trace: list):
@@ -798,6 +878,7 @@ def discover_arrival_calendar(initial_events, minutes_x_granule, min_confidence,
 def discover_arrival_time_distribution(initial_events, arrival_calendar, use_observed_arrival_times=False):
     # print("Discovering Arrival-Time Distribution ...")
     arrival = list()
+    j = 0
     for case_id in initial_events:
         is_working, interval_info = arrival_calendar.is_working_datetime(initial_events[case_id])
         if is_working:
@@ -805,9 +886,8 @@ def discover_arrival_time_distribution(initial_events, arrival_calendar, use_obs
     arrival.sort(key=lambda x: x.date_time)
     durations = list()
     for i in range(1, len(arrival)):
-        durations.append(
-            arrival[i].to_start_dist - arrival[i - 1].to_start_dist if arrival[i].in_same_interval(arrival[i - 1])
-            else arrival[i].to_start_dist + arrival[i - 1].to_end_dist)
+        durations.append((arrival[i].date_time - arrival[i - 1].date_time).total_seconds())
+
     if print_info:
         print("In Calendar Event Ratio: %.2f" % (len(arrival) / len(initial_events)))
         print('---------------------------------------------------')
@@ -831,7 +911,7 @@ def discover_arrival_time_distribution(initial_events, arrival_calendar, use_obs
         }
     else:
         # Otherwise, find the best fitting distribution
-        arrival_distribution = best_fit_distribution(durations)
+        arrival_distribution = get_best_fitting_distribution(durations)
     return arrival_distribution
 
 
@@ -853,7 +933,7 @@ def discover_aggregated_task_distributions(task_events, fit_cal, res_calendar: R
         if fit_cal and res_calendar is not None and res_calendar.total_weekly_work > 0:
             real_duration = res_calendar.find_working_time(ev_info.started_at, ev_info.completed_at)
         durations.append(real_duration)
-    aggregated_task_distribution = best_fit_distribution(durations)
+    aggregated_task_distribution = get_best_fitting_distribution(durations)
     # if print_info:
     #     # print("Total Events: %d, Distribution: %s"
     #     #       % (len(durations), str(aggregated_task_distribution)))
@@ -886,12 +966,12 @@ def discover_resource_task_duration_distribution(task_res_evts, res_calendars, t
             if len(durations) < min_evts:
                 pending_resources.append(r_id)
             else:
-                task_resource_distribution[t_id][r_id] = best_fit_distribution(durations)
+                task_resource_distribution[t_id][r_id] = get_best_fitting_distribution(durations)
                 if print_info:
                     print("Resource: %s, Total Events: %d, Distribution: %s"
                           % (r_id, len(durations), str(task_resource_distribution[t_id][r_id])))
 
-        agregated_distribution = best_fit_distribution(full_task_durations)
+        agregated_distribution = get_best_fitting_distribution(full_task_durations)
         for r_id in pending_resources:
             task_resource_distribution[t_id][r_id] = agregated_distribution
             if print_info:
