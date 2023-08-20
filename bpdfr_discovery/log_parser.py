@@ -445,10 +445,13 @@ def preprocess_xes_log(log_path, bpmn_path, out_f_path, minutes_x_granule, min_c
 
     gateways_branching = bpmn_graph.compute_branching_probability(flow_arcs_frequency)
 
+    if not use_observed_arrival_times:
+        arrival_time_dist = arrival_time_dist.to_prosimos_distribution()
+
     to_save = {
         "model_type": "CRISP",
         "resource_profiles": build_resource_profiles(task_resource_dist, bpmn_graph.from_name),
-        "arrival_time_distribution": arrival_time_dist.to_prosimos_distribution(),
+        "arrival_time_distribution": arrival_time_dist,
         "arrival_time_calendar": json_arrival_calendar,
         "gateway_branching_probabilities": gateway_branching_to_json(gateways_branching),
         # "task_resource_distribution": map_task_id_from_names(task_resource_dist, bpmn_graph.from_name),
