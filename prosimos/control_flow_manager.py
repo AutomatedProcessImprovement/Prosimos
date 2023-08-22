@@ -346,10 +346,7 @@ class BPMNGraph:
                 if e_info.type is BPMN.EVENT_BASED_GATEWAY:
                     f_arcs = [self.get_event_gateway_choice(e_info, last_enabled.datetime)]
                 else:
-                    all_curr_attributes = {}
-                    all_curr_attributes.update(self.all_attributes["global"])
-                    all_curr_attributes.update(self.all_attributes[case_id])
-
+                    all_curr_attributes = self.get_all_attributes(case_id)
                     f_arcs = OutgoingFlowSelector.choose_outgoing_flow(e_info, self.element_probability,
                                                                        all_curr_attributes, self.gateway_conditions)
                 random.shuffle(f_arcs)
@@ -362,6 +359,12 @@ class BPMNGraph:
         if len(enabled_tasks) > 1:
             random.shuffle(enabled_tasks)
         return enabled_tasks, visited_at
+
+    def get_all_attributes(self, case_id):
+        all_current_attributes = {}
+        all_current_attributes.update(self.all_attributes["global"])
+        all_current_attributes.update(self.all_attributes[case_id])
+        return all_current_attributes
 
     def is_task_batched(self, task_id):
         return self.batch_info.get(task_id, None) != None

@@ -1,6 +1,7 @@
 import csv
 import datetime
 import os
+import numpy as np
 from datetime import timedelta
 from typing import List
 
@@ -34,10 +35,12 @@ class SimResource:
 
 class SimBPMEnv:
     def __init__(self, sim_setup: SimDiffSetup, stat_fwriter, log_fwriter):
+        self.produced_event_attributes = {}
         self.sim_setup = sim_setup
         self.sim_resources = dict()
         self.stat_fwriter = stat_fwriter
-        self.log_writer = FileManager(10000, log_fwriter, self.sim_setup.all_attributes.get_all_columns_generated())
+        self.additional_columns = self.sim_setup.all_attributes.get_all_columns_generated()
+        self.log_writer = FileManager(10000, log_fwriter, self.additional_columns)
         self.log_info = LogInfo(sim_setup)
         self.executed_events = 0
         self.time_update_process_state = 0
@@ -250,12 +253,11 @@ class SimBPMEnv:
         self.resource_queue.update_resource_availability(r_id, r_next_available)
         self.sim_resources[r_id].worked_time += full_evt.ideal_duration
 
+        self.update_attributes(c_event)
         self.log_writer.add_csv_row(self.get_csv_row_data(full_evt))
 
         completed_at = full_evt.completed_at
         completed_datetime = full_evt.completed_datetime
-
-        self.update_attributes(c_event)
 
         return completed_at, completed_datetime
 
@@ -270,6 +272,7 @@ class SimBPMEnv:
 
         new_global_attr_values = self._extract_attributes_for_event(current_event.task_id, global_event_attributes, all_attribute_values)
         new_event_attr_values = self._extract_attributes_for_event(current_event.task_id, event_attributes, all_attribute_values)
+        self.produced_event_attributes = set(new_event_attr_values.keys())
 
         self.sim_setup.bpmn_graph.all_attributes["global"].update(new_global_attr_values)
         self.sim_setup.bpmn_graph.all_attributes[current_event.p_case].update(new_event_attr_values)
@@ -307,11 +310,14 @@ class SimBPMEnv:
             ]
         )
 
-        extended_with_case_atrr = self.case_prioritisation.get_case_attr_values(
-            full_event.p_case
-        )
+        all_attrs = self.sim_setup.bpmn_graph.get_all_attributes(full_event.p_case)
+        values = [all_attrs.get(col) if
+                  (col in self.produced_event_attributes or col not in self.sim_setup.all_attributes.event_attribute_names)
+                else None for col in self.additional_columns]
 
-        return [*row_basic_info, *extended_with_case_atrr]
+        self.produced_event_attributes.clear()
+
+        return [*row_basic_info, *values]
 
     def append_any_enabled_batch_tasks(
         self, current_event: EnabledEvent
@@ -702,12 +708,13 @@ def run_simulation(bpmn_path, json_path, total_cases,
 
         result = run_simpy_simulation(diffsim_info, stat_writer, log_writer)
 
+        warning_file_name = "simulation_warnings.txt"
         if stat_out_path:
-            warning_file_path = os.path.join(os.path.dirname(stat_out_path), "simulation_warnings.txt")
+            warning_file_path = os.path.join(os.path.dirname(stat_out_path), warning_file_name)
         elif log_out_path:
-            warning_file_path = os.path.join(os.path.dirname(log_out_path), "simulation_warnings.txt")
+            warning_file_path = os.path.join(os.path.dirname(log_out_path), warning_file_name)
         else:
-            warning_file_path = "simulation_warnings.txt"
+            warning_file_path = warning_file_name
 
         with open(warning_file_path, "w") as warning_file:
             for warning in warning_logger.get_all_warnings():

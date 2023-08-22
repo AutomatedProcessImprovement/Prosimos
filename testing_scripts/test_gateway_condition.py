@@ -20,6 +20,7 @@ def assets_path(request) -> Path:
         output_paths = [
             entry_path / "gateway_condition_stats.csv",
             entry_path / "gateway_condition_logs.csv",
+            entry_path / "simulation_warnings.txt"
         ]
         for output_path in output_paths:
             if output_path.exists():

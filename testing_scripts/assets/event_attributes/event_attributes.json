@@ -101,12 +101,12 @@
       "probabilities": [
         { 
             "path_id": "Flow_0j2qobt", 
-            "value": "0.5",
+            "value": 0.5,
             "condition_id": "bad_a"
         },
         { 
             "path_id": "Flow_1tx5xzk", 
-            "value": "0.5",
+            "value": 0.5,
             "condition_id": "good_a"
         }
       ]
@@ -114,7 +114,7 @@
     {
       "gateway_id": "Gateway_04xl21p",
       "probabilities": [
-        { "path_id": "Flow_0wu8lnq", "value": "1" }
+        { "path_id": "Flow_0wu8lnq", "value": 1 }
       ]
     },
     {
@@ -122,30 +122,30 @@
       "probabilities": [
         { 
             "path_id": "Flow_09rbjsu", 
-            "value": "0.25",
+            "value": 0.25,
             "condition_id": "good_a"
         },
         { 
             "path_id": "Flow_0a8gfa8", 
-            "value": "0.25",
+            "value": 0.25,
             "condition_id": "new_a"
 
         },
         { 
             "path_id": "Flow_0l2mt6u", 
-            "value": "0.25",
+            "value": 0.25,
             "condition_id": "good_b"
         },
         { 
             "path_id": "Flow_1f2pyiu", 
-            "value": "0.25",
+            "value": 0.25,
             "condition_id": "good_c"
         }
       ]
     },
     {
       "gateway_id": "Gateway_1dv36s6",
-      "probabilities": [{ "path_id": "Flow_0ed20ap", "value": "1" }]
+      "probabilities": [{ "path_id": "Flow_0ed20ap", "value": 1 }]
     }
   ],
   "arrival_time_distribution": {
