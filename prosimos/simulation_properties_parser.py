@@ -7,7 +7,7 @@ from numpy import exp, log, sqrt
 from pix_framework.discovery.resource_calendar_and_performance.crisp.resource_calendar import RCalendar
 from pix_framework.statistics.distribution import DurationDistribution
 
-from fuzzy_engine.fuzzy_calendar import FuzzyModel, WeeklyFuzzyCalendar
+from prosimos.fuzzy_engine.fuzzy_calendar import FuzzyModel, WeeklyFuzzyCalendar
 from prosimos.batch_processing_parser import BatchProcessingParser
 from prosimos.case_attributes import AllCaseAttributes, CaseAttribute
 from prosimos.control_flow_manager import BPMN, EVENT_TYPE, BPMNGraph, ElementInfo
