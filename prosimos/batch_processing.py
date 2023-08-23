@@ -5,7 +5,7 @@ from enum import Enum
 from random import choices
 from typing import List
 
-from pix_framework.calendar.resource_calendar import str_week_days
+from pix_framework.discovery.resource_calendar_and_performance.crisp.resource_calendar import str_week_days
 
 from prosimos.exceptions import InvalidRuleDefinitionException
 from prosimos.weekday_helper import CustomDatetimeAndSeconds, get_nearest_abs_day, get_nearest_past_day

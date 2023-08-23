@@ -1,8 +1,6 @@
 import itertools
 from collections import deque
-from heapq import heappush
-from heapq import heappop
-from heapq import nsmallest
+from heapq import heappop, heappush
 
 
 class PriorityQueue:
@@ -63,15 +61,9 @@ class DiffResourceQueue:
     # Two tasks share a resource queue iff the share all the resources. If the two tasks share only a set of resources,
     # then they will point to different resource queues. Therefore, a resource may be repeated in many queues.
     def __init__(self, task_resource_map, r_initial_availability):
-        self._resource_queues = (
-            list()
-        )  # List of (shared) resource queues, i.e., many tasks may share a resource queue
-        self._resource_queue_map = (
-            dict()
-        )  # Map relating the indexes of the queues where a resource r_id is contained
-        self._task_queue_map = (
-            dict()
-        )  # Map with the index of the resource queue that can perform a task r_id
+        self._resource_queues = list()  # List of (shared) resource queues, i.e., many tasks may share a resource queue
+        self._resource_queue_map = dict()  # Map relating the indexes of the queues where a resource r_id is contained
+        self._task_queue_map = dict()  # Map with the index of the resource queue that can perform a task r_id
 
         self._init_simulation_queues(task_resource_map, r_initial_availability)
 
@@ -91,9 +83,7 @@ class DiffResourceQueue:
                 joint_tasks = set()
                 for task_id_2 in task_resource_map:
                     is_joint = True
-                    if len(task_resource_map[task_id_2]) != len(
-                        task_resource_map[task_id_1]
-                    ):
+                    if len(task_resource_map[task_id_2]) != len(task_resource_map[task_id_1]):
                         continue
                     for r_id in task_resource_map[task_id_2]:
                         if r_id not in task_resource_map[task_id_1]:

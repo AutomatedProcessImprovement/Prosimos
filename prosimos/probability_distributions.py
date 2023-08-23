@@ -1,14 +1,10 @@
-import math
-
-import numpy
-import statistics
 import sys
 import warnings
 
+import numpy
 import numpy as np
 import scipy.stats as st
 from numpy import random
-from scipy.stats import wasserstein_distance
 
 
 # NOTE: default distribution becoming obsolete due to no support with pix_framework
@@ -34,9 +30,7 @@ def best_fit_distribution(data, bins=50):
     y, x = np.histogram(data, bins=bins, density=True)
     x = (x + np.roll(x, -1))[:-1] / 2.0
 
-    distributions = [
-        st.norm, st.expon, st.exponnorm, st.gamma, st.triang, st.uniform, st.lognorm
-    ]
+    distributions = [st.norm, st.expon, st.exponnorm, st.gamma, st.triang, st.uniform, st.lognorm]
 
     # Discrete distributions
     # disc_distributions = [
@@ -68,13 +62,12 @@ def best_fit_distribution(data, bins=50):
     # Estimate distribution parameters from data
     i = 1
     for distribution in distributions:
-
         # Try to fit the distribution
         try:
             # Ignore warnings from data that can't be fit
             # start = time.time()
             with warnings.catch_warnings():
-                warnings.filterwarnings('ignore')
+                warnings.filterwarnings("ignore")
 
                 # fit dist to data
                 params = distribution.fit(data)
@@ -124,7 +117,7 @@ def generate_number_from(distribution_name, params):
 def evaluate_distribution_function(distribution_name, params):
     if distribution_name == "fix":
         return params[0]
-    elif distribution_name == 'default':
+    elif distribution_name == "default":
         return numpy.random.uniform(params[0], params[1])
 
     arg = params[:-4]

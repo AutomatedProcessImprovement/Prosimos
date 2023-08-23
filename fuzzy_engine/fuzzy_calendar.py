@@ -2,8 +2,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from numpy import random
 
-# from bpdfr_simulation_engine.resource_calendar import IntervalPoint, Interval
-from pix_framework.calendar.resource_calendar import IntervalPoint, Interval
+from pix_framework.discovery.resource_calendar_and_performance.crisp.resource_calendar import IntervalPoint, Interval
 
 
 class FSpan(Enum):
