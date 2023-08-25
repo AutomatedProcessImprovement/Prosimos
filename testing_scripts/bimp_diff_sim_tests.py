@@ -59,9 +59,11 @@ def run_bimp_simulation(model_file_path, results_file_path, simulation_log,
     # return load_bimp_simulation_results(results_file_path, simulation_log)
 
 
-def run_diff_res_simulation(start_date, total_cases, bpmn_model, json_sim_params, out_stats_csv_path, out_log_csv_path, is_event_added_to_log = False):
+def run_diff_res_simulation(start_date, total_cases, bpmn_model, json_sim_params,
+                            out_stats_csv_path, out_log_csv_path, fixed_arrival_times=None):
     s_t = datetime.datetime.now()
-    run_simulation(bpmn_model, json_sim_params, total_cases, out_stats_csv_path, out_log_csv_path, start_date, is_event_added_to_log)
+    run_simulation(bpmn_model, json_sim_params, total_cases, out_stats_csv_path, out_log_csv_path, start_date,
+                   fixed_arrival_times)
     sim_time = (datetime.datetime.now() - s_t).total_seconds()
     # print((datetime.datetime.now() - s_t).total_seconds())
     # print("DiffSim Execution Times: %s" %

@@ -1,0 +1,555 @@
+{
+    "resource_profiles": [
+        {
+            "id": "sid-4B24111F-B305-4608-9E12-744B47C44D0D",
+            "name": "Check credit history",
+            "resource_list": [
+                {
+                    "id": "Clerk_2",
+                    "name": "Clerk_2",
+                    "cost_per_hour": 1,
+                    "amount": 1,
+                    "calendar": "Clerk_2timetable",
+                    "assigned_tasks": [
+                        "sid-4B24111F-B305-4608-9E12-744B47C44D0D",
+                        "sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"
+                    ]
+                },
+                {
+                    "id": "Clerk_1",
+                    "name": "Clerk_1",
+                    "cost_per_hour": 1,
+                    "amount": 1,
+                    "calendar": "Clerk_1timetable",
+                    "assigned_tasks": [
+                        "sid-4B24111F-B305-4608-9E12-744B47C44D0D",
+                        "sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F",
+            "name": "Check income sources",
+            "resource_list": [
+                {
+                    "id": "Clerk_2",
+                    "name": "Clerk_2",
+                    "cost_per_hour": 1,
+                    "amount": 1,
+                    "calendar": "Clerk_2timetable",
+                    "assigned_tasks": [
+                        "sid-4B24111F-B305-4608-9E12-744B47C44D0D",
+                        "sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"
+                    ]
+                },
+                {
+                    "id": "Clerk_1",
+                    "name": "Clerk_1",
+                    "cost_per_hour": 1,
+                    "amount": 1,
+                    "calendar": "Clerk_1timetable",
+                    "assigned_tasks": [
+                        "sid-4B24111F-B305-4608-9E12-744B47C44D0D",
+                        "sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F"
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C",
+            "name": "Assess application",
+            "resource_list": [
+                {
+                    "id": "Credit_Officer_1",
+                    "name": "Credit_Officer_1",
+                    "cost_per_hour": 1,
+                    "amount": 1,
+                    "calendar": "Credit_Officer_1timetable",
+                    "assigned_tasks": [
+                        "sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C"
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sid-503A048D-6344-446A-8D67-172B164CF8FA",
+            "name": "Make credit offer",
+            "resource_list": [
+                {
+                    "id": "Credit_Officer_2",
+                    "name": "Credit_Officer_2",
+                    "cost_per_hour": 1,
+                    "amount": 1,
+                    "calendar": "Credit_Officer_2timetable",
+                    "assigned_tasks": [
+                        "sid-503A048D-6344-446A-8D67-172B164CF8FA",
+                        "sid-622A1118-4766-43B2-A004-7DADE521982D"
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sid-622A1118-4766-43B2-A004-7DADE521982D",
+            "name": "Notify rejection",
+            "resource_list": [
+                {
+                    "id": "Credit_Officer_2",
+                    "name": "Credit_Officer_2",
+                    "cost_per_hour": 1,
+                    "amount": 1,
+                    "calendar": "Credit_Officer_2timetable",
+                    "assigned_tasks": [
+                        "sid-503A048D-6344-446A-8D67-172B164CF8FA",
+                        "sid-622A1118-4766-43B2-A004-7DADE521982D"
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sid-3744BAA1-9382-4FAB-B7FE-B6A333F10D25",
+            "name": "Receive customer feedback",
+            "resource_list": [
+                {
+                    "id": "System",
+                    "name": "System",
+                    "cost_per_hour": 1,
+                    "amount": 1,
+                    "calendar": "Systemtimetable",
+                    "assigned_tasks": [
+                        "sid-3744BAA1-9382-4FAB-B7FE-B6A333F10D25"
+                    ]
+                }
+            ]
+        }
+    ],
+    "arrival_time_distribution": {
+        "distribution_name": "expon",
+        "distribution_params": [
+            {
+                "value": 0.8390000000008513
+            },
+            {
+                "value": 1975.8956536536527
+            },
+            {
+                "value": 0.8390000000008513
+            },
+            {
+                "value": 17247.354
+            }
+        ]
+    },
+    "arrival_time_calendar": [
+        {
+            "from": "MONDAY",
+            "to": "MONDAY",
+            "beginTime": "09:00:00",
+            "endTime": "17:00:00"
+        },
+        {
+            "from": "TUESDAY",
+            "to": "TUESDAY",
+            "beginTime": "09:00:00",
+            "endTime": "15:00:00"
+        },
+        {
+            "from": "WEDNESDAY",
+            "to": "WEDNESDAY",
+            "beginTime": "09:00:00",
+            "endTime": "15:00:00"
+        },
+        {
+            "from": "THURSDAY",
+            "to": "THURSDAY",
+            "beginTime": "09:00:00",
+            "endTime": "15:00:00"
+        },
+        {
+            "from": "FRIDAY",
+            "to": "FRIDAY",
+            "beginTime": "09:00:00",
+            "endTime": "15:00:00"
+        }
+    ],
+    "gateway_branching_probabilities": [
+        {
+            "gateway_id": "sid-FACFF0AE-6A1B-47AC-B289-F5E60CB12B2A",
+            "probabilities": [
+                {
+                    "path_id": "sid-AFEC7074-8C12-43E2-A1FE-87D5CEF395C8",
+                    "value": 0.17857142857142858
+                },
+                {
+                    "path_id": "sid-AE313010-5715-438C-AD61-1C02F03DCF77",
+                    "value": 0.8214285714285714
+                }
+            ]
+        },
+        {
+            "gateway_id": "sid-64FC5B46-47E5-4940-A0AF-ECE87483967D",
+            "probabilities": [
+                {
+                    "path_id": "sid-8AE82A7B-75EE-401B-8ABE-279FB05A3946",
+                    "value": 0.18937198067632852
+                },
+                {
+                    "path_id": "sid-789335C6-205C-4A03-9AD6-9655893C1FFB",
+                    "value": 0.8106280193236715
+                }
+            ]
+        }
+    ],
+    "task_resource_distribution": [
+        {
+            "task_id": "sid-4B24111F-B305-4608-9E12-744B47C44D0D",
+            "resources": [
+                {
+                    "resource_id": "Clerk_2",
+                    "distribution_name": "lognorm",
+                    "distribution_params": [
+                        {
+                            "value": 0.8220343505271177
+                        },
+                        {
+                            "value": 292.50508179813914
+                        },
+                        {
+                            "value": 314.34355481723424
+                        },
+                        {
+                            "value": 300.606
+                        },
+                        {
+                            "value": 11327.228999999988
+                        }
+                    ]
+                },
+                {
+                    "resource_id": "Clerk_1",
+                    "distribution_name": "exponnorm",
+                    "distribution_params": [
+                        {
+                            "value": 4.583393531738796
+                        },
+                        {
+                            "value": 1031.5450261374824
+                        },
+                        {
+                            "value": 68.19937578495488
+                        },
+                        {
+                            "value": 783.012
+                        },
+                        {
+                            "value": 8369.97800000003
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "task_id": "sid-D048D99D-F549-43B8-8ACB-5AE153B12B0F",
+            "resources": [
+                {
+                    "resource_id": "Clerk_2",
+                    "distribution_name": "exponnorm",
+                    "distribution_params": [
+                        {
+                            "value": 7.558523288518361
+                        },
+                        {
+                            "value": 390.27804208856367
+                        },
+                        {
+                            "value": 60.097332615829444
+                        },
+                        {
+                            "value": 292.385
+                        },
+                        {
+                            "value": 11354.162000000011
+                        }
+                    ]
+                },
+                {
+                    "resource_id": "Clerk_1",
+                    "distribution_name": "lognorm",
+                    "distribution_params": [
+                        {
+                            "value": 0.6333441385019591
+                        },
+                        {
+                            "value": 824.3961608816633
+                        },
+                        {
+                            "value": 378.25532056239825
+                        },
+                        {
+                            "value": 844.135
+                        },
+                        {
+                            "value": 8521.293999999994
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "task_id": "sid-02577CBF-ABA3-4EFD-9480-E1DFCF238B1C",
+            "resources": [
+                {
+                    "resource_id": "Credit_Officer_1",
+                    "distribution_name": "expon",
+                    "distribution_params": [
+                        {
+                            "value": 3.196
+                        },
+                        {
+                            "value": 1864.826031884058
+                        },
+                        {
+                            "value": 3.196
+                        },
+                        {
+                            "value": 20393.886
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "task_id": "sid-503A048D-6344-446A-8D67-172B164CF8FA",
+            "resources": [
+                {
+                    "resource_id": "Credit_Officer_2",
+                    "distribution_name": "exponnorm",
+                    "distribution_params": [
+                        {
+                            "value": 0.33961797551110373
+                        },
+                        {
+                            "value": 1756.458042995922
+                        },
+                        {
+                            "value": 115.34780525436688
+                        },
+                        {
+                            "value": 1452.328
+                        },
+                        {
+                            "value": 2184.881
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "task_id": "sid-622A1118-4766-43B2-A004-7DADE521982D",
+            "resources": [
+                {
+                    "resource_id": "Credit_Officer_2",
+                    "distribution_name": "norm",
+                    "distribution_params": [
+                        {
+                            "value": 598.5206122448978
+                        },
+                        {
+                            "value": 105.74934703389212
+                        },
+                        {
+                            "value": 264.415
+                        },
+                        {
+                            "value": 852.731
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "task_id": "sid-3744BAA1-9382-4FAB-B7FE-B6A333F10D25",
+            "resources": [
+                {
+                    "resource_id": "System",
+                    "distribution_name": "fix",
+                    "distribution_params": [
+                        {
+                            "value": 2
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
+    "resource_calendars": [
+        {
+            "id": "Clerk_2timetable",
+            "name": "Clerk_2timetable",
+            "time_periods": [
+                {
+                    "from": "MONDAY",
+                    "to": "MONDAY",
+                    "beginTime": "09:00:00",
+                    "endTime": "12:00:00"
+                },
+                {
+                    "from": "WEDNESDAY",
+                    "to": "WEDNESDAY",
+                    "beginTime": "09:00:00",
+                    "endTime": "16:00:00"
+                },
+                {
+                    "from": "THURSDAY",
+                    "to": "THURSDAY",
+                    "beginTime": "09:00:00",
+                    "endTime": "16:00:00"
+                },
+                {
+                    "from": "FRIDAY",
+                    "to": "FRIDAY",
+                    "beginTime": "09:00:00",
+                    "endTime": "16:00:00"
+                }
+            ]
+        },
+        {
+            "id": "Clerk_1timetable",
+            "name": "Clerk_1timetable",
+            "time_periods": [
+                {
+                    "from": "MONDAY",
+                    "to": "MONDAY",
+                    "beginTime": "09:00:00",
+                    "endTime": "17:00:00"
+                },
+                {
+                    "from": "TUESDAY",
+                    "to": "TUESDAY",
+                    "beginTime": "09:00:00",
+                    "endTime": "16:00:00"
+                },
+                {
+                    "from": "WEDNESDAY",
+                    "to": "WEDNESDAY",
+                    "beginTime": "09:00:00",
+                    "endTime": "16:00:00"
+                },
+                {
+                    "from": "THURSDAY",
+                    "to": "THURSDAY",
+                    "beginTime": "09:00:00",
+                    "endTime": "11:00:00"
+                }
+            ]
+        },
+        {
+            "id": "Credit_Officer_1timetable",
+            "name": "Credit_Officer_1timetable",
+            "time_periods": [
+                {
+                    "from": "MONDAY",
+                    "to": "MONDAY",
+                    "beginTime": "13:00:00",
+                    "endTime": "17:00:00"
+                },
+                {
+                    "from": "TUESDAY",
+                    "to": "TUESDAY",
+                    "beginTime": "13:00:00",
+                    "endTime": "17:00:00"
+                },
+                {
+                    "from": "WEDNESDAY",
+                    "to": "WEDNESDAY",
+                    "beginTime": "13:00:00",
+                    "endTime": "17:00:00"
+                },
+                {
+                    "from": "THURSDAY",
+                    "to": "THURSDAY",
+                    "beginTime": "13:00:00",
+                    "endTime": "17:00:00"
+                },
+                {
+                    "from": "FRIDAY",
+                    "to": "FRIDAY",
+                    "beginTime": "13:00:00",
+                    "endTime": "17:00:00"
+                }
+            ]
+        },
+        {
+            "id": "Credit_Officer_2timetable",
+            "name": "Credit_Officer_2timetable",
+            "time_periods": [
+                {
+                    "from": "MONDAY",
+                    "to": "MONDAY",
+                    "beginTime": "13:00:00",
+                    "endTime": "17:00:00"
+                },
+                {
+                    "from": "TUESDAY",
+                    "to": "TUESDAY",
+                    "beginTime": "13:00:00",
+                    "endTime": "17:00:00"
+                },
+                {
+                    "from": "WEDNESDAY",
+                    "to": "WEDNESDAY",
+                    "beginTime": "13:00:00",
+                    "endTime": "17:00:00"
+                },
+                {
+                    "from": "THURSDAY",
+                    "to": "THURSDAY",
+                    "beginTime": "13:00:00",
+                    "endTime": "17:00:00"
+                },
+                {
+                    "from": "FRIDAY",
+                    "to": "FRIDAY",
+                    "beginTime": "13:00:00",
+                    "endTime": "17:00:00"
+                }
+            ]
+        },
+        {
+            "id": "Systemtimetable",
+            "name": "Systemtimetable",
+            "time_periods": [
+                {
+                    "from": "MONDAY",
+                    "to": "MONDAY",
+                    "beginTime": "13:00:00",
+                    "endTime": "17:00:00"
+                },
+                {
+                    "from": "TUESDAY",
+                    "to": "TUESDAY",
+                    "beginTime": "13:00:00",
+                    "endTime": "17:00:00"
+                },
+                {
+                    "from": "WEDNESDAY",
+                    "to": "WEDNESDAY",
+                    "beginTime": "13:00:00",
+                    "endTime": "17:00:00"
+                },
+                {
+                    "from": "THURSDAY",
+                    "to": "THURSDAY",
+                    "beginTime": "13:00:00",
+                    "endTime": "17:00:00"
+                },
+                {
+                    "from": "FRIDAY",
+                    "to": "FRIDAY",
+                    "beginTime": "13:00:00",
+                    "endTime": "17:00:00"
+                }
+            ]
+        }
+    ]
+}

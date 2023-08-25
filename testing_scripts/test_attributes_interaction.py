@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import pytest
 import logging
+import random
 from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 
 pd.set_option('display.max_columns', None)
@@ -151,7 +152,8 @@ class ConfigBuilder:
                     "granule_size": None,
                     "global_attributes": [],
                     "case_attributes": [],
-                    "event_attributes": []
+                    "event_attributes": [],
+                    "resource_calendars": self.get_crisp_calendars()
                 },
             },
             "fuzzy": self.convert_to_fuzzy_config(test_name)
@@ -171,10 +173,38 @@ class ConfigBuilder:
                 },
                 "global_attributes": [],
                 "case_attributes": [],
-                "event_attributes": []
+                "event_attributes": [],
+                "resource_calendars": self.get_fuzzy_calendars()
             }
         }
         return fuzzy_config
+
+    def get_crisp_calendars(self):
+        return [
+            {
+                "id": "sid-30dd3c27-2d47-41da-beaa-997a668ef5b8",
+                "name": "default schedule",
+                "time_periods": [
+                    {
+                        "from": "MONDAY",
+                        "to": "FRIDAY",
+                        "beginTime": "00:00:00.000",
+                        "endTime": "23:59:00.000"
+                    }
+                ]
+            }
+        ]
+
+    def get_fuzzy_calendars(self):
+        calendars = self.get_crisp_calendars()
+        for calendar in calendars:
+            for time_period in calendar["time_periods"]:
+                time_period["probability"] = random.random()
+
+            calendar["workload_ratio"] = [
+                {**period, "probability": random.random()} for period in calendar["time_periods"]
+            ]
+        return calendars
 
     @staticmethod
     def create_attribute(attr_name, value, distribution_name=None):
@@ -216,10 +246,12 @@ class ConfigBuilder:
             "attributes": [attr]
         }
 
-        if not self._update_event_attributes(self.config["crisp"]["modified_properties"]["event_attributes"], event_attr):
+        if not self._update_event_attributes(self.config["crisp"]["modified_properties"]["event_attributes"],
+                                             event_attr):
             self.config["crisp"]["modified_properties"]["event_attributes"].append(event_attr)
 
-        if not self._update_event_attributes(self.config["fuzzy"]["modified_properties"]["event_attributes"], event_attr):
+        if not self._update_event_attributes(self.config["fuzzy"]["modified_properties"]["event_attributes"],
+                                             event_attr):
             self.config["fuzzy"]["modified_properties"]["event_attributes"].append(event_attr)
 
         return self
@@ -252,89 +284,89 @@ class ConfigBuilder:
 
 CONFIG = [
     *ConfigBuilder("test single attribute creation - GLOBAL")
-        .add_global_attribute("GLOBAL", 1)
-        .add_assertion(lambda log: check_case_pattern(log, {"GLOBAL": [1, 1, 1]}))
-        .build(),
+    .add_global_attribute("GLOBAL", 1)
+    .add_assertion(lambda log: check_case_pattern(log, {"GLOBAL": [1, 1, 1]}))
+    .build(),
 
     *ConfigBuilder("test single attribute creation - CASE")
-        .add_case_attribute("CASE", 2)
-        .add_assertion(lambda log: check_case_pattern(log, {"CASE": [2, 2, 2]}))
-        .build(),
+    .add_case_attribute("CASE", 2)
+    .add_assertion(lambda log: check_case_pattern(log, {"CASE": [2, 2, 2]}))
+    .build(),
 
     *ConfigBuilder("test single attribute creation - EVENT")
-        .add_event_attribute("EVENT", 3)
-        .add_assertion(lambda log: check_case_pattern(log, {"EVENT": [np.nan, 3, np.nan]}))
-        .build(),
+    .add_event_attribute("EVENT", 3)
+    .add_assertion(lambda log: check_case_pattern(log, {"EVENT": [np.nan, 3, np.nan]}))
+    .build(),
 
     *ConfigBuilder("test single attribute creation - GLOBAL CASE")
-        .add_global_attribute("G_CASE", 0)
-        .add_case_attribute("G_CASE", [{"value": 1}, {"value": 2}, {"value": 3}, {"value": 4}, {"value": 5}], "gamma")
-        .add_assertion(lambda log: check_attribute_change(log, [{"attribute": "G_CASE", "event": "START"}]))
-        .build(),
+    .add_global_attribute("G_CASE", 0)
+    .add_case_attribute("G_CASE", [{"value": 1}, {"value": 2}, {"value": 3}, {"value": 4}, {"value": 5}], "gamma")
+    .add_assertion(lambda log: check_attribute_change(log, [{"attribute": "G_CASE", "event": "START"}]))
+    .build(),
 
     *ConfigBuilder("test single attribute creation - GLOBAL EVENT")
-        .add_global_attribute("G_EVENT", 0)
-        .add_event_attribute("G_EVENT", [{"value": 1}, {"value": 2}, {"value": 3}, {"value": 4}, {"value": 5}], "gamma")
-        .add_assertion(lambda log: check_attribute_change(log, [{"attribute": "G_EVENT", "event": "Generate Attribute"}]))
-        .build(),
+    .add_global_attribute("G_EVENT", 0)
+    .add_event_attribute("G_EVENT", [{"value": 1}, {"value": 2}, {"value": 3}, {"value": 4}, {"value": 5}], "gamma")
+    .add_assertion(lambda log: check_attribute_change(log, [{"attribute": "G_EVENT", "event": "Generate Attribute"}]))
+    .build(),
 
     *ConfigBuilder("test multiple attributes creation - GLOBAL")
-        .add_global_attribute("GLOBAL_1", 1)
-        .add_global_attribute("GLOBAL_2", 2)
-        .add_assertion(lambda log: check_case_pattern(log, {
-            "GLOBAL_1": [1, 1, 1],
-            "GLOBAL_2": [2, 2, 2]
-        }))
-        .build(),
+    .add_global_attribute("GLOBAL_1", 1)
+    .add_global_attribute("GLOBAL_2", 2)
+    .add_assertion(lambda log: check_case_pattern(log, {
+        "GLOBAL_1": [1, 1, 1],
+        "GLOBAL_2": [2, 2, 2]
+    }))
+    .build(),
 
     *ConfigBuilder("test multiple attributes creation - CASE")
-        .add_case_attribute("CASE_1", 11)
-        .add_case_attribute("CASE_2", 22)
-        .add_assertion(lambda log: check_case_pattern(log, {
-            "CASE_1": [11, 11, 11],
-            "CASE_2": [22, 22, 22]
-        }))
-        .build(),
+    .add_case_attribute("CASE_1", 11)
+    .add_case_attribute("CASE_2", 22)
+    .add_assertion(lambda log: check_case_pattern(log, {
+        "CASE_1": [11, 11, 11],
+        "CASE_2": [22, 22, 22]
+    }))
+    .build(),
 
     *ConfigBuilder("test multiple attributes creation - EVENT")
-        .add_event_attribute("EVENT_1", 111)
-        .add_event_attribute("EVENT_2", 222)
-        .add_assertion(lambda log: check_case_pattern(log, {
-            "EVENT_1": [np.nan, 111, np.nan],
-            "EVENT_2": [np.nan, 222, np.nan]
-        }))
-        .build(),
+    .add_event_attribute("EVENT_1", 111)
+    .add_event_attribute("EVENT_2", 222)
+    .add_assertion(lambda log: check_case_pattern(log, {
+        "EVENT_1": [np.nan, 111, np.nan],
+        "EVENT_2": [np.nan, 222, np.nan]
+    }))
+    .build(),
 
     *ConfigBuilder("test multiple attributes creation - GLOBAL CASE")
-        .add_global_attribute("G_CASE_1", 0)
-        .add_case_attribute("G_CASE_1", [{"value": 1}, {"value": 2}, {"value": 3}, {"value": 4}, {"value": 5}], "gamma")
-        .add_global_attribute("G_CASE_2", 0)
-        .add_case_attribute("G_CASE_2", [{"value": 1}, {"value": 2}, {"value": 3}, {"value": 4}, {"value": 5}], "gamma")
-        .add_assertion(lambda log: check_attribute_change(log, [
-            {"attribute": "G_CASE_1", "event": "START"},
-            {"attribute": "G_CASE_2", "event": "START"}
-        ]))
-        .build(),
+    .add_global_attribute("G_CASE_1", 0)
+    .add_case_attribute("G_CASE_1", [{"value": 1}, {"value": 2}, {"value": 3}, {"value": 4}, {"value": 5}], "gamma")
+    .add_global_attribute("G_CASE_2", 0)
+    .add_case_attribute("G_CASE_2", [{"value": 1}, {"value": 2}, {"value": 3}, {"value": 4}, {"value": 5}], "gamma")
+    .add_assertion(lambda log: check_attribute_change(log, [
+        {"attribute": "G_CASE_1", "event": "START"},
+        {"attribute": "G_CASE_2", "event": "START"}
+    ]))
+    .build(),
 
     *ConfigBuilder("test multiple attributes creation - GLOBAL EVENT")
-        .add_global_attribute("G_EVENT_1", 0)
-        .add_event_attribute("G_EVENT_1", [{"value": 1}, {"value": 2}, {"value": 3}, {"value": 4}, {"value": 5}], "gamma")
-        .add_global_attribute("G_EVENT_2", 0)
-        .add_event_attribute("G_EVENT_2", [{"value": 1}, {"value": 2}, {"value": 3}, {"value": 4}, {"value": 5}], "gamma")
-        .add_assertion(lambda log: check_attribute_change(log, [
-            {"attribute": "G_EVENT_1", "event": "Generate Attribute"},
-            {"attribute": "G_EVENT_2", "event": "Generate Attribute"}
-        ]))
-        .build(),
+    .add_global_attribute("G_EVENT_1", 0)
+    .add_event_attribute("G_EVENT_1", [{"value": 1}, {"value": 2}, {"value": 3}, {"value": 4}, {"value": 5}], "gamma")
+    .add_global_attribute("G_EVENT_2", 0)
+    .add_event_attribute("G_EVENT_2", [{"value": 1}, {"value": 2}, {"value": 3}, {"value": 4}, {"value": 5}], "gamma")
+    .add_assertion(lambda log: check_attribute_change(log, [
+        {"attribute": "G_EVENT_1", "event": "Generate Attribute"},
+        {"attribute": "G_EVENT_2", "event": "Generate Attribute"}
+    ]))
+    .build(),
 
     *ConfigBuilder("test attribute interaction - GLOBAL CASE x GLOBAL EVENT")
-        .add_global_attribute("G_CASE_EVENT", 0)
-        .add_case_attribute("G_CASE_EVENT", 1)
-        .add_event_attribute("G_CASE_EVENT", 2)
-        .add_assertion(lambda log: check_attribute_change(log, [
-            {"attribute": "G_CASE_EVENT", "event": "Generate Attribute"},
-            {"attribute": "G_CASE_EVENT", "event": "START"}]))
-        .build()
+    .add_global_attribute("G_CASE_EVENT", 0)
+    .add_case_attribute("G_CASE_EVENT", 1)
+    .add_event_attribute("G_CASE_EVENT", 2)
+    .add_assertion(lambda log: check_attribute_change(log, [
+        {"attribute": "G_CASE_EVENT", "event": "Generate Attribute"},
+        {"attribute": "G_CASE_EVENT", "event": "START"}]))
+    .build()
 ]
 
 TEST_NAMES = [config['test_name'] for config in CONFIG]

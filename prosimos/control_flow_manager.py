@@ -520,8 +520,10 @@ class BPMNGraph:
         for flow_id in self.element_info[self.starting_event].outgoing_flows:
             p_state.flow_date[flow_id] = self._c_trace[0].started_at if self._c_trace is not None else None
             p_state.add_token(flow_id)
+        self.update_flow_dates(self.element_info[self.starting_event], p_state, self._c_trace[0].started_at)
         pending_tasks = dict()
         for current_index in range(len(task_sequence)):
+            # print(task_sequence[current_index])
             el_id = self.from_name.get(task_sequence[current_index])
             fired_tasks.append(False)
             in_flow = self.element_info[el_id].incoming_flows[0]
@@ -540,6 +542,9 @@ class BPMNGraph:
                 for pending_index in pending_tasks[current_index]:
                     self.try_firing(pending_index, current_index, task_sequence, fired_tasks, pending_tasks,
                                     p_state, f_arcs_frequency, fired_or_splits)
+
+            # if fired_tasks[current_index] and task_enabling[current_index] is None:
+            #     task_enabling[current_index] = self.fix_missing_flow_enabled_dates(el_id, p_state)
 
         # Firing End Event
         enabled_end, or_fired, path_decisions = self._find_enabled_predecessors(

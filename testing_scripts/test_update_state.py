@@ -303,6 +303,7 @@ def test_update_state_event_gateway_event_happened(
         batch_processing,
         _,
         _,
+        _,
     ) = parse_json_sim_parameters(json_path)
 
     bpmn_graph = parse_simulation_model(bpmn_path)
@@ -375,6 +376,7 @@ def test_update_state_terminate_event(assets_path):
         _,
         event_distribution,
         batch_processing,
+        _,
         _,
         _,
     ) = parse_json_sim_parameters(json_path)

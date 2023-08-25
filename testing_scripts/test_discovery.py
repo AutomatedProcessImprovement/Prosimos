@@ -49,7 +49,7 @@ def test_discovery_valid_input_not_empty_json(assets_path):
         assert len(f.readlines()) == 1, 'Output log must have 1 line'
 
     assert len(diff_resource_profiles) != 0, 'Resource Profiles should not be empty'
-    assert len(arrival_time_dist) != 0, 'Arrival Time Distibutions should not be empty'
+    assert arrival_time_dist is not None, 'Arrival Time Distibutions should not be empty'
     assert len(json_arrival_calendar) != 0, 'Arrival Calendar should not be empty'
     assert len(gateways_branching) != 0, 'Gateway Branching section should not be empty'
     assert len(task_res_dist) != 0, 'Task Resource Distribution should not be empty'
@@ -114,7 +114,7 @@ def test_discovery_csv_input_error(assets_path):
         assert len(f.readlines()) == 1, 'Output log must have 1 line'
 
     assert len(diff_resource_profiles) != 0, 'Resource Profiles should not be empty'
-    assert len(arrival_time_dist) != 0, 'Arrival Time Distibutions should not be empty'
+    assert arrival_time_dist is not None, 'Arrival Time Distibutions should not be empty'
     assert len(json_arrival_calendar) != 0, 'Arrival Calendar should not be empty'
     assert len(gateways_branching) != 0, 'Gateway Branching section should not be empty'
     assert len(task_res_dist) != 0, 'Task Resource Distribution should not be empty'

@@ -11,8 +11,7 @@ from prosimos.batch_processing import BatchConfigPerTask
 from prosimos.control_flow_manager import BPMN, ElementInfo, ProcessState
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.histogram_distribution import HistogramDistribution
-from prosimos.simulation_properties_parser import (parse_json_sim_parameters,
-                                                   parse_simulation_model)
+from prosimos.simulation_properties_parser import parse_json_sim_parameters, parse_simulation_model
 
 
 class SimDiffSetup:
@@ -23,7 +22,7 @@ class SimDiffSetup:
         self.resources_map, self.calendars_map, self.element_probability, self.task_resource, self.arrival_calendar, \
             self.event_distibution, self.batch_processing, self.prioritisation_rules, \
             self.branch_rules, self.gateway_conditions, self.all_attributes,\
-            self.gateway_execution_limit = parse_json_sim_parameters(json_path)
+            self.gateway_execution_limit, self.model_type = parse_json_sim_parameters(json_path)
 
         self.case_attributes = self.all_attributes.case_attributes
 
@@ -62,8 +61,8 @@ class SimDiffSetup:
         return 0
 
     def next_arrival_time(self, starting_from):
-        duration: float = 0.0
-
+        # duration: float = 0.0
+        
         # decide how to calculate value based on whether it is function distribution or histogram one
         if isinstance(self.element_probability['arrivalTime'], DurationDistribution):
             [duration] = self.element_probability['arrivalTime'].generate_sample(1)
@@ -115,13 +114,19 @@ class SimDiffSetup:
         else:
             # task executed as a part of the batch
             curr_batch_info: Optional[BatchConfigPerTask] = self.batch_processing.get(task_id, None)
-            if curr_batch_info == None:
+            if curr_batch_info is None:
                 print(f"WARNING: Could not find info about batch_processing for task {task_id}")
 
             return curr_batch_info.calculate_ideal_duration(duration, num_tasks_in_batch)
 
-    def real_task_duration(self, task_duration, resource_id, enabled_at):
-        return self.calendars_map[self.resources_map[resource_id].calendar_id].find_idle_time(enabled_at, task_duration)
+    def real_task_duration(self, task_duration, resource_id, enabled_at, worked_intervals=None):
+        if self.model_type == "FUZZY":
+            return self.calendars_map[self.resources_map[resource_id].calendar_id].find_idle_time(enabled_at,
+                                                                                                  task_duration,
+                                                                                                  worked_intervals)
+        else:
+            return self.calendars_map[self.resources_map[resource_id].calendar_id].find_idle_time(enabled_at,
+                                                                                                  task_duration)
 
     def set_starting_datetime(self, new_datetime):
         (
