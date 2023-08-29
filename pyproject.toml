@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "prosimos"
-version = "2.0.2"
+version = "2.0.3"
 description = ""
 authors = [
     "Iryna Halenok <iryna.halenok@ut.ee>",
@@ -21,7 +21,6 @@ pandas = "^2.0.1"
 python-dateutil = "^2.8.2"
 pytz = "^2023.3"
 scipy = "^1.10.1"
-pm4py = "^2.7.4"
 pix-framework = "^0.13.0"
 pylint = "^2.17.4"
 
