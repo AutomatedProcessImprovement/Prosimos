@@ -715,26 +715,33 @@ def run_simulation(bpmn_path, json_path, total_cases,
         'quoting': csv.QUOTE_MINIMAL
     }
 
-    with (open(stat_out_path, mode="w", newline="", encoding="utf-8") if stat_out_path else None) as stat_csv_file, \
-            (open(log_out_path, mode="w", newline="", encoding="utf-8") if log_out_path else None) as log_csv_file:
+    stat_csv_file = open(stat_out_path, mode="w", newline="", encoding="utf-8") if stat_out_path else None
+    log_csv_file = open(log_out_path, mode="w", newline="", encoding="utf-8") if log_out_path else None
+
+    try:
         stat_writer = csv.writer(stat_csv_file, **csv_writer_config) if stat_csv_file else None
         log_writer = csv.writer(log_csv_file, **csv_writer_config) if log_csv_file else None
 
         result = run_simpy_simulation(diffsim_info, stat_writer, log_writer, fixed_arrival_times)
+    finally:
+        if stat_csv_file:
+            stat_csv_file.close()
+        if log_csv_file:
+            log_csv_file.close()
 
-        warning_file_name = "simulation_warnings.txt"
-        if stat_out_path:
-            warning_file_path = os.path.join(os.path.dirname(stat_out_path), warning_file_name)
-        elif log_out_path:
-            warning_file_path = os.path.join(os.path.dirname(log_out_path), warning_file_name)
-        else:
-            warning_file_path = warning_file_name
+    warning_file_name = "simulation_warnings.txt"
+    if stat_out_path:
+        warning_file_path = os.path.join(os.path.dirname(stat_out_path), warning_file_name)
+    elif log_out_path:
+        warning_file_path = os.path.join(os.path.dirname(log_out_path), warning_file_name)
+    else:
+        warning_file_path = warning_file_name
 
-        with open(warning_file_path, "w") as warning_file:
-            for warning in warning_logger.get_all_warnings():
-                warning_file.write(f"{warning}\n")
+    with open(warning_file_path, "w") as warning_file:
+        for warning in warning_logger.get_all_warnings():
+            warning_file.write(f"{warning}\n")
 
-        return result
+    return result
 
 
 def run_simpy_simulation(diffsim_info, stat_fwriter, log_fwriter, fixed_starting_times=None):
