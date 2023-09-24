@@ -99,7 +99,7 @@ class EventAttribute:
         elif self.event_attr_type == EVENT_ATTR_TYPE.EXPRESSION:
             return eval_expr(self.value, all_attributes)
         else:
-            return self.value.generate_one_value_with_boundaries()
+            return self.value.generate_sample(1)[0]
 
     def validate(self):
         if self.event_attr_type == EVENT_ATTR_TYPE.DISCRETE:

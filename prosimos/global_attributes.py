@@ -49,7 +49,7 @@ class GlobalAttribute:
             one_choice_arr = choices(self.value["options"], self.value["probabilities"])
             return one_choice_arr[0]
         else:
-            return self.value.generate_one_value_with_boundaries()
+            return self.value.generate_sample(1)[0]
 
     def validate(self):
         if self.global_attr_type == GLOBAL_ATTR_TYPE.DISCRETE:

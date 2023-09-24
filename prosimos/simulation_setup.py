@@ -4,7 +4,7 @@ from datetime import timedelta
 from typing import Optional
 
 import pytz
-from pix_framework.calendar.resource_calendar import RCalendar
+from pix_framework.discovery.resource_calendar_and_performance.crisp.resource_calendar import RCalendar
 from pix_framework.statistics.distribution import DurationDistribution
 
 from prosimos.batch_processing import BatchConfigPerTask
@@ -19,10 +19,21 @@ class SimDiffSetup:
         self.process_name = ntpath.basename(bpmn_path).split(".")[0]
         self.start_datetime = datetime.datetime.now(pytz.utc)
 
-        self.resources_map, self.calendars_map, self.element_probability, self.task_resource, self.arrival_calendar, \
-            self.event_distibution, self.batch_processing, self.prioritisation_rules, \
-            self.branch_rules, self.gateway_conditions, self.all_attributes,\
-            self.gateway_execution_limit, self.model_type = parse_json_sim_parameters(json_path)
+        (
+            self.resources_map,
+            self.calendars_map,
+            self.element_probability,
+            self.task_resource,
+            self.arrival_calendar,
+            self.event_distibution,
+            self.batch_processing,
+            self.prioritisation_rules,
+            self.branch_rules,
+            self.gateway_conditions,
+            self.all_attributes,
+            self.gateway_execution_limit,
+            self.model_type
+        ) = parse_json_sim_parameters(json_path)
 
         self.case_attributes = self.all_attributes.case_attributes
 
@@ -62,12 +73,12 @@ class SimDiffSetup:
 
     def next_arrival_time(self, starting_from):
         # duration: float = 0.0
-        
+
         # decide how to calculate value based on whether it is function distribution or histogram one
-        if isinstance(self.element_probability['arrivalTime'], DurationDistribution):
-            [duration] = self.element_probability['arrivalTime'].generate_sample(1)
-        elif isinstance(self.element_probability['arrivalTime'], HistogramDistribution):
-            duration = self.element_probability['arrivalTime'].generate_value()
+        if isinstance(self.element_probability["arrivalTime"], DurationDistribution):
+            [duration] = self.element_probability["arrivalTime"].generate_sample(1)
+        elif isinstance(self.element_probability["arrivalTime"], HistogramDistribution):
+            duration = self.element_probability["arrivalTime"].generate_value()
         else:
             raise InvalidSimScenarioException("Not supported arrival distribution")
 
@@ -121,12 +132,13 @@ class SimDiffSetup:
 
     def real_task_duration(self, task_duration, resource_id, enabled_at, worked_intervals=None):
         if self.model_type == "FUZZY":
-            return self.calendars_map[self.resources_map[resource_id].calendar_id].find_idle_time(enabled_at,
-                                                                                                  task_duration,
-                                                                                                  worked_intervals)
+            return self.calendars_map[self.resources_map[resource_id].calendar_id].find_idle_time(
+                enabled_at, task_duration, worked_intervals
+            )
         else:
-            return self.calendars_map[self.resources_map[resource_id].calendar_id].find_idle_time(enabled_at,
-                                                                                                  task_duration)
+            return self.calendars_map[self.resources_map[resource_id].calendar_id].find_idle_time(
+                enabled_at, task_duration
+            )
 
     def set_starting_datetime(self, new_datetime):
         (
