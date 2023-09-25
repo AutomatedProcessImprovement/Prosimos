@@ -21,7 +21,7 @@ pandas = "^2.0.1"
 python-dateutil = "^2.8.2"
 pytz = "^2023.3"
 scipy = "^1.10.1"
-pix-framework = {path = "D:/_est/PIX_Framework/pix-framework", develop = true}
+pix-framework = "^0.13.0"
 pylint = "^2.17.4"
 
 [tool.poetry.dev-dependencies]
