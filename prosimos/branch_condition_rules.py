@@ -78,7 +78,7 @@ class AllBranchConditionRules:
     def __init__(self, rules_array: List[BranchConditionWithRule]):
         self.all_rules = rules_array
 
-    def get_branch_condition_by_id(self, branch_condition_id) -> BranchConditionWithRule | None:
+    def get_branch_condition_by_id(self, branch_condition_id):
         for rule in self.all_rules:
             if rule.id == branch_condition_id:
                 return rule
