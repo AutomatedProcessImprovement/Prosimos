@@ -12,6 +12,8 @@ from prosimos.batch_processing import (BATCH_TYPE, AndFiringRule,
                                        BatchConfigPerTask)
 from prosimos.exceptions import InvalidBpmnModelException
 from prosimos.weekday_helper import CustomDatetimeAndSeconds
+from prosimos.simulation_execution_stats import SimulationExecutionStats
+from prosimos.warning_logger import warning_logger
 
 seconds_per_unit = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
 
@@ -24,7 +26,7 @@ class BatchInfoForExecution:
 
     def is_sequential(self):
         return self.task_batch_info.type == BATCH_TYPE.SEQUENTIAL
-    
+
     def is_concurrent(self):
         return self.task_batch_info.type == BATCH_TYPE.CONCURRENT
 
@@ -36,7 +38,7 @@ class EnabledTask:
     def __init__(self, task_id, batch_info_exec: BatchInfoForExecution = None, duration_sec = None, is_event = False):
         self.task_id = task_id
         self.batch_info_exec = batch_info_exec
-        
+
         # is filled only for event-based gateways
         # (when we already know the duration at the control flow step)
         self.duration_sec = duration_sec
@@ -60,6 +62,8 @@ class BPMN(Enum):
             return True
         else:
             return False
+
+from prosimos.outgoing_flow_selector import OutgoingFlowSelector
 
 class EVENT_TYPE(Enum):
     MESSAGE = 'MESSAGE'
@@ -90,7 +94,7 @@ class ElementInfo:
 
     def is_start_or_end_event(self):
         return self.type in [BPMN.START_EVENT, BPMN.END_EVENT]
-    
+
     def is_event(self):
         return self.type in [BPMN.START_EVENT, BPMN.END_EVENT, BPMN.INTERMEDIATE_EVENT]
 
@@ -153,13 +157,20 @@ class BPMNGraph:
         self.batch_count = dict()
         self.batch_waiting_processes = dict()
         self.last_datetime = dict()
+        self.all_attributes = None
+        self.gateway_conditions = None
+        self.gateway_execution_limit = 1000
+        self.simulation_execution_stats = SimulationExecutionStats()
 
-    def set_additional_fields_from_json(self, element_probability, task_resource_probability, \
-        event_distribution, batch_processing):
+    def set_additional_fields_from_json(self, element_probability, task_resource_probability,
+                                        event_distribution, batch_processing, gateway_conditions,
+                                        gateway_execution_limit):
         self.element_probability = element_probability
         self.task_resource_probability = task_resource_probability
         self.event_distribution = event_distribution
         self.batch_info = batch_processing
+        self.gateway_conditions = gateway_conditions
+        self.gateway_execution_limit = gateway_execution_limit
 
     def add_bpmn_element(self, element_id, element_info):
         if element_info.type == BPMN.START_EVENT:
@@ -171,6 +182,7 @@ class BPMNGraph:
         self.from_name[element_info.name] = element_id
         self.nodes_bitset[element_id] = (1 << len(self.element_info))
         self.last_datetime[element_id] = dict()
+        self.simulation_execution_stats.add_element(element_info, element_id)
 
     def add_flow_arc(self, flow_id, source_id, target_id):
         for node_id in [source_id, target_id]:
@@ -328,18 +340,19 @@ class BPMNGraph:
             f_arcs = [(flow, None) for flow in flows]
 
             if len(f_arcs) > 1:
-                if e_info.type is BPMN.EXCLUSIVE_GATEWAY:
-                    f_arcs = [(self.element_probability[e_info.id].get_outgoing_flow(), None)]
-                elif e_info.type is BPMN.EVENT_BASED_GATEWAY:
+                if self.is_gateway_execution_limit_exceeded(case_id, e_info.id):
+                    break
+
+                if e_info.type is BPMN.EVENT_BASED_GATEWAY:
                     f_arcs = [self.get_event_gateway_choice(e_info, last_enabled.datetime)]
                 else:
-                    if e_info.type in \
-                        [BPMN.TASK, BPMN.PARALLEL_GATEWAY, BPMN.START_EVENT, BPMN.INTERMEDIATE_EVENT]:
-                        flows = copy.deepcopy(e_info.outgoing_flows)
-                        f_arcs = [(flow, None) for flow in flows]
-                    elif e_info.type is BPMN.INCLUSIVE_GATEWAY:
-                        f_arcs = self.element_probability[e_info.id].get_multiple_flows()
+                    all_curr_attributes = self.get_all_attributes(case_id)
+                    f_arcs = OutgoingFlowSelector.choose_outgoing_flow(e_info, self.element_probability,
+                                                                       all_curr_attributes, self.gateway_conditions)
                 random.shuffle(f_arcs)
+
+            self.simulation_execution_stats.update_element_execution(case_id, e_info, f_arcs)
+
             for f_arc in f_arcs:
                 self._find_next(f_arc, case_id, p_state, enabled_tasks, to_execute, last_enabled, visited_at)
             current += 1
@@ -347,9 +360,21 @@ class BPMNGraph:
             random.shuffle(enabled_tasks)
         return enabled_tasks, visited_at
 
+    def get_all_attributes(self, case_id):
+        all_current_attributes = {}
+        all_current_attributes.update(self.all_attributes["global"])
+        all_current_attributes.update(self.all_attributes[case_id])
+        return all_current_attributes
+
     def is_task_batched(self, task_id):
         return self.batch_info.get(task_id, None) != None
 
+    def is_gateway_execution_limit_exceeded(self, case_id, e_id):
+        element_executions = self.simulation_execution_stats.get_element_executions(case_id, e_id)
+        if element_executions >= self.gateway_execution_limit:
+            warning_logger.add_warning(f"Infinite loop was detected in case #{case_id} on element {e_id}. Case has been terminated")
+            return True
+        return False
 
     def is_batched_task_enabled(self, task_id: str, enabled_at: CustomDatetimeAndSeconds):
         """
@@ -371,8 +396,8 @@ class BPMNGraph:
             # not enough items for batch execution
             return False, None, None
 
-        waiting_time = [ (enabled_at.datetime - v.datetime).total_seconds() for (_, v) in self.batch_waiting_processes[task_id].items() ] 
-        
+        waiting_time = [ (enabled_at.datetime - v.datetime).total_seconds() for (_, v) in self.batch_waiting_processes[task_id].items() ]
+
         spec = {
             "size": size_count,
             "waiting_times": waiting_time,
@@ -397,7 +422,7 @@ class BPMNGraph:
 
         """
         spec["is_only_one_batch_return"] = True
-        
+
         final_is_true, final_batch_spec, final_start_time = False, None, None
 
         while True:
@@ -415,7 +440,7 @@ class BPMNGraph:
             final_batch_spec.append(num_items)
             final_is_true = is_true
             final_start_time = start_time
-            
+
             # regenerate the rule based on the size distribution
             task_batch_info.update_firing_rules_from_distr()
 
@@ -427,7 +452,7 @@ class BPMNGraph:
             if new_num_tasks_in_queue == 0:
                 # all items were included in the batches
                 break
-            
+
             spec["size"] = spec["size"] - num_items
 
         return final_is_true, final_batch_spec, final_start_time
@@ -438,10 +463,10 @@ class BPMNGraph:
         firing_rules: List[AndFiringRule] = task_batch_info.firing_rules
         enabled_times = list(self.batch_waiting_processes[task_id].items())
         batch_enabled_time = firing_rules.get_enabled_time(
-            enabled_times, 
+            enabled_times,
             last_task_enabled_time,
         )
-        
+
         if batch_enabled_time != None:
             enabled_time = batch_enabled_time
 
@@ -466,7 +491,7 @@ class BPMNGraph:
             event_id = self.flow_arcs[outgoing_flow][1]
             [duration] = self.event_duration(event_id)
             all_gateway_choices[outgoing_flow] = duration
-        
+
         min_value = min(all_gateway_choices.values())
         res = [(key, value) for key, value in all_gateway_choices.items() if value == min_value]
 
@@ -840,9 +865,9 @@ class BPMNGraph:
         enabled_time = self._check_and_update_enabling_time(case_id, next_e, enabled_time)
         visited_at[next_e] = enabled_time
         if self.is_enabled(next_e, p_state):
-            next_el_type = self.element_info[next_e].type 
+            next_el_type = self.element_info[next_e].type
             if next_el_type == BPMN.TASK and self.is_task_batched(next_e):
-                self.enable_batch_or_task(next_e, case_id, enabled_time, enabled_tasks, duration_sec)           
+                self.enable_batch_or_task(next_e, case_id, enabled_time, enabled_tasks, duration_sec)
             elif next_el_type == BPMN.TASK:
                 enabled_tasks.append(EnabledTask(next_e, None, duration_sec))
             elif next_el_type == BPMN.INTERMEDIATE_EVENT:
@@ -939,13 +964,13 @@ class BPMNGraph:
         # keep track of case_id which are waiting for the firing rule to be true
         if task_id not in self.batch_waiting_processes:
             self.batch_waiting_processes[task_id] = dict()
-        
+
         # in case we execute the batch, there is no need to increase the total num
         if case_id in self.batch_waiting_processes[task_id]:
             return
-        
+
         self.batch_waiting_processes[task_id][case_id] = enabled_time
-        
+
         if task_id in self.batch_count:
             self.batch_count[task_id] += 1
         else:
@@ -990,7 +1015,7 @@ class BPMNGraph:
             num_tasks_wait_batch = len(waiting_tasks)
             if num_tasks_wait_batch == 0:
                 continue
-            
+
             if self.is_or_rule_invalid(waiting_tasks, task_id, num_tasks_wait_batch, current_point_of_time):
                 # if the rule become invlaid, we execute everything we have
                 # invalid = the one that cannot be satisfied in the future anymore
@@ -1008,7 +1033,7 @@ class BPMNGraph:
                     task_id, batch_spec, start_time_from_rule
                 )
                 continue
-        
+
         return enabled_task_batch
 
     def create_batch_info_and_clear_from_queue(self, task_id: str, batch_spec, start_time_from_rule):
@@ -1024,7 +1049,7 @@ class BPMNGraph:
 
     def is_or_rule_invalid(self, waiting_tasks, task_id: str, num_tasks_wait_batch: int, current_point_of_time: CustomDatetimeAndSeconds):
         all_keys = list(waiting_tasks.keys())
-        
+
         first_key = all_keys[0]
         first_wt = (current_point_of_time.datetime - waiting_tasks[first_key].datetime).seconds
 

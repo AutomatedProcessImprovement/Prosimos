@@ -12,6 +12,7 @@ class CASE_ATTR_TYPE(Enum):
     DISCRETE = "discrete"
     CONTINUOUS = "continuous"
 
+
 def parse_discrete_value(value_info_arr):
     prob_arr = []
     options_arr = []
@@ -24,11 +25,12 @@ def parse_discrete_value(value_info_arr):
         "probabilities": prob_arr
     }
 
+
 def parse_continuous_value(value_info) -> "DurationDistribution":
     return DurationDistribution.from_dict(value_info)
 
 
-class CaseAttribute():
+class CaseAttribute:
     def __init__(self, name, case_atrr_type, value):
         self.name: str = name
         self.case_atrr_type: CASE_ATTR_TYPE = CASE_ATTR_TYPE(case_atrr_type)
@@ -59,7 +61,7 @@ class CaseAttribute():
         return True
 
 
-class AllCaseAttributes():
+class AllCaseAttributes:
     def __init__(self, case_attr_arr: List[CaseAttribute]):
         self.attributes = case_attr_arr
 

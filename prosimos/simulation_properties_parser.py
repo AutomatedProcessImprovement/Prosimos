@@ -16,6 +16,15 @@ from prosimos.prioritisation import AllPriorityRules
 from prosimos.prioritisation_parser import PrioritisationParser
 from prosimos.probability_distributions import Choice
 from prosimos.resource_profile import PoolInfo, ResourceProfile
+from prosimos.branch_condition_parser import BranchConditionParser
+from prosimos.branch_condition_rules import AllBranchConditionRules
+from prosimos.event_attributes import AllEventAttributes
+from prosimos.event_attributes_parser import EventAttributesParser
+from prosimos.gateway_condition_choice import GatewayConditionChoice
+from prosimos.global_attributes_parser import GlobalAttributesParser
+from prosimos.global_attributes import AllGlobalAttributes
+from prosimos.all_attributes import AllAttributes
+from prosimos.warning_logger import warning_logger
 
 bpmn_schema_url = "http://www.omg.org/spec/BPMN/20100524/MODEL"
 simod_ns = {"qbp": "http://www.qbp-simulator.com/Schema201212"}
@@ -27,6 +36,12 @@ CASE_ATTRIBUTES_SECTION = "case_attributes"
 PRIORITISATION_RULES_SECTION = "prioritisation_rules"
 ARRIVAL_TIME_CALENDAR = "arrival_time_calendar"
 RESOURCE_CALENDARS = "resource_calendars"
+BRANCH_RULES = "branch_rules"
+EVENT_ATTRIBUTES = "event_attributes"
+GLOBAL_ATTRIBUTES = "global_attributes"
+GATEWAY_EXECUTION_LIMIT = "gateway_execution_limit"
+
+DEFAULT_GATEWAY_EXECUTION_LIMIT = 1000
 
 granule_units = {"SECONDS": 1 / 60, "MINUTES": 1, "HOURS": 60}
 int_week_days = {"MONDAY": 0, "TUESDAY": 1, "WEDNESDAY": 2, "THURSDAY": 3, "FRIDAY": 4, "SATURDAY": 5, "SUNDAY": 6}
@@ -50,10 +65,20 @@ def parse_json_sim_parameters(json_path):
             json_data["task_resource_distribution"], res_pool
         )
 
+        branch_rules = (
+            BranchConditionParser(json_data[BRANCH_RULES]).parse()
+            if BRANCH_RULES in json_data
+            else AllBranchConditionRules([])
+        )
+
         element_distribution = parse_arrival_branching_probabilities(
             json_data["arrival_time_distribution"],
-            json_data["gateway_branching_probabilities"],
+            json_data["gateway_branching_probabilities"]
         )
+
+        gateway_conditions = parse_gateway_conditions(json_data["gateway_branching_probabilities"], 
+                                                      branch_rules)
+
         arrival_calendar = parse_arrival_calendar(json_data)
         event_distibution = (
             parse_event_distribution(json_data[EVENT_DISTRIBUTION_SECTION])
@@ -70,11 +95,29 @@ def parse_json_sim_parameters(json_path):
             if CASE_ATTRIBUTES_SECTION in json_data
             else AllCaseAttributes([])
         )
+        event_attributes = (
+            EventAttributesParser(json_data[EVENT_ATTRIBUTES]).parse()
+            if EVENT_ATTRIBUTES in json_data
+            else AllEventAttributes({})
+        )
+
+        global_attributes = (
+            GlobalAttributesParser(json_data[GLOBAL_ATTRIBUTES]).parse()
+            if GLOBAL_ATTRIBUTES in json_data
+            else AllGlobalAttributes({})
+        )
+
+        all_attributes = AllAttributes(global_attributes, case_attributes, event_attributes)
+
         prioritisation_rules = (
             PrioritisationParser(json_data[PRIORITISATION_RULES_SECTION]).parse()
             if PRIORITISATION_RULES_SECTION in json_data
             else AllPriorityRules([])
         )
+
+        gateway_execution_limit = json_data[GATEWAY_EXECUTION_LIMIT] \
+            if GATEWAY_EXECUTION_LIMIT in json_data \
+            else DEFAULT_GATEWAY_EXECUTION_LIMIT
 
         return (
             resources_map,
@@ -84,9 +127,12 @@ def parse_json_sim_parameters(json_path):
             arrival_calendar,
             event_distibution,
             batch_processing,
-            case_attributes,
             prioritisation_rules,
-            model_type,
+            branch_rules,
+            gateway_conditions,
+            all_attributes,
+            gateway_execution_limit,
+            model_type
         )
 
 
@@ -232,6 +278,31 @@ def parse_case_attr(json_data) -> AllCaseAttributes:
 #         calendars_map[r_calendar.calendar_id] = r_calendar
 #     return resources_map, calendars_map
 
+def parse_gateway_conditions(gateway_json, branch_rules):
+    gateway_conditions = dict()
+
+    for g_info in gateway_json:
+        g_id = g_info["gateway_id"]
+        gateway_rules = list()
+        out_arc = list()
+        missing_conditions = list()
+
+        for prob_info in g_info["probabilities"]:
+            if "condition_id" in prob_info:
+                out_arc.append(prob_info["path_id"])
+                curr_branch_rules = branch_rules.get_branch_condition_by_id(prob_info["condition_id"])
+                gateway_rules.append(curr_branch_rules)
+            else:
+                missing_conditions.append(prob_info["path_id"])
+
+        if len(prob_info) > 0:
+            gateway_conditions[g_id] = GatewayConditionChoice(out_arc, gateway_rules)
+
+        if len(missing_conditions) > 0 and len(gateway_rules) != len(g_info["probabilities"]):
+            warning_logger.add_warning(f"Gateway {g_id} is using conditions, but some are missing. Flows without conditions: {', '.join(missing_conditions)}")
+
+    return gateway_conditions
+
 
 def parse_arrival_branching_probabilities(arrival_json, gateway_json):
     element_distribution = dict()
@@ -253,11 +324,26 @@ def parse_arrival_branching_probabilities(arrival_json, gateway_json):
         g_id = g_info["gateway_id"]
         probability_list = list()
         out_arc = list()
+
+        total_probability = sum([float(prob_info.get("value", 0)) for prob_info in g_info["probabilities"]])
+        missing_probability = 1 - total_probability
+        missing_values_count = sum(1 for prob_info in g_info["probabilities"] if "value" not in prob_info)
+        value_to_assign = missing_probability / missing_values_count if missing_values_count else 0
+        auto_assigned = {}
+
         for prob_info in g_info["probabilities"]:
             out_arc.append(prob_info["path_id"])
-            probability_list.append(float(prob_info["value"]))
-        element_distribution[g_id] = Choice(out_arc, probability_list)
+            if "value" not in prob_info:
+                prob_info["value"] = value_to_assign
+                auto_assigned[prob_info["path_id"]] = value_to_assign
 
+            probability_list.append(float(prob_info["value"]))
+
+        if auto_assigned:
+            auto_assigned_flows = ", ".join([f"{key}: {value}" for key, value in auto_assigned.items()])
+            warning_logger.add_warning(f"Gateway {g_id} has auto-assigned probabilities for flows: {auto_assigned_flows}")
+
+        element_distribution[g_id] = Choice(out_arc, probability_list)
     return element_distribution
 
 

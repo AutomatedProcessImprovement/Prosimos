@@ -303,12 +303,16 @@ def test_update_state_event_gateway_event_happened(
         batch_processing,
         _,
         _,
+        gateway_conditions,
         _,
+        gateway_execution_limit,
+        _
     ) = parse_json_sim_parameters(json_path)
 
     bpmn_graph = parse_simulation_model(bpmn_path)
     bpmn_graph.set_additional_fields_from_json(
-        element_probability, task_resource, event_distribution, batch_processing
+        element_probability, task_resource, event_distribution,
+        batch_processing, gateway_conditions, gateway_execution_limit
     )
 
     sim_setup = SimDiffSetup(bpmn_path, json_path, False, 1)
@@ -378,12 +382,16 @@ def test_update_state_terminate_event(assets_path):
         batch_processing,
         _,
         _,
+        gateway_conditions,
         _,
+        gateway_execution_limit,
+        _
     ) = parse_json_sim_parameters(json_path)
 
     bpmn_graph = parse_simulation_model(bpmn_path)
     bpmn_graph.set_additional_fields_from_json(
-        element_probability, task_resource, event_distribution, batch_processing
+        element_probability, task_resource, event_distribution,
+        batch_processing, gateway_conditions, gateway_execution_limit
     )
 
     sim_setup = SimDiffSetup(bpmn_path, json_path, False, 1)

@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:qbp="http://www.qbp-simulator.com/Schema201212" xmlns:ap="http://apromore.org" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:extensionElements>
+      <qbp:processSimulationInfo id="qbp_1aff1db7-2b01-4fde-b0ab-d94ba54c2d31" processInstances="" currency="EUR" startDateTime="2023-08-14T09:00:00.000Z">
+        <qbp:errors>
+          <qbp:error id="processInstances" elementId="Total number of cases" message="Total number of cases must not be empty" />
+          <qbp:error id="qbp_1aff1db7-2b01-4fde-b0ab-d94ba54c2d31FIXED-mean" elementId="Inter arrival time" message="Value must not be empty" />
+          <qbp:error id="Activity_1gpdzmuFIXED-mean" elementId="Activity_1gpdzmu" message="Value must not be empty" />
+          <qbp:error id="Activity_09vt3u8FIXED-mean" elementId="Activity_09vt3u8" message="Value must not be empty" />
+          <qbp:error id="Activity_1do6fukFIXED-mean" elementId="Activity_1do6fuk" message="Value must not be empty" />
+        </qbp:errors>
+        <qbp:arrivalRateDistribution type="FIXED" mean="NaN" arg1="NaN" arg2="NaN" rawMean="NaN" rawArg1="NaN" rawArg2="NaN">
+          <qbp:timeUnit>seconds</qbp:timeUnit>
+        </qbp:arrivalRateDistribution>
+        <qbp:statsOptions />
+        <qbp:timetables>
+          <qbp:timetable id="DEFAULT_TIMETABLE" default="true" name="Arrival timetable">
+            <qbp:rules>
+              <qbp:rule id="e447d8ce-55bb-4e3a-9a59-ff7d62f5fd65" name="Timeslot" fromTime="09:00:00.000+00:00" toTime="17:00:00.000+00:00" fromWeekDay="MONDAY" toWeekDay="FRIDAY" />
+            </qbp:rules>
+          </qbp:timetable>
+        </qbp:timetables>
+        <qbp:resources>
+          <qbp:resource id="QBP_DEFAULT_RESOURCE" name="Default resource" totalAmount="1" timetableId="DEFAULT_TIMETABLE" />
+        </qbp:resources>
+        <qbp:elements>
+          <qbp:element elementId="Activity_1gpdzmu">
+            <qbp:durationDistribution type="FIXED" mean="NaN" arg1="NaN" arg2="NaN" rawMean="NaN" rawArg1="NaN" rawArg2="NaN">
+              <qbp:timeUnit>seconds</qbp:timeUnit>
+            </qbp:durationDistribution>
+            <qbp:resourceIds>
+              <qbp:resourceId>QBP_DEFAULT_RESOURCE</qbp:resourceId>
+            </qbp:resourceIds>
+          </qbp:element>
+          <qbp:element elementId="Activity_09vt3u8">
+            <qbp:durationDistribution type="FIXED" mean="NaN" arg1="NaN" arg2="NaN" rawMean="NaN" rawArg1="NaN" rawArg2="NaN">
+              <qbp:timeUnit>seconds</qbp:timeUnit>
+            </qbp:durationDistribution>
+            <qbp:resourceIds>
+              <qbp:resourceId>QBP_DEFAULT_RESOURCE</qbp:resourceId>
+            </qbp:resourceIds>
+          </qbp:element>
+          <qbp:element elementId="Activity_1do6fuk">
+            <qbp:durationDistribution type="FIXED" mean="NaN" arg1="NaN" arg2="NaN" rawMean="NaN" rawArg1="NaN" rawArg2="NaN">
+              <qbp:timeUnit>seconds</qbp:timeUnit>
+            </qbp:durationDistribution>
+            <qbp:resourceIds>
+              <qbp:resourceId>QBP_DEFAULT_RESOURCE</qbp:resourceId>
+            </qbp:resourceIds>
+          </qbp:element>
+        </qbp:elements>
+        <qbp:sequenceFlows />
+      </qbp:processSimulationInfo>
+      <ap:img src="" />
+      <ap:icon elIconName="" />
+      <ap:icons />
+    </bpmn:extensionElements>
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:extensionElements>
+        <ap:img src="" />
+        <ap:icon elIconName="" />
+        <ap:icons />
+      </bpmn:extensionElements>
+      <bpmn:outgoing>Flow_0g9dibj</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:task id="Activity_1gpdzmu" name="Generate Attribute">
+      <bpmn:extensionElements>
+        <ap:img src="" />
+        <ap:icon elIconName="" />
+        <ap:icons />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0kovxrh</bpmn:incoming>
+      <bpmn:outgoing>Flow_17cu3i0</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:sequenceFlow id="Flow_0g9dibj" sourceRef="StartEvent_1" targetRef="Activity_09vt3u8" />
+    <bpmn:endEvent id="Event_0oyyf08">
+      <bpmn:extensionElements>
+        <ap:img src="" />
+        <ap:icon elIconName="" />
+        <ap:icons />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1g2g84f</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_17cu3i0" sourceRef="Activity_1gpdzmu" targetRef="Activity_1do6fuk" />
+    <bpmn:task id="Activity_09vt3u8" name="START">
+      <bpmn:extensionElements>
+        <ap:img src="" />
+        <ap:icon elIconName="" />
+        <ap:icons />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0g9dibj</bpmn:incoming>
+      <bpmn:outgoing>Flow_0kovxrh</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:sequenceFlow id="Flow_0kovxrh" sourceRef="Activity_09vt3u8" targetRef="Activity_1gpdzmu" />
+    <bpmn:task id="Activity_1do6fuk" name="END">
+      <bpmn:extensionElements>
+        <ap:img src="" />
+        <ap:icon elIconName="" />
+        <ap:icons />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_17cu3i0</bpmn:incoming>
+      <bpmn:outgoing>Flow_1g2g84f</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:sequenceFlow id="Flow_1g2g84f" sourceRef="Activity_1do6fuk" targetRef="Event_0oyyf08" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_1">
+      <bpmndi:BPMNEdge id="Flow_17cu3i0_di" bpmnElement="Flow_17cu3i0">
+        <di:waypoint x="-90" y="120" />
+        <di:waypoint x="-10" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0g9dibj_di" bpmnElement="Flow_0g9dibj">
+        <di:waypoint x="-432" y="120" />
+        <di:waypoint x="-370" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0kovxrh_di" bpmnElement="Flow_0kovxrh">
+        <di:waypoint x="-270" y="120" />
+        <di:waypoint x="-190" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1g2g84f_di" bpmnElement="Flow_1g2g84f">
+        <di:waypoint x="90" y="120" />
+        <di:waypoint x="152" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Activity_1gpdzmu_di" bpmnElement="Activity_1gpdzmu">
+        <dc:Bounds x="-190" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="-468" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0oyyf08_di" bpmnElement="Event_0oyyf08">
+        <dc:Bounds x="152" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_09vt3u8_di" bpmnElement="Activity_09vt3u8">
+        <dc:Bounds x="-370" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1do6fuk_di" bpmnElement="Activity_1do6fuk">
+        <dc:Bounds x="-10" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

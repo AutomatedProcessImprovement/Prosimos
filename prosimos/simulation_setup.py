@@ -27,15 +27,22 @@ class SimDiffSetup:
             self.arrival_calendar,
             self.event_distibution,
             self.batch_processing,
-            self.case_attributes,
             self.prioritisation_rules,
-            self.model_type,
+            self.branch_rules,
+            self.gateway_conditions,
+            self.all_attributes,
+            self.gateway_execution_limit,
+            self.model_type
         ) = parse_json_sim_parameters(json_path)
 
+        self.case_attributes = self.all_attributes.case_attributes
+
         self.bpmn_graph = parse_simulation_model(bpmn_path)
-        self.bpmn_graph.set_additional_fields_from_json(
-            self.element_probability, self.task_resource, self.event_distibution, self.batch_processing
-        )
+        self.bpmn_graph.set_additional_fields_from_json(self.element_probability,
+                                                        self.task_resource, self.event_distibution,
+                                                        self.batch_processing, self.gateway_conditions,
+                                                        self.gateway_execution_limit)
+
         if not self.arrival_calendar:
             self.arrival_calendar = self.find_arrival_calendar()
 
