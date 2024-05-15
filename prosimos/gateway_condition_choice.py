@@ -3,8 +3,8 @@ class GatewayConditionChoice:
         self.candidates_list = candidates_list
         self.rules_list = rules_list
 
-    def get_outgoing_flow(self, case_attributes):
+    def get_outgoing_flow(self, attributes):
         return [candidate for candidate, rule in zip(self.candidates_list, self.rules_list)
-                if rule.is_true(case_attributes)]
+                if rule.is_true(attributes)]
 
 

@@ -19,13 +19,14 @@ class OutgoingFlowSelector:
 
     @staticmethod
     def _handle_exclusive_gateway(e_info, element_probability, all_attributes, gateway_conditions):
-        curr_gateway_conditions = gateway_conditions[e_info.id]
-        candidates_list = curr_gateway_conditions.candidates_list
+        curr_gateway_conditions = gateway_conditions.get(e_info.id, None)
 
         # No conditions (use probabilities)
-        if not candidates_list:
+        if not curr_gateway_conditions or not curr_gateway_conditions.candidates_list:
             return OutgoingFlowSelector._use_probabilities(e_info, element_probability)
-        
+
+        candidates_list = curr_gateway_conditions.candidates_list
+
         condition_choice = GatewayConditionChoice(candidates_list, curr_gateway_conditions.rules_list)
         passed_arcs_ids = condition_choice.get_outgoing_flow(all_attributes)
 
@@ -53,13 +54,13 @@ class OutgoingFlowSelector:
 
     @staticmethod
     def _handle_inclusive_gateway(e_info, element_probability, all_attributes, gateway_conditions):
-        curr_gateway_conditions = gateway_conditions[e_info.id]
-        candidates_list = curr_gateway_conditions.candidates_list
+        curr_gateway_conditions = gateway_conditions.get(e_info.id, None)
 
         # No conditions (use probabilities)
-        if not candidates_list:
+        if not curr_gateway_conditions or not curr_gateway_conditions.candidates_list:
             return element_probability[e_info.id].get_multiple_flows()
 
+        candidates_list = curr_gateway_conditions.candidates_list
         condition_choice = GatewayConditionChoice(candidates_list, curr_gateway_conditions.rules_list)
         passed_arcs_ids = condition_choice.get_outgoing_flow(all_attributes)
 

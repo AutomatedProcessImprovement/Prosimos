@@ -4,10 +4,13 @@ from random import choices
 from typing import Dict
 import ast
 import operator as op
+import sys
+import numpy as np
 
 from pix_framework.statistics.distribution import DurationDistribution
 
 from prosimos.exceptions import InvalidEventAttributeException
+import math
 
 
 class EVENT_ATTR_TYPE(Enum):
@@ -23,6 +26,8 @@ operators = {
     ast.And: op.and_, ast.Or: op.or_, ast.Mod: op.mod, ast.Pow: op.pow,
     ast.FloorDiv: op.floordiv
 }
+
+math_functions = {name: getattr(math, name) for name in dir(math) if callable(getattr(math, name))}
 
 
 def parse_discrete_value(value_info_arr):
@@ -57,7 +62,8 @@ def eval_expr(expr, vars_dict):
             elif isinstance(node, ast.UnaryOp):
                 return operators[type(node.op)](_eval(node.operand))
             elif isinstance(node, ast.Name):
-                return vars_dict[node.id]
+                if node.id in vars_dict:
+                    return vars_dict[node.id]
             elif isinstance(node, ast.Str):
                 return node.s
             elif isinstance(node, ast.Compare):
@@ -67,10 +73,19 @@ def eval_expr(expr, vars_dict):
                     return all(_eval(value) for value in node.values)
                 elif type(node.op) is ast.Or:
                     return any(_eval(value) for value in node.values)
+            elif isinstance(node, ast.Call):
+                if node.func.id in math_functions:
+                    args = [_eval(arg) for arg in node.args]
+                    try:
+                        return math_functions[node.func.id](*args)
+                    except OverflowError:
+                        return np.finfo(np.float32).max
+                    except ValueError:
+                        return 0
             else:
-                return None
+                return 0
         except (SyntaxError, ZeroDivisionError, TypeError, KeyError):
-            return None
+            return 0
 
     return _eval(tree.body)
 
@@ -92,22 +107,39 @@ class EventAttribute:
 
         self.validate()
 
-    def get_next_value(self, all_attributes={}):
+    def get_next_value(self, all_attributes):
         if self.event_attr_type == EVENT_ATTR_TYPE.DISCRETE:
             one_choice_arr = choices(self.value["options"], self.value["probabilities"])
             return one_choice_arr[0]
         elif self.event_attr_type == EVENT_ATTR_TYPE.EXPRESSION:
-            return eval_expr(self.value, all_attributes)
+            result = eval_expr(self.value, all_attributes)
+            if isinstance(result, (int, float, np.number)) and not isinstance(result, bool):
+                if result == 0:  # Specifically handle zero without adjusting to tiny (in case of any errors in eval)
+                    return 0
+                elif result == float('inf'):
+                    return np.finfo(np.float32).max
+                elif result == -float('inf'):
+                    return np.finfo(np.float32).min
+                elif abs(result) < np.finfo(np.float32).tiny:
+                    return np.finfo(np.float32).tiny
+                elif abs(result) > np.finfo(np.float32).max:
+                    return np.finfo(np.float32).max if result > 0 else np.finfo(np.float32).min
+                else:
+                    return result
+            else:
+                return result
         else:
             return self.value.generate_sample(1)[0]
 
     def validate(self):
-        if self.event_attr_type == EVENT_ATTR_TYPE.DISCRETE:
-            actual_sum_probabilities = reduce(lambda acc, item: acc + item, self.value["probabilities"], 0)
+        epsilon = 1e-6
 
-            if actual_sum_probabilities != 1:
+        if self.event_attr_type == EVENT_ATTR_TYPE.DISCRETE:
+            actual_sum_probabilities = sum(self.value["probabilities"])
+
+            if not (1 - epsilon <= actual_sum_probabilities <= 1 + epsilon):
                 raise InvalidEventAttributeException(
-                    f"Event attribute ${self.name}: probabilities' sum should be equal to 1")
+                    f"Event attribute {self.name}: probabilities' sum should be equal to 1")
 
         return True
 
