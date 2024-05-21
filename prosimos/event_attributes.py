@@ -1,3 +1,4 @@
+import pprint
 from enum import Enum
 from functools import reduce
 from random import choices
@@ -27,20 +28,67 @@ operators = {
     ast.FloorDiv: op.floordiv
 }
 
+def fix(mean):
+    return DurationDistribution(name="fix", mean=mean, var=0.0, std=0.0, minimum=mean, maximum=mean).generate_sample(1)[0]
+
+
+def uniform(minimum, maximum):
+    return DurationDistribution(name="uniform", minimum=minimum, maximum=maximum).generate_sample(1)[0]
+
+
+def norm(mean, std, minimum=None, maximum=None):
+    return DurationDistribution(name="norm", mean=mean, std=std, minimum=minimum, maximum=maximum).generate_sample(1)[0]
+
+
+def triang(c, minimum, maximum):
+    return DurationDistribution(name="triang", mean=c, minimum=minimum, maximum=maximum).generate_sample(1)[0]
+
+
+def expon(mean, minimum=None, maximum=None):
+    return DurationDistribution(name="expon", mean=mean, minimum=minimum, maximum=maximum).generate_sample(1)[0]
+
+
+def lognorm(mean, var, minimum=None, maximum=None):
+    return DurationDistribution(name="lognorm", mean=mean, var=var, minimum=minimum, maximum=maximum).generate_sample(1)[0]
+
+
+def gamma(mean, var, minimum=None, maximum=None):
+    return DurationDistribution(name="gamma", mean=mean, var=var, minimum=minimum, maximum=maximum).generate_sample(1)[0]
+
+
+distributions = {
+    'fix': fix,
+    'uniform': uniform,
+    'norm': norm,
+    'triang': triang,
+    'expon': expon,
+    'lognorm': lognorm,
+    'gamma': gamma
+}
+
 math_functions = {name: getattr(math, name) for name in dir(math) if callable(getattr(math, name))}
 
 
-def parse_discrete_value(value_info_arr):
-    prob_arr = []
-    options_arr = []
-    for item in value_info_arr:
-        options_arr.append(item["key"])
-        prob_arr.append(float(item["value"]))
+def parse_discrete_value(value_info):
+    if isinstance(value_info, list):
+        prob_arr = []
+        options_arr = []
+        for item in value_info:
+            options_arr.append(item["key"])
+            prob_arr.append(float(item["value"]))
 
-    return {
-        "options": options_arr,
-        "probabilities": prob_arr
-    }
+        return {
+            "type": "discrete",
+            "options": options_arr,
+            "probabilities": prob_arr
+        }
+    elif isinstance(value_info, dict):
+        return {
+            "type": "markov",
+            "transitions": value_info
+        }
+    else:
+        raise ValueError("Unsupported value_info format for discrete value")
 
 
 def parse_continuous_value(value_info) -> "DurationDistribution":
@@ -74,10 +122,14 @@ def eval_expr(expr, vars_dict):
                 elif type(node.op) is ast.Or:
                     return any(_eval(value) for value in node.values)
             elif isinstance(node, ast.Call):
-                if node.func.id in math_functions:
+                func_name = node.func.id
+                args = [_eval(arg) for arg in node.args]
+                if func_name in distributions:
+                    return distributions[func_name](*args)
+                elif func_name in math_functions:
                     args = [_eval(arg) for arg in node.args]
                     try:
-                        return math_functions[node.func.id](*args)
+                        return math_functions[func_name ](*args)
                     except OverflowError:
                         return np.finfo(np.float32).max
                     except ValueError:
@@ -109,8 +161,17 @@ class EventAttribute:
 
     def get_next_value(self, all_attributes):
         if self.event_attr_type == EVENT_ATTR_TYPE.DISCRETE:
-            one_choice_arr = choices(self.value["options"], self.value["probabilities"])
-            return one_choice_arr[0]
+            if self.value["type"] == "markov":
+                current_value = all_attributes.get(self.name, None)
+                next_state = self.get_next_markov_state(current_value)
+                if next_state is not None:
+                    all_attributes[self.name] = next_state
+                    return next_state
+                return current_value
+            else:
+                one_choice_arr = choices(self.value["options"], self.value["probabilities"])
+                return one_choice_arr[0]
+
         elif self.event_attr_type == EVENT_ATTR_TYPE.EXPRESSION:
             result = eval_expr(self.value, all_attributes)
             if isinstance(result, (int, float, np.number)) and not isinstance(result, bool):
@@ -131,15 +192,31 @@ class EventAttribute:
         else:
             return self.value.generate_sample(1)[0]
 
+    def get_next_markov_state(self, current_value):
+        transitions = self.value["transitions"]
+        if current_value in transitions:
+            current_transitions = transitions[current_value]
+            options, probabilities = zip(*current_transitions.items())
+            return choices(options, probabilities)[0]
+        return current_value
+
     def validate(self):
         epsilon = 1e-6
 
         if self.event_attr_type == EVENT_ATTR_TYPE.DISCRETE:
-            actual_sum_probabilities = sum(self.value["probabilities"])
+            if self.value["type"] == "discrete":
+                actual_sum_probabilities = sum(self.value["probabilities"])
 
-            if not (1 - epsilon <= actual_sum_probabilities <= 1 + epsilon):
-                raise InvalidEventAttributeException(
-                    f"Event attribute {self.name}: probabilities' sum should be equal to 1")
+                if not (1 - epsilon <= actual_sum_probabilities <= 1 + epsilon):
+                    raise InvalidEventAttributeException(
+                        f"Event attribute {self.name}: probabilities' sum should be equal to 1")
+            elif self.value["type"] == "markov":
+                for state, transitions in self.value["transitions"].items():
+                    actual_sum_probabilities = sum(transitions.values())
+                    if not (1 - epsilon <= actual_sum_probabilities <= 1 + epsilon):
+                        raise InvalidEventAttributeException(
+                            f"Event attribute {self.name}, state {state}: "
+                            f"probabilities' sum should be equal to 1")
 
         return True
 
