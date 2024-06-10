@@ -1,11 +1,9 @@
 import pprint
 from enum import Enum
-from functools import reduce
 from random import choices
 from typing import Dict
 import ast
 import operator as op
-import sys
 import numpy as np
 
 from pix_framework.statistics.distribution import DurationDistribution
@@ -18,6 +16,7 @@ class EVENT_ATTR_TYPE(Enum):
     DISCRETE = "discrete"
     CONTINUOUS = "continuous"
     EXPRESSION = "expression"
+    DTREE = "dtree"
 
 
 operators = {
@@ -132,7 +131,8 @@ def eval_expr(expr, vars_dict):
                         return math_functions[func_name ](*args)
                     except OverflowError:
                         return np.finfo(np.float32).max
-                    except ValueError:
+                    except ValueError as e:
+                        print(e)
                         return 0
             else:
                 return 0
@@ -141,6 +141,12 @@ def eval_expr(expr, vars_dict):
 
     return _eval(tree.body)
 
+
+def evaluate_dtree(dtree, vars_dict):
+    for conditions, formula in dtree:
+        if conditions is True or all(eval_expr(cond, vars_dict) for cond in conditions):
+            return eval_expr(formula, vars_dict)
+    return None
 
 class EventAttribute:
     def __init__(self, event_id, name, event_attr_type, value):
@@ -153,6 +159,8 @@ class EventAttribute:
         elif self.event_attr_type == EVENT_ATTR_TYPE.CONTINUOUS:
             self.value = parse_continuous_value(value)
         elif self.event_attr_type == EVENT_ATTR_TYPE.EXPRESSION:
+            self.value = value
+        elif self.event_attr_type == EVENT_ATTR_TYPE.DTREE:
             self.value = value
         else:
             raise Exception(f"Not supported event attribute {type}")
@@ -189,6 +197,11 @@ class EventAttribute:
                     return result
             else:
                 return result
+        elif self.event_attr_type == EVENT_ATTR_TYPE.DTREE:
+            result = evaluate_dtree(self.value, all_attributes)
+            if result is not None:
+                return result
+            return 0
         else:
             return self.value.generate_sample(1)[0]
 
