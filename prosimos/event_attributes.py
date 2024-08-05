@@ -132,7 +132,6 @@ def eval_expr(expr, vars_dict):
                     except OverflowError:
                         return np.finfo(np.float32).max
                     except ValueError as e:
-                        print(e)
                         return 0
             else:
                 return 0
