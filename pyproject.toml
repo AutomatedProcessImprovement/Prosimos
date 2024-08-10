@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "prosimos"
-version = "2.0.4"
+version = "2.0.5"
 description = ""
 authors = [
     "Iryna Halenok <iryna.halenok@ut.ee>",
