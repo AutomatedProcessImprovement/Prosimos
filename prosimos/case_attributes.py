@@ -52,12 +52,15 @@ class CaseAttribute:
             return self.value.generate_sample(1)[0]
 
     def validate(self):
+        epsilon = 1e-6
+
         if self.case_atrr_type == CASE_ATTR_TYPE.DISCRETE:
             actual_sum_probabilities = reduce(lambda acc, item: acc + item, self.value["probabilities"], 0) 
             
-            if actual_sum_probabilities != 1:
-                raise InvalidCaseAttributeException(f"Case attribute ${self.name}: probabilities' sum should be equal to 1") 
-        
+            if not (1 - epsilon <= actual_sum_probabilities <= 1 + epsilon):
+                raise InvalidCaseAttributeException(
+                    f"Case attribute {self.name}: probabilities' sum should be equal to 1")
+
         return True
 
 

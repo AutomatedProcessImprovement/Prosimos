@@ -15,6 +15,7 @@ class AllAttributes:
         global_case_attribute_names = global_attribute_names.intersection(all_case_attribute_names)
         global_event_attribute_names = global_attribute_names.intersection(all_event_attribute_names)
 
+        self.global_attribute_initial_values = global_attributes.get_values_calculated()
         self.global_attributes = self._extract_global_attributes(global_attributes, global_case_attribute_names, global_event_attribute_names)
 
         self.global_case_attributes, self.case_attributes = \
