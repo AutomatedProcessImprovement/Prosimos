@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "prosimos"
-version = "2.0.5"
+version = "2.0.6"
 description = ""
 authors = [
     "Iryna Halenok <iryna.halenok@ut.ee>",
@@ -17,11 +17,11 @@ packages = [
 python = ">=3.9,<3.12"
 click = "^8.1.3"
 numpy = "^1.24.3"
-pandas = "^2.0.1"
+pandas = "^2.2.3"
 python-dateutil = "^2.8.2"
-pytz = "^2023.3"
-scipy = "^1.10.1"
-pix-framework = "^0.13.0"
+pytz = "^2024.2"
+scipy = "^1.13.0"
+pix-framework = "^0.13.17"
 pylint = "^2.17.4"
 
 [tool.poetry.dev-dependencies]
