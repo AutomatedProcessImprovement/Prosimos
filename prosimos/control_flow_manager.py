@@ -101,6 +101,7 @@ class ElementInfo:
 
 class ProcessState:
     def __init__(self, bpmn_graph):
+        self.bpmn_graph = bpmn_graph
         self.arcs_bitset = bpmn_graph.arcs_bitset
         self.tokens = dict()
         self.flow_date = dict()
@@ -132,6 +133,20 @@ class ProcessState:
                 marked_flows.append(flow_id)
         return marked_flows
 
+    def set_tokens(self, tokens_dict):
+        """
+        Set tokens in the process state based on the provided tokens dictionary.
+        :param tokens_dict: Dictionary mapping flow IDs to token counts
+        """
+        for flow_id, token_count in tokens_dict.items():
+            if flow_id in self.tokens:
+                self.tokens[flow_id] = token_count
+                if token_count > 0:
+                    # Update state_mask to reflect the presence of tokens on this flow
+                    self.state_mask |= self.bpmn_graph.arcs_bitset[flow_id]
+            else:
+                raise ValueError(f"Flow ID '{flow_id}' not found in BPMN graph.")
+
 
 class BPMNGraph:
     def __init__(self):
@@ -161,6 +176,17 @@ class BPMNGraph:
         self.gateway_conditions = None
         self.gateway_execution_limit = 1000
         self.simulation_execution_stats = SimulationExecutionStats()
+
+    def get_task_id_by_name(self, task_name):
+        """
+        Retrieve the task ID corresponding to the given task name.
+        :param task_name: The name of the task
+        :return: The task ID
+        """
+        for element_id, element_info in self.element_info.items():
+            if element_info.type == BPMN.TASK and element_info.name == task_name:
+                return element_id
+        raise ValueError(f"Task with name '{task_name}' not found in BPMN model.")
 
     def set_additional_fields_from_json(self, element_probability, task_resource_probability,
                                         event_distribution, batch_processing, gateway_conditions,
@@ -320,10 +346,11 @@ class BPMNGraph:
                                           which equals to enabled time for current event
         """
         if not self.is_enabled(e_id, p_state):
-            return []
+            return [], {}
         enabled_tasks = list()
         to_execute = [e_id]
         current = 0
+
         visited_at = {e_id: self._check_and_update_enabling_time(case_id, e_id, completed_datetime_prev_event)}
         while current < len(to_execute):
             e_info: ElementInfo = self.element_info[to_execute[current]]
@@ -507,8 +534,13 @@ class BPMNGraph:
         :event_id: id of the event element
         :return: duration in seconds 
         """
-        distribution: DurationDistribution = self.event_distribution[event_id]
-        return distribution.generate_sample(1)
+        if event_id in self.event_distribution:
+            distribution: DurationDistribution = self.event_distribution[event_id]
+            duration = distribution.generate_sample(1)
+            return duration
+        else:
+            # TODO: fix it!!!
+            return [0.0]
 
 
     def reply_trace(self, task_sequence, f_arcs_frequency, post_p=True, trace=None):
@@ -875,12 +907,15 @@ class BPMNGraph:
             else:
                 to_execute.append(next_e)
 
-    def _check_and_update_enabling_time(self, p_case, e_id, enabled_at: CustomDatetimeAndSeconds):
+    def _check_and_update_enabling_time(self, p_case, e_id, enabled_at):
+        if e_id not in self.last_datetime:
+            self.last_datetime[e_id] = {}
+        if p_case not in self.last_datetime[e_id]:
+            self.last_datetime[e_id][p_case] = None
+
         if self.last_datetime[e_id][p_case] is None or self.last_datetime[e_id][p_case].datetime < enabled_at.datetime:
             self.last_datetime[e_id][p_case] = enabled_at
-        elif self.last_datetime[e_id][p_case].datetime > enabled_at.datetime:
-            enabled_at = self.last_datetime[e_id][p_case]
-        return enabled_at
+        return self.last_datetime[e_id][p_case]
 
     def is_executing_alone(self, task_id: str):
         task_batch_info: BatchConfigPerTask = self.batch_info.get(task_id, None)

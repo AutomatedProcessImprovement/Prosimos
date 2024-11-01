@@ -1,0 +1,618 @@
+{
+  "task_resource_distribution": [
+    {
+      "task_id": "Activity_02r7xaq",
+      "resources": [
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-c37284cb-a9b5-40fa-b68d-b9a5be8d266a_2"
+        },
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-c37284cb-a9b5-40fa-b68d-b9a5be8d266a_1"
+        }
+      ]
+    },
+    {
+      "task_id": "Activity_1mgpbn0",
+      "resources": [
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-c37284cb-a9b5-40fa-b68d-b9a5be8d266a_2"
+        },
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-c37284cb-a9b5-40fa-b68d-b9a5be8d266a_1"
+        }
+      ]
+    },
+    {
+      "task_id": "Activity_1edcm8i",
+      "resources": [
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-c37284cb-a9b5-40fa-b68d-b9a5be8d266a_2"
+        },
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-c37284cb-a9b5-40fa-b68d-b9a5be8d266a_1"
+        }
+      ]
+    },
+    {
+      "task_id": "Activity_1jm3g3j",
+      "resources": [
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-c37284cb-a9b5-40fa-b68d-b9a5be8d266a_2"
+        },
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-c37284cb-a9b5-40fa-b68d-b9a5be8d266a_1"
+        }
+      ]
+    },
+    {
+      "task_id": "Activity_0paeij3",
+      "resources": [
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-c37284cb-a9b5-40fa-b68d-b9a5be8d266a_2"
+        },
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-c37284cb-a9b5-40fa-b68d-b9a5be8d266a_1"
+        }
+      ]
+    },
+    {
+      "task_id": "Activity_1cihc2o",
+      "resources": [
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-c37284cb-a9b5-40fa-b68d-b9a5be8d266a_2"
+        },
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-c37284cb-a9b5-40fa-b68d-b9a5be8d266a_1"
+        }
+      ]
+    },
+    {
+      "task_id": "Activity_02d0oko",
+      "resources": [
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-22f6798d-45ac-46ee-a88b-fe03fb8f2a7b_1"
+        },
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-22f6798d-45ac-46ee-a88b-fe03fb8f2a7b_2"
+        },
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-22f6798d-45ac-46ee-a88b-fe03fb8f2a7b_3"
+        }
+      ]
+    },
+    {
+      "task_id": "Activity_08cbrgi",
+      "resources": [
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-22f6798d-45ac-46ee-a88b-fe03fb8f2a7b_1"
+        },
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-22f6798d-45ac-46ee-a88b-fe03fb8f2a7b_2"
+        },
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-22f6798d-45ac-46ee-a88b-fe03fb8f2a7b_3"
+        }
+      ]
+    },
+    {
+      "task_id": "Activity_0vma5lg",
+      "resources": [
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-22f6798d-45ac-46ee-a88b-fe03fb8f2a7b_1"
+        },
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-22f6798d-45ac-46ee-a88b-fe03fb8f2a7b_2"
+        },
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-22f6798d-45ac-46ee-a88b-fe03fb8f2a7b_3"
+        }
+      ]
+    },
+    {
+      "task_id": "Activity_0eat6px",
+      "resources": [
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-22f6798d-45ac-46ee-a88b-fe03fb8f2a7b_1"
+        },
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-22f6798d-45ac-46ee-a88b-fe03fb8f2a7b_2"
+        },
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-22f6798d-45ac-46ee-a88b-fe03fb8f2a7b_3"
+        }
+      ]
+    },
+    {
+      "task_id": "Activity_1weaufy",
+      "resources": [
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-22f6798d-45ac-46ee-a88b-fe03fb8f2a7b_1"
+        },
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-22f6798d-45ac-46ee-a88b-fe03fb8f2a7b_2"
+        },
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-22f6798d-45ac-46ee-a88b-fe03fb8f2a7b_3"
+        }
+      ]
+    },
+    {
+      "task_id": "Activity_0qhd8v2",
+      "resources": [
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-c37284cb-a9b5-40fa-b68d-b9a5be8d266a_2"
+        },
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-c37284cb-a9b5-40fa-b68d-b9a5be8d266a_1"
+        }
+      ]
+    },
+    {
+      "task_id": "Activity_0807lx7",
+      "resources": [
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-c37284cb-a9b5-40fa-b68d-b9a5be8d266a_2"
+        },
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-c37284cb-a9b5-40fa-b68d-b9a5be8d266a_1"
+        }
+      ]
+    },
+    {
+      "task_id": "Activity_1sar4e1",
+      "resources": [
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-22f6798d-45ac-46ee-a88b-fe03fb8f2a7b_1"
+        },
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-22f6798d-45ac-46ee-a88b-fe03fb8f2a7b_2"
+        },
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-22f6798d-45ac-46ee-a88b-fe03fb8f2a7b_3"
+        }
+      ]
+    },
+    {
+      "task_id": "Activity_0o2ojeh",
+      "resources": [
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-22f6798d-45ac-46ee-a88b-fe03fb8f2a7b_1"
+        },
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-22f6798d-45ac-46ee-a88b-fe03fb8f2a7b_2"
+        },
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-22f6798d-45ac-46ee-a88b-fe03fb8f2a7b_3"
+        }
+      ]
+    },
+    {
+      "task_id": "Activity_0oece6p",
+      "resources": [
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-22f6798d-45ac-46ee-a88b-fe03fb8f2a7b_1"
+        },
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-22f6798d-45ac-46ee-a88b-fe03fb8f2a7b_2"
+        },
+        {
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ],
+          "resource_id": "sid-22f6798d-45ac-46ee-a88b-fe03fb8f2a7b_3"
+        }
+      ]
+    }
+  ],
+  "resource_calendars": [
+    {
+      "id": "sid-21c23304-282c-4351-9378-bb17cfc23703",
+      "name": "default schedule",
+      "time_periods": [
+        {
+          "from": "MONDAY",
+          "to": "FRIDAY",
+          "beginTime": "09:00:00.000",
+          "endTime": "17:00:00.000"
+        }
+      ]
+    }
+  ],
+  "gateway_branching_probabilities": [
+    {
+      "gateway_id": "Gateway_1prgzlv",
+      "probabilities": [
+        {
+          "path_id": "Flow_0ptt0xs",
+          "value": "0.35"
+        },
+        {
+          "path_id": "Flow_1xyedm5",
+          "value": "0.35"
+        },
+        {
+          "path_id": "Flow_03auk3f",
+          "value": "0.3"
+        }
+      ]
+    },
+    {
+      "gateway_id": "Gateway_0gkembm",
+      "probabilities": [
+        {
+          "path_id": "Flow_0xchrne",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "gateway_id": "Gateway_0nmpe12",
+      "probabilities": [
+        {
+          "path_id": "Flow_1pcejuk",
+          "value": "0.5"
+        },
+        {
+          "path_id": "Flow_1279d43",
+          "value": "0.5"
+        }
+      ]
+    },
+    {
+      "gateway_id": "Gateway_146y8zs",
+      "probabilities": [
+        {
+          "path_id": "Flow_0rajtx0",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "gateway_id": "Gateway_1abqo5n",
+      "probabilities": [
+        {
+          "path_id": "Flow_12zi923",
+          "value": "0.5"
+        },
+        {
+          "path_id": "Flow_1bp1lvd",
+          "value": "0.5"
+        }
+      ]
+    },
+    {
+      "gateway_id": "Gateway_0t2el1o",
+      "probabilities": [
+        {
+          "path_id": "Flow_0a9co7f",
+          "value": "1"
+        }
+      ]
+    }
+  ],
+  "arrival_time_distribution": {
+    "distribution_name": "norm",
+    "distribution_params": [
+      {
+        "value": 1800
+      },
+      {
+        "value": 300
+      },
+      {
+        "value": 0
+      },
+      {
+        "value": 3600
+      }
+    ]
+  },
+  "arrival_time_calendar": [
+    {
+      "from": "MONDAY",
+      "to": "FRIDAY",
+      "beginTime": "09:00:00.000",
+      "endTime": "17:00:00.000"
+    }
+  ],
+  "resource_profiles": [
+    {
+      "id": "sid-c37284cb-a9b5-40fa-b68d-b9a5be8d266a",
+      "name": "Evil",
+      "resource_list": [
+        {
+          "id": "sid-c37284cb-a9b5-40fa-b68d-b9a5be8d266a_2",
+          "name": "Pucci",
+          "cost_per_hour": 0,
+          "amount": 1,
+          "calendar": "sid-21c23304-282c-4351-9378-bb17cfc23703",
+          "assignedTasks": ["Activity_02r7xaq", "Activity_1mgpbn0", "Activity_1edcm8i", "Activity_1jm3g3j",
+            "Activity_0paeij3","Activity_1cihc2o","Activity_0qhd8v2","Activity_0807lx7"]
+        },
+        {
+          "id": "sid-c37284cb-a9b5-40fa-b68d-b9a5be8d266a_1",
+          "name": "DIO",
+          "cost_per_hour": 0,
+          "amount": 1,
+          "calendar": "sid-21c23304-282c-4351-9378-bb17cfc23703",
+          "assignedTasks": ["Activity_02r7xaq", "Activity_1mgpbn0", "Activity_1edcm8i", "Activity_1jm3g3j",
+            "Activity_0paeij3","Activity_1cihc2o","Activity_0qhd8v2","Activity_0807lx7"]
+        }
+      ]
+    },
+    {
+      "id": "sid-22f6798d-45ac-46ee-a88b-fe03fb8f2a7b",
+      "name": "Good",
+      "resource_list": [
+        {
+          "id": "sid-22f6798d-45ac-46ee-a88b-fe03fb8f2a7b_3",
+          "name": "Jonathan",
+          "cost_per_hour": 0,
+          "amount": 1,
+          "calendar": "sid-21c23304-282c-4351-9378-bb17cfc23703",
+          "assignedTasks": ["Activity_02d0oko", "Activity_08cbrgi", "Activity_0vma5lg", "Activity_0eat6px",
+            "Activity_1weaufy", "Activity_1sar4e1", "Activity_0o2ojeh", "Activity_0oece6p"]
+        },
+        {
+          "id": "sid-22f6798d-45ac-46ee-a88b-fe03fb8f2a7b_2",
+          "name": "Jolyne",
+          "cost_per_hour": 0,
+          "amount": 1,
+          "calendar": "sid-21c23304-282c-4351-9378-bb17cfc23703",
+          "assignedTasks": ["Activity_02d0oko", "Activity_08cbrgi", "Activity_0vma5lg", "Activity_0eat6px",
+            "Activity_1weaufy", "Activity_1sar4e1", "Activity_0o2ojeh", "Activity_0oece6p"]
+        },
+        {
+          "id": "sid-22f6798d-45ac-46ee-a88b-fe03fb8f2a7b_1",
+          "name": "Giorno",
+          "cost_per_hour": 0,
+          "amount": 1,
+          "calendar": "sid-21c23304-282c-4351-9378-bb17cfc23703",
+          "assignedTasks": ["Activity_02d0oko", "Activity_08cbrgi", "Activity_0vma5lg", "Activity_0eat6px",
+            "Activity_1weaufy", "Activity_1sar4e1", "Activity_0o2ojeh", "Activity_0oece6p"]
+        }
+      ]
+    }
+  ],
+  "event_distribution": [],
+  "batch_processing": [],
+  "case_attributes": [],
+  "prioritisation_rules": []
+}

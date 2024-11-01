@@ -53,7 +53,7 @@ def parse_json_sim_parameters(json_path):
         json_data = json.load(json_file)
         model_type = json_data["model_type"] if "model_type" in json_data else "CRSIP"
 
-        resources_map, res_pool = parse_resource_profiles(json_data["resource_profiles"])
+        resources_map, res_pool, resource_name_to_id = parse_resource_profiles(json_data["resource_profiles"])
         # calendars_map = parse_resource_calendars(json_data[RESOURCE_CALENDARS])
 
         calendars_map = (
@@ -133,7 +133,8 @@ def parse_json_sim_parameters(json_path):
             gateway_conditions,
             all_attributes,
             gateway_execution_limit,
-            model_type
+            model_type,
+            resource_name_to_id
         )
 
 
@@ -203,6 +204,7 @@ def parse_arrival_calendar(json_data):
 def parse_resource_profiles(json_data):
     resources_map = dict()
     resource_pool = dict()
+    resource_name_to_id = dict()
     for pool_entry in json_data:
         for r_info in pool_entry["resource_list"]:
             r_id = r_info["id"]
@@ -215,7 +217,9 @@ def parse_resource_profiles(json_data):
                 resources_map[r_i] = ResourceProfile(r_i, name, r_info["calendar"], float(r_info["cost_per_hour"]))
                 resources_map[r_i].resource_amount = 1
                 resources_map[r_i].pool_info = PoolInfo(pool_entry["id"], pool_entry["name"])
-    return resources_map, resource_pool
+
+                resource_name_to_id[name] = r_i
+    return resources_map, resource_pool, resource_name_to_id
 
 
 def parse_resource_calendars(json_data):

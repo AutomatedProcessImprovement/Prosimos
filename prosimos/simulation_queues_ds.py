@@ -133,6 +133,9 @@ class EventQueue:
         else:
             return None
 
+    def is_empty(self):
+        return self.enabled_events.is_empty()
+
 
 class EventQueue1:
     def __init__(self):

@@ -14,12 +14,13 @@ experiment_logs = {0: 'production',
 
 process_files = {
     'and_example': {
-        'bpmn': './assets/and_example/AND_join.bpmn',
-        'json': './assets/and_example/AND_join.json',
-        'sim_log': './assets/and_example/out/AND_join_log.csv',
-        'demo_stats': './assets/and_example/out/AND_join_stats.csv',
-        'start_datetime': '2008-01-02T23:00:00.000Z',
-        'total_cases': 1,
+        'bpmn': './assets/and_example/synthetic_xor_loop.bpmn',
+        'json': './assets/and_example/synthetic_xor_loop.json',
+        'sim_log': './assets/and_example/out/synthetic_xor_loop.csv',
+        'demo_stats': './assets/and_example/out/synthetic_xor_loop.csv',
+        'start_datetime': '2012-03-21T23:10:30.000Z',
+        'total_cases': 20,
+        'process_state': './assets/and_example/output.json'
     },
     'padua_example': {
         'xes_log': 'None',

@@ -6,7 +6,7 @@ from prosimos.control_flow_manager import BPMN, BatchInfoForExecution
 
 class EnabledEvent:
     def __init__(self, p_case, p_state, task_id, enabled_at, enabled_datetime, 
-        batch_info_exec: BatchInfoForExecution = None, duration_sec = None, is_inter_event = False):
+        batch_info_exec: BatchInfoForExecution = None, duration_sec = None, is_inter_event = False, assigned_resource_id=None):
         self.p_case = p_case
         self.p_state = p_state
         self.task_id = task_id
@@ -15,6 +15,8 @@ class EnabledEvent:
         self.batch_info_exec = batch_info_exec
         self.duration_sec = duration_sec        # filled only in case of event-based gateway
         self.is_inter_event = is_inter_event    # whether the enabled event is the intermediate event
+        self.assigned_resource_id = assigned_resource_id
+
 
 
 class ProcessInfo:
@@ -24,55 +26,42 @@ class ProcessInfo:
 
 
 class TaskEvent:
-    def __init__(self, p_case, task_id, resource_id, resource_available_at=None, 
-        enabled_at=None, enabled_datetime=None, bpm_env=None, num_tasks_in_batch=0):
-        self.p_case = p_case  # ID of the current trace, i.e., index of the trace in log_info list
-        self.task_id = task_id  # Name of the task related to the current event
-        self.type = BPMN.TASK # showing whether it's task or event
-        self.resource_id = resource_id  # ID of the resource performing to the event
-        self.waiting_time = None
-        self.processing_time = None
-        self.normalized_waiting = None
-        self.normalized_processing = None
+    def __init__(self, p_case, task_id, resource_id, started_at, started_datetime,
+                 enabled_at, enabled_datetime, real_duration, ideal_duration,
+                 bpm_env=None, num_tasks_in_batch=0):
+        self.p_case = p_case  # ID of the current trace
+        self.task_id = task_id  # ID of the task
+        self.type = BPMN.TASK  # Task type
+        self.resource_id = resource_id  # ID of the resource
         self.worked_intervals = []
 
-        if resource_available_at is not None:
-            # Time moment in seconds from beginning, i.e., first event has time = 0
-            self.enabled_at = enabled_at
-            # Datetime of the time-moment calculated from the starting simulation datetime
-            self.enabled_datetime = enabled_datetime
+        self.enabled_at = enabled_at  # Simulation time when the task was enabled
+        self.enabled_datetime = enabled_datetime  # Real datetime when the task was enabled
 
-            # Time moment in seconds from beginning, i.e., first event has time = 0
-            self.started_at = max(resource_available_at, enabled_at)
-            # Datetime of the time-moment calculated from the starting simulation datetime
-            self.started_datetime = bpm_env.simulation_datetime_from(self.started_at)
+        self.started_at = started_at  # Simulation time when the task started
+        self.started_datetime = started_datetime  # Real datetime when the task started
 
-            # Ideal duration from the distribution-function if allocate resource doesn't rest
-            self.ideal_duration = bpm_env.sim_setup.ideal_task_duration(task_id, resource_id, num_tasks_in_batch)
-            # Actual duration adding the resource resting-time according to their calendar
-            self.real_duration = bpm_env.sim_setup.real_task_duration(self.ideal_duration, self.resource_id,
-                                                                      self.started_datetime, self.worked_intervals)
+        self.ideal_duration = ideal_duration  # Ideal task duration
+        self.real_duration = real_duration  # Real task duration considering resource calendar
 
-            # Time moment in seconds from beginning, i.e., first event has time = 0
-            self.completed_at = self.started_at + self.real_duration
-            # Datetime of the time-moment calculated from the starting simulation datetime
-            self.completed_datetime = bpm_env.simulation_datetime_from(self.completed_at)
+        # Calculate completion times
+        self.completed_at = self.started_at + self.real_duration
+        self.completed_datetime = bpm_env.simulation_datetime_from(self.completed_at)
 
-            # Time of a resource was resting while performing a task (in seconds)
-            self.idle_time = self.real_duration - self.ideal_duration
-            # Time from an event is enabled until it is started by any resource
-            self.waiting_time = self.started_at - self.enabled_at
-            self.idle_cycle_time = self.completed_at - self.enabled_at
-            self.idle_processing_time = self.completed_at - self.started_at
-            self.cycle_time = self.idle_cycle_time - self.idle_time
-            self.processing_time = self.idle_processing_time - self.idle_time
-        else:
-            self.task_name = None
-            self.enabled_at = enabled_at
-            self.enabled_by = None
-            self.started_at = None
-            self.completed_at = None
-            self.idle_time = None
+        # Calculate idle time
+        self.idle_time = self.real_duration - self.ideal_duration
+
+        # Calculate various times
+        self.waiting_time = self.started_at - self.enabled_at
+        self.idle_cycle_time = self.completed_at - self.enabled_at
+        self.idle_processing_time = self.completed_at - self.started_at
+        self.cycle_time = self.idle_cycle_time - self.idle_time
+        self.processing_time = self.idle_processing_time - self.idle_time
+
+        # Placeholders for normalization (if needed later)
+        self.normalized_waiting = None
+        self.normalized_processing = None
+
 
     @classmethod
     def create_event_entity(cls, c_event: EnabledEvent, ended_at, ended_datetime):

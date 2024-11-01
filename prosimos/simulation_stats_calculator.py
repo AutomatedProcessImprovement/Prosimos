@@ -63,7 +63,7 @@ class LogInfo:
     def __init__(self, sim_setup: SimDiffSetup):
         self.started_at = pytz.UTC.localize(datetime.datetime.max)
         self.ended_at = pytz.UTC.localize(datetime.datetime.min)
-        self.trace_list = list()
+        self.trace_list = {}
         self.task_exec_info = dict()
         self.sim_setup = sim_setup
 
@@ -74,9 +74,16 @@ class LogInfo:
         return self.trace_list[p_case].event_list[event_index]
 
     def add_event_info(self, p_case: int, event_info: TaskEvent, task_cost: float):
-        trace_info = self.trace_list[p_case]
+        # Check if the Trace object for the case exists
+        trace_info = self.trace_list.get(p_case)
+        if trace_info is None:
+            # Create a new Trace object for the case
+            trace_info = Trace(p_case, self.started_at)
+            self.trace_list[p_case] = trace_info
+        # Update the Trace object with event information
         trace_info.completed_at = max(trace_info.completed_at, event_info.completed_datetime)
         trace_info.event_list.append(event_info)
+        # Update global task statistics
         self._update_global_task_stats(event_info, task_cost)
 
     def compute_execution_times(self, trace_info: Trace, process_kpi: KPIMap, model_type="CRISP"):
@@ -84,15 +91,26 @@ class LogInfo:
         waiting_intervals = list()
         real_work_intervals = list()
         for event_info in trace_info.event_list:
-            if (event_info.type == BPMN.TASK):
-                r_calendar = self.sim_setup.calendars_map[self.sim_setup.resources_map[event_info.resource_id].calendar_id]
+            if event_info.type == BPMN.TASK:
+                # Check if the resource exists in resources_map
+                if event_info.resource_id in self.sim_setup.resources_map:
+                    resource = self.sim_setup.resources_map[event_info.resource_id]
+                    r_calendar = self.sim_setup.calendars_map[resource.calendar_id]
 
-                if model_type == "FUZZY":
-                    for interval in event_info.worked_intervals:
-                        real_work_intervals.append(interval)
+                    if model_type == "FUZZY":
+                        for interval in event_info.worked_intervals:
+                            real_work_intervals.append(interval)
+                    else:
+                        r_calendar.remove_idle_times(
+                            event_info.started_datetime,
+                            event_info.completed_datetime,
+                            real_work_intervals
+                        )
                 else:
-                    r_calendar.remove_idle_times(event_info.started_datetime, event_info.completed_datetime,
-                                                 real_work_intervals)
+                    # Resource is external; assume the full duration is working time
+                    real_work_intervals.append(
+                        Interval(event_info.started_datetime, event_info.completed_datetime)
+                    )
             processing_intervals.append(Interval(event_info.started_datetime, event_info.completed_datetime))
             waiting_intervals.append(Interval(event_info.enabled_datetime, event_info.started_datetime))
 
@@ -135,7 +153,7 @@ class LogInfo:
 
     def compute_process_kpi(self, bpm_env):
         process_kpi = KPIMap()
-        for trace_info in self.trace_list:
+        for trace_info in self.trace_list.values():
             self.compute_execution_times(trace_info, process_kpi, bpm_env.sim_setup.model_type)
 
         return [process_kpi, self.task_exec_info, compute_resource_utilization(bpm_env), self.started_at, self.ended_at]
@@ -174,7 +192,7 @@ class LogInfo:
 
     def compute_full_simulation_statistics(self, stat_fwriter, model_type):
         process_kpi = KPIMap()
-        for trace_info in self.trace_list:
+        for trace_info in self.trace_list.values():
             self.compute_execution_times(trace_info, process_kpi, model_type)
 
         kpi_map = {"cycle_time": process_kpi.cycle_time,

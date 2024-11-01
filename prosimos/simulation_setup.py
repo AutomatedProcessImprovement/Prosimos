@@ -1,6 +1,5 @@
-import datetime
 import ntpath
-from datetime import timedelta
+from datetime import timedelta, datetime
 from typing import Optional
 
 import pytz
@@ -15,9 +14,9 @@ from prosimos.simulation_properties_parser import parse_json_sim_parameters, par
 
 
 class SimDiffSetup:
-    def __init__(self, bpmn_path, json_path, is_event_added_to_log, total_cases):
+    def __init__(self, bpmn_path, json_path, is_event_added_to_log, total_cases, process_state=None):
         self.process_name = ntpath.basename(bpmn_path).split(".")[0]
-        self.start_datetime = datetime.datetime.now(pytz.utc)
+        self.process_state = process_state
 
         (
             self.resources_map,
@@ -32,7 +31,8 @@ class SimDiffSetup:
             self.gateway_conditions,
             self.all_attributes,
             self.gateway_execution_limit,
-            self.model_type
+            self.model_type,
+            self.resource_name_to_id
         ) = parse_json_sim_parameters(json_path)
         self.gateway_conditions = add_default_flows(self.gateway_conditions, bpmn_path)
         self.case_attributes = self.all_attributes.case_attributes
@@ -48,6 +48,56 @@ class SimDiffSetup:
 
         self.is_event_added_to_log = is_event_added_to_log
         self.total_num_cases = total_cases  # how many process cases should be simulated
+
+        # Set start_datetime based on process_state or default to current time
+        if self.process_state:
+            self.start_datetime = self.determine_start_datetime()
+        else:
+            self.start_datetime = datetime.now(pytz.utc)
+
+    def determine_start_datetime(self):
+        """
+        Determine the simulation start datetime based on the process_state.
+        """
+        start_times = []
+
+        # Include 'last_case_arrival' as a potential start time
+        if 'last_case_arrival' in self.process_state:
+            last_arrival = self.process_state['last_case_arrival']
+            if isinstance(last_arrival, str):
+                last_arrival = datetime.fromisoformat(last_arrival)
+            start_times.append(last_arrival)
+
+        # Collect times from resource_last_end_times
+        for end_time in self.process_state.get('resource_last_end_times', {}).values():
+            if isinstance(end_time, str):
+                end_time = datetime.fromisoformat(end_time)
+            start_times.append(end_time)
+
+        # Collect times from cases
+        for case_data in self.process_state.get('cases', {}).values():
+            # Enabled activities
+            for activity in case_data.get('enabled_activities', []):
+                enabled_time = activity.get('enabled_time')
+                if isinstance(enabled_time, str):
+                    enabled_time = datetime.fromisoformat(enabled_time)
+                start_times.append(enabled_time)
+            # Ongoing activities
+            for activity in case_data.get('ongoing_activities', []):
+                start_time = activity.get('start_time')
+                if isinstance(start_time, str):
+                    start_time = datetime.fromisoformat(start_time)
+                start_times.append(start_time)
+
+        # Ensure all times are datetime objects and filter out None values
+        start_times = [time for time in start_times if isinstance(time, datetime)]
+
+        if start_times:
+            earliest_time = min(start_times)
+            return earliest_time
+        else:
+            # Default to current time if no times are available
+            return datetime.now(pytz.utc)
 
     def verify_simulation_input(self):
         for e_id in self.bpmn_graph.element_info:
@@ -130,15 +180,22 @@ class SimDiffSetup:
 
             return curr_batch_info.calculate_ideal_duration(duration, num_tasks_in_batch)
 
-    def real_task_duration(self, task_duration, resource_id, enabled_at, worked_intervals=None):
-        if self.model_type == "FUZZY":
-            return self.calendars_map[self.resources_map[resource_id].calendar_id].find_idle_time(
-                enabled_at, task_duration, worked_intervals
-            )
+    def real_task_duration(self, task_duration, resource_id, enabled_at, resource_in_pool=True, worked_intervals=None):
+        if not resource_in_pool or resource_id not in self.resources_map:
+            # Handle external resource
+            return task_duration
         else:
-            return self.calendars_map[self.resources_map[resource_id].calendar_id].find_idle_time(
-                enabled_at, task_duration
-            )
+            # Resource is in the resource map
+            resource_calendar_id = self.resources_map[resource_id].calendar_id
+            resource_calendar = self.calendars_map[resource_calendar_id]
+            if self.model_type == "FUZZY":
+                return resource_calendar.find_idle_time(
+                    enabled_at, task_duration, worked_intervals
+                )
+            else:
+                return resource_calendar.find_idle_time(
+                    enabled_at, task_duration
+                )
 
     def set_starting_datetime(self, new_datetime):
         (

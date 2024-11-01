@@ -1,0 +1,245 @@
+{
+    "last_case_arrival": "2012-03-21T10:00:00+00:00",
+    "resource_last_end_times": {
+        "DIO": "2012-03-21T10:10:00+00:00",
+        "Giorno": "2012-03-21T10:05:00+00:00",
+        "Jolyne": "2012-03-21T10:10:00+00:00",
+        "Jonathan": "2012-03-21T10:10:00+00:00",
+        "Pucci": "2012-03-21T10:05:00+00:00"
+    },
+    "cases": {
+        "0": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_08i82lb"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": []
+        },
+        "1": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_0a9co7f"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "name": "I",
+                    "enabled_time": "2012-03-21 06:30:00+00:00"
+                }
+            ]
+        },
+        "2": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_1df9ld5"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "name": "D",
+                    "enabled_time": "2012-03-21 06:40:00+00:00"
+                }
+            ]
+        },
+        "3": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_08i82lb"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": []
+        },
+        "4": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_0a9co7f"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "name": "I",
+                    "enabled_time": "2012-03-21 07:20:00+00:00"
+                }
+            ]
+        },
+        "5": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_0qkv9uj"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "name": "M",
+                    "enabled_time": "2012-03-21 07:45:00+00:00"
+                }
+            ]
+        },
+        "6": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_0a9co7f"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "name": "I",
+                    "enabled_time": "2012-03-21 07:50:00+00:00"
+                }
+            ]
+        },
+        "7": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_1dbtc82"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": []
+        },
+        "8": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_0a9co7f"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "name": "I",
+                    "enabled_time": "2012-03-21 08:15:00+00:00"
+                }
+            ]
+        },
+        "9": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_1dbtc82"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": []
+        },
+        "10": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_10ueywn"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "name": "G",
+                    "enabled_time": "2012-03-21 08:40:00+00:00"
+                }
+            ]
+        },
+        "11": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_0qkv9uj"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "name": "M",
+                    "enabled_time": "2012-03-21 09:05:00+00:00"
+                }
+            ]
+        },
+        "12": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_08i82lb"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": []
+        },
+        "13": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_10ueywn"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "name": "G",
+                    "enabled_time": "2012-03-21 09:25:00+00:00"
+                }
+            ]
+        },
+        "14": {
+            "control_flow_state": {
+                "flows": [],
+                "activities": [
+                    "P"
+                ]
+            },
+            "ongoing_activities": [
+                {
+                    "name": "P",
+                    "start_time": "2012-03-21 10:10:00+00:00",
+                    "resource": "Jolyne"
+                }
+            ],
+            "enabled_activities": []
+        },
+        "15": {
+            "control_flow_state": {
+                "flows": [],
+                "activities": [
+                    "L"
+                ]
+            },
+            "ongoing_activities": [
+                {
+                    "name": "L",
+                    "start_time": "2012-03-21 10:10:00+00:00",
+                    "resource": "Jonathan"
+                }
+            ],
+            "enabled_activities": []
+        },
+        "16": {
+            "control_flow_state": {
+                "flows": [],
+                "activities": [
+                    "C"
+                ]
+            },
+            "ongoing_activities": [
+                {
+                    "name": "C",
+                    "start_time": "2012-03-21 10:10:00+00:00",
+                    "resource": "DIO"
+                }
+            ],
+            "enabled_activities": []
+        }
+    }
+}
