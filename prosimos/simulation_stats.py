@@ -232,9 +232,13 @@ def load_diff_simulation_results(csv_stats_path):
 
                     sim_info.tasks_kpi_map[task_name] = task_kpi
                 elif output_section == 3:
-                    kpi_array[kpi_index].set_values(float(row[1]), float(row[2]), float(row[3]),
-                                                    float(row[4]), float(row[5]))
-                    kpi_index += 1
+                    if kpi_index < len(kpi_array) and len(row) >= 6:
+                        kpi_array[kpi_index].set_values(float(row[1]), float(row[2]), float(row[3]), float(row[4]),
+                                                        float(row[5]))
+                        kpi_index += 1
+                    else:
+                        print(f"Warning: Not enough data to set KPI values at index {kpi_index}. Row data: {row}")
+
 
     return sim_info
 

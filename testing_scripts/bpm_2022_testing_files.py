@@ -20,7 +20,8 @@ process_files = {
         'demo_stats': './assets/and_example/out/synthetic_xor_loop.csv',
         'start_datetime': '2012-03-21T23:10:30.000Z',
         'total_cases': 20,
-        'process_state': './assets/and_example/output.json'
+        'process_state': './assets/and_example/output.json',
+        'simulation_horizon': '2012-03-21T23:10:30.000Z'
     },
     'padua_example': {
         'xes_log': 'None',

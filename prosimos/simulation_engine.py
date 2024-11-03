@@ -34,7 +34,7 @@ class SimResource:
 
 
 class SimBPMEnv:
-    def __init__(self, sim_setup: SimDiffSetup, stat_fwriter, log_fwriter, process_state=None):
+    def __init__(self, sim_setup: SimDiffSetup, stat_fwriter, log_fwriter, process_state=None, simulation_horizon=None):
         self.sim_setup = sim_setup
         self.sim_resources = dict()
         self.stat_fwriter = stat_fwriter
@@ -44,6 +44,7 @@ class SimBPMEnv:
         self.executed_events = 0
         self.time_update_process_state = 0
         self.all_process_states = dict()
+        self.simulation_horizon = simulation_horizon
 
         self.case_prioritisation = CasePrioritisation(
             self.sim_setup.total_num_cases,
@@ -69,6 +70,25 @@ class SimBPMEnv:
             self.resource_queue = DiffResourceQueue(self.sim_setup.task_resource, r_first_available)
             self.events_queue = EventQueue()
             self.generate_all_arrival_events()
+
+    def filter_event_log(self):
+        filtered_traces = {}
+        for case_id, trace in self.log_info.trace_list.items():
+            # Get the start time of the case (first event's start time)
+            if trace.event_list:
+                case_start_time = trace.event_list[0].started_datetime
+            else:
+                continue  # Skip cases with no events
+
+            if case_start_time <= self.sim_setup.simulation_horizon:
+                # Include this case
+                filtered_traces[case_id] = trace
+            else:
+                # Exclude this case
+                pass  # Events of cases started after the horizon are discarded
+
+        # Replace the trace_list with the filtered traces
+        self.log_info.trace_list = filtered_traces
 
     def initialize_from_process_state(self, process_state):
         # Initialize resource mapping (resource name to ID) from simulation setup
@@ -492,8 +512,25 @@ class SimBPMEnv:
     def get_csv_row_data(self, full_event: TaskEvent):
         """
         Return array of values for one line of the csv file based on full_event information.
-        In case we have defined case attributes setup, we will have additional columns besides the basic ones.
+        Includes filtering based on the simulation horizon.
         """
+
+        # Check if the case started after the simulation horizon
+        case_id = full_event.p_case
+
+        # Get the start time of the case
+        trace = self.log_info.trace_list.get(case_id)
+        if trace and trace.event_list:
+            case_start_time = trace.event_list[0].started_datetime
+        else:
+            # If no events yet, use the start time of the current event
+            case_start_time = full_event.started_datetime
+
+        if case_start_time > self.sim_setup.simulation_horizon:
+            # Skip this event, as the case started after the horizon
+            return None
+
+        # Proceed to generate the row data as before
 
         # Check if the resource_id is in resources_map
         if hasattr(full_event, "resource_id"):
@@ -733,8 +770,14 @@ class SimBPMEnv:
             # Update resource's worked time
             self.sim_resources[r_id].worked_time += full_evt.real_duration
 
-        # Write event to log file
-        self.log_writer.add_csv_row(self.get_csv_row_data(full_evt))
+        # Get the CSV row data
+        row_data = self.get_csv_row_data(full_evt)
+        if row_data:
+            # Write event to log file
+            self.log_writer.add_csv_row(row_data)
+        else:
+            # Event is not included due to filtering
+            pass
 
         completed_at = full_evt.completed_at
         completed_datetime = full_evt.completed_datetime
@@ -755,7 +798,14 @@ class SimBPMEnv:
         self.log_info.add_event_info(c_event.p_case, full_evt, 0)
 
         if self.sim_setup.is_event_added_to_log:
-            self.log_writer.add_csv_row(self.get_csv_row_data(full_evt))
+            # Get the CSV row data
+            row_data = self.get_csv_row_data(full_evt)
+            if row_data:
+                # Write event to log file
+                self.log_writer.add_csv_row(row_data)
+            else:
+                # Event is not included due to filtering
+                pass
 
         return completed_at, completed_datetime
 
@@ -849,9 +899,10 @@ def run_simulation(
     starting_at=None,
     is_event_added_to_log=False,
     fixed_arrival_times=None,
-    process_state=None
+    process_state=None,
+    simulation_horizon=None
 ):
-    diffsim_info = SimDiffSetup(bpmn_path, json_path, is_event_added_to_log, total_cases, process_state=process_state)
+    diffsim_info = SimDiffSetup(bpmn_path, json_path, is_event_added_to_log, total_cases, process_state=process_state, simulation_horizon=simulation_horizon)
 
     if not diffsim_info:
         return None
@@ -867,7 +918,7 @@ def run_simulation(
         diffsim_info.set_starting_datetime(starting_at_datetime)
 
     if stat_out_path is None and log_out_path is None:
-        return run_simpy_simulation(diffsim_info, None, None, process_state=process_state)
+        return run_simpy_simulation(diffsim_info, None, None, process_state=process_state, simulation_horizon=simulation_horizon)
 
     csv_writer_config = {
         'delimiter': ',',
@@ -882,7 +933,7 @@ def run_simulation(
         stat_writer = csv.writer(stat_csv_file, **csv_writer_config) if stat_csv_file else None
         log_writer = csv.writer(log_csv_file, **csv_writer_config) if log_csv_file else None
 
-        result = run_simpy_simulation(diffsim_info, stat_writer, log_writer, fixed_starting_times=fixed_arrival_times, process_state=process_state)
+        result = run_simpy_simulation(diffsim_info, stat_writer, log_writer, fixed_starting_times=fixed_arrival_times, process_state=process_state, simulation_horizon=simulation_horizon)
         print("run_simulation: result =", result)
     finally:
         if stat_csv_file:
@@ -905,9 +956,11 @@ def run_simulation(
     return result
 
 
-def run_simpy_simulation(diffsim_info, stat_fwriter, log_fwriter, fixed_starting_times=None, process_state=None):
-    bpm_env = SimBPMEnv(diffsim_info, stat_fwriter, log_fwriter, process_state=process_state)
+def run_simpy_simulation(diffsim_info, stat_fwriter, log_fwriter, fixed_starting_times=None, process_state=None, simulation_horizon=None):
+    bpm_env = SimBPMEnv(diffsim_info, stat_fwriter, log_fwriter, process_state=process_state, simulation_horizon=simulation_horizon)
     execute_full_process(bpm_env, fixed_starting_times)
+
+    bpm_env.filter_event_log()
     if fixed_starting_times is not None:
         return bpm_env
     if log_fwriter is None and stat_fwriter is None:

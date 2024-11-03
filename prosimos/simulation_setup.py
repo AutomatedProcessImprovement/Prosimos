@@ -14,9 +14,10 @@ from prosimos.simulation_properties_parser import parse_json_sim_parameters, par
 
 
 class SimDiffSetup:
-    def __init__(self, bpmn_path, json_path, is_event_added_to_log, total_cases, process_state=None):
+    def __init__(self, bpmn_path, json_path, is_event_added_to_log, total_cases, process_state=None, simulation_horizon=None):
         self.process_name = ntpath.basename(bpmn_path).split(".")[0]
         self.process_state = process_state
+        self.simulation_horizon = simulation_horizon
 
         (
             self.resources_map,
@@ -47,13 +48,29 @@ class SimDiffSetup:
             self.arrival_calendar = self.find_arrival_calendar()
 
         self.is_event_added_to_log = is_event_added_to_log
-        self.total_num_cases = total_cases  # how many process cases should be simulated
 
         # Set start_datetime based on process_state or default to current time
         if self.process_state:
             self.start_datetime = self.determine_start_datetime()
+            horizon_duration = self.simulation_horizon - self.start_datetime
+            simulation_end_time = self.simulation_horizon + horizon_duration
+            self.total_num_cases = self.estimate_total_cases(self.start_datetime, simulation_end_time)
         else:
+            # how many process cases should be simulated
+            self.total_num_cases = total_cases
             self.start_datetime = datetime.now(pytz.utc)
+
+        print("total cases: ", self.total_num_cases)
+
+    def estimate_total_cases(self, start_datetime, simulation_end_time):
+        current_time = start_datetime
+        total_cases = 0
+        while current_time < simulation_end_time:
+            inter_arrival_seconds = self.next_arrival_time(current_time)
+            current_time += timedelta(seconds=inter_arrival_seconds)
+            if current_time < simulation_end_time:
+                total_cases += 1
+        return total_cases
 
     def determine_start_datetime(self):
         """

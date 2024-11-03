@@ -42,6 +42,7 @@ def main():
                                                  model_info["json"],
                                                  model_info['demo_stats'],
                                                  model_info['sim_log'],
+                                                 simulation_horizon=parse_datetime(model_info['simulation_horizon']),
                                                  process_state=process_state)
     print("diff_sim_result:", diff_sim_result)
     print("Simulation Time: %s" % str(datetime.timedelta(seconds=(datetime.datetime.now() - start).total_seconds())))
