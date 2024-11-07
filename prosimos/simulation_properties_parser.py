@@ -12,6 +12,7 @@ from prosimos.batch_processing_parser import BatchProcessingParser
 from prosimos.case_attributes import AllCaseAttributes, CaseAttribute
 from prosimos.control_flow_manager import BPMN, EVENT_TYPE, BPMNGraph, ElementInfo
 from prosimos.histogram_distribution import HistogramDistribution
+from prosimos.multitasking.multitasking_struct import MultiTaskDS
 from prosimos.prioritisation import AllPriorityRules
 from prosimos.prioritisation_parser import PrioritisationParser
 from prosimos.probability_distributions import Choice
@@ -40,6 +41,7 @@ BRANCH_RULES = "branch_rules"
 EVENT_ATTRIBUTES = "event_attributes"
 GLOBAL_ATTRIBUTES = "global_attributes"
 GATEWAY_EXECUTION_LIMIT = "gateway_execution_limit"
+MULTITASKING_SECTION = "multitask"
 
 DEFAULT_GATEWAY_EXECUTION_LIMIT = 1000
 
@@ -119,6 +121,10 @@ def parse_json_sim_parameters(json_path):
             if GATEWAY_EXECUTION_LIMIT in json_data \
             else DEFAULT_GATEWAY_EXECUTION_LIMIT
 
+        multitasking_info = parse_multitasking_model(json_data[MULTITASKING_SECTION], task_resource_distribution) \
+            if MULTITASKING_SECTION in json_data \
+            else None
+
         return (
             resources_map,
             calendars_map,
@@ -132,8 +138,57 @@ def parse_json_sim_parameters(json_path):
             gateway_conditions,
             all_attributes,
             gateway_execution_limit,
-            model_type
+            model_type,
+            multitasking_info
         )
+
+
+def parse_multitasking_model(json_data, task_resource_distribution):
+    if json_data["type"] == "local":
+        return _parse_local_multitasking(json_data, task_resource_distribution)
+    elif json_data["type"] == "global":
+        return _parse_global_multitasking(json_data, task_resource_distribution)
+    return None
+
+
+def _parse_global_multitasking(json_data, task_res_distr):
+    multi_info = MultiTaskDS(json_data["type"])
+    for res_info in json_data["values"]:
+        r_id = res_info["resource_id"]
+        multi_info.update_expected_workload(r_id, res_info["r_workload"])
+        multi_info.register_resource(r_id)
+        for mt_info in res_info["multitask_info"]:
+            multi_info.register_multitasks(r_id, mt_info["parallel_tasks"], mt_info["probability"])
+    # multi_info.init_relative_workload(task_res_distr)
+    return multi_info
+
+
+def _parse_local_multitasking(json_data, task_res_distr):
+    multi_info = MultiTaskDS(
+        json_data["type"],
+        60
+    )
+    # multi_info = MultiTaskDS(
+    #     json_data["type"],
+    #     json_data["granule_size"]["value"] * granule_units[(json_data["granule_size"]["time_unit"]).upper()]
+    # )
+    for res_info in json_data["values"]:
+        r_id = res_info["resource_id"]
+        multi_info.register_resource(r_id)
+        multi_info.update_expected_workload(r_id, res_info["r_workload"])
+        for wd_info in res_info["weekly_probability"]:
+            for gr_info in wd_info:
+                time_periods = convert_to_fuzzy_time_periods(gr_info)
+                for p_info in time_periods:
+                    for mt_info in gr_info["multitask_info"]:
+                        multi_info.register_local_multitasks(r_id,
+                                                             int_week_days[p_info["weekDay"]],
+                                                             parse_datetime(p_info["beginTime"], False),
+                                                             parse_datetime(p_info["endTime"], False),
+                                                             mt_info["parallel_tasks"],
+                                                             mt_info["probability"])
+    # multi_info.init_relative_workload(task_res_distr)
+    return multi_info
 
 
 def parse_fuzzy_calendar(json_data):
@@ -172,7 +227,7 @@ def convert_to_fuzzy_time_periods(time_period):
             "weekDay": week_day,
             "beginTime": time_period["beginTime"],
             "endTime": time_period["endTime"],
-            "probability": time_period["probability"],
+            "probability": time_period["probability"] if "probability" in time_period else 0.0,
         }
         time_periods.append(time_period)
 

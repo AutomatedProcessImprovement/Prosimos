@@ -5,17 +5,17 @@ import pytz
 
 from bpdfr_discovery.log_parser import event_list_from_csv
 from prosimos.file_manager import FileManager
-# from bpdfr_simulation_engine.file_manager import FileManager
-# from bpdfr_simulation_engine.simulation_engine import add_simulation_event_log_header
-from simod.fuzzy_calendars.fuzzy_discovery import build_fuzzy_calendars
-from testing_scripts.fuzzy_scripts.fuzzy_test_files import discovery_path, simulation_path, get_file_path, FileType
+from testing_scripts.fuzzy_scripts.test_simod.fuzzy_calendars.fuzzy_discovery import build_fuzzy_calendars
+
+from testing_scripts.fuzzy_scripts.fuzzy_test_files import FileType
+from testing_scripts.fuzzy_scripts.syntetic_logs_generator import get_file_path
 
 
-def discover_model_from_csv_log(proc_name, g_size, angle, c_type, even):
+def discover_model_from_csv_log(proc_name, g_size, angle, c_type, even, is_fuzzy):
     build_fuzzy_calendars(
-        csv_log_path=get_file_path(proc_name, FileType.TRAINING_CSV_LOG, g_size, angle, 0, c_type, even),
-        bpmn_path=get_file_path(proc_name, FileType.BPMN, g_size, angle, 0, c_type, even),
-        json_path=Path(get_file_path(proc_name, FileType.SIMULATION_JSON, g_size, angle, 0, c_type, even)),
+        csv_log_path=get_file_path(is_fuzzy, proc_name, FileType.TRAINING_CSV_LOG, g_size, angle, 0, c_type, even),
+        bpmn_path=get_file_path(is_fuzzy, proc_name, FileType.BPMN, g_size, angle, 0, c_type, even),
+        json_path=Path(get_file_path(is_fuzzy, proc_name, FileType.SIMULATION_JSON, g_size, angle, 0, c_type, even)),
         i_size_minutes=g_size,
         angle=angle)
 
@@ -42,8 +42,8 @@ def localize_datetimes(csv_log_path):
     save_event_log(csv_log_path, traces)
 
 
-def split_event_log(original_log_path, training_fpath, testing_fpath, training_ratio):
-    traces = event_list_from_csv(original_log_path)
+def split_event_log(original_log_path, training_fpath, testing_fpath, training_ratio, f_traces=None):
+    traces = event_list_from_csv(original_log_path) if f_traces is None else f_traces
     train_length = int(training_ratio * len(traces))
 
     train_events = _generate_and_save_log(training_fpath, traces, 0, train_length)

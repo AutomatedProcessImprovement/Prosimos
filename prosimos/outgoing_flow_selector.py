@@ -19,6 +19,8 @@ class OutgoingFlowSelector:
 
     @staticmethod
     def _handle_exclusive_gateway(e_info, element_probability, all_attributes, gateway_conditions):
+        if gateway_conditions is None:
+            return OutgoingFlowSelector._use_probabilities(e_info, element_probability)
         curr_gateway_conditions = gateway_conditions[e_info.id]
         candidates_list = curr_gateway_conditions.candidates_list
 
