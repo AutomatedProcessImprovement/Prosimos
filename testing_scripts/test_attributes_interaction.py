@@ -207,16 +207,30 @@ class ConfigBuilder:
         return calendars
 
     @staticmethod
-    def create_attribute(attr_name, value, distribution_name=None):
+    def create_attribute(attr_name, values, distribution_name=None):
+        if distribution_name == "discrete":
+            if not isinstance(values, dict):
+                raise ValueError(
+                    "For discrete distributions, values must be a dictionary with label-probability pairs.")
+
+            # Convert the label-probability dict to the required list of dicts format
+            distribution_params = [{"key": key, "value": float(prob)} for key, prob in values.items()]
+
+            return {
+                "name": attr_name,
+                "type": "discrete",
+                "values": distribution_params
+            }
+
         # If value is a single number, assume fixed distribution
-        if isinstance(value, (int, float)):
+        if isinstance(values, (int, float)):
             distribution_name = "fix"
-            distribution_params = [{"value": float(value)}]
+            distribution_params = [{"value": float(values)}]
         else:
             # Otherwise, assume value is an array of distribution parameters
             if distribution_name is None:
                 raise ValueError("For non-fixed distributions, distribution_name must be provided.")
-            distribution_params = value
+            distribution_params = values
 
         return {
             "name": attr_name,
@@ -283,6 +297,21 @@ class ConfigBuilder:
 
 
 CONFIG = [
+    *ConfigBuilder("test single discrete attribute - GLOBAL")
+    .add_global_attribute("GLOBAL", {"G":1}, "discrete")
+    .add_assertion(lambda log: check_case_pattern(log, {"GLOBAL": ["G", "G", "G"]}))
+    .build(),
+
+    *ConfigBuilder("test single discrete attribute - EVENT")
+    .add_global_attribute("EVENT", {"E": 1}, "discrete")
+    .add_assertion(lambda log: check_case_pattern(log, {"EVENT": ["E", "E", "E"]}))
+    .build(),
+
+    *ConfigBuilder("test single discrete attribute - CASE")
+    .add_global_attribute("CASE", {"C": 1}, "discrete")
+    .add_assertion(lambda log: check_case_pattern(log, {"CASE": ["C", "C", "C"]}))
+    .build(),
+
     *ConfigBuilder("test single attribute creation - GLOBAL")
     .add_global_attribute("GLOBAL", 1)
     .add_assertion(lambda log: check_case_pattern(log, {"GLOBAL": [1, 1, 1]}))
@@ -295,7 +324,7 @@ CONFIG = [
 
     *ConfigBuilder("test single attribute creation - EVENT")
     .add_event_attribute("EVENT", 3)
-    .add_assertion(lambda log: check_case_pattern(log, {"EVENT": [np.nan, 3, np.nan]}))
+    .add_assertion(lambda log: check_case_pattern(log, {"EVENT": [np.nan, 3, 3]}))
     .build(),
 
     *ConfigBuilder("test single attribute creation - GLOBAL CASE")
@@ -332,8 +361,19 @@ CONFIG = [
     .add_event_attribute("EVENT_1", 111)
     .add_event_attribute("EVENT_2", 222)
     .add_assertion(lambda log: check_case_pattern(log, {
-        "EVENT_1": [np.nan, 111, np.nan],
-        "EVENT_2": [np.nan, 222, np.nan]
+        "EVENT_1": [np.nan, 111, 111],
+        "EVENT_2": [np.nan, 222, 222]
+    }))
+    .build(),
+
+    *ConfigBuilder("test multiple attributes creation - ALL")
+    .add_global_attribute("GLOBAL_1", 1)
+    .add_case_attribute("CASE_1", 11)
+    .add_event_attribute("EVENT_1", 111)
+    .add_assertion(lambda log: check_case_pattern(log, {
+        "GLOBAL_1": [1, 1, 1],
+        "CASE_1": [11, 11, 11],
+        "EVENT_1": [np.nan, 111, 111],
     }))
     .build(),
 

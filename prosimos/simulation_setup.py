@@ -11,7 +11,7 @@ from prosimos.batch_processing import BatchConfigPerTask
 from prosimos.control_flow_manager import BPMN, ElementInfo, ProcessState
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.histogram_distribution import HistogramDistribution
-from prosimos.simulation_properties_parser import parse_json_sim_parameters, parse_simulation_model
+from prosimos.simulation_properties_parser import parse_json_sim_parameters, parse_simulation_model, add_default_flows
 
 
 class SimDiffSetup:
@@ -35,7 +35,7 @@ class SimDiffSetup:
             self.model_type,
             self.multitask_info
         ) = parse_json_sim_parameters(json_path)
-
+        self.gateway_conditions = add_default_flows(self.gateway_conditions, bpmn_path)
         self.case_attributes = self.all_attributes.case_attributes
 
         self.bpmn_graph = parse_simulation_model(bpmn_path)

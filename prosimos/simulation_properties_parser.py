@@ -1,5 +1,6 @@
 import datetime
 import json
+import pprint
 import xml.etree.ElementTree as ET
 
 from dateutil import parser
@@ -343,17 +344,21 @@ def parse_gateway_conditions(gateway_json, branch_rules):
         missing_conditions = list()
 
         for prob_info in g_info["probabilities"]:
+            path_id = prob_info["path_id"]
+
             if "condition_id" in prob_info:
-                out_arc.append(prob_info["path_id"])
+                out_arc.append(path_id)
                 curr_branch_rules = branch_rules.get_branch_condition_by_id(prob_info["condition_id"])
                 gateway_rules.append(curr_branch_rules)
             else:
-                missing_conditions.append(prob_info["path_id"])
+                missing_conditions.append(path_id)
 
         if len(prob_info) > 0:
             gateway_conditions[g_id] = GatewayConditionChoice(out_arc, gateway_rules)
 
-        if len(missing_conditions) > 0 and len(gateway_rules) != len(g_info["probabilities"]):
+        if len(missing_conditions) > 0 and \
+                len(missing_conditions) != g_info["probabilities"] and \
+                1 < len(g_info["probabilities"]) != len(gateway_rules):
             warning_logger.add_warning(f"Gateway {g_id} is using conditions, but some are missing. Flows without conditions: {', '.join(missing_conditions)}")
 
     return gateway_conditions
@@ -731,3 +736,21 @@ def parse_datetime(time, has_date):
             except ValueError:
                 pass
     raise ValueError
+
+
+def add_default_flows(gateway_conditions, bpmn_path):
+    tree = ET.parse(bpmn_path)
+    root = tree.getroot()
+
+    namespaces = {'bpmn': 'http://www.omg.org/spec/BPMN/20100524/MODEL'}
+
+    gateway_types = ['exclusiveGateway', 'inclusiveGateway']
+    for gateway_type in gateway_types:
+        for gateway in root.findall(f'.//bpmn:{gateway_type}', namespaces):
+            gateway_id = gateway.get('id')
+            default_flow = gateway.get('default')
+
+            if gateway_id in gateway_conditions and default_flow:
+                gateway_conditions[gateway_id].set_default(default_flow)
+
+    return gateway_conditions

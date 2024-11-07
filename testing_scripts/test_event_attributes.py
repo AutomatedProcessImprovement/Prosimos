@@ -5,6 +5,7 @@ import pytest
 import logging
 from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 from prosimos.event_attributes import EventAttribute, EVENT_ATTR_TYPE
+import numpy as np
 
 
 LOGGER = logging.getLogger(__name__)
@@ -110,6 +111,43 @@ EXPRESSION_TEST_CONFIGS = [
         "expected_value": 2
     },
     {
+        "test_name": "Modulus Test",
+        "event_attributes": {
+            "x": 10,
+            "y": 3
+        },
+        "expression": "x % y",
+        "expected_value": 1
+    },
+    {
+        "test_name": "Exponentiation Test",
+        "event_attributes": {
+            "x": 2,
+            "y": 3
+        },
+        "expression": "x ** y",
+        "expected_value": 8
+    },
+    {
+        "test_name": "True Division Test",
+        "event_attributes": {
+            "x": 7,
+            "y": 2
+        },
+        "expression": "x / y",
+        "expected_value": 3.5
+    },
+    {
+        "test_name": "Floor Division Test",
+        "event_attributes": {
+            "x": 7,
+            "y": 2
+        },
+        "expression": "x // y",
+        "expected_value": 3
+    },
+
+    {
         "test_name": "Unary Negation Test",
         "event_attributes": {
             "x": 5
@@ -198,50 +236,6 @@ EXPRESSION_TEST_CONFIGS = [
         "expected_value": True
     },
     {
-        "test_name": "Division by Zero Test",
-        "event_attributes": {
-            "x": 10,
-            "y": 0
-        },
-        "expression": "x / y",
-        "expected_value": None
-    },
-    {
-        "test_name": "Nonexistent Attribute Test",
-        "event_attributes": {
-            "x": 5
-        },
-        "expression": "x + y",
-        "expected_value": None
-    },
-    {
-        "test_name": "String Concatenation Test",
-        "event_attributes": {
-            "x": "Hello",
-            "y": " World"
-        },
-        "expression": "x + y",
-        "expected_value": "Hello World"
-    },
-    {
-        "test_name": "String Multiplication Test",
-        "event_attributes": {
-            "x": "Hello",
-            "y": 2
-        },
-        "expression": "x * y",
-        "expected_value": "HelloHello"
-    },
-    {
-        "test_name": "String Division Test",
-        "event_attributes": {
-            "x": "Hello",
-            "y": 2
-        },
-        "expression": "x / y",
-        "expected_value": None
-    },
-    {
         "test_name": "Boolean and String Test",
         "event_attributes": {
             "x": "Hello",
@@ -250,6 +244,7 @@ EXPRESSION_TEST_CONFIGS = [
         "expression": "x and y",
         "expected_value": True
     },
+
     {
         "test_name": "Boolean and Integer Test",
         "event_attributes": {
@@ -268,13 +263,13 @@ EXPRESSION_TEST_CONFIGS = [
         "expected_value": True
     },
     {
-        "test_name": "String Equality Test",  # Name of the test
-        "event_attributes": {  # Attributes used in expression
+        "test_name": "String Equality Test",
+        "event_attributes": {
             "x": "Hello",
             "y": "Hello"
         },
-        "expression": "x == y",  # Expression to be evaluated
-        "expected_value": True  # Expected result of the evaluation
+        "expression": "x == y",
+        "expected_value": True
     },
     {
         "test_name": "String Inequality Test",
@@ -284,16 +279,6 @@ EXPRESSION_TEST_CONFIGS = [
         },
         "expression": "x != y",
         "expected_value": True
-    },
-    {
-        "test_name": "Concatenation and Multiplication Test",
-        "event_attributes": {
-            "x": "Hello",
-            "y": "World",
-            "z": 2
-        },
-        "expression": "(x + ' ' + y) * z",
-        "expected_value": "Hello WorldHello World"
     },
     {
         "test_name": "Empty String Test",
@@ -322,61 +307,6 @@ EXPRESSION_TEST_CONFIGS = [
         "expected_value": False
     },
     {
-        "test_name": "Modulus Test",
-        "event_attributes": {
-            "x": 10,
-            "y": 3
-        },
-        "expression": "x % y",
-        "expected_value": 1
-    },
-    {
-        "test_name": "Exponentiation Test",
-        "event_attributes": {
-            "x": 2,
-            "y": 3
-        },
-        "expression": "x ** y",
-        "expected_value": 8
-    },
-    {
-        "test_name": "True Division Test",
-        "event_attributes": {
-            "x": 7,
-            "y": 2
-        },
-        "expression": "x / y",
-        "expected_value": 3.5
-    },
-    {
-        "test_name": "Floor Division Test",
-        "event_attributes": {
-            "x": 7,
-            "y": 2
-        },
-        "expression": "x // y",
-        "expected_value": 3
-    },
-    {
-        "test_name": "Mixed Type Addition Test",
-        "event_attributes": {
-            "x": "Hello",
-            "y": 5
-        },
-        "expression": "x + y",
-        "expected_value": None
-    },
-    {
-        "test_name": "Nested Operation Test",
-        "event_attributes": {
-            "x": 2,
-            "y": 3,
-            "z": 1
-        },
-        "expression": "(x + y) * z",
-        "expected_value": 5
-    },
-    {
         "test_name": "Inequality Test With Zero",
         "event_attributes": {
             "x": 0,
@@ -402,6 +332,120 @@ EXPRESSION_TEST_CONFIGS = [
         },
         "expression": "x < y",
         "expected_value": True
+    },
+
+
+
+
+
+    {
+        "test_name": "String Concatenation Test",
+        "event_attributes": {
+            "x": "Hello",
+            "y": " World"
+        },
+        "expression": "x + y",
+        "expected_value": "Hello World"
+    },
+    {
+        "test_name": "String Multiplication Test",
+        "event_attributes": {
+            "x": "Hello",
+            "y": 2
+        },
+        "expression": "x * y",
+        "expected_value": "HelloHello"
+    },
+    {
+        "test_name": "String Division Test",
+        "event_attributes": {
+            "x": "Hello",
+            "y": 2
+        },
+        "expression": "x / y",
+        "expected_value": 0
+    },
+    {
+        "test_name": "Division by Zero Test",
+        "event_attributes": {
+            "x": 10,
+            "y": 0
+        },
+        "expression": "x / y",
+        "expected_value": 0
+    },
+    {
+        "test_name": "Nonexistent Attribute Test",
+        "event_attributes": {
+            "x": 5
+        },
+        "expression": "x + y",
+        "expected_value": 0
+    },
+    {
+        "test_name": "Concatenation and Multiplication Test",
+        "event_attributes": {
+            "x": "Hello",
+            "y": "World",
+            "z": 2
+        },
+        "expression": "(x + ' ' + y) * z",
+        "expected_value": "Hello WorldHello World"
+    },
+    {
+        "test_name": "Mixed Type Addition Test",
+        "event_attributes": {
+            "x": "Hello",
+            "y": 5
+        },
+        "expression": "x + y",
+        "expected_value": 0
+    },
+    {
+        "test_name": "Nested Operation Test",
+        "event_attributes": {
+            "x": 2,
+            "y": 3,
+            "z": 3
+        },
+        "expression": "(x + y) * z",
+        "expected_value": 15
+    },
+    {
+        "test_name": "Single Number",
+        "event_attributes": {
+        },
+        "expression": "1",
+        "expected_value": 1
+    },
+    {
+        "test_name": "Invalid expression",
+        "event_attributes": {
+        },
+        "expression": "\\?da\d/qwd",
+        "expected_value": None
+    },
+    {
+        "test_name": "Math function (root)",
+        "event_attributes": {
+        },
+        "expression": "sqrt(49)",
+        "expected_value": 7
+    },
+
+    {
+        "test_name": "Math function overflow (exp growth)",
+        "event_attributes": {
+        },
+        "expression": "exp(3999)",
+        "expected_value": np.finfo(np.float32).max
+    },
+    {
+        "test_name": "Math function unexpected value (negatives for log))",
+        "event_attributes": {
+        },
+        "expression": "log(-1)",
+        "expected_value": 0
     }
 ]
 

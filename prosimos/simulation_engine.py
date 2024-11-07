@@ -36,7 +36,6 @@ class SimResource:
 
 class SimBPMEnv:
     def __init__(self, sim_setup: SimDiffSetup, stat_fwriter, log_fwriter):
-        self.produced_event_attributes = {}
         self.sim_setup = sim_setup
         self.sim_resources = dict()
         self.stat_fwriter = stat_fwriter
@@ -62,7 +61,7 @@ class SimBPMEnv:
         )
 
         all_attributes = {
-            "global": self.sim_setup.all_attributes.global_attributes.get_values_calculated(),
+            "global": self.sim_setup.all_attributes.global_attribute_initial_values,
             **self.case_prioritisation.all_case_attributes
         }
 
@@ -326,7 +325,6 @@ class SimBPMEnv:
 
         new_global_attr_values = self._extract_attributes_for_event(current_event.task_id, global_event_attributes, all_attribute_values)
         new_event_attr_values = self._extract_attributes_for_event(current_event.task_id, event_attributes, all_attribute_values)
-        self.produced_event_attributes = set(new_event_attr_values.keys())
 
         self.sim_setup.bpmn_graph.all_attributes["global"].update(new_global_attr_values)
         self.sim_setup.bpmn_graph.all_attributes[current_event.p_case].update(new_event_attr_values)
@@ -365,11 +363,7 @@ class SimBPMEnv:
         )
 
         all_attrs = self.sim_setup.bpmn_graph.get_all_attributes(full_event.p_case)
-        values = [all_attrs.get(col) if
-                  (col in self.produced_event_attributes or col not in self.sim_setup.all_attributes.event_attribute_names)
-                else None for col in self.additional_columns]
-
-        self.produced_event_attributes.clear()
+        values = ["" if all_attrs.get(col) is None else all_attrs.get(col) for col in self.additional_columns]
 
         return [*row_basic_info, *values]
 

@@ -26,7 +26,6 @@ class BranchConditionRule:
         if self.condition == "in":
             min_boundary = float(value[0])
             max_boundary = sys.maxsize if value[1] == "inf" else float(value[1])
-
             return min_boundary, max_boundary
         else:
             return value
@@ -35,12 +34,34 @@ class BranchConditionRule:
         if self.attribute not in all_case_values:
             return False
 
-        case_value = all_case_values[self.attribute]
-        if self.condition == "in":
-            evaluator = InOperatorEvaluator(self.value, case_value)
-            return evaluator.eval()
+        raw_case_value = all_case_values[self.attribute]
+        if self.condition in [">", ">=", "<", "<=", "!="]:
+            try:
+                case_value = float(raw_case_value)
+                comparison_value = float(self.value)
+            except ValueError:
+                case_value = raw_case_value
+                comparison_value = self.value
         else:
-            return self.value == case_value
+            case_value = raw_case_value
+            comparison_value = self.value
+
+        if self.condition == "in":
+            min_value, max_value = comparison_value
+            return min_value <= case_value <= max_value
+        elif self.condition == ">":
+            return case_value > comparison_value
+        elif self.condition == ">=":
+            return case_value >= comparison_value
+        elif self.condition == "<":
+            return case_value < comparison_value
+        elif self.condition == "<=":
+            return case_value <= comparison_value
+        elif self.condition == "!=":
+            return case_value != comparison_value
+        else:
+            return case_value == comparison_value
+
 
 
 class AndBranchConditionRule:
