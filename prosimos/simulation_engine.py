@@ -197,10 +197,11 @@ class SimBPMEnv:
                     if possible_resources:
                         any_res_id = next(iter(possible_resources))
                         total_duration = self.sim_setup.task_resource[task_id][any_res_id].generate_sample(1)[0]
-                        time_elapsed = (self.sim_setup.start_datetime - start_time).total_seconds()
-                        remaining_duration = total_duration - time_elapsed
-                        if remaining_duration < 0:
-                            remaining_duration = 0
+                        # time_elapsed = (self.sim_setup.start_datetime - start_time).total_seconds()
+                        # remaining_duration = total_duration - time_elapsed
+                        # if remaining_duration < 0:
+                        #     remaining_duration = 0
+                        remaining_duration = total_duration
                         print(f"WARNING: Used distribution from resource '{any_res_id}' for task '{task_id}'.")
                     else:
                         print(f"Cannot compute remaining_duration for task '{task_id}'. No distribution available.")
@@ -515,12 +516,14 @@ class SimBPMEnv:
             started_at = max(c_event.enabled_at, resource_available_at)
 
         started_datetime = self.simulation_datetime_from(started_at)
+        print(f"Started at {started_datetime} and started {started_at}")
 
         # Calculate real duration (accounting for resource calendar)
         if resource_in_pool:
             real_duration = self.sim_setup.real_task_duration(duration, resource_id, started_datetime)
         else:
             real_duration = duration
+        print(f"DEBUG: started_at={started_at}, real_duration={real_duration}")
 
         completed_at = started_at + real_duration
         completed_datetime = self.simulation_datetime_from(completed_at)
