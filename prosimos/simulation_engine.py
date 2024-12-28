@@ -227,7 +227,7 @@ class SimBPMEnv:
                     # The activity will end at started + remaining
                     # started = enabled_at in seconds from sim start
                     # ends_at = started + remaining
-                    activity_ends_at = enabled_at + remaining_duration
+                    activity_ends_at = started_at + remaining_duration
                     # Keep the maximum
                     if activity_ends_at > resource_end_times_map[resource_id]:
                         resource_end_times_map[resource_id] = activity_ends_at
