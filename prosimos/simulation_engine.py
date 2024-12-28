@@ -152,15 +152,15 @@ class SimBPMEnv:
 
                 # Convert that to simulation seconds
                 enabled_at = (enabled_time_dt - self.sim_setup.start_datetime).total_seconds()
-                if enabled_at < 0:
-                    print(f"Adjusted enabled_at for case {case_id} from {enabled_at} to 0.")
-                    enabled_at = 0
+                # if enabled_at < 0:
+                #     print(f"Adjusted enabled_at for case {case_id} from {enabled_at} to 0.")
+                #     enabled_at = 0
 
                 # Also convert the real start_time to simulation seconds
                 started_at = (start_time - self.sim_setup.start_datetime).total_seconds()
-                if started_at < 0:
-                    print(f"Adjusted started_at for case {case_id} from {started_at} to 0.")
-                    started_at = 0
+                # if started_at < 0:
+                #     print(f"Adjusted started_at for case {case_id} from {started_at} to 0.")
+                #     started_at = 0
 
                 # Attempt to get known leftover duration
                 remaining_duration = activity.get('remaining_duration')
@@ -486,13 +486,11 @@ class SimBPMEnv:
         task_id = c_event.task_id
         p_case = c_event.p_case
 
-        # Use assigned resource if provided
+        # Decide resource
         if c_event.assigned_resource_id:
             resource_id = c_event.assigned_resource_id
-            # Assume resource is available at the task's enabled time
             resource_available_at = c_event.enabled_at
         else:
-            # Allocate a resource using pop_and_allocate_resource
             resource_id, resource_available_at = self.pop_and_allocate_resource(task_id, num_allocated_tasks=1)
             self.sim_resources[resource_id].allocated_tasks += 1
 
@@ -500,24 +498,34 @@ class SimBPMEnv:
         if c_event.duration_sec is not None:
             duration = c_event.duration_sec
         else:
-            # Calculate duration using the task's duration distribution
             duration = self.sim_setup.ideal_task_duration(task_id, resource_id, num_tasks_in_batch=0)
 
-        # The task cannot start before both the event's enabled_at and the resource's availability
-        started_at = max(c_event.enabled_at, resource_available_at)
+        # ---------------------------------------------
+        # 1) If partial-state says "it started at X", use it
+        # 2) Otherwise, do max(enabled_at, resource_avail)
+        # ---------------------------------------------
+        if hasattr(c_event, "started_at") and c_event.started_at is not None:
+            started_at = c_event.started_at
+            # If you want partial state to override resource availability, do:
+            #   started_at = c_event.started_at
+            #
+            # If you want to ensure resource can't start before it's available,
+            # you'd do: started_at = max(c_event.started_at, resource_available_at)
+        else:
+            started_at = max(c_event.enabled_at, resource_available_at)
+
         started_datetime = self.simulation_datetime_from(started_at)
 
+        # Calculate real duration (accounting for resource calendar)
         if resource_in_pool:
-            # Resource is in the pool, calculate real duration considering the resource's calendar
             real_duration = self.sim_setup.real_task_duration(duration, resource_id, started_datetime)
         else:
-            # Resource not in pool, use the duration as is
             real_duration = duration
 
         completed_at = started_at + real_duration
         completed_datetime = self.simulation_datetime_from(completed_at)
 
-        # Create TaskEvent
+        # Create the TaskEvent
         full_evt = TaskEvent(
             p_case=p_case,
             task_id=task_id,
@@ -971,15 +979,12 @@ def run_simulation(
     if not diffsim_info:
         return None
 
-    if process_state:
-        if starting_at:
-            print("WARNING: 'starting_at' parameter is ignored when 'process_state' is provided.")
-    else:
-        # When no process_state, set start_datetime based on starting_at or current time
-        starting_at_datetime = (
-            parse_datetime(starting_at, True) if starting_at else pytz.utc.localize(datetime.datetime.now())
-        )
-        diffsim_info.set_starting_datetime(starting_at_datetime)
+    # When no process_state, set start_datetime based on starting_at or current time
+    starting_at_datetime = (
+        parse_datetime(starting_at, True) if starting_at else pytz.utc.localize(datetime.datetime.now())
+    )
+    diffsim_info.set_starting_datetime(starting_at_datetime)
+    diffsim_info.setup_horizon()
 
     if stat_out_path is None and log_out_path is None:
         return run_simpy_simulation(diffsim_info, None, None, process_state=process_state, simulation_horizon=simulation_horizon)

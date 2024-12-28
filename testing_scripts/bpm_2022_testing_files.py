@@ -18,7 +18,7 @@ process_files = {
         'json': './assets/and_example/synthetic_xor_loop.json',
         'sim_log': './assets/and_example/out/synthetic_xor_loop.csv',
         'demo_stats': './assets/and_example/out/synthetic_xor_loop.csv',
-        'start_datetime': '2012-03-21T23:10:30.000Z',
+        'start_datetime': '2012-03-21T10:11:00.000Z',
         'total_cases': 20,
         'process_state': './assets/and_example/output.json',
         'simulation_horizon': '2012-03-21T23:10:30.000Z'

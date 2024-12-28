@@ -49,18 +49,22 @@ class SimDiffSetup:
 
         self.is_event_added_to_log = is_event_added_to_log
 
-        # Set start_datetime based on process_state or default to current time
         if self.process_state:
-            self.start_datetime = self.determine_start_datetime()
-            horizon_duration = self.simulation_horizon - self.start_datetime
-            simulation_end_time = self.simulation_horizon + horizon_duration
-            self.total_num_cases = self.estimate_total_cases(self.start_datetime, simulation_end_time)
+            pass
         else:
             # how many process cases should be simulated
             self.total_num_cases = total_cases
             self.start_datetime = datetime.now(pytz.utc)
+            print("total cases: ", self.total_num_cases)
 
-        print("total cases: ", self.total_num_cases)
+    def setup_horizon(self):
+        if self.simulation_horizon is not None and self.start_datetime is not None:
+            horizon_duration = self.simulation_horizon - self.start_datetime
+            simulation_end_time = self.simulation_horizon + horizon_duration
+            self.total_num_cases = self.estimate_total_cases(self.start_datetime, simulation_end_time)
+            print("total cases: ", self.total_num_cases)
+        else:
+            pass
 
     def estimate_total_cases(self, start_datetime, simulation_end_time):
         current_time = start_datetime
@@ -71,50 +75,6 @@ class SimDiffSetup:
             if current_time < simulation_end_time:
                 total_cases += 1
         return total_cases
-
-    def determine_start_datetime(self):
-        """
-        Determine the simulation start datetime based on the process_state.
-        """
-        start_times = []
-
-        # # Include 'last_case_arrival' as a potential start time
-        # if 'last_case_arrival' in self.process_state:
-        #     last_arrival = self.process_state['last_case_arrival']
-        #     if isinstance(last_arrival, str):
-        #         last_arrival = datetime.fromisoformat(last_arrival)
-        #     start_times.append(last_arrival)
-        #
-        # # Collect times from resource_last_end_times
-        # for end_time in self.process_state.get('resource_last_end_times', {}).values():
-        #     if isinstance(end_time, str):
-        #         end_time = datetime.fromisoformat(end_time)
-        #     start_times.append(end_time)
-
-        # Collect times from cases
-        for case_data in self.process_state.get('cases', {}).values():
-            # Enabled activities
-            # for activity in case_data.get('enabled_activities', []):
-            #     enabled_time = activity.get('enabled_time')
-            #     if isinstance(enabled_time, str):
-            #         enabled_time = datetime.fromisoformat(enabled_time)
-            #     start_times.append(enabled_time)
-            # Ongoing activities
-            for activity in case_data.get('ongoing_activities', []):
-                start_time = activity.get('start_time')
-                if isinstance(start_time, str):
-                    start_time = datetime.fromisoformat(start_time)
-                start_times.append(start_time)
-
-        # Ensure all times are datetime objects and filter out None values
-        start_times = [time for time in start_times if isinstance(time, datetime)]
-
-        if start_times:
-            earliest_time = min(start_times)
-            return earliest_time
-        else:
-            # Default to current time if no times are available
-            return datetime.now(pytz.utc)
 
     def verify_simulation_input(self):
         for e_id in self.bpmn_graph.element_info:
