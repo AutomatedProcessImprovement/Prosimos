@@ -1,0 +1,111 @@
+{
+    "last_case_arrival": "2024-01-01T08:03:00+00:00",
+    "resource_last_end_times": {
+        "DIO-000001": "2024-01-01T08:18:00+00:00",
+        "Giorno-000001": "2024-01-01T08:27:00+00:00",
+        "Jolyne-000001": "2024-01-01T08:27:00+00:00",
+        "Pucci-000001": "2024-01-01T08:36:00+00:00"
+    },
+    "cases": {
+        "2": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_08i82lb"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": []
+        },
+        "3": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_08i82lb"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": []
+        },
+        "4": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_08i82lb"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": []
+        },
+        "5": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_08i82lb"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": []
+        },
+        "6": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_08i82lb"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": []
+        },
+        "7": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_08i82lb"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": []
+        },
+        "8": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_08i82lb"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": []
+        },
+        "9": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_08i82lb"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": []
+        },
+        "10": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_08i82lb"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": []
+        },
+        "11": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_08i82lb"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": []
+        }
+    }
+}

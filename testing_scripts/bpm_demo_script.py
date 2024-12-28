@@ -51,17 +51,13 @@ def main():
 
 
 def parse_process_state(process_state):
-    process_state['last_case_arrival'] = parse_datetime(process_state['last_case_arrival'])
-
-    for resource_id, end_time_str in process_state.get('resource_last_end_times', {}).items():
-        process_state['resource_last_end_times'][resource_id] = parse_datetime(end_time_str)
-
     for case_id, case_data in process_state.get('cases', {}).items():
         # Convert enabled activity times
         for activity in case_data.get('enabled_activities', []):
             activity['enabled_time'] = parse_datetime(activity['enabled_time'])
         # Convert ongoing activity times
         for activity in case_data.get('ongoing_activities', []):
+            activity['enabled_time'] = parse_datetime(activity['enabled_time'])
             activity['start_time'] = parse_datetime(activity['start_time'])
     return process_state
 

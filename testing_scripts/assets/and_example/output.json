@@ -1,12 +1,4 @@
 {
-    "last_case_arrival": "2012-03-21T10:00:00+00:00",
-    "resource_last_end_times": {
-        "DIO-000001": "2012-03-21T10:10:00+00:00",
-        "Giorno-000001": "2012-03-21T10:05:00+00:00",
-        "Jolyne-000001": "2012-03-21T10:10:00+00:00",
-        "Jonathan-000001": "2012-03-21T10:10:00+00:00",
-        "Pucci-000001": "2012-03-21T10:05:00+00:00"
-    },
     "cases": {
         "0": {
             "control_flow_state": {
@@ -204,7 +196,8 @@
                 {
                     "name": "P",
                     "start_time": "2012-03-21 10:10:00+00:00",
-                    "resource": "Jolyne-000001"
+                    "resource": "Jolyne",
+                    "enabled_time": "2012-03-21 10:05:00+00:00"
                 }
             ],
             "enabled_activities": []
@@ -220,7 +213,8 @@
                 {
                     "name": "L",
                     "start_time": "2012-03-21 10:10:00+00:00",
-                    "resource": "Jonathan-000001"
+                    "resource": "Jonathan",
+                    "enabled_time": "2012-03-21 10:05:00+00:00"
                 }
             ],
             "enabled_activities": []
@@ -236,7 +230,8 @@
                 {
                     "name": "C",
                     "start_time": "2012-03-21 10:10:00+00:00",
-                    "resource": "DIO-000001"
+                    "resource": "DIO",
+                    "enabled_time": "2012-03-21 10:05:00+00:00"
                 }
             ],
             "enabled_activities": []

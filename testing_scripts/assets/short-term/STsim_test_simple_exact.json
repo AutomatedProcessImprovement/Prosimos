@@ -1,0 +1,294 @@
+{
+  "gateway_branching_probabilities": [],
+  "arrival_time_calendar": [
+    {
+      "from": "MONDAY",
+      "to": "MONDAY",
+      "beginTime": "00:00:00",
+      "endTime": "23:59:59.999000"
+    },
+    {
+      "from": "TUESDAY",
+      "to": "TUESDAY",
+      "beginTime": "00:00:00",
+      "endTime": "23:59:59.999000"
+    },
+    {
+      "from": "WEDNESDAY",
+      "to": "WEDNESDAY",
+      "beginTime": "00:00:00",
+      "endTime": "23:59:59.999000"
+    },
+    {
+      "from": "THURSDAY",
+      "to": "THURSDAY",
+      "beginTime": "00:00:00",
+      "endTime": "23:59:59.999000"
+    },
+    {
+      "from": "FRIDAY",
+      "to": "FRIDAY",
+      "beginTime": "00:00:00",
+      "endTime": "23:59:59.999000"
+    },
+    {
+      "from": "SATURDAY",
+      "to": "SATURDAY",
+      "beginTime": "00:00:00",
+      "endTime": "23:59:59.999000"
+    },
+    {
+      "from": "SUNDAY",
+      "to": "SUNDAY",
+      "beginTime": "00:00:00",
+      "endTime": "23:59:59.999000"
+    }
+  ],
+  "arrival_time_distribution": {
+    "distribution_name": "fix",
+    "distribution_params": [
+      {
+        "value": 300.0
+      }
+    ]
+  },
+  "resource_profiles": [
+    {
+      "id": "DIO-000001_profile",
+      "name": "DIO-000001_profile",
+      "resource_list": [
+        {
+          "id": "DIO-000001",
+          "name": "DIO-000001",
+          "amount": 1,
+          "cost_per_hour": 20,
+          "calendar": "24_7_calendar",
+          "assignedTasks": [
+            "Activity_02r7xaq",
+            "Activity_1mgpbn0"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "Giorno-000001_profile",
+      "name": "Giorno-000001_profile",
+      "resource_list": [
+        {
+          "id": "Giorno-000001",
+          "name": "Giorno-000001",
+          "amount": 1,
+          "cost_per_hour": 20,
+          "calendar": "24_7_calendar",
+          "assignedTasks": [
+            "Activity_02d0oko",
+            "Activity_1sar4e1"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "Jolyne-000001_profile",
+      "name": "Jolyne-000001_profile",
+      "resource_list": [
+        {
+          "id": "Jolyne-000001",
+          "name": "Jolyne-000001",
+          "amount": 1,
+          "cost_per_hour": 20,
+          "calendar": "24_7_calendar",
+          "assignedTasks": [
+            "Activity_08cbrgi",
+            "Activity_0vma5lg"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "Pucci-000001_profile",
+      "name": "Pucci-000001_profile",
+      "resource_list": [
+        {
+          "id": "Pucci-000001",
+          "name": "Pucci-000001",
+          "amount": 1,
+          "cost_per_hour": 20,
+          "calendar": "24_7_calendar",
+          "assignedTasks": [
+            "Activity_0eat6px",
+            "Activity_0o2ojeh"
+          ]
+        }
+      ]
+    }
+  ],
+  "resource_calendars": [
+    {
+      "id": "24_7_calendar",
+      "name": "24_7_calendar",
+      "time_periods": [
+        {
+          "from": "MONDAY",
+          "to": "MONDAY",
+          "beginTime": "00:00:00",
+          "endTime": "23:59:59.999000"
+        },
+        {
+          "from": "TUESDAY",
+          "to": "TUESDAY",
+          "beginTime": "00:00:00",
+          "endTime": "23:59:59.999000"
+        },
+        {
+          "from": "WEDNESDAY",
+          "to": "WEDNESDAY",
+          "beginTime": "00:00:00",
+          "endTime": "23:59:59.999000"
+        },
+        {
+          "from": "THURSDAY",
+          "to": "THURSDAY",
+          "beginTime": "00:00:00",
+          "endTime": "23:59:59.999000"
+        },
+        {
+          "from": "FRIDAY",
+          "to": "FRIDAY",
+          "beginTime": "00:00:00",
+          "endTime": "23:59:59.999000"
+        },
+        {
+          "from": "SATURDAY",
+          "to": "SATURDAY",
+          "beginTime": "00:00:00",
+          "endTime": "23:59:59.999000"
+        },
+        {
+          "from": "SUNDAY",
+          "to": "SUNDAY",
+          "beginTime": "00:00:00",
+          "endTime": "23:59:59.999000"
+        }
+      ]
+    }
+  ],
+  "task_resource_distribution": [
+    {
+      "task_id": "Activity_02r7xaq",
+      "resources": [
+        {
+          "resource_id": "DIO-000001",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 180.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Activity_1mgpbn0",
+      "resources": [
+        {
+          "resource_id": "DIO-000001",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 180.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Activity_02d0oko",
+      "resources": [
+        {
+          "resource_id": "Giorno-000001",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 180.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Activity_1sar4e1",
+      "resources": [
+        {
+          "resource_id": "Giorno-000001",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 180.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Activity_08cbrgi",
+      "resources": [
+        {
+          "resource_id": "Jolyne-000001",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 180.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Activity_0vma5lg",
+      "resources": [
+        {
+          "resource_id": "Jolyne-000001",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 180.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Activity_0eat6px",
+      "resources": [
+        {
+          "resource_id": "Pucci-000001",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 180.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Activity_0o2ojeh",
+      "resources": [
+        {
+          "resource_id": "Pucci-000001",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 180.0
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "model_type": "CRISP",
+  "granule_size": {
+    "value": 60,
+    "time_unit": "MINUTES"
+  }
+}

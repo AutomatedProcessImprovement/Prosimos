@@ -78,27 +78,27 @@ class SimDiffSetup:
         """
         start_times = []
 
-        # Include 'last_case_arrival' as a potential start time
-        if 'last_case_arrival' in self.process_state:
-            last_arrival = self.process_state['last_case_arrival']
-            if isinstance(last_arrival, str):
-                last_arrival = datetime.fromisoformat(last_arrival)
-            start_times.append(last_arrival)
-
-        # Collect times from resource_last_end_times
-        for end_time in self.process_state.get('resource_last_end_times', {}).values():
-            if isinstance(end_time, str):
-                end_time = datetime.fromisoformat(end_time)
-            start_times.append(end_time)
+        # # Include 'last_case_arrival' as a potential start time
+        # if 'last_case_arrival' in self.process_state:
+        #     last_arrival = self.process_state['last_case_arrival']
+        #     if isinstance(last_arrival, str):
+        #         last_arrival = datetime.fromisoformat(last_arrival)
+        #     start_times.append(last_arrival)
+        #
+        # # Collect times from resource_last_end_times
+        # for end_time in self.process_state.get('resource_last_end_times', {}).values():
+        #     if isinstance(end_time, str):
+        #         end_time = datetime.fromisoformat(end_time)
+        #     start_times.append(end_time)
 
         # Collect times from cases
         for case_data in self.process_state.get('cases', {}).values():
             # Enabled activities
-            for activity in case_data.get('enabled_activities', []):
-                enabled_time = activity.get('enabled_time')
-                if isinstance(enabled_time, str):
-                    enabled_time = datetime.fromisoformat(enabled_time)
-                start_times.append(enabled_time)
+            # for activity in case_data.get('enabled_activities', []):
+            #     enabled_time = activity.get('enabled_time')
+            #     if isinstance(enabled_time, str):
+            #         enabled_time = datetime.fromisoformat(enabled_time)
+            #     start_times.append(enabled_time)
             # Ongoing activities
             for activity in case_data.get('ongoing_activities', []):
                 start_time = activity.get('start_time')

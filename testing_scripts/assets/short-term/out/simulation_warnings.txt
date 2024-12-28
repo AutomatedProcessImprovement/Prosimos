@@ -1,0 +1,12 @@
+TASK 'A' (ID: Activity_02r7xaq) is used less frequently, only in 0 out of 0 cases (0.00%).
+TASK 'B' (ID: Activity_1mgpbn0) is used less frequently, only in 0 out of 0 cases (0.00%).
+TASK 'C1' (ID: Activity_02d0oko) is used less frequently, only in 0 out of 0 cases (0.00%).
+TASK 'D1' (ID: Activity_08cbrgi) is used less frequently, only in 0 out of 0 cases (0.00%).
+TASK 'D2' (ID: Activity_0vma5lg) is used less frequently, only in 0 out of 0 cases (0.00%).
+TASK 'E' (ID: Activity_0eat6px) is used less frequently, only in 0 out of 0 cases (0.00%).
+TASK 'C2' (ID: Activity_1sar4e1) is used less frequently, only in 0 out of 0 cases (0.00%).
+TASK 'F' (ID: Activity_0o2ojeh) is used less frequently, only in 0 out of 0 cases (0.00%).
+START-EVENT 'Start' (ID: StartEvent_1) is used less frequently, only in 0 out of 0 cases (0.00%).
+END-EVENT 'End' (ID: Event_0w0qv5v) is used less frequently, only in 0 out of 0 cases (0.00%).
+PARALLEL-GATEWAY 'AND-split' (ID: Gateway_0nmpe12) is used less frequently, only in 0 out of 0 cases (0.00%).
+PARALLEL-GATEWAY 'AND-join' (ID: Gateway_146y8zs) is used less frequently, only in 0 out of 0 cases (0.00%).

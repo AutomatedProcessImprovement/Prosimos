@@ -237,7 +237,8 @@ def load_diff_simulation_results(csv_stats_path):
                                                         float(row[5]))
                         kpi_index += 1
                     else:
-                        print(f"Warning: Not enough data to set KPI values at index {kpi_index}. Row data: {row}")
+                        continue
+                        #print(f"Warning: Not enough data to set KPI values at index {kpi_index}. Row data: {row}")
 
 
     return sim_info

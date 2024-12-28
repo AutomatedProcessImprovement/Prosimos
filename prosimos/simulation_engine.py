@@ -91,62 +91,78 @@ class SimBPMEnv:
         self.log_info.trace_list = filtered_traces
 
     def initialize_from_process_state(self, process_state):
-        # Initialize resource mapping (resource name to ID) from simulation setup
+        """
+        Initializes resources and partial states WITHOUT using resource_last_end_times.
+        Instead, we compute resource availability from the ongoing tasks in the partial state.
+        """
         resource_name_to_id = self.sim_setup.resource_name_to_id
 
-        # Initialize resources based on the process state
+        # ---------------------------------------------------------
+        # 1) Compute resource availability from ongoing activities
+        # ---------------------------------------------------------
         r_first_available = {}
-        for resource_name, end_time in process_state.get('resource_last_end_times', {}).items():
-            if isinstance(end_time, str):
-                end_time = parse_datetime(end_time)
-            resource_id = resource_name_to_id.get(resource_name)
-            if resource_id and resource_id in self.sim_setup.resources_map:
-                # Initialize resource
-                sim_resource = SimResource()
-                sim_resource.available_time = (end_time - self.sim_setup.start_datetime).total_seconds()
-                self.sim_resources[resource_id] = sim_resource
-                r_first_available[resource_id] = sim_resource.available_time
-            else:
-                # Resource not in resource pool; treat as external resource
-                pass  # Do not add to sim_resources or r_first_available
-
-        # For resources not mentioned in process_state, set their available time to start datetime or next resting time
         for r_id in self.sim_setup.resources_map:
-            if r_id not in r_first_available:
-                self.sim_resources[r_id] = SimResource()
-                r_first_available[r_id] = self.sim_setup.next_resting_time(r_id, self.sim_setup.start_datetime)
+            # Default each resource’s next availability to start_datetime or next_resting_time
+            self.sim_resources[r_id] = SimResource()
+            default_avail = self.sim_setup.next_resting_time(r_id, self.sim_setup.start_datetime)
+            r_first_available[r_id] = default_avail
 
-        # Initialize resource queue
+        # We'll keep track of the maximum time each resource is occupied by any ongoing task
+        # so that we can update r_first_available properly.
+        resource_end_times_map = {r_id: r_first_available[r_id] for r_id in self.sim_setup.resources_map}
+
+        # ------------------------------------------------------
+        # 2) Set up event queue, process states, ongoing tasks
+        # ------------------------------------------------------
         self.resource_queue = DiffResourceQueue(self.sim_setup.task_resource, r_first_available)
-
-        # Initialize event queue
         self.events_queue = EventQueue()
 
-        # Initialize process states and execute ongoing activities
         for case_id_str, case_data in process_state.get('cases', {}).items():
             case_id = int(case_id_str)
-            # Create ProcessState
             p_state = self.sim_setup.initial_state()
+
             # Set tokens based on control_flow_state
-            tokens = {}
             flows = case_data.get('control_flow_state', {}).get('flows', [])
-            for flow_id in flows:
-                tokens[flow_id] = 1  # Assuming 1 token per flow?
+            tokens = {flow_id: 1 for flow_id in flows}
             p_state.set_tokens(tokens)
             print(f"Set tokens for case {case_id}: {tokens}")
 
             self.all_process_states[case_id] = p_state
-            # Initialize log trace for the case
             self.log_info.trace_list[case_id] = Trace(case_id, self.sim_setup.start_datetime)
 
-            # Execute ongoing activities
-            for activity in case_data.get('ongoing_activities', []):
-                task_name = activity['name']
+            # --------------------------------------
+            # 2a) Handle ongoing activities
+            # --------------------------------------
+            for activity in case_data.get("ongoing_activities", []):
+                task_name = activity["name"]
                 task_id = self.sim_setup.bpmn_graph.get_task_id_by_name(task_name)
-                resource_name = activity.get('resource')
-                start_time = activity['start_time']
+                resource_name = activity.get("resource")
+
+                start_time = activity.get("start_time")  # Real datetime
                 if isinstance(start_time, str):
                     start_time = parse_datetime(start_time)
+
+                # If the partial state includes an explicit 'enabled_time', use that;
+                # otherwise, fallback to 'start_time'.
+                enabled_time_dt = activity.get("enabled_time")  # e.g., "2024-03-01T12:00:00+00:00"
+                if enabled_time_dt is None:
+                    enabled_time_dt = start_time  # fallback
+                elif isinstance(enabled_time_dt, str):
+                    enabled_time_dt = parse_datetime(enabled_time_dt)
+
+                # Convert that to simulation seconds
+                enabled_at = (enabled_time_dt - self.sim_setup.start_datetime).total_seconds()
+                if enabled_at < 0:
+                    print(f"Adjusted enabled_at for case {case_id} from {enabled_at} to 0.")
+                    enabled_at = 0
+
+                # Also convert the real start_time to simulation seconds
+                started_at = (start_time - self.sim_setup.start_datetime).total_seconds()
+                if started_at < 0:
+                    print(f"Adjusted started_at for case {case_id} from {started_at} to 0.")
+                    started_at = 0
+
+                # Attempt to get known leftover duration
                 remaining_duration = activity.get('remaining_duration')
                 if remaining_duration is None and 'remaining_time' in activity:
                     remaining_duration = float(activity['remaining_time'])
@@ -154,82 +170,80 @@ class SimBPMEnv:
                 # Map resource name to ID
                 resource_id = resource_name_to_id.get(resource_name)
                 if resource_id is None:
-                    # Resource not found in simulation parameters
+                    # External resource
                     print(
                         f"Resource '{resource_name}' not found in simulation parameters. Treating as external resource.")
                     resource_in_pool = False
-                    resource_id = resource_name
+                    resource_id = resource_name  # just store the raw name
                 else:
                     resource_in_pool = True
-                    # Check if resource can perform the task
-                    if task_id not in self.sim_setup.task_resource or resource_id not in self.sim_setup.task_resource[
-                        task_id]:
+                    # If the resource cannot do that task, pick a capable one
+                    if (task_id not in self.sim_setup.task_resource or
+                            resource_id not in self.sim_setup.task_resource[task_id]):
                         print(
                             f"Resource '{resource_id}' cannot perform task '{task_id}'. Assigning a capable resource.")
                         possible_resources = self.sim_setup.task_resource.get(task_id, {})
                         if possible_resources:
+                            # Just pick one
                             resource_id = np.random.choice(list(possible_resources.keys()))
                             resource_in_pool = resource_id in self.sim_setup.resources_map
                         else:
                             print(f"No resources available for task '{task_id}'.")
                             continue
 
+                # If the partial state doesn't give us a remaining_duration, compute it heuristically
                 if remaining_duration is None:
-                    # Compute remaining_duration based on total duration and time elapsed
                     possible_resources = self.sim_setup.task_resource.get(task_id, {})
                     if possible_resources:
-                        # Use the duration distribution from any available resource for the task
-                        any_resource_id = next(iter(possible_resources))
-                        total_duration = self.sim_setup.task_resource[task_id][any_resource_id].generate_sample(1)[0]
+                        any_res_id = next(iter(possible_resources))
+                        total_duration = self.sim_setup.task_resource[task_id][any_res_id].generate_sample(1)[0]
                         time_elapsed = (self.sim_setup.start_datetime - start_time).total_seconds()
                         remaining_duration = total_duration - time_elapsed
                         if remaining_duration < 0:
                             remaining_duration = 0
-                        print(
-                            f"WARNING: Using duration distribution from resource '{any_resource_id}' for task '{task_id}'.")
+                        print(f"WARNING: Used distribution from resource '{any_res_id}' for task '{task_id}'.")
                     else:
-                        print(
-                            f"Cannot compute remaining_duration for task '{task_id}'. No duration distribution available.")
+                        print(f"Cannot compute remaining_duration for task '{task_id}'. No distribution available.")
                         continue
-                    time_elapsed = (self.sim_setup.start_datetime - start_time).total_seconds()
-                    remaining_duration = total_duration - time_elapsed
-                    if remaining_duration < 0:
-                        remaining_duration = 0
 
-                enabled_at = (start_time - self.sim_setup.start_datetime).total_seconds()
-                if enabled_at < 0:
-                    print(f"Adjusted enabled_at for case {case_id} from {enabled_at} to 0.")
-                    enabled_at = 0  # Adjust if enabled_at is negative
-
-                # Create EnabledEvent for the ongoing activity
+                # Create the event in the queue
                 enabled_event = EnabledEvent(
-                    case_id,
-                    p_state,
-                    task_id,
-                    enabled_at,
-                    start_time,
+                    p_case=case_id,
+                    p_state=p_state,
+                    task_id=task_id,
+                    enabled_at=enabled_at,
+                    enabled_datetime=enabled_time_dt,
                     duration_sec=remaining_duration,
                     assigned_resource_id=resource_id
                 )
 
-                # Add the enabled event to the events queue
+                enabled_event.started_at = started_at
+                enabled_event.started_datetime = start_time
                 self.calc_priority_and_append_to_queue(enabled_event, is_arrival_event=False)
 
+                # Update the resource's next availability time if it's in the pool
+                if resource_in_pool and resource_id in resource_end_times_map:
+                    # The activity will end at started + remaining
+                    # started = enabled_at in seconds from sim start
+                    # ends_at = started + remaining
+                    activity_ends_at = enabled_at + remaining_duration
+                    # Keep the maximum
+                    if activity_ends_at > resource_end_times_map[resource_id]:
+                        resource_end_times_map[resource_id] = activity_ends_at
 
                 print(
-                    f"Scheduled ongoing activity '{task_name}' (ID: '{task_id}') for case {case_id} at simulation time {enabled_at} with remaining duration {remaining_duration}."
-                )
+                    f"Scheduled ongoing '{task_name}' for case {case_id} at sim time {enabled_at} with remaining {remaining_duration}.")
 
-                # Set tokens for the ongoing activity
+                # Update tokens for the ongoing activity
                 task = self.sim_setup.bpmn_graph.element_info[task_id]
-
-                # Retrieve the incoming flow IDs
                 incoming_flows = task.incoming_flows
-                tokens = {flow_id: 1 for flow_id in incoming_flows}
-                p_state.set_tokens(tokens)
-                print(f"Set tokens for case {case_id}: {tokens}")
+                tokens_for_task = {flow_id: 1 for flow_id in incoming_flows}
+                p_state.set_tokens(tokens_for_task)
+                print(f"Set tokens for case {case_id}: {tokens_for_task}")
 
-            # Schedule enabled activities (those that are ready to start)
+            # --------------------------------------
+            # 2b) Handle enabled (but not started) activities
+            # --------------------------------------
             for activity in case_data.get('enabled_activities', []):
                 task_name = activity['name']
                 task_id = self.sim_setup.bpmn_graph.get_task_id_by_name(task_name)
@@ -238,7 +252,6 @@ class SimBPMEnv:
                     enabled_time = parse_datetime(enabled_time)
                 enabled_at = (enabled_time - self.sim_setup.start_datetime).total_seconds()
 
-                # Create and schedule EnabledEvent
                 enabled_event = EnabledEvent(
                     case_id,
                     p_state,
@@ -247,34 +260,71 @@ class SimBPMEnv:
                     enabled_time
                 )
                 self.calc_priority_and_append_to_queue(enabled_event, is_arrival_event=False)
-                # print(f"Scheduling enabled activity '{task_name}' for case {case_id} enabled at {enabled_time}.")
+                print(f"Scheduling enabled '{task_name}' for case {case_id} at {enabled_time}.")
 
-            # if case_id == '15':
-            print(f"Initialized case {case_id} with process state and scheduled ongoing and enabled activities.")
+            print(f"Initialized case {case_id} with partial process state.")
 
-        print("Events scheduled in the event queue after initialization:", self.events_queue.enabled_events)
-        # Generate remaining arrival events
+        # ------------------------------------------------------
+        # 3) Update resource_queue with final computed avail.
+        # ------------------------------------------------------
+        for r_id, end_time_sec in resource_end_times_map.items():
+            r_first_available[r_id] = max(r_first_available[r_id], end_time_sec)
+            self.sim_resources[r_id].available_time = r_first_available[r_id]
+        self.resource_queue = DiffResourceQueue(self.sim_setup.task_resource, r_first_available)
+
+        print("Events in event queue after initialization:", self.events_queue.enabled_events)
+
+        # ------------------------------------------------------
+        # 4) Generate any additional arrival events if needed
+        # ------------------------------------------------------
         self.generate_remaining_arrival_events(process_state)
 
-
     def generate_remaining_arrival_events(self, process_state):
+        """
+        Instead of using process_state['last_case_arrival'],
+        we compute it from the actual partial-state data, e.g. the earliest start times of the existing cases.
+        """
         existing_case_ids = set(int(cid) for cid in process_state['cases'].keys())
         total_existing_cases = len(existing_case_ids)
         total_cases_needed = self.sim_setup.total_num_cases
 
+        # If we already have enough cases in partial state, do nothing
         if total_existing_cases >= total_cases_needed:
             return
 
-        last_arrival_time = process_state['last_case_arrival']
+        # -------------------------------------------------------------
+        # 1) Derive last arrival time from partial state
+        #    - For each case, get its earliest event's start time
+        #    - The "last arrival" could be the max of those
+        # -------------------------------------------------------------
+        earliest_case_starts = []
+        for cid in existing_case_ids:
+            trace_obj = self.log_info.trace_list.get(cid)
+            if trace_obj and trace_obj.event_list:
+                # Grab the first event's started_datetime
+                earliest_case_starts.append(trace_obj.event_list[0].started_datetime)
+            else:
+                # If no events, fallback to the environment’s start time
+                earliest_case_starts.append(self.sim_setup.start_datetime)
+
+        if len(earliest_case_starts) == 0:
+            # If no cases or no times, just use sim_setup.start_datetime as baseline
+            last_arrival_time = self.sim_setup.start_datetime
+        else:
+            # The "last arrival" is the maximum of earliest start times
+            last_arrival_time = max(earliest_case_starts)
+
+        # current_time is what we'll treat as "last known arrival"
         current_time = last_arrival_time
         case_id = max(existing_case_ids) + 1
 
+        # -------------------------------------------------------------
+        # 2) Schedule new arrivals until we reach total_num_cases
+        # -------------------------------------------------------------
         while total_existing_cases < total_cases_needed:
-            # Generate inter-arrival time
             inter_arrival_seconds = self.sim_setup.next_arrival_time(current_time)
             next_arrival_time = current_time + timedelta(seconds=inter_arrival_seconds)
 
-            # Schedule arrival event
             enabled_at = (next_arrival_time - self.sim_setup.start_datetime).total_seconds()
             arrival_event = EnabledEvent(
                 p_case=case_id,
@@ -285,10 +335,11 @@ class SimBPMEnv:
             )
             self.calc_priority_and_append_to_queue(arrival_event, is_arrival_event=True)
 
-            # Update for next iteration
             current_time = next_arrival_time
             case_id += 1
             total_existing_cases += 1
+
+        print(f"Added {total_existing_cases} existing cases + new arrivals up to {total_cases_needed}.")
 
     def calc_priority_and_append_to_queue(self, enabled_event: EnabledEvent, is_arrival_event: bool):
         if enabled_event.is_inter_event:
@@ -366,6 +417,7 @@ class SimBPMEnv:
         return enabled_datetime
 
     def execute_enabled_event(self, c_event: EnabledEvent, resource_in_pool=True):
+        print(f"Processing event {c_event.task_id} for case {c_event.p_case} at simulation time {str(c_event.enabled_at)}")
         self.executed_events += 1
 
         event_element_info = self.sim_setup.bpmn_graph.element_info[c_event.task_id]
@@ -511,8 +563,8 @@ class SimBPMEnv:
 
     def get_csv_row_data(self, full_event: TaskEvent):
         """
-        Return array of values for one line of the csv file based on full_event information.
-        Includes filtering based on the simulation horizon.
+        Return array of values for one line of the CSV file based on full_event information.
+        Ensures all date/time fields are converted to strings.
         """
 
         # Check if the case started after the simulation horizon
@@ -526,33 +578,42 @@ class SimBPMEnv:
             # If no events yet, use the start time of the current event
             case_start_time = full_event.started_datetime
 
-        if case_start_time > self.sim_setup.simulation_horizon:
-            # Skip this event, as the case started after the horizon
+        # If this case starts AFTER the horizon, skip it
+        if case_start_time >= self.simulation_horizon:
             return None
 
-        # Proceed to generate the row data as before
+        print(
+            f"CSV Row Data: Case {full_event.p_case} started at {case_start_time} comparing to simulation_horizon {self.simulation_horizon}"
+        )
 
-        # Check if the resource_id is in resources_map
+        # Determine resource name
         if hasattr(full_event, "resource_id"):
             if full_event.resource_id in self.sim_setup.resources_map:
                 resource_name = self.sim_setup.resources_map[full_event.resource_id].resource_name
             else:
-                # Resource is external;
+                # Resource is external or not in the pool
                 resource_name = full_event.resource_id
         else:
             resource_name = "No assigned resource"
 
-        row_basic_info = verify_miliseconds(
-            [
-                full_event.p_case,
-                self.sim_setup.bpmn_graph.element_info[full_event.task_id].name,
-                full_event.enabled_datetime,
-                full_event.started_datetime,
-                full_event.completed_datetime,
-                resource_name,
-            ]
-        )
+        # Build row with the basic info
+        row_basic_info = [
+            full_event.p_case,
+            self.sim_setup.bpmn_graph.element_info[full_event.task_id].name,
+            full_event.enabled_datetime,
+            full_event.started_datetime,
+            full_event.completed_datetime,
+            resource_name,
+        ]
 
+        # -------------------------------------------------------------------
+        # Convert each datetime in row_basic_info into a string (indexes 2-4)
+        # -------------------------------------------------------------------
+        for idx in [2, 3, 4]:  # enabled_datetime, started_datetime, completed_datetime
+            if isinstance(row_basic_info[idx], datetime.datetime):
+                row_basic_info[idx] = _get_string_from_datetime(row_basic_info[idx])
+
+        # Add any additional attributes
         all_attrs = self.sim_setup.bpmn_graph.get_all_attributes(full_event.p_case)
         values = ["" if all_attrs.get(col) is None else all_attrs.get(col) for col in self.additional_columns]
 
@@ -774,7 +835,10 @@ class SimBPMEnv:
         row_data = self.get_csv_row_data(full_evt)
         if row_data:
             # Write event to log file
+            print(f"Writing row data to the log {row_data}")
             self.log_writer.add_csv_row(row_data)
+            with open("../output.txt", "a") as output_file:
+                output_file.write(f"{row_data}\n")
         else:
             # Event is not included due to filtering
             pass
