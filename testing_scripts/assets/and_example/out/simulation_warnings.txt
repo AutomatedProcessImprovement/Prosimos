@@ -1,16 +1,22 @@
 Gateway Gateway_1prgzlv is using conditions, but some are missing. Flows without conditions: Flow_0ptt0xs, Flow_1xyedm5, Flow_03auk3f
 Gateway Gateway_0nmpe12 is using conditions, but some are missing. Flows without conditions: Flow_1pcejuk, Flow_1279d43
 Gateway Gateway_1abqo5n is using conditions, but some are missing. Flows without conditions: Flow_12zi923, Flow_1bp1lvd
-TASK 'E' (ID: Activity_0paeij3) is used less frequently, only in 0 out of 13 cases (0.00%).
-TASK 'M' (ID: Activity_0vma5lg) is used more frequently than expected, in 14 out of 13 cases (107.69%).
-Flow Flow_0jtbwl8 from TASK 'M' (ID: Activity_0vma5lg) is used more frequently than expected, in 14 out of 13 cases (107.69%).
-TASK 'N' (ID: Activity_0eat6px) is used more frequently than expected, in 25 out of 13 cases (192.31%).
-Flow Flow_1dbtc82 from TASK 'N' (ID: Activity_0eat6px) is used more frequently than expected, in 25 out of 13 cases (192.31%).
-TASK 'I' (ID: Activity_1weaufy) is used more frequently than expected, in 22 out of 13 cases (169.23%).
-Flow Flow_0kkshlq from TASK 'I' (ID: Activity_1weaufy) is used more frequently than expected, in 22 out of 13 cases (169.23%).
-EXCLUSIVE-GATEWAY 'XOR-split-2' (ID: Gateway_0nmpe12) is used more frequently than expected, in 22 out of 13 cases (169.23%).
-EXCLUSIVE-GATEWAY 'XOR-join-2' (ID: Gateway_146y8zs) is used more frequently than expected, in 25 out of 13 cases (192.31%).
-Flow Flow_0rajtx0 from EXCLUSIVE-GATEWAY 'XOR-join-2' (ID: Gateway_146y8zs) is used more frequently than expected, in 25 out of 13 cases (192.31%).
-EXCLUSIVE-GATEWAY 'XOR-split-loop' (ID: Gateway_1abqo5n) is used more frequently than expected, in 25 out of 13 cases (192.31%).
-EXCLUSIVE-GATEWAY 'XOR-split-join' (ID: Gateway_0t2el1o) is used more frequently than expected, in 18 out of 13 cases (138.46%).
-Flow Flow_0a9co7f from EXCLUSIVE-GATEWAY 'XOR-split-join' (ID: Gateway_0t2el1o) is used more frequently than expected, in 18 out of 13 cases (138.46%).
+TASK 'E' (ID: Activity_0paeij3) is used less frequently, only in 0 out of 15 cases (0.00%).
+TASK 'L' (ID: Activity_08cbrgi) is used more frequently than expected, in 19 out of 15 cases (126.67%).
+Flow Flow_0qkv9uj from TASK 'L' (ID: Activity_08cbrgi) is used more frequently than expected, in 19 out of 15 cases (126.67%).
+TASK 'M' (ID: Activity_0vma5lg) is used more frequently than expected, in 21 out of 15 cases (140.00%).
+Flow Flow_0jtbwl8 from TASK 'M' (ID: Activity_0vma5lg) is used more frequently than expected, in 21 out of 15 cases (140.00%).
+TASK 'N' (ID: Activity_0eat6px) is used more frequently than expected, in 35 out of 15 cases (233.33%).
+Flow Flow_1dbtc82 from TASK 'N' (ID: Activity_0eat6px) is used more frequently than expected, in 35 out of 15 cases (233.33%).
+TASK 'I' (ID: Activity_1weaufy) is used more frequently than expected, in 32 out of 15 cases (213.33%).
+Flow Flow_0kkshlq from TASK 'I' (ID: Activity_1weaufy) is used more frequently than expected, in 32 out of 15 cases (213.33%).
+TASK 'O' (ID: Activity_0oece6p) is used more frequently than expected, in 21 out of 15 cases (140.00%).
+Flow Flow_1kx4ccu from TASK 'O' (ID: Activity_0oece6p) is used more frequently than expected, in 21 out of 15 cases (140.00%).
+EXCLUSIVE-GATEWAY 'XOR-split-2' (ID: Gateway_0nmpe12) is used more frequently than expected, in 32 out of 15 cases (213.33%).
+Flow Flow_1279d43 from EXCLUSIVE-GATEWAY 'XOR-split-2' (ID: Gateway_0nmpe12) is used more frequently than expected, in 18 out of 15 cases (120.00%).
+EXCLUSIVE-GATEWAY 'XOR-join-2' (ID: Gateway_146y8zs) is used more frequently than expected, in 35 out of 15 cases (233.33%).
+Flow Flow_0rajtx0 from EXCLUSIVE-GATEWAY 'XOR-join-2' (ID: Gateway_146y8zs) is used more frequently than expected, in 35 out of 15 cases (233.33%).
+EXCLUSIVE-GATEWAY 'XOR-split-loop' (ID: Gateway_1abqo5n) is used more frequently than expected, in 35 out of 15 cases (233.33%).
+Flow Flow_1bp1lvd from EXCLUSIVE-GATEWAY 'XOR-split-loop' (ID: Gateway_1abqo5n) is used more frequently than expected, in 21 out of 15 cases (140.00%).
+EXCLUSIVE-GATEWAY 'XOR-split-join' (ID: Gateway_0t2el1o) is used more frequently than expected, in 28 out of 15 cases (186.67%).
+Flow Flow_0a9co7f from EXCLUSIVE-GATEWAY 'XOR-split-join' (ID: Gateway_0t2el1o) is used more frequently than expected, in 28 out of 15 cases (186.67%).
