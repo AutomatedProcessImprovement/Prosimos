@@ -52,10 +52,10 @@ def main():
 
         if active_steps[Steps.VACATION_IMPACT]:
             evaluate_vacation_impact(proc_name, single_resource=True)
-            return 0
+            break
         if active_steps[Steps.VACATION_SYNTETIC]:
             generate_syntetic_log_vacation(proc_name, False, 2000, num_res=1, single_resource=True, arrival_rate=2)
-            return 0
+            break
 
         if active_steps[Steps.SPLIT_LOG]:
             if synthetic:
@@ -73,7 +73,7 @@ def main():
         if active_steps[Steps.BAYESIAN_OPTIMIZER]:
             start_optimizer()
 
-    return 0
+    os._exit(0)
 
 
 def evaluate_vacation_impact(proc_name, single_resource):
