@@ -71,8 +71,8 @@ print_stats = False
 
 
 def main():
-    for i in range(0, len(test_processes)):
-        proc_name = test_processes[i]
+    for i in range(0, len(test_processes_fuzzy)):
+        proc_name = test_processes_fuzzy[i]
         synthetic = is_syntetic[proc_name]
 
         if active_steps[Steps.LOG_INFO]:
@@ -124,8 +124,8 @@ def main():
 
 
 def get_log_info():
-    for i in test_processes:
-        proc_name = test_processes[i]
+    for i in test_processes_fuzzy:
+        proc_name = test_processes_fuzzy[i]
         if i == 3:
             for even in [True, False]:
                 for c_type in range(1, 5):
@@ -211,21 +211,18 @@ def split_synthetic_log(proc_name, is_fuzzy=True):
                 0.5)
 
 
-
-
-
 def compute_log_distance_metric(proc_name, s_count):
     testing_log = get_file_path(is_fuzzy=True, proc_name=proc_name, file_type=FileType.TESTING_CSV_LOG)
     if print_stats:
         print("Crisp Model %s" % proc_name)
-    compute_average_log_distance_measures(proc_name, None, FileType.CRISP_LOG, testing_log, 60, 0, s_count)
+    compute_average_log_distance_measures(proc_name, None, FileType.CRISP_LOG, testing_log, 60, 0, s_count, 1, True)
 
     for g_size in granule_sizes:
         for angle in trapezoidal_angles:
             if print_stats:
                 print("Fuzzy Model %s With Granule Size: %s and Angle: %s " % (proc_name, str(g_size), str(angle)))
             compute_average_log_distance_measures(proc_name, None, FileType.SIMULATED_LOG, testing_log,
-                                                  g_size, angle, s_count)
+                                                  g_size, angle, s_count, 1, True)
 
 
 def discover_fuzzy_parameters(proc_name, is_fuzzy):
@@ -369,7 +366,7 @@ def simulate_and_save_crisp_model(proc_name: str, s_count):
                     print("Calendar Type %s, Even Resource Workload: %s" % (str(calendar_type), str(even)))
                 return run_crisp_simulation(proc_name, s_count, calendar_type, even)
     else:
-        return run_crisp_simulation(proc_name, s_count)
+        return run_crisp_simulation(proc_name, s_count, 1, True)
 
 
 def run_crisp_simulation(proc_name: str, s_count: int, c_typ, even):
@@ -441,32 +438,11 @@ def _compute_resource_allocation_metrics(real_log_path, simulated_log_path):
     sim_resources, sim_alloc = _compute_log_resource_stats(event_list_from_csv(simulated_log_path))
     real_resources, real_alloc = _compute_log_resource_stats(event_list_from_csv(real_log_path))
 
-    # missed = []
-    # included = []
-    # print("Excluded ----------------------------------------------------------------------")
-    # for r_id in real_resources:
-    #     if r_id not in sim_resources:
-    #         print(r_id)
-    #         missed.append(r_id)
-    #     else:
-    #         included.append(r_id)
-    # print("Included --------------------------------------------------")
-    # for r_id in included:
-    #     print(r_id)
-
     match_resources = real_resources.intersection(sim_resources)
 
     mistmatch_index = 1 - len(match_resources) / len(real_resources)
 
-    # allocation_ratio_distance = 0.0
-    # work_time_ratio_distance = 0.0
-
-    # for r_id in match_resources:
-    #     allocation_ratio_distance += pow(real_alloc[r_id][0] - sim_alloc[r_id][0], 2)
-    #     work_time_ratio_distance += pow(real_alloc[r_id][1] - sim_alloc[r_id][1], 2)
-
     return mistmatch_index, 0.0, 0.0
-    # return mistmatch_index, math.sqrt(allocation_ratio_distance), math.sqrt(work_time_ratio_distance)
 
 
 def _compute_log_resource_stats(log_traces):
@@ -513,12 +489,6 @@ def _compute_log_distance_measures(real_log_path, simulated_log_path):
     sim_log = _parse_log_for_metrics(simulated_log_path)
     results = dict()
 
-    # absolute_event_distribution_dist = absolute_event_distribution_distance(
-    #     real_log, DEFAULT_CSV_IDS,
-    #     sim_log, DEFAULT_CSV_IDS,
-    #     discretize_type=AbsoluteTimestampType.BOTH,
-    #     discretize_event=discretize_to_hour)
-    # results['AED'] = absolute_event_distribution_dist
     results['AED'] = 0.0
 
     relative_event_distribution_dist = relative_event_distribution_distance(
@@ -529,12 +499,6 @@ def _compute_log_distance_measures(real_log_path, simulated_log_path):
     )
     results['RED'] = relative_event_distribution_dist
 
-    # circadian_event_distribution_dist = circadian_event_distribution_distance(
-    #     real_log, DEFAULT_CSV_IDS,
-    #     sim_log, DEFAULT_CSV_IDS,
-    #     discretize_type=AbsoluteTimestampType.BOTH
-    # )
-    # results['CED'] = circadian_event_distribution_dist
     results['CED'] = 0.0
 
     cycle_time_distribution_dist = cycle_time_distribution_distance(
@@ -543,23 +507,9 @@ def _compute_log_distance_measures(real_log_path, simulated_log_path):
         bin_size=pd.Timedelta(hours=1)
     )
     results['CTD'] = cycle_time_distribution_dist
-    # results['MTR'], results['TAR'], results['WTR'] = _compute_resource_allocation_metrics(real_log_path,
-    #                                                                                       simulated_log_path)
     results['MTR'], results['TAR'], results['WTR'] = 0.0, 0.0, 0.0
 
     return results
-
-
-# def _parse_log_for_metrics(log_path):
-#     event_log_ids = EventLogIDs(case="case_id", activity="Activity", start_time="start_time", end_time="end_time")
-#     event_log = pd.read_csv(log_path)
-#
-#     _custom_to_datetime(event_log, event_log_ids.start_time)
-#     _custom_to_datetime(event_log, event_log_ids.end_time)
-#
-#     # event_log[event_log_ids.start_time] = pd.to_datetime(event_log[event_log_ids.start_time], utc=True)
-#     # event_log[event_log_ids.end_time] = pd.to_datetime(event_log[event_log_ids.end_time], utc=True)
-#     return event_log
 
 
 def _parse_log_for_metrics(log_path):

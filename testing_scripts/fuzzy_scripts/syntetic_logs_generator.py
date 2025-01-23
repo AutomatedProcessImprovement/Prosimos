@@ -35,7 +35,7 @@ class WorkingCalendar:
     def __init__(self, c_type: IType, last_worked_date: datetime):
         self.c_type = c_type
         self.last_worked_day = last_worked_date.replace(hour=00, minute=00, second=00, microsecond=00)
-        self.i_length = 86400 if [IType.ALWAYS, IType.ALTERNATE] else 14000
+        self.i_length = 86400 if c_type in [IType.ALWAYS, IType.ALTERNATE] else 14000
 
     def next_available(self, from_date: datetime):
         if self.c_type is IType.ALWAYS:
@@ -50,47 +50,7 @@ class WorkingCalendar:
         from_00_to_13 = 46800
 
         if self.c_type is not IType.ALTERNATE:
-            if self.c_type is IType.FULL_TIME:
-                if week_day == 4 and c_time.hour >= 17:  # If Friday
-                    return to_00 + (2 * full_day) + from_00_to_08
-                if week_day == 5:  # If Saturday
-                    return to_00 + full_day + from_00_to_08
-                if week_day == 6:  # If Sunday
-                    return to_00 + from_00_to_08
-                if (8 <= c_time.hour < 12) or (13 <= c_time.hour < 17):
-                    return 0
-                if c_time.hour < 8:
-                    return from_00_to_08 - current_second
-                if 12 <= c_time.hour < 13:
-                    return from_00_to_13 - current_second
-                if c_time.hour >= 17:
-                    return to_00 + from_00_to_08
-            if self.c_type is IType.MORNING:
-                if week_day == 4 and c_time.hour >= 12:  # If Friday
-                    return to_00 + (2 * full_day) + from_00_to_08
-                if week_day == 5:  # If Saturday
-                    return to_00 + full_day + from_00_to_08
-                if week_day == 6:  # If Sunday
-                    return to_00 + from_00_to_08
-                if 8 <= c_time.hour < 12:
-                    return 0
-                if c_time.hour < 8:
-                    return from_00_to_08 - current_second
-                if c_time.hour >= 12:
-                    return to_00 + from_00_to_08
-            if self.c_type is IType.AFTERNOON:
-                if week_day == 4 and c_time.hour >= 17:  # If Friday
-                    return to_00 + (2 * full_day) + from_00_to_13
-                if week_day == 5:  # If Saturday
-                    return to_00 + full_day + from_00_to_08
-                if week_day == 6:  # If Sunday
-                    return to_00 + from_00_to_08
-                if 13 <= c_time.hour < 17:
-                    return 0
-                if c_time.hour < 13:
-                    return from_00_to_13 - current_second
-                if c_time.hour >= 17:
-                    return to_00 + from_00_to_13
+            return self._alternate(week_day, c_time, to_00, full_day, from_00_to_08, from_00_to_13, current_second)
         else:
             if from_date.date() == self.last_worked_day.date():
                 return 0
@@ -102,6 +62,62 @@ class WorkingCalendar:
             if from_date.date() < self.last_worked_day.date():
                 return (self.last_worked_day - from_date).total_seconds()
         return None
+
+    @staticmethod
+    def _full_time(week_day, c_time, to_00, full_day, from_00_to_08, from_00_to_13, current_second):
+        if week_day == 4 and c_time.hour >= 17:  # If Friday
+            return to_00 + (2 * full_day) + from_00_to_08
+        if week_day == 5:  # If Saturday
+            return to_00 + full_day + from_00_to_08
+        if week_day == 6:  # If Sunday
+            return to_00 + from_00_to_08
+        if (8 <= c_time.hour < 12) or (13 <= c_time.hour < 17):
+            return 0
+        if c_time.hour < 8:
+            return from_00_to_08 - current_second
+        if 12 <= c_time.hour < 13:
+            return from_00_to_13 - current_second
+        if c_time.hour >= 17:
+            return to_00 + from_00_to_08
+
+    @staticmethod
+    def _morning(week_day, c_time, to_00, full_day, from_00_to_08, current_second):
+        if week_day == 4 and c_time.hour >= 12:  # If Friday
+            return to_00 + (2 * full_day) + from_00_to_08
+        if week_day == 5:  # If Saturday
+            return to_00 + full_day + from_00_to_08
+        if week_day == 6:  # If Sunday
+            return to_00 + from_00_to_08
+        if 8 <= c_time.hour < 12:
+            return 0
+        if c_time.hour < 8:
+            return from_00_to_08 - current_second
+        if c_time.hour >= 12:
+            return to_00 + from_00_to_08
+
+    @staticmethod
+    def _afternoon(week_day, c_time, to_00, full_day, from_00_to_08, from_00_to_13, current_second):
+        if week_day == 4 and c_time.hour >= 17:  # If Friday
+            return to_00 + (2 * full_day) + from_00_to_13
+        if week_day == 5:  # If Saturday
+            return to_00 + full_day + from_00_to_08
+        if week_day == 6:  # If Sunday
+            return to_00 + from_00_to_08
+        if 13 <= c_time.hour < 17:
+            return 0
+        if c_time.hour < 13:
+            return from_00_to_13 - current_second
+        if c_time.hour >= 17:
+            return to_00 + from_00_to_13
+
+    def _alternate(self, week_day, c_time, to_00, full_day, from_00_to_08, from_00_to_13, current_second):
+        if self.c_type is IType.FULL_TIME:
+            return self._full_time(week_day, c_time, to_00, full_day, from_00_to_08, from_00_to_13, current_second)
+        if self.c_type is IType.MORNING:
+            return self._morning(week_day, c_time, to_00, full_day, from_00_to_08, current_second)
+        if self.c_type is IType.AFTERNOON:
+            return self._afternoon(week_day, c_time, to_00, full_day, from_00_to_08, from_00_to_13, current_second)
+
 
     def to_interval_end(self, from_date: datetime):
         c_time = from_date.time()

@@ -2,7 +2,7 @@ import os
 from datetime import datetime, timedelta
 
 import pandas as pd
-from bayes_opt import BayesianOptimization, UtilityFunction
+from bayes_opt import BayesianOptimization
 from pathlib import Path
 
 from enum import Enum
@@ -15,14 +15,12 @@ from pix_framework.io.event_log import PROSIMOS_LOG_IDS, EventLogIDs
 
 from bpdfr_discovery.log_parser import preprocess_xes_log
 
-from testing_scripts.fuzzy_scripts.fuzzy_discovery_script import discover_model_from_csv_log
 from testing_scripts.fuzzy_scripts.fuzzy_test_files import test_processes_fuzzy, is_syntetic, FileType
 from testing_scripts.multitasking_scripts.fuzzy_model_discovery import build_fuzzy_calendars
 from testing_scripts.multitasking_scripts.multitasking_files import test_processes_multi
 from testing_scripts.fuzzy_scripts.syntetic_logs_generator import get_file_path
 
-from testing_scripts.fuzzy_scripts.icpm22_fuzzy_experiments_script import discover_crisp_calendars, \
-    simulate_and_save_crisp_model, simulate_and_save_results, discover_fuzzy_parameters, run_fuzzy_simulation, \
+from testing_scripts.fuzzy_scripts.icpm22_fuzzy_experiments_script import run_fuzzy_simulation, \
     _mean_by_removing_metric_boundaries, run_crisp_simulation
 
 from pix_framework.enhancement.start_time_estimator.config import Configuration as StartTimeEstimatorConfiguration
@@ -53,6 +51,9 @@ experiment_logs = {
 multi_info = [ModelType.SEQUENTIAL]
 bpmn_model = [None]
 
+start_proc_msg = "STARTING PROCESS: %s (%s)"
+tunning_msg = '++++++++++++++ %s HYPERPARAMETER TUNNING - %s process +++++++++++++++++++++++'
+
 
 def start_single_optimizer():
     is_fuzzy_file[0] = False
@@ -60,13 +61,12 @@ def start_single_optimizer():
     print("%s - Hyperparameter Optimization" % op_parameter[0])
     proc_name = (test_processes_fuzzy if is_fuzzy_file[0] else test_processes_multi)[0]
     for mt in [ModelType.MULTI_GLOBAL, ModelType.MULTI_LOCAL]:
-        print("STARTING PROCESS: %s (%s)" % (proc_name, str(mt)))
+        print(start_proc_msg % (proc_name, str(mt)))
         multi_info[0] = mt
         calendar_type[0] = 5
         is_even[0] = True
         for is_fuzzy_discovery in [True]:
-            print('++++++++++++++ %s HYPERPARAMETER TUNNING - %s process +++++++++++++++++++++++'
-                  % ('PROBABILISTIC' if is_fuzzy_discovery else 'CRISP', proc_name))
+            print(tunning_msg % ('PROBABILISTIC' if is_fuzzy_discovery else 'CRISP', proc_name))
             execute_optimizer(proc_name, is_fuzzy_discovery)
             if not is_fuzzy_file[0]:
                 break
@@ -83,32 +83,44 @@ def start_optimizer():
         for i in range(0, len(test_processes)):
             proc_name = test_processes[i]
             if is_syntetic[proc_name]:
-                for c_type in range(4, 5):
-                    for mt in [ModelType.MULTI_GLOBAL, ModelType.MULTI_LOCAL, ModelType.SEQUENTIAL]:
-                        print("STARTING PROCESS: %s (%s)" % (proc_name, str(mt)))
-                        multi_info[0] = mt
-                        calendar_type[0] = c_type
-                        for even in [True, False]:
-                            is_even[0] = even
-                            if is_fuzzy_file[0]:
-                                naive_crisp_model(proc_name)
-                            for is_fuzzy_discovery in [True]:
-                                print('++++++++++++++ %s HYPERPARAMETER TUNNING - %s process +++++++++++++++++++++++'
-                                      % ('PROBABILISTIC' if is_fuzzy_discovery else 'CRISP', test_processes[i]))
-                                execute_optimizer(proc_name, is_fuzzy_discovery)
-                                if not is_fuzzy_file[0]:
-                                    break
+                _execute_syntetic(proc_name, test_processes, i)
             else:
-                # naive_crisp_model(proc_name)
-                for mt in [ModelType.SEQUENTIAL, ModelType.MULTI_GLOBAL, ModelType.MULTI_LOCAL]:
-                    print("STARTING PROCESS: %s (%s)" % (proc_name, str(mt)))
-                    multi_info[0] = mt
-                    for is_fuzzy_discovery in [True]:
-                        print('++++++++++++++ %s HYPERPARAMETER TUNNING - %s process +++++++++++++++++++++++'
-                              % ('PROBABILISTIC' if is_fuzzy_discovery else 'CRISP', test_processes[i]))
-                        execute_optimizer(proc_name, is_fuzzy_discovery)
+                _execute_real(proc_name, test_processes, i)
 
     os._exit(0)
+
+
+def _execute_syntetic(proc_name, test_processes, index):
+    for c_type in range(4, 5):
+        for mt in [ModelType.MULTI_GLOBAL, ModelType.MULTI_LOCAL, ModelType.SEQUENTIAL]:
+            print(start_proc_msg % (proc_name, str(mt)))
+            multi_info[0] = mt
+            calendar_type[0] = c_type
+            _try_calendar_types(proc_name, test_processes, index)
+
+
+def _try_calendar_types(proc_name, test_processes, index):
+    for even in [True, False]:
+        is_even[0] = even
+        if is_fuzzy_file[0]:
+            naive_crisp_model(proc_name)
+        for is_fuzzy_discovery in [True]:
+            print(tunning_msg
+                  % ('PROBABILISTIC' if is_fuzzy_discovery else 'CRISP', test_processes[index]))
+            execute_optimizer(proc_name, is_fuzzy_discovery)
+            if not is_fuzzy_file[0]:
+                break
+
+
+
+def _execute_real(proc_name, test_processes, index):
+    # naive_crisp_model(proc_name)
+    for mt in [ModelType.SEQUENTIAL, ModelType.MULTI_GLOBAL, ModelType.MULTI_LOCAL]:
+        print(start_proc_msg % (proc_name, str(mt)))
+        multi_info[0] = mt
+        for is_fuzzy_discovery in [True]:
+            print(tunning_msg % ('PROBABILISTIC' if is_fuzzy_discovery else 'CRISP', test_processes[index]))
+            execute_optimizer(proc_name, is_fuzzy_discovery)
 
 
 def execute_optimizer(proc_name, is_fuzzy_disc):

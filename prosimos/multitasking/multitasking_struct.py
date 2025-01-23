@@ -54,8 +54,8 @@ class MultiTaskDS:
                 self.active_datetimes[r_id] = completed_at
             else:
                 self.active_datetimes[r_id] = max(self.active_datetimes[r_id], completed_at)
-            # self.executed_tasks[r_id][t_id] += 1
-            # self.total_tasks[t_id] += 1
+            self.executed_tasks[r_id][t_id] += 1
+            self.total_tasks[t_id] += 1
 
     def release_tasks_from(self, r_id: str, completed_at: datetime):
         if r_id in self.allocated_tasks and self.active_datetimes[r_id] is not None:
