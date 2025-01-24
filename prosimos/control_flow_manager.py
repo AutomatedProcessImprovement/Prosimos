@@ -162,6 +162,10 @@ class BPMNGraph:
         self.gateway_execution_limit = 1000
         self.simulation_execution_stats = SimulationExecutionStats()
 
+    def set_element_probabilities(self, element_probability, task_resource_probability):
+        self.element_probability = element_probability
+        self.task_resource_probability = task_resource_probability
+
     def set_additional_fields_from_json(self, element_probability, task_resource_probability,
                                         event_distribution, batch_processing, gateway_conditions,
                                         gateway_execution_limit):
@@ -361,9 +365,13 @@ class BPMNGraph:
         return enabled_tasks, visited_at
 
     def get_all_attributes(self, case_id):
+        if self.all_attributes is None:
+            return {}
         all_current_attributes = {}
-        all_current_attributes.update(self.all_attributes["global"])
-        all_current_attributes.update(self.all_attributes[case_id])
+        if "global" in self.all_attributes:
+            all_current_attributes.update(self.all_attributes["global"])
+        if case_id in self.all_attributes:
+            all_current_attributes.update(self.all_attributes[case_id])
         return all_current_attributes
 
     def is_task_batched(self, task_id):
@@ -876,7 +884,9 @@ class BPMNGraph:
                 to_execute.append(next_e)
 
     def _check_and_update_enabling_time(self, p_case, e_id, enabled_at: CustomDatetimeAndSeconds):
-        if self.last_datetime[e_id][p_case] is None or self.last_datetime[e_id][p_case].datetime < enabled_at.datetime:
+        if p_case not in self.last_datetime[e_id]:
+            self.last_datetime[e_id][p_case] = enabled_at
+        elif self.last_datetime[e_id][p_case] is None or self.last_datetime[e_id][p_case].datetime < enabled_at.datetime:
             self.last_datetime[e_id][p_case] = enabled_at
         elif self.last_datetime[e_id][p_case].datetime > enabled_at.datetime:
             enabled_at = self.last_datetime[e_id][p_case]

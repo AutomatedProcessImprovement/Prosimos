@@ -306,6 +306,7 @@ def test_update_state_event_gateway_event_happened(
         gateway_conditions,
         _,
         gateway_execution_limit,
+        _,
         _
     ) = parse_json_sim_parameters(json_path)
 
@@ -385,6 +386,7 @@ def test_update_state_terminate_event(assets_path):
         gateway_conditions,
         _,
         gateway_execution_limit,
+        _,
         _
     ) = parse_json_sim_parameters(json_path)
 

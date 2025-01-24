@@ -61,11 +61,17 @@ class DiffResourceQueue:
     # Two tasks share a resource queue iff the share all the resources. If the two tasks share only a set of resources,
     # then they will point to different resource queues. Therefore, a resource may be repeated in many queues.
     def __init__(self, task_resource_map, r_initial_availability):
+        # for r_id in r_initial_availability:
+        #     print(f"{r_id}, {r_initial_availability[r_id]}")
+        # print("-----------------------------------------------")
         self._resource_queues = list()  # List of (shared) resource queues, i.e., many tasks may share a resource queue
         self._resource_queue_map = dict()  # Map relating the indexes of the queues where a resource r_id is contained
         self._task_queue_map = dict()  # Map with the index of the resource queue that can perform a task r_id
 
         self._init_simulation_queues(task_resource_map, r_initial_availability)
+
+    def peek_resource_for(self, task_id):
+        return self._resource_queues[self._task_queue_map[task_id]].peek()
 
     def pop_resource_for(self, task_id):
         return self._resource_queues[self._task_queue_map[task_id]].pop_min()

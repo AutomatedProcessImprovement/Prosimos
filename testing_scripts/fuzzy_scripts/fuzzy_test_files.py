@@ -1,6 +1,6 @@
 from enum import Enum
 
-test_processes = {
+test_processes_fuzzy = {
     0: 'BPI_2012',
     1: 'BPI_2017',
     2: 'consulta_data_mining',
@@ -18,6 +18,10 @@ is_syntetic = {
     'insurance': True,
     'loan_application': True,
     'call_centre': False,
+    'GOV': False,
+    'POC': False,
+    'AC-CRD': False,
+    'WK-ORD': False
 }
 
 has_gateway_info = {
@@ -53,7 +57,8 @@ calendar_type_folder = {
     1: '1_c_24_7',
     2: '2_c_8_5',
     3: '3_c_8_5_m_a',
-    4: '4_c_8_5_m_a_1_2'
+    4: '4_c_8_5_m_a_1_2',
+    5: 'vacation'
 }
 
 root_folder_path = './../assets/fuzzy_calendars/'
@@ -71,7 +76,7 @@ train_logs_path = f'{root_path_in}/train'
 test_logs_path = f'{root_path_in}/test'
 
 
-def get_file_path(proc_name: str, file_type: FileType, granule=15, angle=0, file_index=0, calendar_type=1, even=True):
+def get_file_path_fuzzy(proc_name: str, file_type: FileType, granule=15, angle=0, file_index=0, calendar_type=1, even=True):
     if is_syntetic[proc_name]:
         return get_synthetic_file_path(proc_name, file_type, granule, angle, file_index, calendar_type, even)
     else:

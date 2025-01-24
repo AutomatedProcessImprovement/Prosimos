@@ -6,6 +6,7 @@ Gateway sid-6B518C80-2B96-4C95-B6DE-F9E4A75FF191 is using conditions, but some a
 TASK 'B' (ID: sid-4B24111F-B305-4608-9E12-744B47C44D0D) is used less frequently, only in 0 out of 10 cases (0.00%).
 Gateway sid-6B518C80-2B96-4C95-B6DE-F9E4A75FF191 is using conditions, but some are missing. Flows without conditions: sid-6FD4FFD3-5784-4D33-9509-234EAB886930, sid-9E95A790-241E-4629-8D67-E9A2CE55E3DC
 Gateway sid-6B518C80-2B96-4C95-B6DE-F9E4A75FF191 is using conditions, but some are missing. Flows without conditions: sid-6FD4FFD3-5784-4D33-9509-234EAB886930, sid-9E95A790-241E-4629-8D67-E9A2CE55E3DC
+TASK 'B' (ID: sid-4B24111F-B305-4608-9E12-744B47C44D0D) is used less frequently, only in 0 out of 3 cases (0.00%).
 Gateway sid-6B518C80-2B96-4C95-B6DE-F9E4A75FF191 is using conditions, but some are missing. Flows without conditions: sid-6FD4FFD3-5784-4D33-9509-234EAB886930, sid-9E95A790-241E-4629-8D67-E9A2CE55E3DC
 Gateway sid-6B518C80-2B96-4C95-B6DE-F9E4A75FF191 is using conditions, but some are missing. Flows without conditions: sid-6FD4FFD3-5784-4D33-9509-234EAB886930, sid-9E95A790-241E-4629-8D67-E9A2CE55E3DC
 TASK 'B' (ID: sid-4B24111F-B305-4608-9E12-744B47C44D0D) is used less frequently, only in 0 out of 3 cases (0.00%).
@@ -33,6 +34,7 @@ Gateway sid-6B518C80-2B96-4C95-B6DE-F9E4A75FF191 is using conditions, but some a
 Gateway sid-6B518C80-2B96-4C95-B6DE-F9E4A75FF191 is using conditions, but some are missing. Flows without conditions: sid-6FD4FFD3-5784-4D33-9509-234EAB886930, sid-9E95A790-241E-4629-8D67-E9A2CE55E3DC
 Gateway sid-6B518C80-2B96-4C95-B6DE-F9E4A75FF191 is using conditions, but some are missing. Flows without conditions: sid-6FD4FFD3-5784-4D33-9509-234EAB886930, sid-9E95A790-241E-4629-8D67-E9A2CE55E3DC
 Gateway sid-6B518C80-2B96-4C95-B6DE-F9E4A75FF191 is using conditions, but some are missing. Flows without conditions: sid-6FD4FFD3-5784-4D33-9509-234EAB886930, sid-9E95A790-241E-4629-8D67-E9A2CE55E3DC
+TASK 'B' (ID: sid-4B24111F-B305-4608-9E12-744B47C44D0D) is used less frequently, only in 0 out of 5 cases (0.00%).
 Gateway sid-6B518C80-2B96-4C95-B6DE-F9E4A75FF191 is using conditions, but some are missing. Flows without conditions: sid-6FD4FFD3-5784-4D33-9509-234EAB886930, sid-9E95A790-241E-4629-8D67-E9A2CE55E3DC
 Gateway sid-6B518C80-2B96-4C95-B6DE-F9E4A75FF191 is using conditions, but some are missing. Flows without conditions: sid-6FD4FFD3-5784-4D33-9509-234EAB886930, sid-9E95A790-241E-4629-8D67-E9A2CE55E3DC
 Gateway sid-6B518C80-2B96-4C95-B6DE-F9E4A75FF191 is using conditions, but some are missing. Flows without conditions: sid-6FD4FFD3-5784-4D33-9509-234EAB886930, sid-9E95A790-241E-4629-8D67-E9A2CE55E3DC
