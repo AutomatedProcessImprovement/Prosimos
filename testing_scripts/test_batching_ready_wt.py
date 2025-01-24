@@ -176,7 +176,7 @@ def test_only_high_boundary_correct_distance_between_batches_and_inside(executio
     start_string = "2022-09-29 23:45:30.035185+03:00"
     start_date = parse_datetime(start_string, True)
 
-    total_num_cases = 10
+    total_num_cases = 9
     _arrange_and_act_exp(assets_path, firing_rules, start_string, total_num_cases)
 
     # ====== ASSERT ======
