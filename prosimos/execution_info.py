@@ -25,7 +25,7 @@ class ProcessInfo:
 
 class TaskEvent:
     def __init__(self, p_case, task_id, resource_id, resource_available_at=None, 
-        enabled_at=None, enabled_datetime=None, bpm_env=None, num_tasks_in_batch=0):
+        enabled_at=None, enabled_datetime=None, bpm_env=None, num_tasks_in_batch=0, batch_id=None):
         self.p_case = p_case  # ID of the current trace, i.e., index of the trace in log_info list
         self.task_id = task_id  # Name of the task related to the current event
         self.type = BPMN.TASK # showing whether it's task or event
@@ -35,6 +35,7 @@ class TaskEvent:
         self.normalized_waiting = None
         self.normalized_processing = None
         self.worked_intervals = []
+        self.batch_id = batch_id
 
         if resource_available_at is not None:
             # Time moment in seconds from beginning, i.e., first event has time = 0

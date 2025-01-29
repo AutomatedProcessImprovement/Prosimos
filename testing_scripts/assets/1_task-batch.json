@@ -1,0 +1,73 @@
+{
+  "resource_profiles": [
+    {
+      "id": "FIRST_ACTIVITY",
+      "name": "Base Resource Pool",
+      "resource_list": [
+        {
+          "id": "BASE_RESOURCE",
+          "name": "BASE_RESOURCE",
+          "cost_per_hour": 10,
+          "amount": 1,
+          "calendar": "BASE_CALENDAR",
+          "assigned_tasks": ["FIRST_ACTIVITY"]
+        }
+      ],
+      "fixed_cost_fn": "15"
+    }
+  ],
+  "arrival_time_distribution": {
+    "distribution_name": "fix",
+    "distribution_params": [{ "value": 86400 }]
+  },
+  "arrival_time_calendar": [
+    {
+      "from": "MONDAY",
+      "to": "SUNDAY",
+      "beginTime": "09:00:00",
+      "endTime": "10:00:00"
+    }
+  ],
+  "gateway_branching_probabilities": [],
+  "task_resource_distribution": [
+    {
+      "task_id": "FIRST_ACTIVITY",
+      "resources": [
+        {
+          "resource_id": "BASE_RESOURCE",
+          "distribution_name": "fix",
+          "distribution_params": [{ "value": 3600 }]
+        }
+      ]
+    }
+  ],
+  "resource_calendars": [
+    {
+      "id": "BASE_CALENDAR",
+      "name": "BASE_CALENDAR",
+      "time_periods": [
+        {
+          "to": "FRIDAY",
+          "from": "MONDAY",
+          "beginTime": "09:00:00",
+          "endTime": "18:00:00"
+        }
+      ]
+    }
+  ],
+  "event_distribution": {},
+  "batch_processing": [
+    {
+      "task_id": "FIRST_ACTIVITY",
+      "type": "Parallel",
+      "size_distrib": [
+        { "key": "1", "value": 0.0 },
+        { "key": "4", "value": 1.0 }
+      ],
+      "duration_distrib": [{ "key": "4", "value": 0.5 }],
+      "firing_rules": [[{ "attribute": "size", "comparison": "=", "value": 4 }]]
+    }
+  ],
+  "start_time": "2000-01-01T00:00:00Z",
+  "total_cases": 8
+}
