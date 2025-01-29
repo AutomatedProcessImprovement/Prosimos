@@ -72,6 +72,7 @@ class SimBPMEnv:
             self.generate_all_arrival_events()
 
     def filter_event_log(self):
+        print("Running filter_event_log now. #Traces before filter =", len(self.log_info.trace_list))
         filtered_traces = {}
         for case_id, trace in self.log_info.trace_list.items():
             # Get the start time of the case (first event's start time)
@@ -490,7 +491,7 @@ class SimBPMEnv:
         # Decide resource
         if c_event.assigned_resource_id:
             resource_id = c_event.assigned_resource_id
-            resource_available_at = c_event.enabled_at
+            resource_available_at = self.resource_queue.get_resource_availability(resource_id)
         else:
             resource_id, resource_available_at = self.pop_and_allocate_resource(task_id, num_allocated_tasks=1)
             self.sim_resources[resource_id].allocated_tasks += 1
@@ -506,7 +507,7 @@ class SimBPMEnv:
         # 2) Otherwise, do max(enabled_at, resource_avail)
         # ---------------------------------------------
         if hasattr(c_event, "started_at") and c_event.started_at is not None:
-            started_at = c_event.started_at
+            started_at = max(c_event.started_at, resource_available_at)
             # If you want partial state to override resource availability, do:
             #   started_at = c_event.started_at
             #
@@ -848,8 +849,8 @@ class SimBPMEnv:
             # Write event to log file
             print(f"Writing row data to the log {row_data}")
             self.log_writer.add_csv_row(row_data)
-            with open("../output.txt", "a") as output_file:
-                output_file.write(f"{row_data}\n")
+            # with open("../output.txt", "a") as output_file:
+            #     output_file.write(f"{row_data}\n")
         else:
             # Event is not included due to filtering
             pass
@@ -1032,7 +1033,7 @@ def run_simpy_simulation(diffsim_info, stat_fwriter, log_fwriter, fixed_starting
     bpm_env = SimBPMEnv(diffsim_info, stat_fwriter, log_fwriter, process_state=process_state, simulation_horizon=simulation_horizon)
     execute_full_process(bpm_env, fixed_starting_times)
 
-    bpm_env.filter_event_log()
+    # bpm_env.filter_event_log()
     if fixed_starting_times is not None:
         return bpm_env
     if log_fwriter is None and stat_fwriter is None:

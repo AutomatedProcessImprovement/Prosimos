@@ -74,6 +74,21 @@ class DiffResourceQueue:
         for q_index in self._resource_queue_map[resource_id]:
             self._resource_queues[q_index].insert(resource_id, released_at)
 
+    def get_resource_availability(self, resource_id):
+        """
+        Look up the current availability time for a given resource.
+        If the resource does not exist (external, possibly in process state?), return 0.
+        """
+        if resource_id not in self._resource_queue_map:
+            # Possibly an external resource not recognized
+            return 0
+        # We assume the resource is in exactly one queue index or the first one
+        q_idx = self._resource_queue_map[resource_id][0]
+        curr_priority = self._resource_queues[q_idx].get_priority(resource_id)
+        if curr_priority is None:
+            return 0
+        return curr_priority
+
     def _init_simulation_queues(self, task_resource_map, r_initial_availability):
         joint_sets = list()
         taken = set()
