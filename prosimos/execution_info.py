@@ -92,6 +92,7 @@ class TaskEvent:
         cls.idle_processing_time = 0.0
         cls.cycle_time = 0.0
         cls.processing_time = 0.0
+        cls.batch_id = c_event.batch_info_exec.batch_id if c_event.batch_info_exec is not None else None
 
         return cls
 

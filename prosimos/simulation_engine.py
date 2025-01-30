@@ -366,12 +366,10 @@ class SimBPMEnv:
 
         all_attrs = self.sim_setup.bpmn_graph.get_all_attributes(full_event.p_case)
 
-        values = ["" if all_attrs.get(col) is None else all_attrs.get(col) for col in self.additional_columns]
+        # values = ["" if all_attrs.get(col) is None else all_attrs.get(col) for col in self.additional_columns]
+        values = ["" if all_attrs.get(col) is None else all_attrs.get(col) for col in self.additional_columns if col != "batch_id"]
         if self.log_writer.has_batch:
-            if values == [""]:
-                values[0] = full_event.batch_id
-            else:
-                values.append(str(full_event.batch_id))
+            values.append(str(full_event.batch_id))
         return [*row_basic_info, *values]
 
     def append_any_enabled_batch_tasks(self, current_event: EnabledEvent) -> List[EnabledEvent]:
@@ -499,6 +497,7 @@ class SimBPMEnv:
                     enabled_datetime,
                     self,
                     num_tasks_in_batch,
+                    c_event.batch_info_exec.batch_id
                 )
 
                 self.sim_resources[r_id].worked_time += full_evt.ideal_duration

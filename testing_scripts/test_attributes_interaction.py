@@ -7,6 +7,7 @@ import pytest
 import logging
 import random
 from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
+from testing_scripts.test_batching_stats import remove_files
 
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
@@ -434,6 +435,8 @@ def test_attributes_interaction(assets_path, test_config):
     assert os.path.isfile(sim_logs), "Simulation log file is not created at the specified path."
     assert os.path.isfile(sim_stats), "Simulation stats file is not created at the specified path."
     assert os.path.isfile(warning_logs), "Simulation warnings file is not created at the specified path."
+
+    remove_files([warning_logs, sim_logs, sim_stats])
 
 
 def _modify_json_parameters(json_path, parameters):

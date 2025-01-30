@@ -18,3 +18,4 @@ bimp_test_examples/
 .vscode/
 dist/
 poetry.lock
+testing_scripts/assets/simulation_warnings.txt
