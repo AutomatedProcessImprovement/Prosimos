@@ -5,7 +5,7 @@ class FileManager:
         self.chunk_size = chunk_size
         self.data_buffer = list()
         self.file_writter = file_writter
-
+        self.has_batch = "batch_id" in additional_column_names
         self._add_header_row(additional_column_names)
 
     def add_csv_row(self, csv_row):

@@ -109,9 +109,10 @@ TEST_CONFIGS = [
             activities=set(["A", "B", "C"]), activities_per_case=[1, 1], total_cases=TOTAL_CASES:
      generate_test_config(test_name, activities, json_filename, bpmn_filename, total_cases, activities_per_case))(),
 
-    (lambda test_name="Test XOR with multiple true conditions should use probabilities on true conditions and use 1 flow",
-            bpmn_filename="gateway_condition_xor_model.bpmn", json_filename="gateway_multiple_true_condition.json",
-            activities=set(["A", "B"]), activities_per_case=[1, 1], total_cases=TOTAL_CASES:
+    (lambda
+         test_name="Test XOR with multiple true conditions should use probabilities on true conditions and use 1 flow",
+         bpmn_filename="gateway_condition_xor_model.bpmn", json_filename="gateway_multiple_true_condition.json",
+         activities=set(["A", "B"]), activities_per_case=[1, 1], total_cases=TOTAL_CASES:
      generate_test_config(test_name, activities, json_filename, bpmn_filename, total_cases, activities_per_case))(),
 
     (lambda test_name="Test XOR with one true condition should use 1 true flow",
@@ -130,6 +131,7 @@ TEST_CONFIGS = [
      generate_test_config(test_name, activities, json_filename, bpmn_filename, total_cases, activities_per_case))()
 ]
 TEST_NAMES = [test['test_name'] for test in TEST_CONFIGS]
+
 
 @pytest.mark.parametrize("config", TEST_CONFIGS, ids=TEST_NAMES)
 def test_run_simulation(assets_path, config):

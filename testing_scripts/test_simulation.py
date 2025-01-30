@@ -14,6 +14,7 @@ from prosimos.simulation_properties_parser import (
 )
 
 from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
+from testing_scripts.test_batching_stats import remove_files
 from testing_scripts.test_update_state import _setup_sim_scenario_file
 
 DEFAULT_RESOURCE_CALENDARS_TIMER_WITH_TASK = [
@@ -264,6 +265,7 @@ def test_event_based_gateway_correct(assets_path):
     expected_timer_timedelta = datetime.timedelta(hours=4)
     only_four_h_events = df[df["activity"] == "4h"]
     _verify_activity_count_and_duration(only_four_h_events, 5, expected_timer_timedelta)
+    remove_files([sim_logs, sim_stats])
 
 
 def _verify_activity_count_and_duration(activities, count, expected_activity_timedelta):

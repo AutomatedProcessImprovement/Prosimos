@@ -2,6 +2,7 @@ import copy
 import random
 import secrets
 import sys
+import uuid
 from collections import deque
 from enum import Enum
 from typing import List
@@ -23,6 +24,7 @@ class BatchInfoForExecution:
         self.task_batch_info = task_batch_info[curr_task_id]
         self.batch_spec = batch_spec
         self.start_time_from_rule = start_time_from_rule
+        self.batch_id = str(uuid.uuid4())
 
     def is_sequential(self):
         return self.task_batch_info.type == BATCH_TYPE.SEQUENTIAL
