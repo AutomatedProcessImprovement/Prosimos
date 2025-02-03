@@ -400,7 +400,7 @@ class SimBPMEnv:
             p_case, sim_setup.bpmn_graph.starting_event, p_state, enabled_time
         )
         self.all_process_states[p_case] = p_state
-        self.log_info.trace_list.append(Trace(p_case, enabled_datetime))
+        self.log_info.trace_list[p_case] = Trace(p_case, enabled_datetime)
         for task in enabled_tasks:
             task_id = task.task_id
             self.calc_priority_and_append_to_queue(
@@ -591,8 +591,9 @@ class SimBPMEnv:
             case_start_time = full_event.started_datetime
 
         # If this case starts AFTER the horizon, skip it
-        if case_start_time >= self.simulation_horizon:
-            return None
+        if self.simulation_horizon is not None:
+            if case_start_time >= self.simulation_horizon:
+                return None
 
         print(
             f"CSV Row Data: Case {full_event.p_case} started at {case_start_time} comparing to simulation_horizon {self.simulation_horizon}"
