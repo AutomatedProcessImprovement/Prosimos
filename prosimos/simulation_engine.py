@@ -419,7 +419,7 @@ class SimBPMEnv:
         return enabled_datetime
 
     def execute_enabled_event(self, c_event: EnabledEvent, resource_in_pool=True):
-        print(f"Processing event {c_event.task_id} for case {c_event.p_case} at simulation time {str(c_event.enabled_at)}")
+        # print(f"Processing event {c_event.task_id} for case {c_event.p_case} at simulation time {str(c_event.enabled_at)}")
         self.executed_events += 1
 
         event_element_info = self.sim_setup.bpmn_graph.element_info[c_event.task_id]
@@ -944,7 +944,7 @@ def execute_full_process(bpm_env: SimBPMEnv, fixed_starting_times=None):
             new_attributes = {attr.name: attr.get_next_value() for attr in global_case_attributes}
             bpm_env.sim_setup.bpmn_graph.all_attributes["global"].update(new_attributes)
 
-        print(f"Processing event at simulation time: {current_event}")
+        # print(f"Processing event at simulation time: {current_event}")
         bpm_env.execute_enabled_event(current_event)
 
         # find the next event to be executed
