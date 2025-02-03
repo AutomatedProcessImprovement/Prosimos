@@ -477,7 +477,7 @@ class SimBPMEnv:
                         ),
                         False,
                     )
-        print(f"Process state after executing event for case {c_event.p_case}: {c_event.p_state.tokens}")
+        # print(f"Process state after executing event for case {c_event.p_case}: {c_event.p_state.tokens}")
 
     def pop_and_allocate_resource(self, task_id: str, num_allocated_tasks: int):
         r_id, r_avail_at = self.resource_queue.pop_resource_for(task_id)
@@ -517,14 +517,14 @@ class SimBPMEnv:
             started_at = max(c_event.enabled_at, resource_available_at)
 
         started_datetime = self.simulation_datetime_from(started_at)
-        print(f"Started at {started_datetime} and started {started_at}")
+        # print(f"Started at {started_datetime} and started {started_at}")
 
         # Calculate real duration (accounting for resource calendar)
         if resource_in_pool:
             real_duration = self.sim_setup.real_task_duration(duration, resource_id, started_datetime)
         else:
             real_duration = duration
-        print(f"DEBUG: started_at={started_at}, real_duration={real_duration}")
+        # print(f"DEBUG: started_at={started_at}, real_duration={real_duration}")
 
         completed_at = started_at + real_duration
         completed_datetime = self.simulation_datetime_from(completed_at)
@@ -595,9 +595,9 @@ class SimBPMEnv:
             if case_start_time >= self.simulation_horizon:
                 return None
 
-        print(
-            f"CSV Row Data: Case {full_event.p_case} started at {case_start_time} comparing to simulation_horizon {self.simulation_horizon}"
-        )
+        # print(
+        #     f"CSV Row Data: Case {full_event.p_case} started at {case_start_time} comparing to simulation_horizon {self.simulation_horizon}"
+        # )
 
         # Determine resource name
         if hasattr(full_event, "resource_id"):
@@ -848,7 +848,7 @@ class SimBPMEnv:
         row_data = self.get_csv_row_data(full_evt)
         if row_data:
             # Write event to log file
-            print(f"Writing row data to the log {row_data}")
+            # print(f"Writing row data to the log {row_data}")
             self.log_writer.add_csv_row(row_data)
             # with open("../output.txt", "a") as output_file:
             #     output_file.write(f"{row_data}\n")
