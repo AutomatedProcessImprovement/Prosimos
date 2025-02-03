@@ -126,7 +126,7 @@ class SimBPMEnv:
             flows = case_data.get('control_flow_state', {}).get('flows', [])
             tokens = {flow_id: 1 for flow_id in flows}
             p_state.set_tokens(tokens)
-            print(f"Set tokens for case {case_id}: {tokens}")
+            # print(f"Set tokens for case {case_id}: {tokens}")
 
             self.all_process_states[case_id] = p_state
             self.log_info.trace_list[case_id] = Trace(case_id, self.sim_setup.start_datetime)
@@ -241,7 +241,7 @@ class SimBPMEnv:
                 incoming_flows = task.incoming_flows
                 tokens_for_task = {flow_id: 1 for flow_id in incoming_flows}
                 p_state.set_tokens(tokens_for_task)
-                print(f"Set tokens for case {case_id}: {tokens_for_task}")
+                # print(f"Set tokens for case {case_id}: {tokens_for_task}")
 
             # --------------------------------------
             # 2b) Handle enabled (but not started) activities
@@ -264,7 +264,7 @@ class SimBPMEnv:
                 self.calc_priority_and_append_to_queue(enabled_event, is_arrival_event=False)
                 print(f"Scheduling enabled '{task_name}' for case {case_id} at {enabled_time}.")
 
-            print(f"Initialized case {case_id} with partial process state.")
+            # print(f"Initialized case {case_id} with partial process state.")
 
         # ------------------------------------------------------
         # 3) Update resource_queue with final computed avail.
