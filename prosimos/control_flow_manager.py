@@ -388,6 +388,15 @@ class BPMNGraph:
         return enabled_tasks, visited_at
 
     def get_all_attributes(self, case_id):
+        """
+        Return a combined dictionary of global attributes plus
+        the per-case attributes. If the case doesn't exist yet,
+        create an empty dictionary for it on the fly.
+        """
+        if case_id not in self.all_attributes:
+            # Create an empty (or default) dict for new case IDs
+            self.all_attributes[case_id] = {}
+
         all_current_attributes = {}
         all_current_attributes.update(self.all_attributes["global"])
         all_current_attributes.update(self.all_attributes[case_id])
