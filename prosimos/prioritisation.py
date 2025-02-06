@@ -20,7 +20,18 @@ class CasePrioritisation:
             self.all_case_priorities,
         ) = self.calculate_case_attr_and_priorities()
 
-    def get_priority_by_case_id(self, case_id):
+    def get_priority_by_case_id(self, case_id: int):
+        """
+        Return the priority for the given case ID.
+        If 'case_id' hasn't been computed yet, do it dynamically.
+        """
+        if case_id not in self.all_case_priorities:
+            # Dynamically compute a new priority for this ID
+            new_attrs = self.case_attributes.get_values_calculated()
+            self.all_case_attributes[case_id] = new_attrs
+            new_priority = self.prioritisation_rules.get_priority(new_attrs)
+            self.all_case_priorities[case_id] = new_priority
+
         return self.all_case_priorities[case_id]
 
     def get_case_attr_values(self, case_id):
@@ -32,7 +43,7 @@ class CasePrioritisation:
         total_num_cases = self.total_num_cases
         all_case_attr_dict = dict()
         all_case_priorities = dict()
-        for case_id in range(0, total_num_cases):
+        for case_id in range(0, total_num_cases + 1):
             curr_case_attributes = self.case_attributes.get_values_calculated()
             all_case_attr_dict[case_id] = curr_case_attributes
             all_case_priorities[case_id] = self.prioritisation_rules.get_priority(
