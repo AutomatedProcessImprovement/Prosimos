@@ -101,11 +101,18 @@ class LogInfo:
                         for interval in event_info.worked_intervals:
                             real_work_intervals.append(interval)
                     else:
-                        r_calendar.remove_idle_times(
-                            event_info.started_datetime,
-                            event_info.completed_datetime,
-                            real_work_intervals
-                        )
+                        try:
+                            r_calendar.remove_idle_times(
+                                event_info.started_datetime,
+                                event_info.completed_datetime,
+                                real_work_intervals
+                            )
+                        except IndexError:
+                            # Fallback: if the day is outside the resource calendar, treat
+                            # the entire interval as working time.
+                            real_work_intervals.append(
+                                Interval(event_info.started_datetime, event_info.completed_datetime)
+                            )
                 else:
                     # Resource is external; assume the full duration is working time
                     real_work_intervals.append(
