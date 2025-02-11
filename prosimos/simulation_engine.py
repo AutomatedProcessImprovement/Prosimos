@@ -233,8 +233,8 @@ class SimBPMEnv:
                     if activity_ends_at > resource_end_times_map[resource_id]:
                         resource_end_times_map[resource_id] = activity_ends_at
 
-                print(
-                    f"Scheduled ongoing '{task_id}' for case {case_id} at sim time {enabled_at} with remaining {remaining_duration}.")
+                # print(
+                #     f"Scheduled ongoing '{task_id}' for case {case_id} at sim time {enabled_at} with remaining {remaining_duration}.")
 
                 # Update tokens for the ongoing activity
                 task = self.sim_setup.bpmn_graph.element_info[task_id]
@@ -262,32 +262,47 @@ class SimBPMEnv:
                     enabled_time
                 )
                 self.calc_priority_and_append_to_queue(enabled_event, is_arrival_event=False)
-                print(f"Scheduling enabled '{task_id}' for case {case_id} at {enabled_time}.")
+                # print(f"Scheduling enabled '{task_id}' for case {case_id} at {enabled_time}.")
 
             # --------------------------------------
-            # 2c) Handle enabled gateways - NEW
+            # 2c) Fire enabled gateways
             # --------------------------------------
             for gateway_info in case_data.get("enabled_gateways", []):
                 gateway_id = gateway_info["id"]
 
-                gw_enabled_time_str = gateway_info.get("enabled_time")
-                if gw_enabled_time_str:
-                    gw_enabled_time_dt = parse_datetime(gw_enabled_time_str, True)
+                gw_enabled_time_dt = gateway_info.get("enabled_time")
+                if gw_enabled_time_dt:
+                    if isinstance(gw_enabled_time_dt, str):
+                        gw_enabled_time_dt = parse_datetime(gw_enabled_time_dt, True)
                 else:
                     gw_enabled_time_dt = self.sim_setup.start_datetime
 
                 gw_enabled_at = (gw_enabled_time_dt - self.sim_setup.start_datetime).total_seconds()
 
-                # Use the same EnabledEvent for a gateway (task_id = gateway_id)
-                gateway_event = EnabledEvent(
-                    p_case=case_id,
-                    p_state=p_state,
-                    task_id=gateway_id,
-                    enabled_at=gw_enabled_at,
-                    enabled_datetime=gw_enabled_time_dt
+                # Instead of putting it in the event queue, we "execute" the gateway logic right now:
+                # print(f"Immediately firing gateway '{gateway_id}' for case={case_id} at {gw_enabled_time_dt}.")
+
+                # We treat the gateway as if it "completed" at its enabled time
+                dummy_time = CustomDatetimeAndSeconds(gw_enabled_at, gw_enabled_time_dt)
+
+                # Force the BFS update in control_flow_manager:
+                enabled_tasks, visited_at = self.sim_setup.update_process_state(
+                    case_id, gateway_id, p_state, dummy_time
                 )
-                self.calc_priority_and_append_to_queue(gateway_event, is_arrival_event=False)
-                print(f"Scheduling enabled gateway '{gateway_id}' for case={case_id} at {gw_enabled_time_dt}.")
+
+                # Now any tasks enabled by that gateway can be scheduled
+                for next_task in enabled_tasks:
+                    # print(f"Next task for case ={case_id} after firing gateway: {next_task.task_id}")
+                    # next_task.task_id is an ID that must be scheduled
+                    visited_time = visited_at[next_task.task_id]
+                    new_evt = EnabledEvent(
+                        p_case=case_id,
+                        p_state=p_state,
+                        task_id=next_task.task_id,
+                        enabled_at=visited_time.seconds_from_start,
+                        enabled_datetime=visited_time.datetime
+                    )
+                    self.calc_priority_and_append_to_queue(new_evt, is_arrival_event=False)
 
             # print(f"Initialized case {case_id} with partial process state.")
 
@@ -299,7 +314,7 @@ class SimBPMEnv:
             self.sim_resources[r_id].available_time = r_first_available[r_id]
         self.resource_queue = DiffResourceQueue(self.sim_setup.task_resource, r_first_available)
 
-        print("Events in event queue after initialization:", self.events_queue.enabled_events)
+        # print("Events in event queue after initialization:", self.events_queue.enabled_events)
 
         # ------------------------------------------------------
         # 4) Generate any additional arrival events if needed
@@ -313,6 +328,7 @@ class SimBPMEnv:
         """
         existing_case_ids = set(int(cid) for cid in process_state['cases'].keys())
         total_existing_cases = len(existing_case_ids)
+        process_state_cases = total_existing_cases
         total_cases_needed = self.sim_setup.total_num_cases
 
         # If we already have enough cases in partial state, do nothing
@@ -366,7 +382,7 @@ class SimBPMEnv:
             case_id += 1
             total_existing_cases += 1
 
-        print(f"Added {total_existing_cases} existing cases + new arrivals up to {total_cases_needed}.")
+        print(f"Added {process_state_cases} existing cases + new arrivals up to {total_cases_needed}.")
 
     def calc_priority_and_append_to_queue(self, enabled_event: EnabledEvent, is_arrival_event: bool):
         if enabled_event.is_inter_event:
@@ -1033,7 +1049,7 @@ def run_simulation(
         log_writer = csv.writer(log_csv_file, **csv_writer_config) if log_csv_file else None
 
         result = run_simpy_simulation(diffsim_info, stat_writer, log_writer, fixed_starting_times=fixed_arrival_times, process_state=process_state, simulation_horizon=simulation_horizon)
-        print("run_simulation: result =", result)
+        # print("run_simulation: result =", result)
     finally:
         if stat_csv_file:
             stat_csv_file.close()
@@ -1071,7 +1087,7 @@ def run_simpy_simulation(diffsim_info, stat_fwriter, log_fwriter, fixed_starting
 
     warning_logger.add_warnings(bpm_env.sim_setup.bpmn_graph.simulation_execution_stats.find_issues())
 
-    print("run_simpy_simulation: bpm_env =", bpm_env)
+    # print("run_simpy_simulation: bpm_env =", bpm_env)
     return bpm_env
 
 
