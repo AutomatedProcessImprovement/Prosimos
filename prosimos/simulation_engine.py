@@ -135,8 +135,8 @@ class SimBPMEnv:
             # 2a) Handle ongoing activities
             # --------------------------------------
             for activity in case_data.get("ongoing_activities", []):
-                task_name = activity["name"]
-                task_id = self.sim_setup.bpmn_graph.get_task_id_by_name(task_name)
+                task_id = activity["id"]
+                # task_id = self.sim_setup.bpmn_graph.get_task_id_by_name(task_name)
                 resource_name = activity.get("resource")
 
                 start_time = activity.get("start_time")  # Real datetime
@@ -234,7 +234,7 @@ class SimBPMEnv:
                         resource_end_times_map[resource_id] = activity_ends_at
 
                 print(
-                    f"Scheduled ongoing '{task_name}' for case {case_id} at sim time {enabled_at} with remaining {remaining_duration}.")
+                    f"Scheduled ongoing '{task_id}' for case {case_id} at sim time {enabled_at} with remaining {remaining_duration}.")
 
                 # Update tokens for the ongoing activity
                 task = self.sim_setup.bpmn_graph.element_info[task_id]
@@ -247,8 +247,8 @@ class SimBPMEnv:
             # 2b) Handle enabled (but not started) activities
             # --------------------------------------
             for activity in case_data.get('enabled_activities', []):
-                task_name = activity['name']
-                task_id = self.sim_setup.bpmn_graph.get_task_id_by_name(task_name)
+                task_id = activity['id']
+                # task_id = self.sim_setup.bpmn_graph.get_task_id_by_name(task_name)
                 enabled_time = activity['enabled_time']
                 if isinstance(enabled_time, str):
                     enabled_time = parse_datetime(enabled_time)
@@ -262,7 +262,32 @@ class SimBPMEnv:
                     enabled_time
                 )
                 self.calc_priority_and_append_to_queue(enabled_event, is_arrival_event=False)
-                print(f"Scheduling enabled '{task_name}' for case {case_id} at {enabled_time}.")
+                print(f"Scheduling enabled '{task_id}' for case {case_id} at {enabled_time}.")
+
+            # --------------------------------------
+            # 2c) Handle enabled gateways - NEW
+            # --------------------------------------
+            for gateway_info in case_data.get("enabled_gateways", []):
+                gateway_id = gateway_info["id"]
+
+                gw_enabled_time_str = gateway_info.get("enabled_time")
+                if gw_enabled_time_str:
+                    gw_enabled_time_dt = parse_datetime(gw_enabled_time_str, True)
+                else:
+                    gw_enabled_time_dt = self.sim_setup.start_datetime
+
+                gw_enabled_at = (gw_enabled_time_dt - self.sim_setup.start_datetime).total_seconds()
+
+                # Use the same EnabledEvent for a gateway (task_id = gateway_id)
+                gateway_event = EnabledEvent(
+                    p_case=case_id,
+                    p_state=p_state,
+                    task_id=gateway_id,
+                    enabled_at=gw_enabled_at,
+                    enabled_datetime=gw_enabled_time_dt
+                )
+                self.calc_priority_and_append_to_queue(gateway_event, is_arrival_event=False)
+                print(f"Scheduling enabled gateway '{gateway_id}' for case={case_id} at {gw_enabled_time_dt}.")
 
             # print(f"Initialized case {case_id} with partial process state.")
 
