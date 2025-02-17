@@ -323,8 +323,8 @@ class SimBPMEnv:
 
     def generate_remaining_arrival_events(self, process_state):
         """
-        Instead of using process_state['last_case_arrival'],
-        we compute it from the actual partial-state data, e.g. the earliest start times of the existing cases.
+        Updated: Generate remaining arrival events using the simulation start datetime
+        as the base time for new arrivals instead of using the earliest case start times.
         """
         existing_case_ids = set(int(cid) for cid in process_state['cases'].keys())
         total_existing_cases = len(existing_case_ids)
@@ -336,33 +336,16 @@ class SimBPMEnv:
             return
 
         # -------------------------------------------------------------
-        # 1) Derive last arrival time from partial state
-        #    - For each case, get its earliest event's start time
-        #    - The "last arrival" could be the max of those
+        # Use simulation start datetime as the baseline for new arrivals
         # -------------------------------------------------------------
-        earliest_case_starts = []
-        for cid in existing_case_ids:
-            trace_obj = self.log_info.trace_list.get(cid)
-            if trace_obj and trace_obj.event_list:
-                # Grab the first event's started_datetime
-                earliest_case_starts.append(trace_obj.event_list[0].started_datetime)
-            else:
-                # If no events, fallback to the environment’s start time
-                earliest_case_starts.append(self.sim_setup.start_datetime)
+        current_time = self.sim_setup.start_datetime
 
-        if len(earliest_case_starts) == 0:
-            # If no cases or no times, just use sim_setup.start_datetime as baseline
-            last_arrival_time = self.sim_setup.start_datetime
-        else:
-            # The "last arrival" is the maximum of earliest start times
-            last_arrival_time = max(earliest_case_starts)
-
-        # current_time is what we'll treat as "last known arrival"
-        current_time = last_arrival_time
-        case_id = max(existing_case_ids) + 1
+        # Determine the next case id. If there are existing cases, start from the next one;
+        # otherwise, start at 0.
+        case_id = max(existing_case_ids) + 1 if existing_case_ids else 0
 
         # -------------------------------------------------------------
-        # 2) Schedule new arrivals until we reach total_num_cases
+        # Schedule new arrivals until we reach total_num_cases
         # -------------------------------------------------------------
         while total_existing_cases < total_cases_needed:
             inter_arrival_seconds = self.sim_setup.next_arrival_time(current_time)
