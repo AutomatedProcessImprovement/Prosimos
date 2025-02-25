@@ -304,6 +304,25 @@ class SimBPMEnv:
                     )
                     self.calc_priority_and_append_to_queue(new_evt, is_arrival_event=False)
 
+            # --------------------------------------
+            # 2d) Handle enabled events
+            # --------------------------------------
+            for event in case_data.get("enabled_events", []):
+                event_id = event["id"]
+                enabled_time = event["enabled_time"]
+                if isinstance(enabled_time, str):
+                    enabled_time = parse_datetime(enabled_time)
+                enabled_at = (enabled_time - self.sim_setup.start_datetime).total_seconds()
+                enabled_event = EnabledEvent(
+                    p_case=case_id,
+                    p_state=p_state,
+                    task_id=event_id,
+                    enabled_at=enabled_at,
+                    enabled_datetime=enabled_time,
+                )
+                # Immediately execute the enabled event using our new logic.
+                self.execute_event_from_process_state(enabled_event)
+
             # print(f"Initialized case {case_id} with partial process state.")
 
         # ------------------------------------------------------
@@ -908,6 +927,65 @@ class SimBPMEnv:
                 # Event is not included due to filtering
                 pass
 
+        return completed_at, completed_datetime
+
+    def execute_event_from_process_state(self, c_event):
+        """
+        Executes an enabled event that originates from the partial-state.
+
+        In this case, we assume that c_event.enabled_at is expressed as seconds relative
+        to the simulation start (which is 0). It may be negative if the event was enabled
+        before simulation start. We then compute the elapsed time as (current_sim_time - enabled_at),
+        where for process state we take current_sim_time = 0.
+
+        If the event’s duration (from the BPMN distribution) is less than or equal to the elapsed time,
+        then its timer expired in the past and we fire it immediately (setting its completion time to
+        enabled_at + duration). Otherwise, we subtract the elapsed time from the duration and schedule
+        it to complete after the remaining time.
+
+        After firing, we update the process state (via sim_setup.update_process_state) so that subsequent
+        activities become enabled.
+        """
+        # Retrieve event duration (in seconds) from the BPMN distribution.
+        event_element = self.sim_setup.bpmn_graph.element_info[c_event.task_id]
+        [duration] = self.sim_setup.bpmn_graph.event_duration(event_element.id)
+
+        # For process state events, we start with the current simulation time is 0 (i.e. at simulation start).
+        current_sim_time = 0
+        elapsed = current_sim_time - c_event.enabled_at
+
+        if duration <= elapsed:
+            # Timer already expired.
+            completed_at = c_event.enabled_at + duration
+            completed_datetime = c_event.enabled_datetime + timedelta(seconds=duration)
+        else:
+            effective_duration = duration - elapsed
+            completed_at = current_sim_time + effective_duration
+            completed_datetime = self.simulation_datetime_from(completed_at)
+
+        full_evt = TaskEvent.create_event_entity(c_event, completed_at, completed_datetime)
+        self.log_info.add_event_info(c_event.p_case, full_evt, 0)
+        if self.sim_setup.is_event_added_to_log:
+            row_data = self.get_csv_row_data(full_evt)
+            if row_data:
+                self.log_writer.add_csv_row(row_data)
+
+        # Update the process state for the case.
+        if c_event.p_case in self.all_process_states:
+            p_state = self.all_process_states[c_event.p_case]
+            updated_time = CustomDatetimeAndSeconds(completed_at, completed_datetime)
+            enabled_tasks, visited_at = self.sim_setup.update_process_state(
+                c_event.p_case, c_event.task_id, p_state, updated_time)
+            for next_task in enabled_tasks:
+                vt = visited_at[next_task.task_id]
+                new_evt = EnabledEvent(
+                    p_case=c_event.p_case,
+                    p_state=p_state,
+                    task_id=next_task.task_id,
+                    enabled_at=vt.seconds_from_start,
+                    enabled_datetime=vt.datetime
+                )
+                self.calc_priority_and_append_to_queue(new_evt, is_arrival_event=False)
         return completed_at, completed_datetime
 
     def _datetime_from(self, in_seconds):
