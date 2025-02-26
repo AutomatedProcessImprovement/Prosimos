@@ -221,6 +221,7 @@ class SimBPMEnv:
 
                 enabled_event.started_at = started_at
                 enabled_event.started_datetime = start_time
+                enabled_event.from_process_state = True
                 self.calc_priority_and_append_to_queue(enabled_event, is_arrival_event=False)
 
                 # Update the resource's next availability time if it's in the pool
@@ -462,65 +463,101 @@ class SimBPMEnv:
         return enabled_datetime
 
     def execute_enabled_event(self, c_event: EnabledEvent, resource_in_pool=True):
-        # print(f"Processing event {c_event.task_id} for case {c_event.p_case} at simulation time {str(c_event.enabled_at)}")
         self.executed_events += 1
-
         event_element_info = self.sim_setup.bpmn_graph.element_info[c_event.task_id]
 
-        if event_element_info.type == BPMN.TASK and c_event.batch_info_exec is not None:
-            # execute batched task
-            executed_tasks = self.execute_task_batch(c_event)
-
-            for task in executed_tasks:
-                completed_at, completed_datetime, p_case = task
-                p_state = self.all_process_states[p_case]
-                enabled_time = CustomDatetimeAndSeconds(completed_at, completed_datetime)
-                enabled_tasks, visited_at = self.sim_setup.update_process_state(
-                    p_case,
-                    c_event.task_id,
-                    p_state,
-                    enabled_time,
-                )
-
-                for next_task in enabled_tasks:
-                    self.calc_priority_and_append_to_queue(
-                        EnabledEvent(
-                            p_case,
-                            p_state,
-                            next_task.task_id,
-                            visited_at[next_task.task_id].seconds_from_start,
-                            visited_at[next_task.task_id].datetime,
-                        ),
-                        False,
-                    )
+        if c_event.from_process_state:
+            # This is a partial-state activity (ongoing or enabled).
+            # We skip BFS on start and use partial-state's started_at.
+            completed_at, completed_dt = self._execute_ongoing_partial_task(c_event, resource_in_pool)
         else:
-            if event_element_info.type == BPMN.TASK:
-                # Execute non-batched task
-                completed_at, completed_datetime = self.execute_task(c_event, resource_in_pool)
+            # Normal logic for non-partial-state tasks
+            if event_element_info.type == BPMN.TASK and c_event.batch_info_exec is not None:
+                # (batch logic)
+                ...
+                return
             else:
-                completed_at, completed_datetime = self.execute_event(c_event)
+                # Normal single-task or event
+                if event_element_info.type == BPMN.TASK:
+                    completed_at, completed_dt = self.execute_task(c_event, resource_in_pool)
+                else:
+                    completed_at, completed_dt = self.execute_event(c_event)
 
-            # Update the process state and retrieve enabled tasks
-            enabled_time = CustomDatetimeAndSeconds(completed_at, completed_datetime)
-            enabled_tasks, visited_at = self.sim_setup.update_process_state(
-                c_event.p_case, c_event.task_id, c_event.p_state, enabled_time
+        # BFS after the partial-state or normal task is done:
+        # Now we enable subsequent tasks.
+        enabled_time = CustomDatetimeAndSeconds(completed_at, completed_dt)
+        enabled_tasks, visited_at = self.sim_setup.update_process_state(
+            c_event.p_case, c_event.task_id, c_event.p_state, enabled_time
+        )
+        for next_task in enabled_tasks:
+            vt = visited_at[next_task.task_id]
+            new_evt = EnabledEvent(
+                c_event.p_case,
+                c_event.p_state,
+                next_task.task_id,
+                vt.seconds_from_start,
+                vt.datetime
             )
+            self.calc_priority_and_append_to_queue(new_evt, is_arrival_event=False)
 
-            if not enabled_tasks:
-                pass
-            else:
-                for next_task in enabled_tasks:
-                    self.calc_priority_and_append_to_queue(
-                        EnabledEvent(
-                            c_event.p_case,
-                            c_event.p_state,
-                            next_task.task_id,
-                            visited_at[next_task.task_id].seconds_from_start,
-                            visited_at[next_task.task_id].datetime,
-                        ),
-                        False,
-                    )
         # print(f"Process state after executing event for case {c_event.p_case}: {c_event.p_state.tokens}")
+
+    def _execute_ongoing_partial_task(self, c_event: EnabledEvent, resource_in_pool=True):
+        """
+        Use partial-state's started_at and do not override it.
+        Then log it as normal. BFS is only done AFTER it completes.
+        """
+        task_id = c_event.task_id
+        p_case = c_event.p_case
+
+        # Resource assignment is still relevant if needed for logging or cost.
+        if c_event.assigned_resource_id:
+            resource_id = c_event.assigned_resource_id
+        else:
+            # If partial-state didn't specify resource, pick one or keep it external.
+            resource_id = None
+
+        duration = c_event.duration_sec if c_event.duration_sec is not None else 0
+        # partial-state says "it started at X"
+        # We trust partial-state. (Ensure it's non-negative if you prefer.)
+        started_at = max(c_event.started_at, 0) if c_event.started_at is not None else 0
+        started_datetime = c_event.started_datetime or self.simulation_datetime_from(started_at)
+
+        # If there's a resource pool, we don't re-check resource availability for partial-state
+        # because we assume it's already started.
+        if resource_in_pool and resource_id in self.sim_setup.resources_map:
+            real_duration = self.sim_setup.real_task_duration(duration, resource_id, started_datetime)
+        else:
+            real_duration = duration
+
+        completed_at = started_at + real_duration
+        completed_datetime = self.simulation_datetime_from(completed_at)
+
+        # Build the TaskEvent
+        full_evt = TaskEvent(
+            p_case=p_case,
+            task_id=task_id,
+            resource_id=resource_id,
+            started_at=started_at,
+            started_datetime=started_datetime,
+            enabled_at=c_event.enabled_at,  # partial-state
+            enabled_datetime=c_event.enabled_datetime,
+            real_duration=real_duration,
+            ideal_duration=duration,
+            bpm_env=self
+        )
+
+        # Update logs, resource usage
+        if resource_id:
+            self._update_logs_and_resource_availability(full_evt, resource_id, resource_in_pool)
+        else:
+            # If no resource, still log it
+            self.log_info.add_event_info(p_case, full_evt, 0)
+            row_data = self.get_csv_row_data(full_evt)
+            if row_data:
+                self.log_writer.add_csv_row(row_data)
+
+        return completed_at, completed_datetime
 
     def pop_and_allocate_resource(self, task_id: str, num_allocated_tasks: int):
         r_id, r_avail_at = self.resource_queue.pop_resource_for(task_id)

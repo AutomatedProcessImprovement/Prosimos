@@ -16,6 +16,7 @@ class EnabledEvent:
         self.duration_sec = duration_sec        # filled only in case of event-based gateway
         self.is_inter_event = is_inter_event    # whether the enabled event is the intermediate event
         self.assigned_resource_id = assigned_resource_id
+        self.from_process_state = False
 
 
 
