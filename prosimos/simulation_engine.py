@@ -45,6 +45,8 @@ class SimBPMEnv:
         self.time_update_process_state = 0
         self.all_process_states = dict()
         self.simulation_horizon = simulation_horizon
+        self.cases_first_start = {}
+        self.cases_skip = {}
 
         self.case_prioritisation = CasePrioritisation(
             self.sim_setup.total_num_cases,
@@ -72,23 +74,17 @@ class SimBPMEnv:
             self.generate_all_arrival_events()
 
     def filter_event_log(self):
-        print("Running filter_event_log now. #Traces before filter =", len(self.log_info.trace_list))
+        if self.simulation_horizon is None:
+            return
         filtered_traces = {}
         for case_id, trace in self.log_info.trace_list.items():
-            # Get the start time of the case (first event's start time)
-            if trace.event_list:
-                case_start_time = trace.event_list[0].started_datetime
-            else:
-                continue  # Skip cases with no events
-
-            if case_start_time <= self.sim_setup.simulation_horizon:
-                # Include this case
+            if not trace.event_list:
+                continue
+            case_start_time = trace.event_list[0].started_datetime
+            if case_start_time < self.sim_setup.simulation_horizon:
+                # Keep entire case
                 filtered_traces[case_id] = trace
-            else:
-                # Exclude this case
-                pass  # Events of cases started after the horizon are discarded
-
-        # Replace the trace_list with the filtered traces
+            # else skip
         self.log_info.trace_list = filtered_traces
 
     def initialize_from_process_state(self, process_state):
@@ -663,17 +659,17 @@ class SimBPMEnv:
         case_id = full_event.p_case
 
         # Get the start time of the case
-        trace = self.log_info.trace_list.get(case_id)
-        if trace and trace.event_list:
-            case_start_time = trace.event_list[0].started_datetime
-        else:
-            # If no events yet, use the start time of the current event
-            case_start_time = full_event.started_datetime
+        # trace = self.log_info.trace_list.get(case_id)
+        # if trace and trace.event_list:
+        #     case_start_time = trace.event_list[0].started_datetime
+        # else:
+        #     # If no events yet, use the start time of the current event
+        #     case_start_time = full_event.started_datetime
 
         # If this case starts AFTER the horizon, skip it
-        if self.simulation_horizon is not None:
-            if case_start_time >= self.simulation_horizon:
-                return None
+        # if self.simulation_horizon is not None:
+        #     if case_start_time >= self.simulation_horizon:
+        #         return None
 
         # print(
         #     f"CSV Row Data: Case {full_event.p_case} started at {case_start_time} comparing to simulation_horizon {self.simulation_horizon}"
@@ -924,17 +920,41 @@ class SimBPMEnv:
             # Update resource's worked time
             self.sim_resources[r_id].worked_time += full_evt.real_duration
 
-        # Get the CSV row data
+        # 2) Decide if we skip this entire case
+        case_id = full_evt.p_case
+        start_dt = full_evt.started_datetime  # e.g. "2025-03-22 10:00Z"
+
+        # If we haven't seen this case's earliest start yet, set it now
+        if case_id not in self.cases_first_start:
+            self.cases_first_start[case_id] = start_dt
+
+            # Compare vs horizon
+            if self.simulation_horizon is not None and start_dt >= self.sim_setup.simulation_horizon:
+                self.cases_skip[case_id] = True
+            else:
+                self.cases_skip[case_id] = False
+
+        # 3) If we decided to skip this case, do NOT write its rows
+        if self.cases_skip.get(case_id, False):
+            # skip writing this row
+            return
+
+        # 4) If not skipping, then proceed with writing the row to CSV
         row_data = self.get_csv_row_data(full_evt)
         if row_data:
-            # Write event to log file
-            # print(f"Writing row data to the log {row_data}")
             self.log_writer.add_csv_row(row_data)
-            # with open("../output.txt", "a") as output_file:
-            #     output_file.write(f"{row_data}\n")
-        else:
-            # Event is not included due to filtering
-            pass
+
+        # # Get the CSV row data
+        # row_data = self.get_csv_row_data(full_evt)
+        # if row_data:
+        #     # Write event to log file
+        #     # print(f"Writing row data to the log {row_data}")
+        #     self.log_writer.add_csv_row(row_data)
+        #     # with open("../output.txt", "a") as output_file:
+        #     #     output_file.write(f"{row_data}\n")
+        # else:
+        #     # Event is not included due to filtering
+        #     pass
 
         completed_at = full_evt.completed_at
         completed_datetime = full_evt.completed_datetime
