@@ -297,7 +297,7 @@ class SimBPMEnv:
                         p_state=p_state,
                         task_id=next_task.task_id,
                         enabled_at=visited_time.seconds_from_start,
-                        enabled_datetime=visited_time.datetime
+                        enabled_datetime=gw_enabled_at
                     )
                     self.calc_priority_and_append_to_queue(new_evt, is_arrival_event=False)
 
