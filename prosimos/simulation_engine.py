@@ -301,6 +301,7 @@ class SimBPMEnv:
                         enabled_at=visited_time.seconds_from_start,
                         enabled_datetime=visited_time.datetime
                     )
+                    new_evt.from_process_state = True
                     self.calc_priority_and_append_to_queue(new_evt, is_arrival_event=False)
 
             # --------------------------------------
@@ -464,16 +465,42 @@ class SimBPMEnv:
         self.executed_events += 1
         event_element_info = self.sim_setup.bpmn_graph.element_info[c_event.task_id]
 
-        if c_event.from_process_state:
+        if c_event.from_process_state and event_element_info == BPMN.TASK:
             # This is a partial-state activity (ongoing or enabled).
             # We skip BFS on start and use partial-state's started_at.
             completed_at, completed_dt = self._execute_ongoing_partial_task(c_event, resource_in_pool)
+        elif c_event.from_process_state and event_element_info == BPMN.INTERMEDIATE_EVENT:
+            completed_at, completed_dt = self.execute_event_from_process_state(c_event)
         else:
             # Normal logic for non-partial-state tasks
             if event_element_info.type == BPMN.TASK and c_event.batch_info_exec is not None:
-                # (batch logic)
-                ...
-                return
+                executed_tasks = self.execute_task_batch(c_event)
+
+                for task in executed_tasks:
+                    completed_at, completed_datetime, p_case = task
+                    p_state = self.all_process_states[p_case]
+                    enabled_time = CustomDatetimeAndSeconds(completed_at, completed_datetime)
+                    enabled_tasks, visited_at = self.sim_setup.update_process_state(
+                        p_case,
+                        c_event.task_id,
+                        self.all_process_states[p_case],
+                        enabled_time,
+                    )
+
+                    for next_task in enabled_tasks:
+                        self.calc_priority_and_append_to_queue(
+                            EnabledEvent(
+                                p_case,
+                                p_state,
+                                next_task.task_id,
+                                visited_at[next_task.task_id].seconds_from_start,
+                                visited_at[next_task.task_id].datetime,
+                                next_task.batch_info_exec,
+                                next_task.duration_sec,
+                                next_task.is_event,
+                            ),
+                            False,
+                        )
             else:
                 # Normal single-task or event
                 if event_element_info.type == BPMN.TASK:
