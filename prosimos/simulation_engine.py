@@ -290,10 +290,10 @@ class SimBPMEnv:
 
                 # Now any tasks enabled by that gateway can be scheduled
                 for next_task in enabled_tasks:
-                    print(f"in case {case_id} next task is: {next_task.task_id} with remaining {next_task.duration_sec} seconds and enabled time {next_task.enabled_at} seconds from start.")
                     # print(f"Next task for case ={case_id} after firing gateway: {next_task.task_id}")
                     # next_task.task_id is an ID that must be scheduled
                     visited_time = visited_at[next_task.task_id]
+                    print(f"in case {case_id} next task is: {next_task.task_id} with remaining {next_task.duration_sec} seconds and enabled time at {visited_time.datetime}.")
                     new_evt = EnabledEvent(
                         p_case=case_id,
                         p_state=p_state,
