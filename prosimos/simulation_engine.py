@@ -281,6 +281,7 @@ class SimBPMEnv:
 
                 # We treat the gateway as if it "completed" at its enabled time
                 dummy_time = CustomDatetimeAndSeconds(gw_enabled_at, gw_enabled_time_dt)
+                print(f"gateway enabled in case {case_id} at {dummy_time.datetime} with remaining {dummy_time.seconds_from_start} seconds.")
 
                 # Force the BFS update in control_flow_manager:
                 enabled_tasks, visited_at = self.sim_setup.update_process_state(
@@ -289,6 +290,7 @@ class SimBPMEnv:
 
                 # Now any tasks enabled by that gateway can be scheduled
                 for next_task in enabled_tasks:
+                    print(f"in case {case_id} next task is: {next_task.task_id} with remaining {next_task.duration_sec} seconds and enabled time {next_task.enabled_at} seconds from start.")
                     # print(f"Next task for case ={case_id} after firing gateway: {next_task.task_id}")
                     # next_task.task_id is an ID that must be scheduled
                     visited_time = visited_at[next_task.task_id]
@@ -296,8 +298,8 @@ class SimBPMEnv:
                         p_case=case_id,
                         p_state=p_state,
                         task_id=next_task.task_id,
-                        enabled_at=gw_enabled_at,
-                        enabled_datetime=gw_enabled_time_dt
+                        enabled_at=visited_time.seconds_from_start,
+                        enabled_datetime=visited_time.datetime
                     )
                     self.calc_priority_and_append_to_queue(new_evt, is_arrival_event=False)
 
