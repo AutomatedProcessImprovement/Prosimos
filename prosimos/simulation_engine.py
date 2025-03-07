@@ -293,7 +293,7 @@ class SimBPMEnv:
                     # print(f"Next task for case ={case_id} after firing gateway: {next_task.task_id}")
                     # next_task.task_id is an ID that must be scheduled
                     visited_time = visited_at[next_task.task_id]
-                    print(f"in case {case_id} next task is: {next_task.task_id} with remaining {next_task.duration_sec} seconds and enabled time at {visited_time.datetime}.")
+                    print(f"in case {case_id} next task is: {next_task.task_id} and enabled time at {visited_time.datetime}.")
                     new_evt = EnabledEvent(
                         p_case=case_id,
                         p_state=p_state,
@@ -1017,7 +1017,7 @@ class SimBPMEnv:
 
     def execute_event_from_process_state(self, c_event):
         """
-        Executes an enabled event that originates from the partial-state.
+        Executes an enabled event that originates from the partial state.
 
         In this case, we assume that c_event.enabled_at is expressed as seconds relative
         to the simulation start (which is 0). It may be negative if the event was enabled
@@ -1025,9 +1025,10 @@ class SimBPMEnv:
         where for process state we take current_sim_time = 0.
 
         If the event’s duration (from the BPMN distribution) is less than or equal to the elapsed time,
-        then its timer expired in the past and we fire it immediately (setting its completion time to
-        enabled_at + duration). Otherwise, we subtract the elapsed time from the duration and schedule
-        it to complete after the remaining time.
+        then its timer expired in the past and we set its completion time to
+        c_event.enabled_at + duration (which may be negative), thereby preserving the past offset.
+        Otherwise, we subtract the elapsed time from the duration and schedule it to complete
+        after the remaining time.
 
         After firing, we update the process state (via sim_setup.update_process_state) so that subsequent
         activities become enabled.
@@ -1036,18 +1037,20 @@ class SimBPMEnv:
         event_element = self.sim_setup.bpmn_graph.element_info[c_event.task_id]
         [duration] = self.sim_setup.bpmn_graph.event_duration(event_element.id)
 
-        # For process state events, we start with the current simulation time is 0 (i.e. at simulation start).
+        # For process state events, we assume the current simulation time is 0 (i.e. at simulation start)
         current_sim_time = 0
         elapsed = current_sim_time - c_event.enabled_at
 
         if duration <= elapsed:
-            # Timer already expired.
+            # The event’s timer expired in the past.
             completed_at = c_event.enabled_at + duration
             completed_datetime = c_event.enabled_datetime + timedelta(seconds=duration)
+            print(f"Event {c_event.task_id} from process state (either enabled event or coming after gateway) expired in the past and completed at {completed_at}.")
         else:
             effective_duration = duration - elapsed
             completed_at = current_sim_time + effective_duration
             completed_datetime = self.simulation_datetime_from(completed_at)
+            print(f"Event {c_event.task_id} from process state (either enabled event or coming after gateway) completed after simulation start at {elapsed} seconds and completed at {completed_at}.")
 
         full_evt = TaskEvent.create_event_entity(c_event, completed_at, completed_datetime)
         self.log_info.add_event_info(c_event.p_case, full_evt, 0)
