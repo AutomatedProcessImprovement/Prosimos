@@ -1045,12 +1045,12 @@ class SimBPMEnv:
             # The event’s timer expired in the past.
             completed_at = c_event.enabled_at + duration
             completed_datetime = c_event.enabled_datetime + timedelta(seconds=duration)
-            print(f"Event {c_event.task_id} from process state (either enabled event or coming after gateway) expired in the past and completed at {completed_at}.")
+            print(f"Event {c_event.task_id} from process state (either enabled event or coming after gateway) expired in the past and completed at {completed_datetime}.")
         else:
             effective_duration = duration - elapsed
             completed_at = current_sim_time + effective_duration
             completed_datetime = self.simulation_datetime_from(completed_at)
-            print(f"Event {c_event.task_id} from process state (either enabled event or coming after gateway) completed after simulation start at {elapsed} seconds and completed at {completed_at}.")
+            print(f"Event {c_event.task_id} from process state (either enabled event or coming after gateway) completed after simulation start at {effective_duration} seconds and completed at {completed_datetime}.")
 
         full_evt = TaskEvent.create_event_entity(c_event, completed_at, completed_datetime)
         self.log_info.add_event_info(c_event.p_case, full_evt, 0)
