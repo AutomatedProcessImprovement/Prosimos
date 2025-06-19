@@ -1,5 +1,6 @@
 import datetime
 import json
+import re
 import pprint
 import xml.etree.ElementTree as ET
 
@@ -662,11 +663,25 @@ def extract_dist_params(dist_info):
     return None
 
 
-def parse_datetime(time, has_date):
+def parse_datetime(time: str | None,
+                   has_date: bool | None = None):
+    """
+    Parse an ISO-8601 (or a handful of locale formats) into a timezone-aware
+    datetime.  *has_date* was originally mandatory; it is now optional:
+        • If the caller supplies it → keep old behaviour.
+        • If omitted            → determine it from the string.
+    """
+    if time is None:
+        return None
+
+    # auto-detect if not provided
+    if has_date is None:
+        has_date = bool(re.search(r"\d{4}-\d{2}-\d{2}", time))
+
     time_formats = (
         ["%H:%M:%S.%f", "%H:%M", "%I:%M%p", "%H:%M:%S", "%I:%M:%S%p"]
-        if not has_date
-        else [
+        if not has_date else
+        [
             "%Y-%m-%dT%H:%M:%S.%f%z",
             "%b %d %Y %I:%M%p",
             "%b %d %Y at %I:%M%p",
@@ -676,15 +691,22 @@ def parse_datetime(time, has_date):
             "%Y-%m-%dT%H:%M:%SZ",
         ]
     )
+
+    # 1) try python-dateutil (robust to many ISO variants)
     try:
         return parser.parse(time)
-    except:
-        for time_format in time_formats:
-            try:
-                return datetime.datetime.strptime(time, time_format)
-            except ValueError:
-                pass
-    raise ValueError
+    except Exception:
+        pass
+
+    # 2) fallback to explicit strptime patterns
+    for fmt in time_formats:
+        try:
+            return datetime.datetime.strptime(time, fmt)
+        except ValueError:
+            continue
+
+    # 3) nothing matched
+    raise ValueError(f"Unrecognised datetime format: {time!r}")
 
 
 def add_default_flows(gateway_conditions, bpmn_path):

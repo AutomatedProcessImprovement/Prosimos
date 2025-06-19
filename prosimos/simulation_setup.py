@@ -58,13 +58,11 @@ class SimDiffSetup:
             print("total cases: ", self.total_num_cases)
 
     def setup_horizon(self):
-        if self.simulation_horizon is not None and self.start_datetime is not None:
-            horizon_duration = self.simulation_horizon - self.start_datetime
-            simulation_end_time = self.simulation_horizon + horizon_duration
+        if self.simulation_horizon and self.start_datetime:
+            horizon_duration = (self.simulation_horizon - self.start_datetime) * 2
+            simulation_end_time = self.start_datetime + horizon_duration
             self.total_num_cases = self.estimate_total_cases(self.start_datetime, simulation_end_time)
             print("total cases: ", self.total_num_cases)
-        else:
-            pass
 
     def estimate_total_cases(self, start_datetime, simulation_end_time):
         current_time = start_datetime
