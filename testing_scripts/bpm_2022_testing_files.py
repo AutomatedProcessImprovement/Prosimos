@@ -18,10 +18,20 @@ process_files = {
         'json': './assets/and_example/synthetic_xor_loop.json',
         'sim_log': './assets/and_example/out/synthetic_xor_loop.csv',
         'demo_stats': './assets/and_example/out/synthetic_xor_loop.csv',
-        'start_datetime': '2012-03-21T10:11:00.000Z',
-        'total_cases': 20,
-        'process_state': './assets/and_example/output.json',
-        'simulation_horizon': '2012-03-21T23:10:30.000Z'
+        'start_datetime': '2012-03-21T17:55:00.000Z',
+        'total_cases': 500,
+        'process_state': './assets/and_example/output-gateway.json',
+        'simulation_horizon': '2012-05-22T23:10:30.000Z'
+    },
+    'work_orders': {
+        'bpmn': './assets/and_example/work_orders_pre-drift_transformed.bpmn',
+        'json': './assets/and_example/work_orders_pre-drift_transformed.json',
+        'sim_log': './assets/and_example/work_orders_post-drift_transformed.csv.gz',
+        'demo_stats': './assets/and_example/out/work_orders.csv',
+        'start_datetime': '2023-01-25T06:47:02.861Z',
+        'total_cases': 7000,
+        'process_state': './assets/and_example/process_state.json',
+        'simulation_horizon': '2023-02-07T06:47:02.000Z'
     },
     'padua_example': {
         'xes_log': 'None',

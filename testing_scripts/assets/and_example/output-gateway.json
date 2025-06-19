@@ -1,0 +1,776 @@
+{
+    "cases": {
+        "0": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_08i82lb"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [],
+            "enabled_gateways": [
+                {
+                    "id": "Event_0w0qv5v",
+                    "enabled_time": "2012-03-21 06:50:00+00:00"
+                }
+            ]
+        },
+        "1": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_0a9co7f"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "id": "Activity_1weaufy",
+                    "enabled_time": "2012-03-21 06:30:00+00:00"
+                }
+            ],
+            "enabled_gateways": []
+        },
+        "2": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_1df9ld5"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "id": "Activity_1jm3g3j",
+                    "enabled_time": "2012-03-21 06:40:00+00:00"
+                }
+            ],
+            "enabled_gateways": []
+        },
+        "3": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_08i82lb"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [],
+            "enabled_gateways": [
+                {
+                    "id": "Event_0w0qv5v",
+                    "enabled_time": "2012-03-21 07:25:00+00:00"
+                }
+            ]
+        },
+        "4": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_0a9co7f"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "id": "Activity_1weaufy",
+                    "enabled_time": "2012-03-21 07:20:00+00:00"
+                }
+            ],
+            "enabled_gateways": []
+        },
+        "5": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_0qkv9uj"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "id": "Activity_0vma5lg",
+                    "enabled_time": "2012-03-21 07:45:00+00:00"
+                }
+            ],
+            "enabled_gateways": []
+        },
+        "6": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_0a9co7f"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "id": "Activity_1weaufy",
+                    "enabled_time": "2012-03-21 07:50:00+00:00"
+                }
+            ],
+            "enabled_gateways": []
+        },
+        "7": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_1dbtc82"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [],
+            "enabled_gateways": [
+                {
+                    "id": "Gateway_1abqo5n",
+                    "enabled_time": "2012-03-21 08:25:00+00:00"
+                }
+            ]
+        },
+        "8": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_0a9co7f"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "id": "Activity_1weaufy",
+                    "enabled_time": "2012-03-21 08:15:00+00:00"
+                }
+            ],
+            "enabled_gateways": []
+        },
+        "9": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_1dbtc82"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [],
+            "enabled_gateways": [
+                {
+                    "id": "Gateway_1abqo5n",
+                    "enabled_time": "2012-03-21 08:55:00+00:00"
+                }
+            ]
+        },
+        "10": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_10ueywn"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "id": "Activity_0qhd8v2",
+                    "enabled_time": "2012-03-21 08:40:00+00:00"
+                }
+            ],
+            "enabled_gateways": []
+        },
+        "11": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_0qkv9uj"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "id": "Activity_0vma5lg",
+                    "enabled_time": "2012-03-21 09:05:00+00:00"
+                }
+            ],
+            "enabled_gateways": []
+        },
+        "12": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_08i82lb"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [],
+            "enabled_gateways": [
+                {
+                    "id": "Event_0w0qv5v",
+                    "enabled_time": "2012-03-21 09:40:00+00:00"
+                }
+            ]
+        },
+        "13": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_10ueywn"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "id": "Activity_0qhd8v2",
+                    "enabled_time": "2012-03-21 09:25:00+00:00"
+                }
+            ],
+            "enabled_gateways": []
+        },
+        "14": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_08i82lb"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [],
+            "enabled_gateways": [
+                {
+                    "id": "Event_0w0qv5v",
+                    "enabled_time": "2012-03-21 10:15:00+00:00"
+                }
+            ]
+        },
+        "15": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_1dbtc82"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [],
+            "enabled_gateways": [
+                {
+                    "id": "Gateway_1abqo5n",
+                    "enabled_time": "2012-03-21 10:50:00+00:00"
+                }
+            ]
+        },
+        "16": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_0a9co7f"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "id": "Activity_1weaufy",
+                    "enabled_time": "2012-03-21 10:40:00+00:00"
+                }
+            ],
+            "enabled_gateways": []
+        },
+        "17": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_0kkshlq"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [],
+            "enabled_gateways": [
+                {
+                    "id": "Gateway_0nmpe12",
+                    "enabled_time": "2012-03-21 10:40:00+00:00"
+                }
+            ]
+        },
+        "18": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_0kkshlq"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [],
+            "enabled_gateways": [
+                {
+                    "id": "Gateway_0nmpe12",
+                    "enabled_time": "2012-03-21 11:00:00+00:00"
+                }
+            ]
+        },
+        "19": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_1dbtc82"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [],
+            "enabled_gateways": [
+                {
+                    "id": "Gateway_1abqo5n",
+                    "enabled_time": "2012-03-21 11:35:00+00:00"
+                }
+            ]
+        },
+        "20": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_0a9co7f"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "id": "Activity_1weaufy",
+                    "enabled_time": "2012-03-21 11:10:00+00:00"
+                }
+            ],
+            "enabled_gateways": []
+        },
+        "21": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_0o87lw7"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "id": "Activity_0807lx7",
+                    "enabled_time": "2012-03-21 11:30:00+00:00"
+                }
+            ],
+            "enabled_gateways": []
+        },
+        "22": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_08i82lb"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [],
+            "enabled_gateways": [
+                {
+                    "id": "Event_0w0qv5v",
+                    "enabled_time": "2012-03-21 12:20:00+00:00"
+                }
+            ]
+        },
+        "23": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_10ueywn"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "id": "Activity_0qhd8v2",
+                    "enabled_time": "2012-03-21 11:55:00+00:00"
+                }
+            ],
+            "enabled_gateways": []
+        },
+        "24": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_0rajtx0"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "id": "Activity_0eat6px",
+                    "enabled_time": "2012-03-21 12:35:00+00:00"
+                }
+            ],
+            "enabled_gateways": []
+        },
+        "25": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_10ueywn"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "id": "Activity_0qhd8v2",
+                    "enabled_time": "2012-03-21 12:25:00+00:00"
+                }
+            ],
+            "enabled_gateways": []
+        },
+        "26": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_08i82lb"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [],
+            "enabled_gateways": [
+                {
+                    "id": "Event_0w0qv5v",
+                    "enabled_time": "2012-03-21 13:40:00+00:00"
+                }
+            ]
+        },
+        "27": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_1dbtc82"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [],
+            "enabled_gateways": [
+                {
+                    "id": "Gateway_1abqo5n",
+                    "enabled_time": "2012-03-21 13:40:00+00:00"
+                }
+            ]
+        },
+        "28": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_0kkshlq"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [],
+            "enabled_gateways": [
+                {
+                    "id": "Gateway_0nmpe12",
+                    "enabled_time": "2012-03-21 13:25:00+00:00"
+                }
+            ]
+        },
+        "29": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_0kkshlq"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [],
+            "enabled_gateways": [
+                {
+                    "id": "Gateway_0nmpe12",
+                    "enabled_time": "2012-03-21 13:45:00+00:00"
+                }
+            ]
+        },
+        "30": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_0a9co7f"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "id": "Activity_1weaufy",
+                    "enabled_time": "2012-03-21 13:50:00+00:00"
+                }
+            ],
+            "enabled_gateways": []
+        },
+        "31": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_1jxq2cd"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "id": "Activity_1sar4e1",
+                    "enabled_time": "2012-03-21 14:05:00+00:00"
+                }
+            ],
+            "enabled_gateways": []
+        },
+        "32": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_1dbtc82"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [],
+            "enabled_gateways": [
+                {
+                    "id": "Gateway_1abqo5n",
+                    "enabled_time": "2012-03-21 14:40:00+00:00"
+                }
+            ]
+        },
+        "33": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_1jxq2cd"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "id": "Activity_1sar4e1",
+                    "enabled_time": "2012-03-21 14:35:00+00:00"
+                }
+            ],
+            "enabled_gateways": []
+        },
+        "34": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_10ueywn"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "id": "Activity_0qhd8v2",
+                    "enabled_time": "2012-03-21 14:40:00+00:00"
+                }
+            ],
+            "enabled_gateways": []
+        },
+        "35": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_0rajtx0"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "id": "Activity_0eat6px",
+                    "enabled_time": "2012-03-21 15:15:00+00:00"
+                }
+            ],
+            "enabled_gateways": []
+        },
+        "36": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_0kkshlq"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [],
+            "enabled_gateways": [
+                {
+                    "id": "Gateway_0nmpe12",
+                    "enabled_time": "2012-03-21 15:20:00+00:00"
+                }
+            ]
+        },
+        "37": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_0a9co7f"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "id": "Activity_1weaufy",
+                    "enabled_time": "2012-03-21 15:25:00+00:00"
+                }
+            ],
+            "enabled_gateways": []
+        },
+        "38": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_1dbtc82"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [],
+            "enabled_gateways": [
+                {
+                    "id": "Gateway_1abqo5n",
+                    "enabled_time": "2012-03-21 16:10:00+00:00"
+                }
+            ]
+        },
+        "39": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_0kkshlq"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [],
+            "enabled_gateways": [
+                {
+                    "id": "Gateway_0nmpe12",
+                    "enabled_time": "2012-03-21 16:40:00+00:00"
+                }
+            ]
+        },
+        "40": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_0qkv9uj"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "id": "Activity_0vma5lg",
+                    "enabled_time": "2012-03-21 16:30:00+00:00"
+                }
+            ],
+            "enabled_gateways": []
+        },
+        "41": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_0o87lw7"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "id": "Activity_0807lx7",
+                    "enabled_time": "2012-03-21 16:30:00+00:00"
+                }
+            ],
+            "enabled_gateways": []
+        },
+        "42": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_0kkshlq"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [],
+            "enabled_gateways": [
+                {
+                    "id": "Gateway_0nmpe12",
+                    "enabled_time": "2012-03-21 17:00:00+00:00"
+                }
+            ]
+        },
+        "43": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_1dbtc82"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [],
+            "enabled_gateways": [
+                {
+                    "id": "Gateway_1abqo5n",
+                    "enabled_time": "2012-03-21 17:25:00+00:00"
+                }
+            ]
+        },
+        "44": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_0rajtx0"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "id": "Activity_0eat6px",
+                    "enabled_time": "2012-03-21 17:35:00+00:00"
+                }
+            ],
+            "enabled_gateways": []
+        },
+        "45": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_0qkv9uj"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [
+                {
+                    "id": "Activity_0vma5lg",
+                    "enabled_time": "2012-03-21 17:45:00+00:00"
+                }
+            ],
+            "enabled_gateways": []
+        },
+        "46": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_0kkshlq"
+                ],
+                "activities": [
+                    "Activity_1weaufy"
+                ]
+            },
+            "ongoing_activities": [
+                {
+                    "id": "Activity_1weaufy",
+                    "start_time": "2012-03-21 17:55:00+00:00",
+                    "resource": "Jonathan",
+                    "enabled_time": "2012-03-21 17:50:00+00:00"
+                }
+            ],
+            "enabled_activities": [],
+            "enabled_gateways": []
+        },
+        "47": {
+            "control_flow_state": {
+                "flows": [
+                    "Flow_0fwnjaa"
+                ],
+                "activities": []
+            },
+            "ongoing_activities": [],
+            "enabled_activities": [],
+            "enabled_gateways": [
+                {
+                    "id": "Gateway_1prgzlv",
+                    "enabled_time": "2012-03-21 17:55:00+00:00"
+                }
+            ]
+        }
+    }
+}

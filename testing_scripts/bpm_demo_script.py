@@ -9,7 +9,7 @@ from testing_scripts.bpm_2022_testing_files import process_files
 
 
 def main():
-    model_info = process_files['and_example']
+    model_info = process_files['work_orders']
     # print('--------------------------------------------------------------------------')
     # print("Starting Discovery of demo example ...")
     # print('--------------------------------------------------------------------------')
@@ -44,7 +44,7 @@ def main():
                                                  model_info['sim_log'],
                                                  simulation_horizon=parse_datetime(model_info['simulation_horizon']),
                                                  process_state=process_state)
-    print("diff_sim_result:", diff_sim_result)
+    # print("diff_sim_result:", diff_sim_result)
     print("Simulation Time: %s" % str(datetime.timedelta(seconds=(datetime.datetime.now() - start).total_seconds())))
     diff_sim_result.print_simulation_results()
     os._exit(0)
@@ -54,6 +54,8 @@ def parse_process_state(process_state):
     for case_id, case_data in process_state.get('cases', {}).items():
         # Convert enabled activity times
         for activity in case_data.get('enabled_activities', []):
+            activity['enabled_time'] = parse_datetime(activity['enabled_time'])
+        for activity in case_data.get('enabled_gateways', []):
             activity['enabled_time'] = parse_datetime(activity['enabled_time'])
         # Convert ongoing activity times
         for activity in case_data.get('ongoing_activities', []):
