@@ -96,7 +96,11 @@ class SimBPMEnv:
         # remember when the last case in the snapshot arrived
         self._last_case_arrival_dt = None
         if "last_case_arrival" in process_state:
-            self._last_case_arrival_dt = parse_datetime(process_state["last_case_arrival"], has_date=True)
+            raw = process_state["last_case_arrival"]
+            if isinstance(raw, str):
+                self._last_case_arrival_dt = parse_datetime(raw, has_date=True)
+            else:
+                self._last_case_arrival_dt = raw
         
         resource_name_to_id = self.sim_setup.resource_name_to_id
 
