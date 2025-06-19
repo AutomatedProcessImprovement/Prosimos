@@ -35,6 +35,7 @@ class SimResource:
 
 class SimBPMEnv:
     def __init__(self, sim_setup: SimDiffSetup, stat_fwriter, log_fwriter, process_state=None, simulation_horizon=None):
+        self._last_case_arrival_dt = None
         self.sim_setup = sim_setup
         self.sim_resources = dict()
         self.stat_fwriter = stat_fwriter
@@ -96,6 +97,11 @@ class SimBPMEnv:
         Initializes resources and partial states WITHOUT using resource_last_end_times.
         Instead, we compute resource availability from the ongoing tasks in the partial state.
         """
+        # remember when the last case in the snapshot arrived
+        self._last_case_arrival_dt = None
+        if "last_case_arrival" in process_state:
+            self._last_case_arrival_dt = parse_datetime(process_state["last_case_arrival"], has_date=True)
+        
         resource_name_to_id = self.sim_setup.resource_name_to_id
 
         # ---------------------------------------------------------
@@ -393,7 +399,10 @@ class SimBPMEnv:
         # -------------------------------------------------------------
         # Use simulation start datetime as the baseline for new arrivals
         # -------------------------------------------------------------
-        current_time = self.sim_setup.start_datetime
+        if hasattr(self, "_last_case_arrival_dt") and self._last_case_arrival_dt:
+            current_time = self._last_case_arrival_dt
+        else:
+            current_time = self.sim_setup.start_datetime
 
         # Determine the next case id. If there are existing cases, start from the next one;
         # otherwise, start at 0.
