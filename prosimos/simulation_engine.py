@@ -24,6 +24,17 @@ from prosimos.simulation_stats_calculator import LogInfo
 from prosimos.warning_logger import warning_logger
 
 
+class CountingWriter:
+    def __init__(self, w):
+        self.w = w
+        self.n = 0
+    def writerow(self, row):
+        self.n += 1
+        return self.w.writerow(row)
+    def writerows(self, rows):
+        for r in rows:
+            self.writerow(r)
+
 class SimResource:
     def __init__(self):
         self.switching_time = 0
@@ -48,6 +59,8 @@ class SimBPMEnv:
         self.simulation_horizon = simulation_horizon
         self.cases_first_start = {}
         self.cases_skip = {}
+        self._seen = set()
+        self._debug_rows_written = 0
 
         self.case_prioritisation = CasePrioritisation(
             self.sim_setup.total_num_cases,
@@ -176,8 +189,6 @@ class SimBPMEnv:
 
                 # Map resource name to ID
                 resource_id = resource_name_to_id.get(resource_name)
-                if int(case_id) == 58:
-                    print(f"[DEBUG] Mapped resource ID: {resource_id}")
 
                 if resource_id is None:
                     # External resource
@@ -483,6 +494,12 @@ class SimBPMEnv:
 
     def append_enabled_event_to_queue(self, enabled_event: EnabledEvent, is_arrival_event: bool, case_priority):
         "Append as either an arrival event or enabled intermediate/end event"
+        key = (enabled_event.p_case, enabled_event.task_id, enabled_event.enabled_at,
+               getattr(enabled_event, "started_at", None))
+        if key in self._seen:
+            print("[DUP-ENQUEUE]", key)
+            return
+        self._seen.add(key)
         if enabled_event.p_case == 58:
             print(f"[QUEUE-ADD] {enabled_event.task_id} at t={enabled_event.enabled_at}")
         if is_arrival_event:
@@ -557,8 +574,9 @@ class SimBPMEnv:
         # ------------------------------------------------------------------
         elif getattr(c_event, "from_process_state", False) and e_info.is_event():
             completed_at, completed_dt = self.execute_event_from_process_state(c_event)
+            return
 
-        # ------------------------------------------------------------------
+            # ------------------------------------------------------------------
         # 3) NORMAL execution path for everything else
         # ------------------------------------------------------------------
         else:
@@ -659,6 +677,7 @@ class SimBPMEnv:
             self.log_info.add_event_info(p_case, full_evt, 0)
             row_data = self.get_csv_row_data(full_evt)
             if row_data:
+                self._debug_rows_written += 1
                 self.log_writer.add_csv_row(row_data)
 
         return completed_at, completed_datetime
@@ -1083,10 +1102,11 @@ class SimBPMEnv:
         if not self.cases_skip[cid]:
             row = self.get_csv_row_data(full_evt)
             if row:
+                self._debug_rows_written += 1
                 self.log_writer.add_csv_row(row)
                 # optional debug dump:
-                # with open("../output.txt", "a", encoding="utf-8") as fh:
-                #     fh.write(f"{row}\n")
+                with open("../output.txt", "a", encoding="utf-8") as fh:
+                    fh.write(f"{row}\n")
 
         return full_evt.completed_at, full_evt.completed_datetime
 
@@ -1107,6 +1127,7 @@ class SimBPMEnv:
             # Get the CSV row data
             row_data = self.get_csv_row_data(full_evt)
             if row_data:
+                self._debug_rows_written += 1
                 # Write event to log file
                 self.log_writer.add_csv_row(row_data)
             else:
@@ -1226,9 +1247,6 @@ def execute_full_process(bpm_env: SimBPMEnv, fixed_starting_times=None):
     # print("Generation of all cases: %s" %
     #       str(datetime.timedelta(seconds=(datetime.datetime.now() - s_t).total_seconds())))
     current_event = bpm_env.events_queue.pop_next_event()
-    if current_event and current_event.p_case == 58:
-        print(f"[QUEUE-POP] case 58 → {current_event.task_id} "
-              f"enabled@{current_event.enabled_at}")
     executed_cases = set()
 
     while current_event is not None:
@@ -1300,9 +1318,11 @@ def run_simulation(
     try:
         stat_writer = csv.writer(stat_csv_file, **csv_writer_config) if stat_csv_file else None
         log_writer = csv.writer(log_csv_file, **csv_writer_config) if log_csv_file else None
+        log_writer = CountingWriter(log_writer)
 
         result = run_simpy_simulation(diffsim_info, stat_writer, log_writer, fixed_starting_times=fixed_arrival_times, process_state=process_state, simulation_horizon=simulation_horizon)
         # print("run_simulation: result =", result)
+        print("FINAL writerow calls:", log_writer.n)
     finally:
         if stat_csv_file:
             stat_csv_file.close()
@@ -1334,17 +1354,15 @@ def run_simpy_simulation(diffsim_info, stat_fwriter, log_fwriter, fixed_starting
     if log_fwriter is None and stat_fwriter is None:
         return bpm_env.log_info.compute_process_kpi(bpm_env), bpm_env.log_info
     if log_fwriter:
+        print("writerow calls before force_write:", getattr(log_fwriter, "n", None))
         bpm_env.log_writer.force_write()
+        print("writerow calls after  force_write:", getattr(log_fwriter, "n", None))
     if stat_fwriter:
         bpm_env.log_info.save_joint_statistics(bpm_env)
 
     warning_logger.add_warnings(bpm_env.sim_setup.bpmn_graph.simulation_execution_stats.find_issues())
 
-    if 58 in bpm_env.log_info.trace_list:
-        print(f"[TRACE] case 58 produced "
-              f"{len(bpm_env.log_info.trace_list[58].event_list)} events")
-    else:
-        print("[TRACE] case 58 never reached log_info")
+    print("rows enqueued via add_csv_row:", bpm_env._debug_rows_written)
     # print("run_simpy_simulation: bpm_env =", bpm_env)
     return bpm_env
 
