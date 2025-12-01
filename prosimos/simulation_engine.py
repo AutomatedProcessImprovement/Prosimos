@@ -1010,15 +1010,61 @@ class SimBPMEnv:
             self.sim_resources[r_id].worked_time += full_evt.ideal_duration
 
 
-    def _update_logs_and_resource_availability(self, full_evt: TaskEvent,
-                                               r_id, resource_in_pool=True):
-        # 0) cost
+    # def _update_logs_and_resource_availability(self, full_evt: TaskEvent,
+    #                                            r_id, resource_in_pool=True):
+    #     # 0) cost
+    #     resource_cost = (self.sim_setup.resources_map[r_id].cost_per_hour
+    #                      if resource_in_pool and r_id in self.sim_setup.resources_map
+    #                      else 0)
+    #     self.log_info.add_event_info(full_evt.p_case, full_evt, resource_cost)
+    #
+    #     # 1) update resource calendar / utilisation
+    #     if resource_in_pool and r_id in self.sim_setup.resources_map:
+    #         r_next_available = full_evt.completed_at
+    #         if self.sim_resources[r_id].switching_time > 0:
+    #             r_next_available += self.sim_setup.next_resting_time(
+    #                 r_id, self.simulation_datetime_from(r_next_available)
+    #             )
+    #         self.resource_queue.update_resource_availability(r_id, r_next_available)
+    #         self.sim_resources[r_id].worked_time += full_evt.real_duration
+    #
+    #     # 2) horizon-based **case-skip** – decide once per case
+    #     cid = full_evt.p_case
+    #     first_start = self.cases_first_start.setdefault(cid, full_evt.started_datetime)
+    #     if cid not in self.cases_skip:
+    #         self.cases_skip[cid] = (self.simulation_horizon is not None and
+    #                                 first_start >= self.sim_setup.simulation_horizon)
+    #
+    #     # 3) actually write the CSV row if the case is not skipped
+    #     if not self.cases_skip[cid]:
+    #         row = self.get_csv_row_data(full_evt)
+    #         if row:
+    #             self.log_writer.add_csv_row(row)
+    #
+    #     # 4) If not skipping, then proceed with writing the row to CSV
+    #     row_data = self.get_csv_row_data(full_evt)
+    #     if full_evt.p_case == 58:
+    #         print(f"[LOG] row_data is {'None' if row_data is None else 'OK'}")
+    #
+    #     if row_data:
+    #         self.log_writer.add_csv_row(row_data)
+    #
+    #         try:
+    #             with open("../output.txt", "a", encoding="utf-8") as fh:
+    #                 fh.write(f"{row_data}\n")
+    #         except OSError as err:
+    #             warning_logger.add_warning(
+    #                 f"Could not write to ../output.txt → {err}"
+    #             )
+    #
+    #     return full_evt.completed_at, full_evt.completed_datetime
+
+    def _update_logs_and_resource_availability(self, full_evt: TaskEvent, r_id, resource_in_pool=True):
         resource_cost = (self.sim_setup.resources_map[r_id].cost_per_hour
                          if resource_in_pool and r_id in self.sim_setup.resources_map
                          else 0)
         self.log_info.add_event_info(full_evt.p_case, full_evt, resource_cost)
 
-        # 1) update resource calendar / utilisation
         if resource_in_pool and r_id in self.sim_setup.resources_map:
             r_next_available = full_evt.completed_at
             if self.sim_resources[r_id].switching_time > 0:
@@ -1028,34 +1074,19 @@ class SimBPMEnv:
             self.resource_queue.update_resource_availability(r_id, r_next_available)
             self.sim_resources[r_id].worked_time += full_evt.real_duration
 
-        # 2) horizon-based **case-skip** – decide once per case
         cid = full_evt.p_case
         first_start = self.cases_first_start.setdefault(cid, full_evt.started_datetime)
         if cid not in self.cases_skip:
             self.cases_skip[cid] = (self.simulation_horizon is not None and
                                     first_start >= self.sim_setup.simulation_horizon)
 
-        # 3) actually write the CSV row if the case is not skipped
         if not self.cases_skip[cid]:
             row = self.get_csv_row_data(full_evt)
             if row:
                 self.log_writer.add_csv_row(row)
-
-        # 4) If not skipping, then proceed with writing the row to CSV
-        row_data = self.get_csv_row_data(full_evt)
-        if full_evt.p_case == 58:
-            print(f"[LOG] row_data is {'None' if row_data is None else 'OK'}")
-
-        if row_data:
-            self.log_writer.add_csv_row(row_data)
-
-            try:
-                with open("../output.txt", "a", encoding="utf-8") as fh:
-                    fh.write(f"{row_data}\n")
-            except OSError as err:
-                warning_logger.add_warning(
-                    f"Could not write to ../output.txt → {err}"
-                )
+                # optional debug dump:
+                # with open("../output.txt", "a", encoding="utf-8") as fh:
+                #     fh.write(f"{row}\n")
 
         return full_evt.completed_at, full_evt.completed_datetime
 
