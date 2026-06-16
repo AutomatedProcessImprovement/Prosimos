@@ -1379,6 +1379,12 @@ def execute_full_process(bpm_env: SimBPMEnv, fixed_starting_times=None):
     #       str(datetime.timedelta(seconds=(datetime.datetime.now() - s_t).total_seconds())))
     current_event = bpm_env.events_queue.pop_next_event()
     executed_cases = set()
+    # Track the most recent event time so execute_if_any_unexecuted_batch has a
+    # valid reference even when the queue empties right after the first event.
+    last_event_datetime = (
+        CustomDatetimeAndSeconds(current_event.enabled_at, current_event.enabled_datetime)
+        if current_event is not None else None
+    )
 
     while current_event is not None:
         if current_event.p_case not in executed_cases:
