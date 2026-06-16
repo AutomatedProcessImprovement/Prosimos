@@ -2,6 +2,7 @@ import copy
 import random
 import secrets
 import sys
+import uuid
 from collections import deque
 from enum import Enum
 from typing import List
@@ -23,6 +24,7 @@ class BatchInfoForExecution:
         self.task_batch_info = task_batch_info[curr_task_id]
         self.batch_spec = batch_spec
         self.start_time_from_rule = start_time_from_rule
+        self.batch_id = str(uuid.uuid4())
 
     def is_sequential(self):
         return self.task_batch_info.type == BATCH_TYPE.SEQUENTIAL
@@ -187,6 +189,10 @@ class BPMNGraph:
             if element_info.type == BPMN.TASK and element_info.name == task_name:
                 return element_id
         raise ValueError(f"Task with name '{task_name}' not found in BPMN model.")
+
+    def set_element_probabilities(self, element_probability, task_resource_probability):
+        self.element_probability = element_probability
+        self.task_resource_probability = task_resource_probability
 
     def set_additional_fields_from_json(self, element_probability, task_resource_probability,
                                         event_distribution, batch_processing, gateway_conditions,
@@ -393,13 +399,17 @@ class BPMNGraph:
         the per-case attributes. If the case doesn't exist yet,
         create an empty dictionary for it on the fly.
         """
+        if self.all_attributes is None:
+            return {}
         if case_id not in self.all_attributes:
             # Create an empty (or default) dict for new case IDs
             self.all_attributes[case_id] = {}
 
         all_current_attributes = {}
-        all_current_attributes.update(self.all_attributes["global"])
-        all_current_attributes.update(self.all_attributes[case_id])
+        if "global" in self.all_attributes:
+            all_current_attributes.update(self.all_attributes["global"])
+        if case_id in self.all_attributes:
+            all_current_attributes.update(self.all_attributes[case_id])
         return all_current_attributes
 
     def is_task_batched(self, task_id):
@@ -916,7 +926,7 @@ class BPMNGraph:
             else:
                 to_execute.append(next_e)
 
-    def _check_and_update_enabling_time(self, p_case, e_id, enabled_at):
+    def _check_and_update_enabling_time(self, p_case, e_id, enabled_at: CustomDatetimeAndSeconds):
         if e_id not in self.last_datetime:
             self.last_datetime[e_id] = {}
         if p_case not in self.last_datetime[e_id]:

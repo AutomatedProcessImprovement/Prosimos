@@ -29,12 +29,15 @@ class ProcessInfo:
 class TaskEvent:
     def __init__(self, p_case, task_id, resource_id, started_at, started_datetime,
                  enabled_at, enabled_datetime, real_duration, ideal_duration,
-                 bpm_env=None, num_tasks_in_batch=0):
+                 bpm_env=None, num_tasks_in_batch=0, batch_id=None):
         self.p_case = p_case  # ID of the current trace
         self.task_id = task_id  # ID of the task
         self.type = BPMN.TASK  # Task type
         self.resource_id = resource_id  # ID of the resource
+        self.normalized_waiting = None
+        self.normalized_processing = None
         self.worked_intervals = []
+        self.batch_id = batch_id
 
         self.enabled_at = enabled_at  # Simulation time when the task was enabled
         self.enabled_datetime = enabled_datetime  # Real datetime when the task was enabled
@@ -81,6 +84,7 @@ class TaskEvent:
         cls.idle_processing_time = 0.0
         cls.cycle_time = 0.0
         cls.processing_time = 0.0
+        cls.batch_id = c_event.batch_info_exec.batch_id if c_event.batch_info_exec is not None else None
 
         return cls
 

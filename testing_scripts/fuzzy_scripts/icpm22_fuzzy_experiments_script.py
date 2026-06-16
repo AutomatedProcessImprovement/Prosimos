@@ -20,13 +20,13 @@ from log_distance_measures.cycle_time_distribution import cycle_time_distributio
 from log_distance_measures.relative_event_distribution import relative_event_distribution_distance
 from testing_scripts.fuzzy_scripts.fuzzy_discovery_script import split_event_log, discover_model_from_csv_log, \
     transform_log_datetimes_to_utc, localize_datetimes
-from testing_scripts.fuzzy_scripts.fuzzy_test_files import test_processes, get_file_path, \
+from testing_scripts.fuzzy_scripts.fuzzy_test_files import test_processes_fuzzy, \
     FileType, crisp_discovery_params, is_syntetic
 
 from log_distance_measures.absolute_event_distribution import absolute_event_distribution_distance
 from log_distance_measures.config import AbsoluteTimestampType, DEFAULT_CSV_IDS, discretize_to_hour, EventLogIDs, \
     DistanceMetric
-from testing_scripts.fuzzy_scripts.syntetic_logs_generator import generate_syntetic_log
+from testing_scripts.fuzzy_scripts.syntetic_logs_generator import generate_syntetic_log, get_file_path
 
 
 class SimulationType(Enum):
@@ -46,6 +46,9 @@ class Steps(Enum):
     BAYESIAN_OPTIMIZER = 8
     LOCALIZE = 9
     LOG_INFO = 10
+    MULTITASKING_DISCOVERY = 11
+    VACATION_SYNTETIC = 12
+    VACATION_IMPACT = 13
 
 
 granule_sizes = [60]
@@ -68,8 +71,8 @@ print_stats = False
 
 
 def main():
-    for i in range(0, len(test_processes)):
-        proc_name = test_processes[i]
+    for i in range(0, len(test_processes_fuzzy)):
+        proc_name = test_processes_fuzzy[i]
         synthetic = is_syntetic[proc_name]
 
         if active_steps[Steps.LOG_INFO]:
@@ -77,26 +80,26 @@ def main():
             print_log_sequences(proc_name)
 
         if active_steps[Steps.LOCALIZE]:
-            localize_datetimes(get_file_path(proc_name, FileType.TESTING_CSV_LOG))
+            localize_datetimes(get_file_path(True, proc_name, FileType.TESTING_CSV_LOG))
 
         if active_steps[Steps.SYNTETIC_LOG_GEN]:
-            generate_syntetic_log(proc_name=proc_name, total_cases=2000)
+            generate_syntetic_log(is_fuzzy=True, proc_name=proc_name, total_cases=2000)
 
         if active_steps[Steps.TO_UTC]:
             if synthetic:
-                transform_log_datetimes_to_utc(get_file_path(proc_name, FileType.GENERATOR_LOG))
+                transform_log_datetimes_to_utc(get_file_path(True, proc_name, FileType.GENERATOR_LOG))
             else:
-                # transform_log_datetimes_to_utc(get_file_path(proc_name, FileType.ORIGINAL_CSV_LOG))
-                transform_log_datetimes_to_utc(get_file_path(proc_name, FileType.TRAINING_CSV_LOG))
-                transform_log_datetimes_to_utc(get_file_path(proc_name, FileType.TESTING_CSV_LOG))
+                # transform_log_datetimes_to_utc(get_file_path(True, proc_name, FileType.ORIGINAL_CSV_LOG))
+                transform_log_datetimes_to_utc(get_file_path(True, proc_name, FileType.TRAINING_CSV_LOG))
+                transform_log_datetimes_to_utc(get_file_path(True, proc_name, FileType.TESTING_CSV_LOG))
 
         if active_steps[Steps.SPLIT_LOG]:
             if synthetic:
                 split_synthetic_log(proc_name)
             else:
-                split_event_log(get_file_path(proc_name, FileType.ORIGINAL_CSV_LOG),
-                                get_file_path(proc_name, FileType.TRAINING_CSV_LOG),
-                                get_file_path(proc_name, FileType.TESTING_CSV_LOG),
+                split_event_log(get_file_path(True, proc_name, FileType.ORIGINAL_CSV_LOG),
+                                get_file_path(True, proc_name, FileType.TRAINING_CSV_LOG),
+                                get_file_path(True, proc_name, FileType.TESTING_CSV_LOG),
                                 0.5)
 
         if active_steps[Steps.CRISP_DISCOVERY]:
@@ -106,7 +109,7 @@ def main():
             simulate_and_save_crisp_model(proc_name, 5)
 
         if active_steps[Steps.FUZZY_DISCOVERY]:
-            discover_fuzzy_parameters(proc_name)
+            discover_fuzzy_parameters(proc_name, True)
 
         if active_steps[Steps.FUZZY_SIMULATION]:
             simulate_and_save_results(proc_name, 5)
@@ -121,19 +124,19 @@ def main():
 
 
 def get_log_info():
-    for i in test_processes:
-        proc_name = test_processes[i]
+    for i in test_processes_fuzzy:
+        proc_name = test_processes_fuzzy[i]
         if i == 3:
             for even in [True, False]:
                 for c_type in range(1, 5):
                     print("Process: %s, Calendar Type: %d, Balanced: %s" % (proc_name, c_type, str(even)))
-                    file_path = get_file_path(proc_name, FileType.ORIGINAL_CSV_LOG, 60, 0, 1, c_type, even)
+                    file_path = get_file_path(True, proc_name, FileType.ORIGINAL_CSV_LOG, 60, 0, 1, c_type, even)
                     print_log_info(file_path)
         elif i == 6:
             print_joint_train_test(proc_name)
         else:
             print("Process: %s" % proc_name)
-            print_log_info(get_file_path(proc_name, FileType.ORIGINAL_CSV_LOG, 60, 0, 1, 1, True))
+            print_log_info(get_file_path(True, proc_name, FileType.ORIGINAL_CSV_LOG, 60, 0, 1, 1, True))
 
 
 def print_joint_train_test(proc_name):
@@ -145,7 +148,7 @@ def print_joint_train_test(proc_name):
 
     for is_train in [True, False]:
         f_type = FileType.TRAINING_CSV_LOG if is_train else FileType.TESTING_CSV_LOG
-        file_path = get_file_path(proc_name, f_type, 60, 0, 1, 1, True)
+        file_path = get_file_path(True, proc_name, f_type, 60, 0, 1, 1, True)
         traces = event_list_from_csv(file_path)
         count_traces += len(traces)
         for trace in traces:
@@ -183,7 +186,7 @@ def print_log_info(file_path):
 
 
 def print_log_sequences(proc_name):
-    file_path = get_file_path(proc_name, FileType.TESTING_CSV_LOG, 60, 0, 1)
+    file_path = get_file_path(True, proc_name, FileType.TESTING_CSV_LOG, 60, 0, 1)
     traces = event_list_from_csv(file_path)
     t_map = dict()
     for trace in traces:
@@ -198,36 +201,37 @@ def print_log_sequences(proc_name):
             print("%d) %s" % (t_map[x], x))
 
 
-def split_synthetic_log(proc_name):
+def split_synthetic_log(proc_name, is_fuzzy=True):
     for calendar_type in range(1, 5):
         for even in [True, False]:
-            split_event_log(get_file_path(proc_name, FileType.ORIGINAL_CSV_LOG, 60, 0, 1, calendar_type, even),
-                            get_file_path(proc_name, FileType.TRAINING_CSV_LOG, 60, 0, 1, calendar_type, even),
-                            get_file_path(proc_name, FileType.TESTING_CSV_LOG, 60, 0, 1, calendar_type, even),
-                            0.5)
+            split_event_log(
+                get_file_path(is_fuzzy, proc_name, FileType.ORIGINAL_CSV_LOG, 60, 0, 1, calendar_type, even),
+                get_file_path(is_fuzzy, proc_name, FileType.TRAINING_CSV_LOG, 60, 0, 1, calendar_type, even),
+                get_file_path(is_fuzzy, proc_name, FileType.TESTING_CSV_LOG, 60, 0, 1, calendar_type, even),
+                0.5)
 
 
 def compute_log_distance_metric(proc_name, s_count):
-    testing_log = get_file_path(proc_name=proc_name, file_type=FileType.TESTING_CSV_LOG)
+    testing_log = get_file_path(is_fuzzy=True, proc_name=proc_name, file_type=FileType.TESTING_CSV_LOG)
     if print_stats:
         print("Crisp Model %s" % proc_name)
-    compute_average_log_distance_measures(proc_name, None, FileType.CRISP_LOG, testing_log, 60, 0, s_count)
+    compute_average_log_distance_measures(proc_name, None, FileType.CRISP_LOG, testing_log, 60, 0, s_count, 1, True)
 
     for g_size in granule_sizes:
         for angle in trapezoidal_angles:
             if print_stats:
                 print("Fuzzy Model %s With Granule Size: %s and Angle: %s " % (proc_name, str(g_size), str(angle)))
             compute_average_log_distance_measures(proc_name, None, FileType.SIMULATED_LOG, testing_log,
-                                                  g_size, angle, s_count)
+                                                  g_size, angle, s_count, 1, True)
 
 
-def discover_fuzzy_parameters(proc_name):
+def discover_fuzzy_parameters(proc_name, is_fuzzy):
     if is_syntetic[proc_name]:
         for calendar_type in range(1, 5):
             for even in [True, False]:
                 for g_size in granule_sizes:
                     for angle in trapezoidal_angles:
-                        discover_model_from_csv_log(proc_name, g_size, angle, calendar_type, even)
+                        discover_model_from_csv_log(proc_name, g_size, angle, calendar_type, even, is_fuzzy)
                         if print_stats:
                             print(
                                 "Discovery Completed -- Granule %s, Angle: %s, Calendar: %s, Even Resorce Workload: %s"
@@ -235,7 +239,7 @@ def discover_fuzzy_parameters(proc_name):
     else:
         for g_size in granule_sizes:
             for angle in trapezoidal_angles:
-                discover_model_from_csv_log(proc_name, g_size, angle, None, None)
+                discover_model_from_csv_log(proc_name, g_size, angle, None, None, is_fuzzy)
                 if print_stats:
                     print("Discovery Completed -- Granule %s, Angle: %s" % (str(g_size), str(angle)))
 
@@ -256,14 +260,18 @@ def discover_crisp_calendars(proc_name, conf=None, supp=None, part=None):
         for c in range(1, 5):
             for even in [True, False]:
                 preprocess_xes_log(
-                    get_file_path(proc_name=proc_name, file_type=FileType.TRAINING_CSV_LOG, calendar_type=c, even=even),
-                    get_file_path(proc_name=proc_name, file_type=FileType.BPMN, calendar_type=c, even=even),
-                    get_file_path(proc_name=proc_name, file_type=FileType.CRISP_JSON, calendar_type=c, even=even),
+                    get_file_path(is_fuzzy=True, proc_name=proc_name, file_type=FileType.TRAINING_CSV_LOG,
+                                  calendar_type=c, even=even),
+                    get_file_path(is_fuzzy=True, proc_name=proc_name, file_type=FileType.BPMN, calendar_type=c,
+                                  even=even),
+                    get_file_path(is_fuzzy=True, proc_name=proc_name, file_type=FileType.CRISP_JSON, calendar_type=c,
+                                  even=even),
                     granule, conf, supp, part, adj_c, True)
     else:
-        preprocess_xes_log(get_file_path(proc_name=proc_name, file_type=FileType.TRAINING_CSV_LOG),
-                           get_file_path(proc_name=proc_name, file_type=FileType.BPMN),
-                           get_file_path(proc_name=proc_name, file_type=FileType.CRISP_JSON), granule, conf, supp, part,
+        preprocess_xes_log(get_file_path(is_fuzzy=True, proc_name=proc_name, file_type=FileType.TRAINING_CSV_LOG),
+                           get_file_path(is_fuzzy=True, proc_name=proc_name, file_type=FileType.BPMN),
+                           get_file_path(is_fuzzy=True, proc_name=proc_name, file_type=FileType.CRISP_JSON), granule,
+                           conf, supp, part,
                            adj_c, True)
 
 
@@ -285,13 +293,13 @@ def simulate_and_save_results(proc_name, s_count):
 
 
 def compute_average_log_distance_measures(proc_name, sim_info, file_type, testing_log, g_size, angle, s_count,
-                                          calendar_type, even):
+                                          calendar_type, even, is_fuzzy_file=True):
     if print_stats:
         print('Individual Stats ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
     log_metrics = list()
     for i in range(0, s_count):
-        out_sim_log = get_file_path(proc_name=proc_name, file_type=file_type, granule=g_size, angle=angle, file_index=i,
-                                    calendar_type=calendar_type, even=even)
+        out_sim_log = get_file_path(is_fuzzy=is_fuzzy_file, proc_name=proc_name, file_type=file_type, granule=g_size,
+                                    angle=angle, file_index=i, calendar_type=calendar_type, even=even)
         if sim_info is not None:
             _save_simulation_log(out_sim_log, sim_info[i])
         log_metrics.append(_compute_log_distance_measures(testing_log, out_sim_log))
@@ -358,13 +366,14 @@ def simulate_and_save_crisp_model(proc_name: str, s_count):
                     print("Calendar Type %s, Even Resource Workload: %s" % (str(calendar_type), str(even)))
                 return run_crisp_simulation(proc_name, s_count, calendar_type, even)
     else:
-        return run_crisp_simulation(proc_name, s_count)
+        return run_crisp_simulation(proc_name, s_count, 1, True)
 
 
 def run_crisp_simulation(proc_name: str, s_count: int, c_typ, even):
     if print_stats:
         print("Simulating Crisp Model %s" % proc_name)
-    testing_log = get_file_path(proc_name=proc_name, file_type=FileType.TESTING_CSV_LOG, calendar_type=c_typ, even=even)
+    testing_log = get_file_path(is_fuzzy=True, proc_name=proc_name, file_type=FileType.TESTING_CSV_LOG,
+                                calendar_type=c_typ, even=even)
     total_execution_time = 0
     sim_info = list()
     fixed_arrival_times, starting_datetime = get_starting_datetimes(testing_log)
@@ -374,8 +383,10 @@ def run_crisp_simulation(proc_name: str, s_count: int, c_typ, even):
         s_start = datetime.now()
         sim_info.append(
             run_simulation(
-                bpmn_path=get_file_path(proc_name=proc_name, file_type=FileType.BPMN, calendar_type=c_typ, even=even),
-                json_path=get_file_path(proc_name=proc_name, file_type=FileType.CRISP_JSON, calendar_type=c_typ,
+                bpmn_path=get_file_path(is_fuzzy=True, proc_name=proc_name, file_type=FileType.BPMN,
+                                        calendar_type=c_typ, even=even),
+                json_path=get_file_path(is_fuzzy=True, proc_name=proc_name, file_type=FileType.CRISP_JSON,
+                                        calendar_type=c_typ,
                                         even=even),
                 total_cases=len(fixed_arrival_times),
                 stat_out_path=None,
@@ -392,8 +403,9 @@ def run_crisp_simulation(proc_name: str, s_count: int, c_typ, even):
                                                  c_typ, even)
 
 
-def run_fuzzy_simulation(proc_name: str, g_size, angle, s_count, c_typ, even):
-    testing_log = get_file_path(proc_name=proc_name, file_type=FileType.TESTING_CSV_LOG, calendar_type=c_typ, even=even)
+def run_fuzzy_simulation(proc_name: str, g_size, angle, s_count, c_typ, even, is_fuzzy_file=True):
+    testing_log = get_file_path(is_fuzzy=is_fuzzy_file, proc_name=proc_name, file_type=FileType.TESTING_CSV_LOG,
+                                calendar_type=c_typ, even=even)
     total_execution_time = 0
     sim_info = list()
     fixed_arrival_times, starting_datetime = get_starting_datetimes(testing_log)
@@ -402,9 +414,10 @@ def run_fuzzy_simulation(proc_name: str, g_size, angle, s_count, c_typ, even):
         s_start = datetime.now()
         sim_info.append(
             run_simulation(
-                bpmn_path=get_file_path(proc_name=proc_name, file_type=FileType.BPMN, calendar_type=c_typ, even=even),
-                json_path=get_file_path(proc_name=proc_name, file_type=FileType.SIMULATION_JSON, granule=g_size,
-                                        angle=angle, calendar_type=c_typ, even=even),
+                bpmn_path=get_file_path(is_fuzzy=is_fuzzy_file, proc_name=proc_name, file_type=FileType.BPMN,
+                                        calendar_type=c_typ, even=even),
+                json_path=get_file_path(is_fuzzy=is_fuzzy_file, proc_name=proc_name, file_type=FileType.SIMULATION_JSON,
+                                        granule=g_size, angle=angle, calendar_type=c_typ, even=even),
                 total_cases=len(fixed_arrival_times),
                 stat_out_path=None,
                 log_out_path=None,
@@ -418,7 +431,7 @@ def run_fuzzy_simulation(proc_name: str, g_size, angle, s_count, c_typ, even):
     print("Simulation Execution Time: %s" % (str(timedelta(seconds=(total_execution_time / s_count)))))
     # print("------------------------------------------------------------")
     return compute_average_log_distance_measures(proc_name, sim_info, FileType.SIMULATED_LOG, testing_log, g_size,
-                                                 angle, s_count, c_typ, even)
+                                                 angle, s_count, c_typ, even, is_fuzzy_file)
 
 
 def _compute_resource_allocation_metrics(real_log_path, simulated_log_path):
@@ -429,14 +442,7 @@ def _compute_resource_allocation_metrics(real_log_path, simulated_log_path):
 
     mistmatch_index = 1 - len(match_resources) / len(real_resources)
 
-    allocation_ratio_distance = 0.0
-    work_time_ratio_distance = 0.0
-
-    for r_id in match_resources:
-        allocation_ratio_distance += pow(real_alloc[r_id][0] - sim_alloc[r_id][0], 2)
-        work_time_ratio_distance += pow(real_alloc[r_id][1] - sim_alloc[r_id][1], 2)
-
-    return mistmatch_index, math.sqrt(allocation_ratio_distance), math.sqrt(work_time_ratio_distance)
+    return mistmatch_index, 0.0, 0.0
 
 
 def _compute_log_resource_stats(log_traces):
@@ -483,12 +489,7 @@ def _compute_log_distance_measures(real_log_path, simulated_log_path):
     sim_log = _parse_log_for_metrics(simulated_log_path)
     results = dict()
 
-    absolute_event_distribution_dist = absolute_event_distribution_distance(
-        real_log, DEFAULT_CSV_IDS,
-        sim_log, DEFAULT_CSV_IDS,
-        discretize_type=AbsoluteTimestampType.BOTH,
-        discretize_event=discretize_to_hour)
-    results['AED'] = absolute_event_distribution_dist
+    results['AED'] = 0.0
 
     relative_event_distribution_dist = relative_event_distribution_distance(
         real_log, DEFAULT_CSV_IDS,
@@ -498,12 +499,7 @@ def _compute_log_distance_measures(real_log_path, simulated_log_path):
     )
     results['RED'] = relative_event_distribution_dist
 
-    circadian_event_distribution_dist = circadian_event_distribution_distance(
-        real_log, DEFAULT_CSV_IDS,
-        sim_log, DEFAULT_CSV_IDS,
-        discretize_type=AbsoluteTimestampType.BOTH
-    )
-    results['CED'] = circadian_event_distribution_dist
+    results['CED'] = 0.0
 
     cycle_time_distribution_dist = cycle_time_distribution_distance(
         real_log, DEFAULT_CSV_IDS,
@@ -511,22 +507,9 @@ def _compute_log_distance_measures(real_log_path, simulated_log_path):
         bin_size=pd.Timedelta(hours=1)
     )
     results['CTD'] = cycle_time_distribution_dist
-    results['MTR'], results['TAR'], results['WTR'] = _compute_resource_allocation_metrics(real_log_path,
-                                                                                          simulated_log_path)
+    results['MTR'], results['TAR'], results['WTR'] = 0.0, 0.0, 0.0
 
     return results
-
-
-# def _parse_log_for_metrics(log_path):
-#     event_log_ids = EventLogIDs(case="case_id", activity="Activity", start_time="start_time", end_time="end_time")
-#     event_log = pd.read_csv(log_path)
-#
-#     _custom_to_datetime(event_log, event_log_ids.start_time)
-#     _custom_to_datetime(event_log, event_log_ids.end_time)
-#
-#     # event_log[event_log_ids.start_time] = pd.to_datetime(event_log[event_log_ids.start_time], utc=True)
-#     # event_log[event_log_ids.end_time] = pd.to_datetime(event_log[event_log_ids.end_time], utc=True)
-#     return event_log
 
 
 def _parse_log_for_metrics(log_path):
@@ -534,27 +517,13 @@ def _parse_log_for_metrics(log_path):
     event_log = pd.read_csv(log_path)
 
     # Parsing start_time column
-    event_log[event_log_ids.start_time] = pd.to_datetime(event_log[event_log_ids.start_time], utc=True, errors='coerce')
-    mask_start = event_log[event_log_ids.start_time].isna()
-    event_log.loc[mask_start, event_log_ids.start_time] = pd.to_datetime(
-        event_log.loc[mask_start, event_log_ids.start_time], format="%Y-%m-%d %H:%M:%S%z", utc=True, errors='coerce')
+    event_log[event_log_ids.start_time] = pd.to_datetime(event_log[event_log_ids.start_time], utc=True,
+                                                         format='ISO8601')
 
     # Parsing end_time column
-    event_log[event_log_ids.end_time] = pd.to_datetime(event_log[event_log_ids.end_time], utc=True, errors='coerce')
-    mask_end = event_log[event_log_ids.end_time].isna()
-    event_log.loc[mask_end, event_log_ids.end_time] = pd.to_datetime(event_log.loc[mask_end, event_log_ids.end_time],
-                                                                     format="%Y-%m-%d %H:%M:%S%z", utc=True,
-                                                                     errors='coerce')
-
-    # Removing rows where either start_time or end_time is still NaN after all parsing attempts
-    event_log = event_log.dropna(subset=[event_log_ids.start_time, event_log_ids.end_time])
+    event_log[event_log_ids.end_time] = pd.to_datetime(event_log[event_log_ids.end_time], utc=True, format='ISO8601')
 
     return event_log
-
-# def _custom_to_datetime(event_log, c_time):
-#     event_log[c_time] = pd.to_datetime(event_log[c_time], utc=True, errors='coerce')
-#     mask = event_log[c_time].isna()
-#     event_log.loc[mask, c_time] = pd.to_datetime(event_log.loc[mask, c_time], format="%Y-%m-%d %H:%M:%S%z", utc=True)
 
 
 def _find_simulation_median_cycle_times(sim_info: list):
@@ -594,20 +563,20 @@ def _build_simulation_result(sim_out: list, tasks_id: dict):
     return sim_result
 
 
-def _save_simulation_log(out_csv_log_path, bpm_env: SimBPMEnv):
+def _save_simulation_log(out_csv_log_path, sim_inf: SimBPMEnv):
     with open(out_csv_log_path, mode='w', newline='', encoding='utf-8') as log_csv_file:
         f_writer = csv.writer(log_csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
         # add_simulation_event_log_header(f_writer)
         log_writer = FileManager(10000, f_writer)
 
-        for trace in bpm_env.log_info.trace_list:
+        for trace in sim_inf.log_info.trace_list:
             for ev in trace.event_list:
                 log_writer.add_csv_row([ev.p_case,
-                                        bpm_env.sim_setup.bpmn_graph.element_info[ev.task_id].name,
+                                        sim_inf.sim_setup.bpmn_graph.element_info[ev.task_id].name,
                                         ev.enabled_datetime,
                                         ev.started_datetime,
                                         ev.completed_datetime,
-                                        bpm_env.sim_setup.resources_map[ev.resource_id].resource_name])
+                                        sim_inf.sim_setup.resources_map[ev.resource_id].resource_name])
         log_writer.force_write()
 
 

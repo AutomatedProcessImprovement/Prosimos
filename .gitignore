@@ -19,3 +19,4 @@ bimp_test_examples/
 dist/
 poetry.lock
 .venv-test/
+testing_scripts/assets/simulation_warnings.txt

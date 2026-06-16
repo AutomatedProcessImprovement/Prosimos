@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+  xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_1ou5i7i" targetNamespace="http://bpmn.io/schema/bpmn" exporter="bpmn-js (https://demo.bpmn.io)" exporterVersion="17.7.1">
+  <bpmn:process id="SIMPLE_LOOP_PROCESS" isExecutable="false">
+    <bpmn:startEvent id="START_EVENT">
+      <bpmn:outgoing>FLOW_START_FIRST</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="FLOW_START_FIRST" sourceRef="START_EVENT" targetRef="FIRST_ACTIVITY" />
+
+    <bpmn:task id="FIRST_ACTIVITY" name="First Activity">
+      <bpmn:incoming>FLOW_START_FIRST</bpmn:incoming>
+      <bpmn:outgoing>FLOW_FIRST_END</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:sequenceFlow id="FLOW_FIRST_END" sourceRef="FIRST_ACTIVITY" targetRef="END_EVENT" />
+    <bpmn:endEvent id="END_EVENT">
+      <bpmn:incoming>FLOW_FIRST_END</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+</bpmn:definitions>

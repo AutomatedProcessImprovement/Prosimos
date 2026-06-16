@@ -4,6 +4,7 @@ import os
 import numpy as np
 from datetime import timedelta
 from typing import List
+import random
 
 import pytz
 
@@ -51,6 +52,8 @@ class SimBPMEnv:
         self.sim_resources = dict()
         self.stat_fwriter = stat_fwriter
         self.additional_columns = self.sim_setup.all_attributes.get_all_columns_generated()
+        if self.sim_setup.batch_processing not in [None, {}]:
+            self.additional_columns.append("batch_id")
         self.log_writer = FileManager(10000, log_fwriter, self.additional_columns)
         self.log_info = LogInfo(sim_setup)
         self.executed_events = 0
@@ -734,8 +737,12 @@ class SimBPMEnv:
 
         # Decide resource
         if c_event.assigned_resource_id:
+            # resource already fixed by the process-state snapshot
             resource_id = c_event.assigned_resource_id
             resource_available_at = self.resource_queue.get_resource_availability(resource_id)
+        elif self.sim_setup.multitask_info is not None:
+            # multitasking allocation (from main)
+            resource_id, resource_available_at = self.allocate_multitasking_resource(c_event)
         else:
             resource_id, resource_available_at = self.pop_and_allocate_resource(task_id, num_allocated_tasks=1)
             self.sim_resources[resource_id].allocated_tasks += 1
@@ -793,10 +800,81 @@ class SimBPMEnv:
         # matching the forward-simulation behavior.
         self.update_attributes(c_event)
 
-        # Update logs and resource availability
-        self._update_logs_and_resource_availability(full_evt, resource_id, resource_in_pool)
+        if self.sim_setup.multitask_info is None:
+            # Single-resource (and process-state) path: handles event logging,
+            # resource availability, and horizon-based skipping.
+            self._update_logs_and_resource_availability(full_evt, resource_id, resource_in_pool)
+        else:
+            # Multitasking path (from main): release via multitask bookkeeping.
+            self.log_info.add_event_info(
+                p_case, full_evt, self.sim_setup.resources_map[resource_id].cost_per_hour)
+            self.release_multitasking_resource(resource_id, full_evt, resource_available_at)
+            row = self.get_csv_row_data(full_evt)
+            if row:
+                self.log_writer.add_csv_row(row)
 
         return completed_at, completed_datetime
+
+    def allocate_multitasking_resource(self, c_event: EnabledEvent):
+        r_id, r_avail_at = self.resource_queue.pop_resource_for(c_event.task_id)
+
+        candidates = [[r_id, r_avail_at]]
+        while r_avail_at is not None and r_avail_at <= c_event.enabled_at:
+            r_id, r_avail_at = self.resource_queue.pop_resource_for(c_event.task_id)
+            if r_id is not None:
+                candidates.append([r_id, r_avail_at])
+
+        if len(candidates) > 1:
+            i = random.randint(0, len(candidates) - 1)
+            [r_id, r_avail_at] = candidates[i]
+            for j in range(0, len(candidates)):
+                if j != i:
+                    self.resource_queue.update_resource_availability(candidates[j][0], candidates[j][1])
+        elif r_id is None and len(candidates) == 1:
+            [r_id, r_avail_at] = candidates[0]
+
+        # best_r, best_avail = r_id, r_avail_at
+        # while r_avail_at is not None and r_avail_at <= c_event.enabled_at:
+        #     c_workload = self.sim_setup.multitask_info.workload_diff(r_id, c_event.task_id)
+        #     if c_workload > max_workload_diff:
+        #         candidates.append([best_r, best_avail])
+        #         best_r, best_avail = r_id, r_avail_at
+        #         max_workload_diff = c_workload
+        #     else:
+        #         candidates.append([r_id, r_avail_at])
+        #     r_id, r_avail_at = self.resource_queue.pop_resource_for(c_event.task_id)
+
+        # print(f'Selected: {best_r, best_avail}')
+        # if 'Loan Officer' in best_r and len(candidates) > 1:
+        #     print("hola")
+        # if len(candidates) > 0:
+        #     # for r in candidates:
+        #     #     print(r)
+        #     # print("-------------------------------------")
+        #     for j in range(0, len(candidates)):
+        #         self.resource_queue.update_resource_availability(candidates[j][0], candidates[j][1])
+        #
+        # r_id, r_avail_at = best_r, best_avail
+        # self.sim_resources[r_id].allocated_tasks += 1
+        if c_event.enabled_at > r_avail_at:
+            next_avail_at = c_event.enabled_at
+            avail_datetime = self._datetime_from(next_avail_at)
+            is_working, _ = self.sim_setup.get_resource_calendar(r_id).is_working_datetime(avail_datetime)
+            if not is_working:
+                r_avail_at = r_avail_at + self.sim_setup.next_resting_time(r_id, avail_datetime)
+
+        return r_id, r_avail_at
+
+    def release_multitasking_resource(self, r_id: str, full_evt: TaskEvent, r_init_avail):
+        completed_dt = self._datetime_from(full_evt.completed_at)
+        self.sim_setup.multitask_info.allocate_task_to(r_id, full_evt.task_id, completed_dt)
+        r_next_avail = r_init_avail
+        if not self.sim_setup.multitask_info.can_get_new_tasks(r_id, completed_dt):
+            last_time = self.sim_setup.multitask_info.release_tasks_from(r_id, completed_dt)
+            r_next_avail += self.sim_setup.next_resting_time(r_id, last_time)
+
+        self.resource_queue.update_resource_availability(r_id, r_next_avail)
+        self.sim_resources[r_id].worked_time += full_evt.ideal_duration
 
     def update_attributes(self, current_event):
         event_attributes = self.sim_setup.all_attributes.event_attributes.attributes
@@ -881,8 +959,11 @@ class SimBPMEnv:
 
         # Add any additional attributes
         all_attrs = self.sim_setup.bpmn_graph.get_all_attributes(full_event.p_case)
-        values = ["" if all_attrs.get(col) is None else all_attrs.get(col) for col in self.additional_columns]
 
+        # values = ["" if all_attrs.get(col) is None else all_attrs.get(col) for col in self.additional_columns]
+        values = ["" if all_attrs.get(col) is None else all_attrs.get(col) for col in self.additional_columns if col != "batch_id"]
+        if self.log_writer.has_batch:
+            values.append(str(full_event.batch_id))
         return [*row_basic_info, *values]
 
     def append_any_enabled_batch_tasks(self, current_event: EnabledEvent) -> List[EnabledEvent]:
@@ -1010,6 +1091,7 @@ class SimBPMEnv:
                     enabled_datetime,
                     self,
                     num_tasks_in_batch,
+                    c_event.batch_info_exec.batch_id
                 )
 
                 self.sim_resources[r_id].worked_time += full_evt.ideal_duration
@@ -1061,6 +1143,7 @@ class SimBPMEnv:
                     enabled_datetime,
                     self,
                     num_tasks_in_batch,
+                    c_event.batch_info_exec.batch_id
                 )
 
                 (
@@ -1355,7 +1438,8 @@ def run_simulation(
     diffsim_info.setup_horizon()
 
     if stat_out_path is None and log_out_path is None:
-        return run_simpy_simulation(diffsim_info, None, None, process_state=process_state, simulation_horizon=simulation_horizon)
+        return run_simpy_simulation(diffsim_info, None, None, fixed_starting_times=fixed_arrival_times,
+                                    process_state=process_state, simulation_horizon=simulation_horizon)
 
     csv_writer_config = {
         'delimiter': ',',

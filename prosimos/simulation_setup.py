@@ -33,7 +33,8 @@ class SimDiffSetup:
             self.all_attributes,
             self.gateway_execution_limit,
             self.model_type,
-            self.resource_name_to_id
+            self.resource_name_to_id,
+            self.multitask_info
         ) = parse_json_sim_parameters(json_path)
         self.gateway_conditions = add_default_flows(self.gateway_conditions, bpmn_path)
         self.case_attributes = self.all_attributes.case_attributes
