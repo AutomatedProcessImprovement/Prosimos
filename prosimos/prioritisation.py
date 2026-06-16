@@ -41,6 +41,23 @@ class CasePrioritisation:
             self.all_case_priorities[case_id] = self.prioritisation_rules.get_priority(new_attrs)
         return self.all_case_priorities[case_id]
 
+    def set_case_attributes(self, case_id: int, attr_values: dict):
+        """
+        Override the (otherwise randomly sampled) attribute values for a case
+        resumed from a process-state snapshot, then recompute its priority so
+        prioritisation rules see the real values the case already had.
+
+        Any attribute not present in the snapshot keeps its previously sampled
+        value, so partial snapshots are handled gracefully. Returns the merged
+        attribute dict (the same object stored internally) so callers can share
+        the reference with ``bpmn_graph.all_attributes``.
+        """
+        merged_attrs = dict(self.all_case_attributes.get(case_id, {}))
+        merged_attrs.update(attr_values)
+        self.all_case_attributes[case_id] = merged_attrs
+        self.all_case_priorities[case_id] = self.prioritisation_rules.get_priority(merged_attrs)
+        return merged_attrs
+
     def get_case_attr_values(self, case_id: int):
         if case_id not in self.all_case_attributes:
             new_attrs = self.case_attributes.get_values_calculated()

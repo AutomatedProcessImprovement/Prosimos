@@ -117,6 +117,29 @@ class SimBPMEnv:
         
         resource_name_to_id = self.sim_setup.resource_name_to_id
 
+        # Case ids resumed from the snapshot. Used later to avoid re-sampling
+        # global-case attributes for these cases (which would clobber the
+        # restored values) in execute_full_process.
+        self.resumed_case_ids = set(int(cid) for cid in process_state.get('cases', {}).keys())
+
+        # ---------------------------------------------------------
+        # 0) Restore simulation-wide (global) attribute values
+        # ---------------------------------------------------------
+        # The global attribute slot was initialized with a fresh draw in
+        # __init__. Overwrite it with the values captured in the snapshot so
+        # the continuation sees the global state as it was at resume time.
+        snapshot_global = process_state.get("global_attributes")
+        if snapshot_global:
+            self.sim_setup.bpmn_graph.all_attributes["global"].update(snapshot_global)
+
+        # Does the model rely on per-case attribute values? If so, a resumed
+        # case without attributes in the snapshot silently falls back to random
+        # sampled values, changing gateway branching and prioritisation order.
+        self._model_uses_case_attributes = (
+            bool(self.sim_setup.case_attributes.attributes)
+            or bool(self.sim_setup.prioritisation_rules.get_attribute_names())
+        )
+
         # ---------------------------------------------------------
         # 1) Compute resource availability from ongoing activities
         # ---------------------------------------------------------
@@ -149,6 +172,43 @@ class SimBPMEnv:
 
             self.all_process_states[case_id] = p_state
             self.log_info.trace_list[case_id] = Trace(case_id, self.sim_setup.start_datetime)
+
+            # --------------------------------------
+            # 2.0) Restore per-case attribute values captured in the snapshot
+            # --------------------------------------
+            # Cases resumed mid-flight must keep the case-attribute values they
+            # already had (so gateway conditions / prioritisation rules branch
+            # the same way they did in reality) instead of the freshly sampled
+            # values precomputed by CasePrioritisation. New arrivals scheduled
+            # after the snapshot keep the sampled values.
+            snapshot_attrs = case_data.get("case_attributes")
+            if snapshot_attrs:
+                merged_attrs = self.case_prioritisation.set_case_attributes(case_id, snapshot_attrs)
+                self.sim_setup.bpmn_graph.all_attributes[case_id] = merged_attrs
+
+            # Restore per-case event-attribute values (these keep mutating during
+            # execution; the snapshot carries their last-known values so the
+            # continuation does not re-derive them from scratch).
+            snapshot_event_attrs = case_data.get("event_attributes")
+            if snapshot_event_attrs:
+                case_attr_store = self.sim_setup.bpmn_graph.all_attributes.setdefault(case_id, {})
+                case_attr_store.update(snapshot_event_attrs)
+
+            # Optional: an explicit priority captured in the snapshot wins over
+            # the rule-derived one (for systems with manual priorities the rules
+            # cannot reproduce from attributes).
+            snapshot_priority = case_data.get("priority")
+            if snapshot_priority is not None:
+                self.case_prioritisation.all_case_priorities[case_id] = snapshot_priority
+
+            # Warn when a resumed case carries no case-attribute values but the
+            # model relies on them: it will silently fall back to randomly
+            # sampled values, changing gateway branching / prioritisation order.
+            if self._model_uses_case_attributes and not snapshot_attrs:
+                warning_logger.add_warning(
+                    f"Resumed case #{case_id} has no case_attributes in the snapshot; "
+                    f"sampled values will be used (may change branching/prioritisation)."
+                )
 
             # --------------------------------------
             # 2a) Handle ongoing activities
@@ -259,6 +319,10 @@ class SimBPMEnv:
                 enabled_event.started_at = started_at
                 enabled_event.started_datetime = start_time
                 enabled_event.from_process_state = True
+                # Event-attribute values this activity had at its time (from the
+                # historical log), so the resumed activity logs the point-in-time
+                # values instead of recomputing them.
+                enabled_event.historical_event_attributes = activity.get("event_attributes")
                 self.calc_priority_and_append_to_queue(enabled_event, is_arrival_event=False)
 
                 # Update the resource's next availability time if it's in the pool
@@ -639,6 +703,13 @@ class SimBPMEnv:
             bpm_env=self
         )
 
+        # Historical (already-running) activity: restore the event-attribute
+        # values it had at its point in time, instead of recomputing them.
+        # We deliberately do NOT call update_attributes here.
+        hist_event_attrs = getattr(c_event, "historical_event_attributes", None)
+        if hist_event_attrs:
+            self.sim_setup.bpmn_graph.all_attributes.setdefault(p_case, {}).update(hist_event_attrs)
+
         # Update logs, resource usage
         if resource_id:
             self._update_logs_and_resource_availability(full_evt, resource_id, resource_in_pool)
@@ -717,6 +788,11 @@ class SimBPMEnv:
             bpm_env=self
         )
 
+        # Apply this task's event-attribute updates so the logged row reflects
+        # the attribute values as of this activity (point-in-time semantics),
+        # matching the forward-simulation behavior.
+        self.update_attributes(c_event)
+
         # Update logs and resource availability
         self._update_logs_and_resource_availability(full_evt, resource_id, resource_in_pool)
 
@@ -726,16 +802,19 @@ class SimBPMEnv:
         event_attributes = self.sim_setup.all_attributes.event_attributes.attributes
         global_event_attributes = self.sim_setup.all_attributes.global_event_attributes.attributes
 
+        # Use setdefault so a case id outside the precomputed range (e.g. a new
+        # arrival generated during a resumed run) does not raise KeyError.
+        case_store = self.sim_setup.bpmn_graph.all_attributes.setdefault(current_event.p_case, {})
         all_attribute_values = {
             **self.sim_setup.bpmn_graph.all_attributes["global"],
-            **self.sim_setup.bpmn_graph.all_attributes[current_event.p_case]
+            **case_store
         }
 
         new_global_attr_values = self._extract_attributes_for_event(current_event.task_id, global_event_attributes, all_attribute_values)
         new_event_attr_values = self._extract_attributes_for_event(current_event.task_id, event_attributes, all_attribute_values)
 
         self.sim_setup.bpmn_graph.all_attributes["global"].update(new_global_attr_values)
-        self.sim_setup.bpmn_graph.all_attributes[current_event.p_case].update(new_event_attr_values)
+        case_store.update(new_event_attr_values)
 
     def _extract_attributes_for_event(self, task_id, source_attributes, all_attribute_values):
         new_attributes = {}
@@ -1063,17 +1142,19 @@ class SimBPMEnv:
         cid = full_evt.p_case
         first_start = self.cases_first_start.setdefault(cid, full_evt.started_datetime)
         if cid not in self.cases_skip:
-            self.cases_skip[cid] = (self.simulation_horizon is not None and
-                                    first_start >= self.sim_setup.simulation_horizon)
+            # Resumed (in-flight) cases are the subject of a short-term run, so
+            # they are always logged. The horizon only filters out NEW cases
+            # whose first activity starts at/after the horizon.
+            is_resumed = cid in getattr(self, "resumed_case_ids", set())
+            self.cases_skip[cid] = (not is_resumed
+                                    and self.simulation_horizon is not None
+                                    and first_start >= self.sim_setup.simulation_horizon)
 
         if not self.cases_skip[cid]:
             row = self.get_csv_row_data(full_evt)
             if row:
                 self._debug_rows_written += 1
                 self.log_writer.add_csv_row(row)
-                # optional debug dump:
-                with open("../output.txt", "a", encoding="utf-8") as fh:
-                    fh.write(f"{row}\n")
 
         return full_evt.completed_at, full_evt.completed_datetime
 
@@ -1219,9 +1300,12 @@ def execute_full_process(bpm_env: SimBPMEnv, fixed_starting_times=None):
     while current_event is not None:
         if current_event.p_case not in executed_cases:
             executed_cases.add(current_event.p_case)
-            global_case_attributes = bpm_env.sim_setup.all_attributes.global_case_attributes.attributes
-            new_attributes = {attr.name: attr.get_next_value() for attr in global_case_attributes}
-            bpm_env.sim_setup.bpmn_graph.all_attributes["global"].update(new_attributes)
+            # Resumed cases keep the global-case attribute values restored from
+            # the snapshot; only newly born cases sample fresh ones here.
+            if current_event.p_case not in getattr(bpm_env, "resumed_case_ids", set()):
+                global_case_attributes = bpm_env.sim_setup.all_attributes.global_case_attributes.attributes
+                new_attributes = {attr.name: attr.get_next_value() for attr in global_case_attributes}
+                bpm_env.sim_setup.bpmn_graph.all_attributes["global"].update(new_attributes)
 
         # print(f"Processing event at simulation time: {current_event}")
         bpm_env.execute_enabled_event(current_event)

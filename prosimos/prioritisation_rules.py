@@ -92,3 +92,12 @@ class AllPriorityRules:
                 break
 
         return init_priority
+
+    def get_attribute_names(self):
+        "Set of case-attribute names referenced by any prioritisation rule."
+        names = set()
+        for rule in self.all_rules:
+            for and_rule in rule.or_rule.or_rules:
+                for atomic in and_rule.and_rules:
+                    names.add(atomic.attribute)
+        return names
