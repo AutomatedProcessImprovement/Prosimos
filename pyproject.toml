@@ -21,9 +21,9 @@ pandas = "^2.3.3"
 python-dateutil = "^2.9.0"
 pytz = "^2026.3"
 scipy = "^1.17.1"
-pix-framework = {path = "../pix-framework"}
+pix-framework = "^0.15.0"
 pylint = "^4.0.6"
-log-distance-measures = {path = "../log-distance-measures"}
+log-distance-measures = "^2.2.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^9.0.1"
