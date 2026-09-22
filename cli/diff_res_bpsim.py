@@ -1,8 +1,10 @@
 import csv
 import os
+import random
 from pathlib import Path
 
 import click
+import numpy as np
 
 from bpdfr_discovery.log_parser import preprocess_xes_log
 from prosimos.simulation_engine import run_simulation
@@ -33,8 +35,16 @@ def cli():
 @click.option('--is_event_added_to_log', required=False,
               help='Boolean showing whether event should be added to the resulted simulation log.'
                    'If this parameter is not provided, False is considered as the parameter value.')
+@click.option('--seed', required=False, type=click.INT, default=None,
+              help='Seed for the random number generators (Python\'s random module and NumPy\'s), '
+                   'to make the simulation reproducible. If this parameter is not provided, '
+                   'the simulation behaves non-deterministically as before.')
 @click.pass_context
-def start_simulation(ctx, bpmn_path, json_path, total_cases, stat_out_path=None, log_out_path=None, starting_at=None, is_event_added_to_log=False):
+def start_simulation(ctx, bpmn_path, json_path, total_cases, stat_out_path=None, log_out_path=None, starting_at=None, is_event_added_to_log=False, seed=None):
+    if seed is not None:
+        random.seed(seed)
+        np.random.seed(seed)
+
     run_simulation(bpmn_path, json_path, total_cases, stat_out_path, log_out_path, starting_at, is_event_added_to_log)
 
 
