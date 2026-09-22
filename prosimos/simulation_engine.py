@@ -655,6 +655,7 @@ def execute_full_process(bpm_env: SimBPMEnv, fixed_starting_times=None):
             bpm_env.sim_setup.bpmn_graph.all_attributes["global"].update(new_attributes)
 
         bpm_env.execute_enabled_event(current_event)
+        yield current_event
 
         # find the next event to be executed
         # double-check whether there are elements that need to be executed before the start of the event
@@ -736,7 +737,8 @@ def run_simulation(
 
 def run_simpy_simulation(diffsim_info, stat_fwriter, log_fwriter, fixed_starting_times=None):
     bpm_env = SimBPMEnv(diffsim_info, stat_fwriter, log_fwriter)
-    execute_full_process(bpm_env, fixed_starting_times)
+    for _ in execute_full_process(bpm_env, fixed_starting_times):
+        pass
     if fixed_starting_times is not None:
         return bpm_env
     if log_fwriter is None and stat_fwriter is None:
