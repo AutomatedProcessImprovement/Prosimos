@@ -710,15 +710,13 @@ def run_simulation(
     is_event_added_to_log=False,
     fixed_arrival_times=None,
 ):
-    diffsim_info = SimDiffSetup(bpmn_path, json_path, is_event_added_to_log, total_cases)
-
-    if not diffsim_info:
-        return None
-
     starting_at_datetime = (
         parse_datetime(starting_at, True) if starting_at else pytz.utc.localize(datetime.datetime.now())
     )
-    diffsim_info.set_starting_datetime(starting_at_datetime)
+    diffsim_info = SimDiffSetup(bpmn_path, json_path, is_event_added_to_log, total_cases, starting_at_datetime)
+
+    if not diffsim_info:
+        return None
 
     if stat_out_path is None and log_out_path is None:
         return run_simpy_simulation(diffsim_info, None, None, fixed_arrival_times)

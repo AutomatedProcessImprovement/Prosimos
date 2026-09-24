@@ -43,8 +43,8 @@ def test_not_enabled_event_empty_tasks(assets_path):
         element_probability, task_resource, event_distribution, batch_processing
     )
 
-    sim_setup = SimDiffSetup(bpmn_path, json_path, False, 1)
-    sim_setup.set_starting_datetime(pytz.utc.localize(datetime.datetime.now()))
+    sim_setup = SimDiffSetup(bpmn_path, json_path, False, 1,
+                             pytz.utc.localize(datetime.datetime.now()))
     p_case = 0
     p_state = sim_setup.initial_state()
 
@@ -102,8 +102,8 @@ def test_enabled_first_task_enables_next_one(assets_path):
         element_probability, task_resource, event_distribution, batch_processing
     )
 
-    sim_setup = SimDiffSetup(bpmn_path, json_path, False, 1)
-    sim_setup.set_starting_datetime(pytz.utc.localize(datetime.datetime.now()))
+    sim_setup = SimDiffSetup(bpmn_path, json_path, False, 1,
+                             pytz.utc.localize(datetime.datetime.now()))
     p_case = 0
     p_state = sim_setup.initial_state()
 
@@ -169,8 +169,8 @@ def test_enabled_first_task_token_wait_at_the_or_join(assets_path):
         element_probability, task_resource, event_distribution, batch_processing
     )
 
-    sim_setup = SimDiffSetup(bpmn_path, json_path, False, 1)
-    sim_setup.set_starting_datetime(pytz.utc.localize(datetime.datetime.now()))
+    sim_setup = SimDiffSetup(bpmn_path, json_path, False, 1,
+                             pytz.utc.localize(datetime.datetime.now()))
     p_case = 0
     p_state = sim_setup.initial_state()
 
@@ -316,8 +316,8 @@ def test_update_state_event_gateway_event_happened(
         batch_processing, gateway_conditions, gateway_execution_limit
     )
 
-    sim_setup = SimDiffSetup(bpmn_path, json_path, False, 1)
-    sim_setup.set_starting_datetime(pytz.utc.localize(datetime.datetime.now()))
+    sim_setup = SimDiffSetup(bpmn_path, json_path, False, 1,
+                             pytz.utc.localize(datetime.datetime.now()))
     p_case = 0
     p_state = sim_setup.initial_state()
 
@@ -396,8 +396,8 @@ def test_update_state_terminate_event(assets_path):
         batch_processing, gateway_conditions, gateway_execution_limit
     )
 
-    sim_setup = SimDiffSetup(bpmn_path, json_path, False, 1)
-    sim_setup.set_starting_datetime(pytz.utc.localize(datetime.datetime.now()))
+    sim_setup = SimDiffSetup(bpmn_path, json_path, False, 1,
+                             pytz.utc.localize(datetime.datetime.now()))
     p_case = 0
     p_state = sim_setup.initial_state()
 

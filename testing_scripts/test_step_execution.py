@@ -22,8 +22,8 @@ def _build_and_run(bpmn_path, json_path, total_cases, seed, driver):
     random.seed(seed)
     np.random.seed(seed)
 
-    sim_setup = SimDiffSetup(bpmn_path, json_path, False, total_cases)
-    sim_setup.set_starting_datetime(pytz.utc.localize(datetime(2024, 1, 1)))
+    sim_setup = SimDiffSetup(bpmn_path, json_path, False, total_cases,
+                             pytz.utc.localize(datetime(2024, 1, 1)))
 
     output = io.StringIO()
     env = SimBPMEnv(sim_setup, None, csv.writer(output))

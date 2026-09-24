@@ -1,9 +1,7 @@
-import datetime
 import ntpath
 from datetime import timedelta
 from typing import Optional
 
-import pytz
 from pix_framework.discovery.resource_calendar_and_performance.crisp.resource_calendar import RCalendar
 from pix_framework.statistics.distribution import DurationDistribution
 
@@ -15,9 +13,8 @@ from prosimos.simulation_properties_parser import parse_json_sim_parameters, par
 
 
 class SimDiffSetup:
-    def __init__(self, bpmn_path, json_path, is_event_added_to_log, total_cases):
+    def __init__(self, bpmn_path, json_path, is_event_added_to_log, total_cases, start_datetime):
         self.process_name = ntpath.basename(bpmn_path).split(".")[0]
-        self.start_datetime = datetime.datetime.now(pytz.utc)
 
         (
             self.resources_map,
@@ -49,6 +46,10 @@ class SimDiffSetup:
 
         self.is_event_added_to_log = is_event_added_to_log
         self.total_num_cases = total_cases  # how many process cases should be simulated
+
+        # every internal time is an offset from this moment, so engines that must agree on
+        # absolute time need to be given the same value rather than each reading the clock
+        self.set_starting_datetime(start_datetime)
 
     def verify_simulation_input(self):
         for e_id in self.bpmn_graph.element_info:
