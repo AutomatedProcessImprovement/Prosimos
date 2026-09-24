@@ -1,3 +1,6 @@
+import random
+
+import numpy as np
 import pytest
 import pandas as pd
 
@@ -152,7 +155,7 @@ def test_only_high_boundary_correct_distance_between_batches_and_inside(executio
     """
     Input:      6 process cases are being generated. A new case arrive every 3 hours.
                 Batched task are executed in parallel.
-    Expected:   Batched task are executed only when the difference between newly arrived 
+    Expected:   Batched task are executed only when the difference between newly arrived
                 and the previous one exceeds the range of 5 hours.
                 Since we generate 6 new cases with the arrival case of 3 hours,
                 the batch will not get executed during the generation of those cases.
@@ -163,6 +166,8 @@ def test_only_high_boundary_correct_distance_between_batches_and_inside(executio
                 The resource which executed the batch is the same for all tasks in the batch.
                 The start_time of all logs files is being sorted by ASC.
     """
+    random.seed(execution_number)
+    np.random.seed(execution_number)
 
     # ====== ARRANGE & ACT ======
     firing_rules = [
@@ -283,6 +288,9 @@ def test_range_correct_is_true(
 
 @pytest.mark.parametrize('execution_number', range(5))
 def test_range_correct_distance_between_batches_and_inside(execution_number, assets_path):
+    random.seed(execution_number)
+    np.random.seed(execution_number)
+
     # ====== ARRANGE & ACT ======
     firing_rules = [
         [

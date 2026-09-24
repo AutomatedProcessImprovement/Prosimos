@@ -1,5 +1,7 @@
 from datetime import timedelta
+import random
 
+import numpy as np
 import pandas as pd
 import pytest
 from prosimos.batch_processing import AndFiringRule, FiringSubRule, OrFiringRule
@@ -211,6 +213,8 @@ def test_range_large_wt_rule_correct_log_distances(execution_number, assets_path
     This happens during the 3rd case, so that's when the batch execution is enabled.
     Verified the appropriate start_time and end_time (tasks are executed in parallel).
     """
+    random.seed(execution_number)
+    np.random.seed(execution_number)
 
     # ====== ARRANGE ======
     sim_logs = assets_path / SIM_LOGS_FILENAME
