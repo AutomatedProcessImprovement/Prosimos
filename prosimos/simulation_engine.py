@@ -45,6 +45,8 @@ class SimBPMEnv:
         self.log_writer = FileManager(10000, log_fwriter, self.additional_columns)
         self.log_info = LogInfo(sim_setup)
         self.executed_events = 0
+        self._arrivals_generated = False
+        self._event_generator = None
         self.time_update_process_state = 0
 
         r_first_available = dict()
@@ -115,6 +117,29 @@ class SimBPMEnv:
         for arrival_time in starting_times:
             self._update_initial_event_info(self.sim_setup, p_case, arrival_time)
             p_case += 1
+
+    def _ensure_arrivals_generated(self, fixed_starting_times=None):
+        """Generate the case arrivals exactly once, regardless of whether execute_full_process
+        or next_event_time()/step() triggers it first."""
+        if self._arrivals_generated:
+            return
+        if fixed_starting_times is None:
+            self.generate_all_arrival_events()
+        else:
+            self.generate_fixed_arrival_events(fixed_starting_times)
+        self._arrivals_generated = True
+
+    def next_event_time(self):
+        """Datetime of the next event this engine would execute, or None if it has nothing left to do."""
+        self._ensure_arrivals_generated()
+        next_event = self.events_queue.peek()
+        return next_event.enabled_datetime if next_event is not None else None
+
+    def step(self):
+        """Execute exactly one event and return it, or None if there was nothing left to do."""
+        if self._event_generator is None:
+            self._event_generator = execute_full_process(self)
+        return next(self._event_generator, None)
 
     def _update_initial_event_info(self, sim_setup, p_case, arrival_time):
         for e_id in sim_setup.bpmn_graph.last_datetime:
@@ -637,10 +662,7 @@ def execute_full_process(bpm_env: SimBPMEnv, fixed_starting_times=None):
     # Initialize event queue with the arrival times of all the cases to simulate,
     # i.e., all the initial events are enqueued and sorted by their arrival times
     # s_t = datetime.datetime.now()
-    if fixed_starting_times is None:
-        bpm_env.generate_all_arrival_events()
-    else:
-        bpm_env.generate_fixed_arrival_events(fixed_starting_times)
+    bpm_env._ensure_arrivals_generated(fixed_starting_times)
 
     # print("Generation of all cases: %s" %
     #       str(datetime.timedelta(seconds=(datetime.datetime.now() - s_t).total_seconds())))
@@ -655,26 +677,27 @@ def execute_full_process(bpm_env: SimBPMEnv, fixed_starting_times=None):
             bpm_env.sim_setup.bpmn_graph.all_attributes["global"].update(new_attributes)
 
         bpm_env.execute_enabled_event(current_event)
-        yield current_event
+
+        # the enabled time of the event we just executed, used below as the reference point
+        # to look for any batched task that should fire once the queue runs dry
+        last_event_datetime = CustomDatetimeAndSeconds(current_event.enabled_at, current_event.enabled_datetime)
 
         # find the next event to be executed
         # double-check whether there are elements that need to be executed before the start of the event
-        # add founded elements to the queue, if any
+        # add found elements to the queue, if any
         intermediate_event = bpm_env.events_queue.peek()
         if intermediate_event is not None:
             bpm_env.append_any_enabled_batch_tasks(intermediate_event)
-
-        current_event = bpm_env.events_queue.pop_next_event()
-        if current_event is not None:
-            # save the datetime of the last executed task in the flow
-            last_event_datetime = CustomDatetimeAndSeconds(current_event.enabled_at, current_event.enabled_datetime)
         else:
             # we reached the point where all tasks enabled for the execution were executed
             # add to the events_queue batched tasks if any
             bpm_env.execute_if_any_unexecuted_batch(last_event_datetime)
 
-            # verifying whether we still have (batched) tasks to be executed in the future
-            current_event = bpm_env.events_queue.pop_next_event()
+        # the queue is now fully settled (any due batched work has been flushed into it),
+        # so it is safe for next_event_time() to read it via a plain peek()
+        yield current_event
+
+        current_event = bpm_env.events_queue.pop_next_event()
 
 
 def run_simulation(
