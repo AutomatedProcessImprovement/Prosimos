@@ -19,3 +19,5 @@ bimp_test_examples/
 dist/
 poetry.lock
 testing_scripts/assets/simulation_warnings.txt
+run_two_processes.py
+merged_log.csv
