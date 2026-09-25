@@ -43,17 +43,39 @@ def _random_arrival_gateway_process(name, tmp_path):
     return ProcessSpec(name, spec.bpmn_path, str(json_path), spec.total_cases)
 
 
-def _log_rows(path):
+def _read_log(path):
     with open(path, newline="") as f:
-        return list(csv.reader(f))[1:]
+        return list(csv.reader(f))
 
 
 def test_two_different_models_both_produce_events(tmp_path):
-    executed = run_orchestrator([_batch_process("batch"), _gateway_process("gateway")], START, SEED, str(tmp_path))
+    log_path = tmp_path / "merged.csv"
+    executed = run_orchestrator([_batch_process("batch"), _gateway_process("gateway")], START, SEED, str(log_path))
 
     assert {name for _, name in executed} == {"batch", "gateway"}
-    assert len(_log_rows(tmp_path / "batch.csv")) == 10
-    assert len(_log_rows(tmp_path / "gateway.csv")) > 0
+    header, *rows = _read_log(log_path)
+    assert header[0] == "process"
+    assert sum(row[0] == "batch" for row in rows) == 10
+    assert sum(row[0] == "gateway" for row in rows) == 10
+
+
+def test_merged_log_is_sorted_by_start_time(tmp_path):
+    # with these two models, events are executed in an order where one process's tasks wait
+    # for a busy resource while the other carries on, so start times arrive out of order
+    assets = get_path()
+    log_path = tmp_path / "merged.csv"
+    run_orchestrator(
+        [
+            ProcessSpec("stock", str(assets / "stock_replenishment.bpmn"), str(assets / "stock_replenishment_logs.json"), 10),
+            ProcessSpec("timer", str(assets / "timer_with_task.bpmn"), str(assets / "timer_with_task.json"), 10),
+        ],
+        START, SEED, str(log_path),
+    )
+
+    header, *rows = _read_log(log_path)
+    start_times = [datetime.fromisoformat(row[header.index("start_time")]) for row in rows]
+    assert {row[0] for row in rows} == {"stock", "timer"}
+    assert start_times == sorted(start_times)
 
 
 def test_events_are_executed_in_global_time_order():
@@ -74,19 +96,15 @@ def test_ties_are_broken_alphabetically_by_process_name():
 
 
 def test_same_seed_gives_the_same_run_regardless_of_input_order(tmp_path):
-    first_dir, second_dir = tmp_path / "first", tmp_path / "second"
-    first_dir.mkdir()
-    second_dir.mkdir()
     gateway_a = _random_arrival_gateway_process("gateway_a", tmp_path)
     gateway_b = _random_arrival_gateway_process("gateway_b", tmp_path)
 
-    first = run_orchestrator([gateway_a, gateway_b], START, SEED, str(first_dir))
-    second = run_orchestrator([gateway_b, gateway_a], START, SEED, str(second_dir))
+    first = run_orchestrator([gateway_a, gateway_b], START, SEED, str(tmp_path / "first.csv"))
+    second = run_orchestrator([gateway_b, gateway_a], START, SEED, str(tmp_path / "second.csv"))
 
     assert first == second
     # the gateway logs have no random id column, so they can be compared in full
-    for name in ("gateway_a", "gateway_b"):
-        assert _log_rows(first_dir / f"{name}.csv") == _log_rows(second_dir / f"{name}.csv")
+    assert _read_log(tmp_path / "first.csv") == _read_log(tmp_path / "second.csv")
 
 
 def test_duplicate_process_names_are_rejected():
