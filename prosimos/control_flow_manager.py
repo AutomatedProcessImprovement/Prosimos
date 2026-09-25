@@ -2,7 +2,6 @@ import copy
 import random
 import secrets
 import sys
-import uuid
 from collections import deque
 from enum import Enum
 from typing import List
@@ -19,12 +18,12 @@ from prosimos.warning_logger import warning_logger
 seconds_per_unit = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
 
 class BatchInfoForExecution:
-    def __init__(self, all_case_ids, task_batch_info, curr_task_id, batch_spec, start_time_from_rule):
+    def __init__(self, all_case_ids, task_batch_info, curr_task_id, batch_spec, start_time_from_rule, batch_id):
         self.case_ids = all_case_ids[curr_task_id].copy()
         self.task_batch_info = task_batch_info[curr_task_id]
         self.batch_spec = batch_spec
         self.start_time_from_rule = start_time_from_rule
-        self.batch_id = str(uuid.uuid4())
+        self.batch_id = batch_id
 
     def is_sequential(self):
         return self.task_batch_info.type == BATCH_TYPE.SEQUENTIAL
@@ -157,6 +156,9 @@ class BPMNGraph:
         self.event_distribution = None
         self.batch_info = dict()
         self.batch_count = dict()
+        # numbers the batches this process creates; a random id would differ on every run,
+        # even with the same seed
+        self.batches_created = 0
         self.batch_waiting_processes = dict()
         self.last_datetime = dict()
         self.all_attributes = None
@@ -944,7 +946,8 @@ class BPMNGraph:
                 self.batch_info,
                 task_id,
                 batch_spec,
-                start_time_from_rule)
+                start_time_from_rule,
+                self._next_batch_id())
             enabled_tasks.append((EnabledTask(task_id, batch_info)))
             self._clear_batch(task_id, batch_spec)
 
@@ -1054,10 +1057,15 @@ class BPMNGraph:
             self.batch_info,
             task_id,
             batch_spec,
-            start_time_from_rule)
+            start_time_from_rule,
+            self._next_batch_id())
 
         self._clear_batch(task_id, batch_spec)
         return batch_info
+
+    def _next_batch_id(self):
+        self.batches_created += 1
+        return str(self.batches_created)
 
     def is_or_rule_invalid(self, waiting_tasks, task_id: str, num_tasks_wait_batch: int, current_point_of_time: CustomDatetimeAndSeconds):
         all_keys = list(waiting_tasks.keys())
