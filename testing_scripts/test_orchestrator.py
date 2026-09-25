@@ -5,7 +5,7 @@ from datetime import datetime
 import pytest
 import pytz
 
-from prosimos.orchestrator import ProcessSpec, run_orchestrator
+from prosimos.orchestrator import ProcessSpec, ProsimosEngine, SimulationEngine, run_orchestrator
 from testing_scripts.test_batching_stats import get_path
 
 START = pytz.utc.localize(datetime(2024, 1, 1, 9, 30))
@@ -118,3 +118,14 @@ def test_runs_without_a_seed():
     assert {name for _, name in executed} == {"batch", "gateway"}
     times = [event_time for event_time, _ in executed]
     assert times == sorted(times)
+
+
+def test_engine_offers_only_the_interface_methods():
+    engine = ProsimosEngine(_batch_process("batch"), START)
+
+    assert isinstance(engine, SimulationEngine)
+    assert engine.next_event_time() is not None
+    assert engine.step() is None
+    for planned in (engine.pending_publish, engine.blocked_on, lambda: engine.inject([])):
+        with pytest.raises(NotImplementedError):
+            planned()

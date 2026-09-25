@@ -1,8 +1,9 @@
 import csv
 import random
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -16,6 +17,61 @@ class ProcessSpec:
     bpmn_path: str
     json_path: str
     total_cases: int
+
+
+class SimulationEngine(ABC):
+    """
+    The complete set of methods the orchestrator may call on an engine; nothing else may cross
+    that boundary, and no process may read another process's data by any other route. Only
+    next_event_time() and step() exist so far. The types of the three planned methods are
+    provisional until what passes between processes is agreed. See docs/orchestrator.md.
+    """
+
+    @abstractmethod
+    def next_event_time(self) -> Optional[datetime]:
+        """When is your next event due? None when the engine has nothing left to do."""
+
+    @abstractmethod
+    def step(self) -> None:
+        """Perform exactly one event."""
+
+    @abstractmethod
+    def pending_publish(self) -> List[Any]:
+        """Did that event produce anything to send out? (planned)"""
+
+    @abstractmethod
+    def blocked_on(self) -> Optional[Any]:
+        """Is your next event waiting, and for what? None when it isn't. (planned)"""
+
+    @abstractmethod
+    def inject(self, objects: List[Any]) -> None:
+        """Here are the things you were waiting for. (planned)"""
+
+
+class ProsimosEngine(SimulationEngine):
+    """A Prosimos simulation (SimBPMEnv) seen through the SimulationEngine interface."""
+
+    def __init__(self, spec: ProcessSpec, start_datetime: datetime, log_writer=None):
+        sim_setup = SimDiffSetup(spec.bpmn_path, spec.json_path, False, spec.total_cases, start_datetime)
+        self._env = SimBPMEnv(sim_setup, None, log_writer)
+
+    def next_event_time(self) -> Optional[datetime]:
+        return self._env.next_event_time()
+
+    def step(self) -> None:
+        self._env.step()
+        # the engine buffers its log rows; hand them over now so nobody outside the engine
+        # has to reach into it to flush them at the end
+        self._env.log_writer.force_write()
+
+    def pending_publish(self) -> List[Any]:
+        raise NotImplementedError("pending_publish() is planned but not implemented yet")
+
+    def blocked_on(self) -> Optional[Any]:
+        raise NotImplementedError("blocked_on() is planned but not implemented yet")
+
+    def inject(self, objects: List[Any]) -> None:
+        raise NotImplementedError("inject() is planned but not implemented yet")
 
 
 class _MergedLog:
@@ -92,7 +148,7 @@ def run_orchestrator(
     engine whose next_event_time() is earliest. Ties are broken by process name, so runs given
     the same seed are repeatable; without a seed each run draws different random values.
     An engine's next event isn't always its earliest one (timers and case priorities jump
-    ahead), so engines aren't strictly kept in step; see docs/orchestrator-event-ordering.md.
+    ahead), so engines aren't strictly kept in step; see docs/orchestrator.md.
     When log_out_path is given, every process's events are written to that one CSV, sorted
     by start time, with the process name as the first column.
     Returns the executed (event time, process name) pairs in execution order.
@@ -110,11 +166,10 @@ def run_orchestrator(
     # engines share the global random generators, and an engine draws from them the first
     # time it is asked for its next event, so build and query them in name order rather
     # than input order to keep the result independent of how the list was written
-    engines = {}
+    engines: Dict[str, SimulationEngine] = {}
     for spec in sorted(processes, key=lambda p: p.name):
         log_writer = merged_log.writer_for(spec.name) if merged_log is not None else None
-        sim_setup = SimDiffSetup(spec.bpmn_path, spec.json_path, False, spec.total_cases, start_datetime)
-        engines[spec.name] = SimBPMEnv(sim_setup, None, log_writer)
+        engines[spec.name] = ProsimosEngine(spec, start_datetime, log_writer)
 
     executed = []
     while True:
@@ -126,8 +181,6 @@ def run_orchestrator(
         executed.append((event_time, name))
 
     if merged_log is not None:
-        for engine in engines.values():
-            engine.log_writer.force_write()
         merged_log.write(log_out_path)
 
     return executed
