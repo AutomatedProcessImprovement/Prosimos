@@ -19,26 +19,8 @@ TOTAL_CASES = 10
 
 
 @pytest.fixture
-def assets_path(request) -> Path:
-    entry_path: Path
-    if os.path.basename(os.getcwd()) == "testing_scripts":
-        entry_path = Path("assets/attributes_interaction")
-    else:
-        entry_path = Path("testing_scripts/assets/attributes_interaction")
-
-    def teardown():
-        output_paths = [
-            entry_path / "attributes_interaction_stats.csv",
-            entry_path / "attributes_interaction_logs.csv",
-            entry_path / "simulation_warnings.txt"
-        ]
-        for output_path in output_paths:
-            if output_path.exists():
-                os.remove(output_path)
-
-    request.addfinalizer(teardown)
-
-    return entry_path
+def assets_path(private_assets) -> Path:
+    return private_assets("attributes_interaction")
 
 
 class SoftAssertions:

@@ -3,15 +3,21 @@ import json
 import pandas as pd
 import pytest
 from prosimos.simulation_properties_parser import (
+    ARRIVAL_TIME_CALENDAR,
     BATCH_PROCESSING_SECTION,
     CASE_ATTRIBUTES_SECTION,
     PRIORITISATION_RULES_SECTION,
+    RESOURCE_CALENDARS,
 )
 
 from test_discovery import assets_path
 from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 from testing_scripts.test_batching import _setup_arrival_distribution
 from testing_scripts.test_case_priority_is_true import BUSINESS, REGULAR
+from testing_scripts.test_simulation import (
+    DEFAULT_ARRIVAL_CALENDAR_TIMER_WITH_TASK,
+    DEFAULT_RESOURCE_CALENDARS_TIMER_WITH_TASK,
+)
 
 NOT_KNOWN = "Not Known"
 
@@ -255,6 +261,8 @@ def _setup_and_write_arrival_distr_case_attr_priority_rules(
         json_dict = json.load(f)
 
     _setup_arrival_distribution(json_dict, new_arrival_dist)
+    json_dict[ARRIVAL_TIME_CALENDAR] = DEFAULT_ARRIVAL_CALENDAR_TIMER_WITH_TASK
+    json_dict[RESOURCE_CALENDARS] = DEFAULT_RESOURCE_CALENDARS_TIMER_WITH_TASK
     json_dict[CASE_ATTRIBUTES_SECTION] = case_attributes
     json_dict[PRIORITISATION_RULES_SECTION] = new_priority_rules
     json_dict[BATCH_PROCESSING_SECTION] = batch_processing

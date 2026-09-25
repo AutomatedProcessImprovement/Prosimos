@@ -12,26 +12,8 @@ LOGGER = logging.getLogger(__name__)
 
 
 @pytest.fixture
-def assets_path(request) -> Path:
-    entry_path: Path
-    if os.path.basename(os.getcwd()) == "testing_scripts":
-        entry_path = Path("assets/event_attributes")
-    else:
-        entry_path = Path("testing_scripts/assets/event_attributes")
-
-    def teardown():
-        output_paths = [
-            entry_path / "event_attributes_stats.csv",
-            entry_path / "event_attributes_logs.csv",
-            entry_path / "simulation_warnings.txt"
-        ]
-        for output_path in output_paths:
-            if output_path.exists():
-                os.remove(output_path)
-
-    request.addfinalizer(teardown)
-
-    return entry_path
+def assets_path(private_assets) -> Path:
+    return private_assets("event_attributes")
 
 
 TOTAL_CASES = 50

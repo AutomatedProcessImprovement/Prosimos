@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 import pytest
@@ -7,20 +6,8 @@ from prosimos.exceptions import InvalidBpmnModelException, InvalidLogFileExcepti
 
 
 @pytest.fixture
-def assets_path(request) -> Path:
-    entry_path: Path
-    if os.path.basename(os.getcwd()) == 'testing_scripts':
-        entry_path = Path('assets')
-    else:
-        entry_path = Path('testing_scripts/assets')
-
-    def teardown():
-        output_path = entry_path / 'purchasing_example.json'
-        if output_path.exists():
-            os.remove(output_path)
-    request.addfinalizer(teardown)
-
-    return entry_path
+def assets_path(private_assets) -> Path:
+    return private_assets()
 
 
 def test_discovery_valid_input_not_empty_json(assets_path):

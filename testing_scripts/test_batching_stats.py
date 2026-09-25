@@ -23,14 +23,14 @@ def remove_files(files_to_delete):
             os.remove(file)
 
 
-def test_batching_id_saved_to_log():
+def test_batching_id_saved_to_log(tmp_path):
     # ====== ARRANGE ======
     assets_path = get_path()
 
     model_path = assets_path / "1_task-batch.bpmn"
     json_path = assets_path / "1_task-batch.json"
-    sim_stats = assets_path / "1_task-batch_stats.csv"
-    sim_logs = assets_path / "1_task-batch_logs.csv"
+    sim_stats = tmp_path / "1_task-batch_stats.csv"
+    sim_logs = tmp_path / "1_task-batch_logs.csv"
 
     start_string = "2022-06-21 13:22:30.035185+03:00"
 
@@ -70,8 +70,6 @@ def test_batching_id_saved_to_log():
         assert batch_ids_per_group[i][0] != batch_ids_per_group[i + 1][0], \
             f"Batch ID for case group {expected_case_groups[i]} is the same as the next group"
 
-    remove_files([sim_logs, sim_stats])
-
 
 def test_batching_returned_but_not_saved_in_log():
     # ====== ARRANGE ======
@@ -88,15 +86,14 @@ def test_batching_returned_but_not_saved_in_log():
             assert evt.batch_id is not None, "Batch ID cannot be None"
 
 
-def test_no_batching_saved_to_log_if_no_batch_in_model():
+def test_no_batching_saved_to_log_if_no_batch_in_model(tmp_path):
     # ====== ARRANGE ======
     assets_path = get_path("attributes_interaction")
 
     model_path = assets_path / "attributes_interaction_model.bpmn"
     json_path = assets_path / "attributes_interaction.json"
-    sim_stats = assets_path / "attributes_interaction_stats.csv"
-    sim_logs = assets_path / "attributes_interaction_logs.csv"
-    sim_warnings = assets_path / "simulation_warnings.txt"
+    sim_stats = tmp_path / "attributes_interaction_stats.csv"
+    sim_logs = tmp_path / "attributes_interaction_logs.csv"
 
     start_string = "2022-06-21 13:22:30.035185+03:00"
 
@@ -115,5 +112,3 @@ def test_no_batching_saved_to_log_if_no_batch_in_model():
 
     # 2. Check if "batch_id" column exists in output event log
     assert "batch_id" not in df.columns, "Column 'batch_id' is wrongly added to the log"
-
-    remove_files([sim_logs, sim_stats, sim_warnings])

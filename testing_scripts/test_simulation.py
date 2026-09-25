@@ -1,6 +1,5 @@
 import datetime
 import json
-import os
 from pathlib import Path
 
 import pandas as pd
@@ -43,24 +42,8 @@ DEFAULT_ARRIVAL_CALENDAR_TIMER_WITH_TASK = [
 
 
 @pytest.fixture
-def assets_path(request) -> Path:
-    entry_path: Path
-    if os.path.basename(os.getcwd()) == "testing_scripts":
-        entry_path = Path("assets")
-    else:
-        entry_path = Path("testing_scripts/assets")
-
-    def teardown():
-        files_to_delete = ["timer_with_task_stats.csv", "timer_with_task_logs.csv"]
-
-        for file in files_to_delete:
-            output_path = entry_path / file
-            if output_path.exists():
-                os.remove(output_path)
-
-    request.addfinalizer(teardown)
-
-    return entry_path
+def assets_path(private_assets) -> Path:
+    return private_assets()
 
 
 def test_timer_event_correct_duration_in_sim_logs(assets_path):

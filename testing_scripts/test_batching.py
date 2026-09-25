@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-import os
 from pathlib import Path
 import pytest
 import json
@@ -28,32 +27,19 @@ data_nearest_neighbors = [
     ("assets_path", distribution, 10, 120 * 0.6),
 ]
 
+ARRIVAL_EVERY_2_MINUTES = {
+    "distribution_name": "fix",
+    "distribution_params": [{"value": 120}, {"value": 0}, {"value": 1}],
+}
+
 _batch_every_time = [
     { "key": "1", "value": 0 },
     { "key": "2", "value": 1 }
 ]
 
 @pytest.fixture
-def assets_path(request) -> Path:
-    entry_path: Path
-    if os.path.basename(os.getcwd()) == "testing_scripts":
-        entry_path = Path("assets")
-    else:
-        entry_path = Path("testing_scripts/assets")
-
-    def teardown():
-        output_paths = [
-            entry_path / SIM_STATS_FILENAME,
-            entry_path / SIM_LOGS_FILENAME,
-            entry_path / JSON_ONE_RESOURCE_FILENAME
-        ]
-        for output_path in output_paths:
-            if output_path.exists():
-                os.remove(output_path)
-
-    request.addfinalizer(teardown)
-
-    return entry_path
+def assets_path(private_assets) -> Path:
+    return private_assets()
 
 
 def test_seq_batch_count_firing_rule_correct_duration(assets_path):
@@ -123,7 +109,8 @@ def test_batch_count_firing_rule_nearest_neighbor_correct(
     with open(basic_json_path, "r") as f:
         json_dict = json.load(f)
 
-    _setup_sim_scenario_file(json_dict, duration_distrib, firing_count, None, None, {})
+    _setup_sim_scenario_file(json_dict, duration_distrib, firing_count, "Sequential", None, {})
+    _setup_arrival_distribution(json_dict, ARRIVAL_EVERY_2_MINUTES)
 
     with open(basic_json_path, "w+") as json_file:
         json.dump(json_dict, json_file)
@@ -367,7 +354,8 @@ def test_two_batches_duration_correct(assets_path):
     with open(json_path, "r") as f:
         json_dict = json.load(f)
 
-    _setup_sim_scenario_file(json_dict, None, None, "Parallel", None, {})
+    _setup_sim_scenario_file(json_dict, None, 3, "Parallel", None, {})
+    _setup_arrival_distribution(json_dict, ARRIVAL_EVERY_2_MINUTES)
     _add_batch_task(json_dict)
 
     with open(json_path, "w+") as json_file:
@@ -474,6 +462,7 @@ def test_week_day_different_correct_firing(assets_path):
     firing_rules = [[{"attribute": "week_day", "comparison": "=", "value": "Monday"}]]
     # duration_dist = { "3": 0.8 }
     _setup_sim_scenario_file(json_dict, None, None, "Parallel", firing_rules, {})
+    _setup_arrival_distribution(json_dict, ARRIVAL_EVERY_2_MINUTES)
 
     with open(json_path, "w+") as json_file:
         json.dump(json_dict, json_file)
