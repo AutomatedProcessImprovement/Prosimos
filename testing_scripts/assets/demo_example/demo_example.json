@@ -209,13 +209,10 @@
                     "distribution_name": "lognorm",
                     "distribution_params": [
                         {
-                            "value": 0.8220343505271177
+                            "value": 641.216
                         },
                         {
-                            "value": 292.50508179813914
-                        },
-                        {
-                            "value": 314.34355481723424
+                            "value": 191722.922
                         },
                         {
                             "value": 300.606
@@ -277,13 +274,10 @@
                     "distribution_name": "lognorm",
                     "distribution_params": [
                         {
-                            "value": 0.6333441385019591
+                            "value": 1214.695
                         },
                         {
-                            "value": 824.3961608816633
-                        },
-                        {
-                            "value": 378.25532056239825
+                            "value": 126970.642
                         },
                         {
                             "value": 844.135

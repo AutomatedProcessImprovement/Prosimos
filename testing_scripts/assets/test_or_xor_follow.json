@@ -59,13 +59,10 @@
         "distribution_name": "lognorm",
         "distribution_params": [
             {
-                "value": 6.152294221733814
+                "value": 437.008
             },
             {
-                "value": 599.9999999999999
-            },
-            {
-                "value": 1.37835691529231
+                "value": 467396.025
             },
             {
                 "value": 600
