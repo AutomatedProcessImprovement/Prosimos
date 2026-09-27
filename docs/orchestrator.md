@@ -173,9 +173,32 @@ break that assumption: they only appear when a message arrives.
 Suggested direction when messages are designed: pass case attributes with messages, and move the
 engine to time-ordered handling with priority only deciding who gets a free worker.
 
-### Related, not verified
+### Related: priorities also distort single-process runs (confirmed)
 
-Because a worker can only be booked forward, the priority shortcut probably has a similar effect
-inside a single engine: if an important case's 14:00 task takes a shared worker first, a regular
-9:00 task can't use the idle morning. This comes from reading the code; it hasn't been confirmed
-with a run.
+The same ordering affects a single engine on its own, with no orchestrator involved. Every case is
+created at the start of the run, and the to-do list puts all important cases before all others, so
+a regular case waits for every important case, including ones that haven't arrived yet. Since a
+worker can only be booked forward, the idle time before those important cases is lost.
+
+Confirmed on 2026-09-27, with the same result on `8e627e2` (release 2.1.0, before this work).
+Setup: `timer_with_task.bpmn` with one worker available around the clock, "Task 1" taking 30
+minutes, a new case every 4 hours all week, each case's `client_type` randomly `Business` or
+`Regular` (50/50), 8 cases, the same seed for both runs. Without priority rules no case waits.
+With the rules Business = 1, Regular = 2:
+
+| Case | Client   | Arrived   | Started   | Waited |
+|------|----------|-----------|-----------|--------|
+| 0    | Business | Mon 09:00 | Mon 09:00 | 0 h    |
+| 1    | Regular  | Mon 13:00 | Tue 09:30 | 20.5 h |
+| 2    | Business | Mon 17:00 | Mon 17:00 | 0 h    |
+| 3    | Regular  | Mon 21:00 | Tue 10:00 | 13 h   |
+| 4    | Regular  | Tue 01:00 | Tue 10:30 | 9.5 h  |
+| 5    | Business | Tue 05:00 | Tue 05:00 | 0 h    |
+| 6    | Business | Tue 09:00 | Tue 09:00 | 0 h    |
+| 7    | Regular  | Tue 13:00 | Tue 13:00 | 0 h    |
+
+Before Tuesday 09:30 the worker was busy only for four half-hours, yet the regular cases arriving
+Monday 13:00, Monday 21:00 and Tuesday 01:00 waited until the last Business case, arriving Tuesday
+09:00, was done. So any simulation with priority rules and arrivals spread over time can report
+greatly inflated waiting times for lower-priority cases. The fix suggested above (handle the to-do
+list in time order, with priority only deciding who gets a free worker) would also fix this.
