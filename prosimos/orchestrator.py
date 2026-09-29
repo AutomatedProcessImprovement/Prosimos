@@ -1,11 +1,16 @@
+import copy
 import csv
+import itertools
 import json
+import logging
 import random
 from abc import ABC, abstractmethod
+from collections import Counter
 from dataclasses import dataclass, field
+from enum import Enum
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import numpy as np
 import pytz
@@ -13,6 +18,8 @@ import pytz
 from prosimos.simulation_engine import SimBPMEnv
 from prosimos.simulation_properties_parser import parse_datetime
 from prosimos.simulation_setup import SimDiffSetup
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -35,6 +42,32 @@ class Message:
     time: Optional[datetime] = None
 
 
+def _checked_consumer_groups(names, consumer_groups):
+    """Every process in exactly one group, and groups only naming known processes. Without
+    groups, every process is its own group."""
+    if consumer_groups is None:
+        return {name: [name] for name in names}
+
+    groups_of = {}
+    for group, members in consumer_groups.items():
+        for member in members:
+            groups_of.setdefault(member, []).append(group)
+
+    problems = []
+    unknown = sorted(member for member in groups_of if member not in names)
+    if unknown:
+        problems.append(f"groups name unknown processes {unknown}")
+    missing = sorted(name for name in names if name not in groups_of)
+    if missing:
+        problems.append(f"processes {missing} are in no group")
+    repeated = {member: groups for member, groups in sorted(groups_of.items()) if len(groups) > 1}
+    if repeated:
+        problems.append(f"processes are listed more than once: {repeated}")
+    if problems:
+        raise ValueError("Invalid consumer_groups: " + "; ".join(problems))
+    return consumer_groups
+
+
 @dataclass(frozen=True)
 class SimulationConfig:
     """
@@ -54,26 +87,7 @@ class SimulationConfig:
         if duplicates:
             raise ValueError(f"Process names must be unique, repeated: {duplicates}")
 
-        if self.consumer_groups is None:
-            object.__setattr__(self, "consumer_groups", {name: [name] for name in names})
-
-        groups_of = {}
-        for group, members in self.consumer_groups.items():
-            for member in members:
-                groups_of.setdefault(member, []).append(group)
-
-        problems = []
-        unknown = sorted(member for member in groups_of if member not in names)
-        if unknown:
-            problems.append(f"groups name unknown processes {unknown}")
-        missing = sorted(name for name in names if name not in groups_of)
-        if missing:
-            problems.append(f"processes {missing} are in no group")
-        repeated = {member: groups for member, groups in sorted(groups_of.items()) if len(groups) > 1}
-        if repeated:
-            problems.append(f"processes are listed more than once: {repeated}")
-        if problems:
-            raise ValueError("Invalid consumer_groups: " + "; ".join(problems))
+        object.__setattr__(self, "consumer_groups", _checked_consumer_groups(names, self.consumer_groups))
 
     @classmethod
     def from_json(cls, path) -> "SimulationConfig":
@@ -111,12 +125,20 @@ class SimulationConfig:
         return cls(processes, start, data.get("seed"), data.get("consumer_groups"))
 
 
+class Verdict(Enum):
+    """An engine's answer to one offered message."""
+
+    CLAIMED = "claimed"
+    DISCARDED = "discarded"
+    PENDING = "pending"
+
+
 class SimulationEngine(ABC):
     """
     The complete set of methods the orchestrator may call on an engine, as defined by the
     Orchestrator Protocol; nothing else may cross that boundary, and no process may read another
-    process's data by any other route. Engines never call the orchestrator. Messages and their
-    ids are typed loosely until the message format is implemented. See docs/orchestrator.md.
+    process's data by any other route. Engines never call the orchestrator. See
+    docs/orchestrator.md.
     """
 
     @abstractmethod
@@ -129,19 +151,26 @@ class SimulationEngine(ABC):
         for a message don't count)."""
 
     @abstractmethod
-    def step(self) -> List[Any]:
+    def step(self) -> List[Message]:
         """Perform exactly one event and return the messages it published; the only way to publish."""
 
     @abstractmethod
-    def deliver(self, msgs: List[Any], now: datetime) -> Tuple[List[Any], List[Any]]:
-        """Offer the engine its pending messages at time now. Returns (claimed ids, discarded ids):
-        claimed messages are used by a case, taking effect at now; discarded ones will never be
-        used. Any other message stays pending and is offered again later."""
+    def deliver(self, message: Message, now: datetime) -> Verdict:
+        """
+        Offer the engine one pending message at time now.
+        CLAIMED is a commitment: the message is already bound to one case, taking effect at now,
+        and the orchestrator never offers this copy to anyone again (other groups keep their own).
+        DISCARDED is permanent: the engine will never want this message, even after its state
+        changes, so the orchestrator never offers it to this engine again.
+        PENDING: not now; the message may be offered again later. An engine that isn't sure
+        must answer PENDING.
+        """
 
 
 class ProsimosEngine(SimulationEngine):
     """A Prosimos simulation (SimBPMEnv) seen through the SimulationEngine interface. It doesn't
-    exchange messages yet: it subscribes to nothing, publishes nothing and claims nothing."""
+    exchange messages yet: it subscribes to nothing, publishes nothing and discards anything
+    offered, since it will never use a message."""
 
     def __init__(self, spec: ProcessSpec, start_datetime: datetime, log_writer=None):
         sim_setup = SimDiffSetup(spec.bpmn_path, spec.json_path, False, spec.total_cases, start_datetime)
@@ -153,15 +182,15 @@ class ProsimosEngine(SimulationEngine):
     def next_event_time(self) -> Optional[datetime]:
         return self._env.next_event_time()
 
-    def step(self) -> List[Any]:
+    def step(self) -> List[Message]:
         self._env.step()
         # the engine buffers its log rows; hand them over now so nobody outside the engine
         # has to reach into it to flush them at the end
         self._env.log_writer.force_write()
         return []
 
-    def deliver(self, msgs: List[Any], now: datetime) -> Tuple[List[Any], List[Any]]:
-        return [], []
+    def deliver(self, message: Message, now: datetime) -> Verdict:
+        return Verdict.DISCARDED
 
 
 class _MergedLog:
@@ -227,14 +256,131 @@ class _ProcessLogWriter:
         self._merged_log._add(self._process_name, rows)
 
 
-def run_orchestrator(config: SimulationConfig, log_out_path: Optional[str] = None) -> List[Tuple[datetime, str]]:
+@dataclass
+class RunReport:
+    """What happened during a run, and what was left over at the end."""
+
+    executed: List[Tuple[datetime, str]] = field(default_factory=list)  # (event time, process) per step
+    published: List[Message] = field(default_factory=list)  # every message, as stamped
+    copies: List[Tuple[str, str]] = field(default_factory=list)  # (message id, group) per copy made
+    claims: List[Tuple[str, str, datetime]] = field(default_factory=list)  # (message id, process, time)
+    discards: List[Tuple[str, str, datetime]] = field(default_factory=list)  # (message id, process, time)
+    unclaimed: List[Tuple[str, Message]] = field(default_factory=list)  # (group, message) left in the pool
+    warnings: List[str] = field(default_factory=list)
+
+    @property
+    def discarded_counts(self) -> Dict[Tuple[str, str], int]:
+        """Discards per (message type, process)."""
+        type_of = {message.id: message.type for message in self.published}
+        return dict(Counter((type_of[message_id], process) for message_id, process, _ in self.discards))
+
+
+@dataclass(eq=False)
+class _PooledCopy:
+    """A group's copy of a message, waiting to be claimed."""
+
+    message: Message
+    group: str
+    discarded_by: Set[str] = field(default_factory=set)
+
+
+def run_engines(
+    engines: Dict[str, SimulationEngine],
+    consumer_groups: Optional[Dict[str, List[str]]] = None,
+    seed: Optional[int] = None,
+) -> RunReport:
     """
-    Simulate the configured processes side by side on one shared clock, repeatedly stepping the
-    engine whose next_event_time() is earliest. Ties are broken by process name, so runs given
-    the same seed are repeatable; without a seed each run draws different random values.
+    The orchestrator loop of the Orchestrator Protocol, over already-built engines keyed by
+    process name. After each step, every published message is stamped (id, source, time), one
+    copy per subscribed group goes into the pool, and the new copies plus the pooled copies of the
+    stepping engine's group are offered to their group's members in random order until one
+    claims them. A copy is removed when claimed, or when every member subscribed to its type has
+    discarded it; nobody is offered a copy they already discarded. Member order comes from the
+    orchestrator's own generator, never the global random module the engines use.
+    """
+    names = sorted(engines)
+    consumer_groups = _checked_consumer_groups(names, consumer_groups)
+    group_of = {member: group for group, members in consumer_groups.items() for member in members}
+    subscriptions = {name: set(engines[name].subscriptions()) for name in names}
+    routing = {}
+    for group in sorted(consumer_groups):
+        for message_type in sorted({t for member in consumer_groups[group] for t in subscriptions[member]}):
+            routing.setdefault(message_type, []).append(group)
+
+    rng = random.Random(f"orchestrator-{seed}") if seed is not None else random.Random()
+    report = RunReport()
+    pool: List[_PooledCopy] = []
+    copies_left: Dict[str, int] = {}
+    claimed_ids: Set[str] = set()
+    next_id = itertools.count(1)
+
+    def warn(text):
+        logger.warning(text)
+        report.warnings.append(text)
+
+    def resolve(pooled):
+        pool.remove(pooled)
+        copies_left[pooled.message.id] -= 1
+        if copies_left[pooled.message.id] == 0 and pooled.message.id not in claimed_ids:
+            message = pooled.message
+            warn(f"{message.type} {message.id} from {message.source} was discarded by every recipient")
+
+    while True:
+        due = [(t, name) for name, engine in engines.items() if (t := engine.next_event_time()) is not None]
+        if not due:
+            break
+        now, name = min(due)
+        published = engines[name].step()
+        report.executed.append((now, name))
+
+        new_copies = []
+        for message in published:
+            message.id, message.source, message.time = f"m{next(next_id)}", name, now
+            report.published.append(message)
+            groups = routing.get(message.type, [])
+            if not groups:
+                warn(f"{message.type} {message.id} from {name} has no subscribers")
+            copies_left[message.id] = len(groups)
+            for group in groups:
+                pooled = _PooledCopy(copy.deepcopy(message), group)
+                pool.append(pooled)
+                new_copies.append(pooled)
+                report.copies.append((message.id, group))
+
+        own_group = group_of[name]
+        to_offer = new_copies + [c for c in pool if c.group == own_group and c not in new_copies]
+        for pooled in to_offer:
+            message = pooled.message
+            recipients = [m for m in consumer_groups[pooled.group] if message.type in subscriptions[m]]
+            candidates = [m for m in recipients if m not in pooled.discarded_by]
+            rng.shuffle(candidates)
+            for member in candidates:
+                verdict = engines[member].deliver(message, now)
+                if not isinstance(verdict, Verdict):
+                    raise TypeError(f"{member}.deliver() must return a Verdict, got {verdict!r}")
+                if verdict is Verdict.CLAIMED:
+                    report.claims.append((message.id, member, now))
+                    claimed_ids.add(message.id)
+                    resolve(pooled)
+                    break
+                if verdict is Verdict.DISCARDED:
+                    pooled.discarded_by.add(member)
+                    report.discards.append((message.id, member, now))
+            else:
+                if all(m in pooled.discarded_by for m in recipients):
+                    resolve(pooled)
+
+    report.unclaimed = [(pooled.group, pooled.message) for pooled in pool]
+    return report
+
+
+def run_orchestrator(config: SimulationConfig, log_out_path: Optional[str] = None) -> RunReport:
+    """
+    Simulate the configured processes side by side on one shared clock (see run_engines),
+    stepping the engine whose next_event_time() is earliest, ties broken by process name, so runs
+    given the same seed are repeatable; without a seed each run draws different random values.
     When log_out_path is given, every process's events are written to that one CSV, sorted
     by start time, with the process name as the first column.
-    Returns the executed (event time, process name) pairs in execution order.
     """
     if config.seed is not None:
         random.seed(config.seed)
@@ -250,16 +396,9 @@ def run_orchestrator(config: SimulationConfig, log_out_path: Optional[str] = Non
         log_writer = merged_log.writer_for(spec.name) if merged_log is not None else None
         engines[spec.name] = ProsimosEngine(spec, config.start_datetime, log_writer)
 
-    executed = []
-    while True:
-        due = [(t, name) for name, engine in engines.items() if (t := engine.next_event_time()) is not None]
-        if not due:
-            break
-        event_time, name = min(due)
-        engines[name].step()
-        executed.append((event_time, name))
+    report = run_engines(engines, config.consumer_groups, config.seed)
 
     if merged_log is not None:
         merged_log.write(log_out_path)
 
-    return executed
+    return report

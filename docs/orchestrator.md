@@ -2,8 +2,10 @@
 
 `run_orchestrator` in `prosimos/orchestrator.py` simulates several processes side by side on one
 shared clock. Each process is simulated by its own engine; the orchestrator repeatedly steps the
-engine whose next event is earliest (ties broken by process name) and writes one merged log sorted
-by start time.
+engine whose next event is earliest (ties broken by process name), routes the messages engines
+publish to the processes that consume them, and writes one merged log sorted by start time. The loop
+itself is `run_engines`, which works on any engines implementing the interface below; the tests run
+it with scripted fake engines (see `running-example.md`).
 
 ## Simulation configuration
 
@@ -52,16 +54,16 @@ processes is a message: it leaves an engine as the result of `step()` and enters
 
 ### The four methods
 
-| Method               | Returns                        | When                          |
-|----------------------|--------------------------------|-------------------------------|
-| `subscriptions()`    | list of message types          | once, at setup                |
-| `next_event_time()`  | date and time, or `None`       | before every step             |
-| `step()`             | list of published messages     | to perform one event          |
-| `deliver(msgs, now)` | `(claimed ids, discarded ids)` | to hand messages to an engine |
+| Method                  | Returns                             | When                              |
+|-------------------------|-------------------------------------|-----------------------------------|
+| `subscriptions()`       | list of message types               | once, at setup                    |
+| `next_event_time()`     | date and time, or `None`            | before every step                 |
+| `step()`                | list of published messages          | to perform one event              |
+| `deliver(message, now)` | `CLAIMED`, `DISCARDED` or `PENDING` | to offer one message to an engine |
 
 `ProsimosEngine` implements all four, but doesn't exchange messages yet: it subscribes to nothing,
-`step()` always returns an empty list, and `deliver()` claims and discards nothing. The orchestrator
-doesn't route messages yet either.
+`step()` always returns an empty list, and `deliver()` answers `DISCARDED`, since it will never use a
+message (it isn't offered any, as it subscribes to nothing).
 
 #### `subscriptions()`
 
@@ -92,20 +94,32 @@ This is the only way to publish messages. The orchestrator calls it only after `
 returned a time for this engine. The sending engine never addresses another engine directly; the
 orchestrator routes its messages.
 
-#### `deliver(msgs, now)`
+#### `deliver(message, now)`
 
-Offers the engine its pending messages at time `now` and returns two lists of message ids:
-**claimed** (used by a case, taking effect at `now`) and **discarded** (messages it will never use).
-Every other message stays pending and is offered again later. This is the only way anything from
-another process enters an engine.
+Offers the engine one pending message at time `now` and returns a `Verdict`:
+
+- **`CLAIMED`** is a commitment: the message is already bound to one case, taking effect at `now`,
+  and the orchestrator never offers this copy to anyone again (other groups keep their own copies).
+- **`DISCARDED`** is permanent: the engine will never want this message, even after its state
+  changes, so the orchestrator never offers it to this engine again.
+- **`PENDING`**: not now; the message may be offered again later. An engine that isn't sure must
+  answer `PENDING`.
+
+This is the only way anything from another process enters an engine.
+
+The protocol originally defined this as `deliver(msgs, now)`, returning lists of claimed and
+discarded ids. The orchestrator always offers one copy at a time, because a claim by one member must
+stop the offer to the others, so a single message and a single answer carry the same information,
+and an engine can no longer give contradictory answers. It is the same per-message acknowledgement
+that brokers such as RabbitMQ use (ack, reject, requeue).
 
 ### What else crosses the boundary today
 
 To be honest about where the current code stands, beyond the four methods:
 
 1. **Building an engine.** The orchestrator builds each engine (`ProsimosEngine(...)`) from the
-   configuration: a BPMN file, a JSON file, a number of cases and the shared start time. This happens once, before any of
-   the four methods.
+   configuration: a BPMN file, a JSON file, a number of cases and the shared start time. This
+   happens once, before any of the four methods.
 2. **The event log.** When it builds an engine, the orchestrator gives it a writer to send its log
    rows to. The engine hands its rows over after every step, so the orchestrator never reaches into
    the engine to collect them.
@@ -118,3 +132,34 @@ To be honest about where the current code stands, beyond the four methods:
 
 1. Is building an engine and collecting its log part of this interface, or a separate one? The
    protocol doesn't cover either.
+2. The protocol's end-of-run report includes stalled cases "reported by each engine", but none of
+   the four methods lets an engine report them. Should the interface get a method for it?
+
+## Message routing
+
+`run_engines` implements the orchestrator loop from the protocol:
+
+- **Routing table**, built once at setup: for each message type, the consumer groups with at least
+  one member subscribed to it.
+- **Stamping**: every message returned by `step()` gets an id (`m1`, `m2`, ...), its source process
+  and the step's time.
+- **Pool**: one copy of each message per subscribed group. A copy remembers its group and which
+  members have discarded it. A message type nobody subscribes to gets no copy and a warning.
+- **Offers**: after each step, the orchestrator offers the new copies, then the pooled copies of the
+  stepping engine's group, to the group's members in random order at the step's time, until one
+  claims it. A member that discarded a copy is never offered it again. A copy leaves the pool when
+  a member claims it, or when every member subscribed to its type has discarded it.
+- **Randomness**: the member order comes from the orchestrator's own generator, seeded from the
+  simulation seed, never from the global `random` module the engines draw from, so choosing a
+  warehouse can't shift the engines' random draws.
+- **Report**: `run_engines` and `run_orchestrator` return a `RunReport` with every step, published
+  message, copy, claim and discard, the copies still in the pool at the end (unclaimed messages),
+  discard counts per message type and process, and the warnings.
+
+Warnings are logged during the run and listed in the report: a message type nobody subscribes to,
+and a message whose every recipient discarded it without anyone claiming a copy. The second applies
+even when the discard is expected, for example a shipment for an order that was canceled.
+
+Copies are offered only to the members that subscribe to the message's type. In the protocol's
+example every member of a shared group subscribes to the same types, so this only matters for groups
+whose members consume different messages.

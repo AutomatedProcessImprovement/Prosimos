@@ -7,7 +7,7 @@ import pytest
 import pytz
 
 from prosimos.orchestrator import (
-    Message, ProcessSpec, ProsimosEngine, SimulationConfig, SimulationEngine, run_orchestrator,
+    Message, ProcessSpec, ProsimosEngine, SimulationConfig, SimulationEngine, Verdict, run_orchestrator,
 )
 from testing_scripts.test_batching_stats import get_path
 
@@ -53,7 +53,7 @@ def _read_log(path):
 
 def test_two_different_models_both_produce_events(tmp_path):
     log_path = tmp_path / "merged.csv"
-    executed = run_orchestrator(SimulationConfig([_batch_process("batch"), _gateway_process("gateway")], START, SEED), str(log_path))
+    executed = run_orchestrator(SimulationConfig([_batch_process("batch"), _gateway_process("gateway")], START, SEED), str(log_path)).executed
 
     assert {name for _, name in executed} == {"batch", "gateway"}
     header, *rows = _read_log(log_path)
@@ -85,7 +85,7 @@ def test_merged_log_is_sorted_by_start_time(tmp_path):
 
 
 def test_events_are_executed_in_global_time_order():
-    executed = run_orchestrator(SimulationConfig([_batch_process("batch"), _gateway_process("gateway")], START, SEED))
+    executed = run_orchestrator(SimulationConfig([_batch_process("batch"), _gateway_process("gateway")], START, SEED)).executed
 
     times = [event_time for event_time, _ in executed]
     assert times == sorted(times)
@@ -93,7 +93,7 @@ def test_events_are_executed_in_global_time_order():
 
 def test_ties_are_broken_alphabetically_by_process_name():
     # the same model twice: fixed daily arrivals make both report the same batch times
-    executed = run_orchestrator(SimulationConfig([_batch_process("zeta"), _batch_process("alpha")], START, SEED))
+    executed = run_orchestrator(SimulationConfig([_batch_process("zeta"), _batch_process("alpha")], START, SEED)).executed
 
     ties = [(a, b) for a, b in zip(executed, executed[1:]) if a[0] == b[0]]
     assert ties, "expected the two identical processes to tie at least once"
@@ -119,7 +119,7 @@ def test_duplicate_process_names_are_rejected():
 
 
 def test_runs_without_a_seed():
-    executed = run_orchestrator(SimulationConfig([_batch_process("batch"), _gateway_process("gateway")], START))
+    executed = run_orchestrator(SimulationConfig([_batch_process("batch"), _gateway_process("gateway")], START)).executed
 
     assert {name for _, name in executed} == {"batch", "gateway"}
     times = [event_time for event_time, _ in executed]
@@ -133,7 +133,7 @@ def test_engine_offers_only_the_interface_methods():
     assert engine.subscriptions() == []
     assert engine.next_event_time() is not None
     assert engine.step() == []
-    assert engine.deliver([], START) == ([], [])
+    assert engine.deliver(Message("OrderPlaced"), START) is Verdict.DISCARDED
 
 
 def _spec(name):
@@ -191,7 +191,7 @@ def test_config_loads_from_a_json_file_and_runs(tmp_path):
         }, f)
 
     config = SimulationConfig.from_json(config_file)
-    executed = run_orchestrator(config)
+    executed = run_orchestrator(config).executed
 
     assert config.start_datetime == START
     assert config.seed == SEED

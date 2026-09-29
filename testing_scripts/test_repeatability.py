@@ -117,7 +117,7 @@ def test_the_repeatability_test_exercises_randomness_and_ties(tmp_path):
     # seed, and the orchestrator must really have to break ties
     write_random_configs(tmp_path)
 
-    executed = run_and_write_log(tmp_path / "first.csv", tmp_path)
+    executed = run_and_write_log(tmp_path / "first.csv", tmp_path).executed
     run_and_write_log(tmp_path / "other_seed.csv", tmp_path, seed=SEED + 1)
 
     assert (tmp_path / "first.csv").read_bytes() != (tmp_path / "other_seed.csv").read_bytes()
