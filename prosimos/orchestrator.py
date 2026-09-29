@@ -2,13 +2,12 @@ import copy
 import csv
 import itertools
 import json
-import logging
 import random
 from abc import ABC, abstractmethod
 from collections import Counter
 from dataclasses import dataclass, field
-from enum import Enum
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -18,8 +17,6 @@ import pytz
 from prosimos.simulation_engine import SimBPMEnv
 from prosimos.simulation_properties_parser import parse_datetime
 from prosimos.simulation_setup import SimDiffSetup
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -315,7 +312,6 @@ def run_engines(
     next_id = itertools.count(1)
 
     def warn(text):
-        logger.warning(text)
         report.warnings.append(text)
 
     def resolve(pooled):

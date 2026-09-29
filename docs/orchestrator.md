@@ -133,7 +133,8 @@ To be honest about where the current code stands, beyond the four methods:
 1. Is building an engine and collecting its log part of this interface, or a separate one? The
    protocol doesn't cover either.
 2. The protocol's end-of-run report includes stalled cases "reported by each engine", but none of
-   the four methods lets an engine report them. Should the interface get a method for it?
+   the four methods lets an engine report them. This part of the report is left for Sprint 3, when
+   Prosimos engines get waiting cases; it will need a way for engines to report them.
 
 ## Message routing
 
@@ -156,8 +157,8 @@ To be honest about where the current code stands, beyond the four methods:
   message, copy, claim and discard, the copies still in the pool at the end (unclaimed messages),
   discard counts per message type and process, and the warnings.
 
-Warnings are logged during the run and listed in the report: a message type nobody subscribes to,
-and a message whose every recipient discarded it without anyone claiming a copy. The second applies
+Warnings are collected in the report as they occur, not printed: a message type nobody subscribes
+to, and a message whose every recipient discarded it without anyone claiming a copy. The second applies
 even when the discard is expected, for example a shipment for an order that was canceled.
 
 Copies are offered only to the members that subscribe to the message's type. In the protocol's
