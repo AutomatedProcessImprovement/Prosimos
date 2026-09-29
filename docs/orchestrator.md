@@ -5,6 +5,36 @@ shared clock. Each process is simulated by its own engine; the orchestrator repe
 engine whose next event is earliest (ties broken by process name) and writes one merged log sorted
 by start time.
 
+## Simulation configuration
+
+`run_orchestrator` takes a `SimulationConfig`: the processes (a name, BPMN file, JSON parameters and
+number of cases each), an optional seed, the shared start time and the consumer groups. It can be
+built in code or loaded with `SimulationConfig.from_json(path)`:
+
+```json
+{
+  "processes": [
+    {"name": "Sales", "bpmn_path": "sales.bpmn", "json_path": "sales.json", "total_cases": 100},
+    {"name": "TartuWarehouse", "bpmn_path": "tartu.bpmn", "json_path": "tartu.json", "total_cases": 0},
+    {"name": "TallinnWarehouse", "bpmn_path": "tallinn.bpmn", "json_path": "tallinn.json", "total_cases": 0}
+  ],
+  "seed": 42,
+  "start_time": "2024-01-01T09:00:00+00:00",
+  "consumer_groups": {
+    "Sales": ["Sales"],
+    "Warehouses": ["TartuWarehouse", "TallinnWarehouse"]
+  }
+}
+```
+
+File paths are relative to the configuration file's folder. `seed` is optional, and a start time
+without a time zone is taken as UTC. Without `consumer_groups`, every process is its own group. A
+configuration is rejected if process names repeat, a process is in no group or in more than one, or
+a group names a process that doesn't exist.
+
+A `Message` has a `type` and `attributes`, set by the publishing process, and an `id`, `source` and
+`time`, set by the orchestrator when it stamps the message.
+
 ## Engine interface
 
 This section lists everything the orchestrator may ask of an engine. **Nothing else may cross that
@@ -73,8 +103,8 @@ another process enters an engine.
 
 To be honest about where the current code stands, beyond the four methods:
 
-1. **Building an engine.** The orchestrator builds each engine (`ProsimosEngine(...)`) from a BPMN
-   file, a JSON file, a number of cases and the shared start time. This happens once, before any of
+1. **Building an engine.** The orchestrator builds each engine (`ProsimosEngine(...)`) from the
+   configuration: a BPMN file, a JSON file, a number of cases and the shared start time. This happens once, before any of
    the four methods.
 2. **The event log.** When it builds an engine, the orchestrator gives it a writer to send its log
    rows to. The engine hands its rows over after every step, so the orchestrator never reaches into

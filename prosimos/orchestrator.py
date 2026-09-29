@@ -1,13 +1,17 @@
 import csv
+import json
 import random
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+import pytz
 
 from prosimos.simulation_engine import SimBPMEnv
+from prosimos.simulation_properties_parser import parse_datetime
 from prosimos.simulation_setup import SimDiffSetup
 
 
@@ -17,6 +21,94 @@ class ProcessSpec:
     bpmn_path: str
     json_path: str
     total_cases: int
+
+
+@dataclass
+class Message:
+    """One object passed between processes. The publishing process sets type and attributes;
+    the orchestrator sets id, source and time when it stamps the message."""
+
+    type: str
+    attributes: Dict[str, Any] = field(default_factory=dict)
+    id: Optional[str] = None
+    source: Optional[str] = None
+    time: Optional[datetime] = None
+
+
+@dataclass(frozen=True)
+class SimulationConfig:
+    """
+    Everything needed for one multi-process run. Each consumer group maps a group name to the
+    processes in it; without consumer_groups, every process is its own group. Every process must
+    be in exactly one group, and groups may only name known processes.
+    """
+
+    processes: List[ProcessSpec]
+    start_datetime: datetime
+    seed: Optional[int] = None
+    consumer_groups: Optional[Dict[str, List[str]]] = None
+
+    def __post_init__(self):
+        names = [spec.name for spec in self.processes]
+        duplicates = sorted({name for name in names if names.count(name) > 1})
+        if duplicates:
+            raise ValueError(f"Process names must be unique, repeated: {duplicates}")
+
+        if self.consumer_groups is None:
+            object.__setattr__(self, "consumer_groups", {name: [name] for name in names})
+
+        groups_of = {}
+        for group, members in self.consumer_groups.items():
+            for member in members:
+                groups_of.setdefault(member, []).append(group)
+
+        problems = []
+        unknown = sorted(member for member in groups_of if member not in names)
+        if unknown:
+            problems.append(f"groups name unknown processes {unknown}")
+        missing = sorted(name for name in names if name not in groups_of)
+        if missing:
+            problems.append(f"processes {missing} are in no group")
+        repeated = {member: groups for member, groups in sorted(groups_of.items()) if len(groups) > 1}
+        if repeated:
+            problems.append(f"processes are listed more than once: {repeated}")
+        if problems:
+            raise ValueError("Invalid consumer_groups: " + "; ".join(problems))
+
+    @classmethod
+    def from_json(cls, path) -> "SimulationConfig":
+        """
+        Load a configuration file such as
+            {"processes": [{"name": "Sales", "bpmn_path": "sales.bpmn",
+                            "json_path": "sales.json", "total_cases": 100}, ...],
+             "seed": 42, "start_time": "2024-01-01T09:00:00+00:00",
+             "consumer_groups": {"Sales": ["Sales"], ...}}
+        BPMN and JSON paths are relative to the configuration file's folder. seed and
+        consumer_groups are optional; a start time without a time zone is taken as UTC.
+        """
+        path = Path(path)
+        with open(path) as f:
+            data = json.load(f)
+
+        missing = [key for key in ("processes", "start_time") if key not in data]
+        if missing:
+            raise ValueError(f"{path}: missing {missing}")
+
+        folder = path.parent
+        processes = []
+        for entry in data["processes"]:
+            missing = [key for key in ("name", "bpmn_path", "json_path", "total_cases") if key not in entry]
+            if missing:
+                raise ValueError(f"{path}: process {entry.get('name', '?')} is missing {missing}")
+            processes.append(ProcessSpec(
+                entry["name"], str(folder / entry["bpmn_path"]), str(folder / entry["json_path"]), entry["total_cases"]
+            ))
+
+        start = parse_datetime(data["start_time"], True)
+        if start.tzinfo is None:
+            start = pytz.utc.localize(start)
+
+        return cls(processes, start, data.get("seed"), data.get("consumer_groups"))
 
 
 class SimulationEngine(ABC):
@@ -135,27 +227,18 @@ class _ProcessLogWriter:
         self._merged_log._add(self._process_name, rows)
 
 
-def run_orchestrator(
-    processes: List[ProcessSpec],
-    start_datetime: datetime,
-    seed: Optional[int] = None,
-    log_out_path: Optional[str] = None,
-) -> List[Tuple[datetime, str]]:
+def run_orchestrator(config: SimulationConfig, log_out_path: Optional[str] = None) -> List[Tuple[datetime, str]]:
     """
-    Simulate several processes side by side on one shared clock, repeatedly stepping the
+    Simulate the configured processes side by side on one shared clock, repeatedly stepping the
     engine whose next_event_time() is earliest. Ties are broken by process name, so runs given
     the same seed are repeatable; without a seed each run draws different random values.
     When log_out_path is given, every process's events are written to that one CSV, sorted
     by start time, with the process name as the first column.
     Returns the executed (event time, process name) pairs in execution order.
     """
-    names = [spec.name for spec in processes]
-    if len(set(names)) != len(names):
-        raise ValueError(f"Process names must be unique, got {names}")
-
-    if seed is not None:
-        random.seed(seed)
-        np.random.seed(seed)
+    if config.seed is not None:
+        random.seed(config.seed)
+        np.random.seed(config.seed)
 
     merged_log = _MergedLog() if log_out_path is not None else None
 
@@ -163,9 +246,9 @@ def run_orchestrator(
     # time it is asked for its next event, so build and query them in name order rather
     # than input order to keep the result independent of how the list was written
     engines: Dict[str, SimulationEngine] = {}
-    for spec in sorted(processes, key=lambda p: p.name):
+    for spec in sorted(config.processes, key=lambda p: p.name):
         log_writer = merged_log.writer_for(spec.name) if merged_log is not None else None
-        engines[spec.name] = ProsimosEngine(spec, start_datetime, log_writer)
+        engines[spec.name] = ProsimosEngine(spec, config.start_datetime, log_writer)
 
     executed = []
     while True:

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytz
 
-from prosimos.orchestrator import ProcessSpec, run_orchestrator
+from prosimos.orchestrator import ProcessSpec, SimulationConfig, run_orchestrator
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 ASSETS = REPO_ROOT / "testing_scripts" / "assets"
@@ -59,7 +59,7 @@ def run_and_write_log(log_path, config_dir, seed=SEED):
         ProcessSpec(name, str(ASSETS / bpmn), str(Path(config_dir) / f"{name}.json"), 10)
         for name, (bpmn, _, _) in PROCESSES.items()
     ]
-    return run_orchestrator(specs, START, seed, str(log_path))
+    return run_orchestrator(SimulationConfig(specs, START, seed), str(log_path))
 
 
 def _set_order_of_process_names(hash_seed):
