@@ -21,57 +21,55 @@ class ProcessSpec:
 
 class SimulationEngine(ABC):
     """
-    The complete set of methods the orchestrator may call on an engine; nothing else may cross
-    that boundary, and no process may read another process's data by any other route. Only
-    next_event_time() and step() exist so far. The types of the three planned methods are
-    provisional until what passes between processes is agreed. See docs/orchestrator.md.
+    The complete set of methods the orchestrator may call on an engine, as defined by the
+    Orchestrator Protocol; nothing else may cross that boundary, and no process may read another
+    process's data by any other route. Engines never call the orchestrator. Messages and their
+    ids are typed loosely until the message format is implemented. See docs/orchestrator.md.
     """
 
     @abstractmethod
+    def subscriptions(self) -> List[str]:
+        """The message types this process consumes, from its model configuration. Called once, at setup."""
+
+    @abstractmethod
     def next_event_time(self) -> Optional[datetime]:
-        """When is your next event due? None when the engine has nothing left to do."""
+        """When is your next event due? None when there is nothing to do right now (cases waiting
+        for a message don't count)."""
 
     @abstractmethod
-    def step(self) -> None:
-        """Perform exactly one event."""
+    def step(self) -> List[Any]:
+        """Perform exactly one event and return the messages it published; the only way to publish."""
 
     @abstractmethod
-    def pending_publish(self) -> List[Any]:
-        """Did that event produce anything to send out? (planned)"""
-
-    @abstractmethod
-    def blocked_on(self) -> Optional[Any]:
-        """Is your next event waiting, and for what? None when it isn't. (planned)"""
-
-    @abstractmethod
-    def inject(self, objects: List[Any]) -> None:
-        """Here are the things you were waiting for. (planned)"""
+    def deliver(self, msgs: List[Any], now: datetime) -> Tuple[List[Any], List[Any]]:
+        """Offer the engine its pending messages at time now. Returns (claimed ids, discarded ids):
+        claimed messages are used by a case, taking effect at now; discarded ones will never be
+        used. Any other message stays pending and is offered again later."""
 
 
 class ProsimosEngine(SimulationEngine):
-    """A Prosimos simulation (SimBPMEnv) seen through the SimulationEngine interface."""
+    """A Prosimos simulation (SimBPMEnv) seen through the SimulationEngine interface. It doesn't
+    exchange messages yet: it subscribes to nothing, publishes nothing and claims nothing."""
 
     def __init__(self, spec: ProcessSpec, start_datetime: datetime, log_writer=None):
         sim_setup = SimDiffSetup(spec.bpmn_path, spec.json_path, False, spec.total_cases, start_datetime)
         self._env = SimBPMEnv(sim_setup, None, log_writer)
 
+    def subscriptions(self) -> List[str]:
+        return []
+
     def next_event_time(self) -> Optional[datetime]:
         return self._env.next_event_time()
 
-    def step(self) -> None:
+    def step(self) -> List[Any]:
         self._env.step()
         # the engine buffers its log rows; hand them over now so nobody outside the engine
         # has to reach into it to flush them at the end
         self._env.log_writer.force_write()
+        return []
 
-    def pending_publish(self) -> List[Any]:
-        raise NotImplementedError("pending_publish() is planned but not implemented yet")
-
-    def blocked_on(self) -> Optional[Any]:
-        raise NotImplementedError("blocked_on() is planned but not implemented yet")
-
-    def inject(self, objects: List[Any]) -> None:
-        raise NotImplementedError("inject() is planned but not implemented yet")
+    def deliver(self, msgs: List[Any], now: datetime) -> Tuple[List[Any], List[Any]]:
+        return [], []
 
 
 class _MergedLog:
