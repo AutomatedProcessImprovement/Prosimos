@@ -119,11 +119,11 @@ class EventQueue:
     def __init__(self):
         self.enabled_events = PriorityQueue()
 
-    def append_arrival_event(self, event_info, case_priority):
-        self.enabled_events.insert(event_info, (case_priority, event_info.enabled_at))
-
-    def append_enabled_event(self, event_info, case_priority):
-        self.enabled_events.insert(event_info, (case_priority, event_info.enabled_at))
+    def append_event(self, event_info):
+        # ordered by enabled time only; events with the same time come out in the order they
+        # were added (PriorityQueue breaks ties with an insertion counter).
+        # Priority ordering was removed; last version with it: 5f40913
+        self.enabled_events.insert(event_info, event_info.enabled_at)
 
     def pop_next_event(self):
         if self.enabled_events:

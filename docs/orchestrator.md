@@ -40,10 +40,10 @@ that batch's time, not `None`.
 Times are absolute dates and times, not "seconds since start", so answers from different engines can
 be compared directly. All engines are given the same start time when they are built.
 
-One known limitation: this is the time of the event the engine will do *next*, which is not always
-its *earliest* pending event. Timers and case priority rules can jump ahead of earlier tasks. This
-does no harm while processes don't exchange anything, but it must be solved before messages exist.
-See "Known limitation: event ordering" below.
+Each engine handles its events strictly in time order (events due at the same moment in the order
+they were added), so this is always its earliest pending event and an engine never goes back in
+time. Case priority rules therefore no longer decide which case is handled first; they only order
+the cases inside a batch.
 
 #### `step()`, implemented
 
@@ -88,117 +88,3 @@ To be honest about where the current code stands, beyond the two implemented met
    type and the attributes the receiver needs)?
 3. When an object arrives, can it start a new case in the receiving process, continue a waiting one,
    or both?
-4. Is it acceptable that `next_event_time()` isn't always the earliest pending event, until
-   messages are designed?
-
-## Known limitation: event ordering
-
-Status: known, deliberately left as is. Revisit before processes can send each other messages.
-
-The orchestrator repeatedly asks every engine "when is your next event?" (`next_event_time()`) and
-steps the engine with the earliest answer. This assumes each engine works through its events in time
-order. It doesn't always:
-
-- **Timers and other intermediate events jump ahead of every task**, whatever their time.
-- **Case prioritisation rules make important cases' tasks jump ahead** of less important cases'
-  tasks, whatever their time.
-
-So an engine can say "my next event is at 14:00", handle that, and then handle something due at
-9:00. `next_event_time()` returns the time of the item at the head of the engine's to-do list, not
-the earliest time on it.
-
-### Why it's harmless today
-
-Each engine still produces exactly the same results as it would when run on its own. The dates
-and times in the log are correct; only the order in which the engine works them out jumps around.
-With no messages between processes, engines can't affect each other, so this doesn't matter. The
-merged log is sorted by start time before it's written, so its rows come out in order too.
-
-### Why it will matter once messages exist
-
-Example: a shop process sends a message to a warehouse process for every order, starting a
-packing case there. The warehouse also has other packing jobs at 10:00, 11:00 and 12:00.
-
-1. The shop has a VIP order at 14:00 and a regular order at 9:00. The VIP order is at the head of
-   its list, so it reports "14:00". The warehouse reports "10:00".
-2. The orchestrator runs the warehouse's 10:00, 11:00 and 12:00 jobs, since they're earlier than
-   14:00. The packer is booked through them.
-3. The shop handles the VIP order, then the regular 9:00 order, which sends "new packing case at
-   9:15".
-4. The warehouse can't fit the 9:15 case into the morning. Each worker only keeps a single "free
-   again at" time and a task starts at the later of that and its own ready time
-   (`r_avail_at = max(c_event.enabled_at, r_avail_at)` in `SimBPMEnv.execute_task`), so the order
-   is packed after the 12:00 job even though the packer was idle at 9:15.
-
-The regular order waits hours for no reason, and the result depends on how the orchestrator
-happened to interleave the engines. The warehouse only gives correct results if its work arrives
-in time order.
-
-If the warehouse has no earlier work of its own when the late message arrives, nothing breaks: it
-simply handles the 9:15 case before the 14:15 one.
-
-### Where the behaviour comes from
-
-The engine's to-do list (`EventQueue` in `prosimos/simulation_queues_ds.py`) is ordered by
-`(priority, enabled time)`, priority first. This came with the case prioritisation feature
-(issue #43, January 2023). A task claims a worker the moment it's taken off the list, so taking
-important cases off first is how they get workers first.
-
-Cases with no matching priority rule get the lowest priority (`sys.maxsize`). Intermediate events
-were meant to be unaffected by prioritisation, which was done by giving them the highest
-priority, 0 (commit `e103f26`: "Event is executed out of the scope of prioritisation and have the
-highest priority (0)"; see `SimBPMEnv.calc_priority_and_append_to_queue`). The side effect is
-that they overtake every task.
-
-The shortcut is safe inside one engine because Prosimos creates every case at the start of the
-run, so a single engine knows everything that will ever happen in it. Message-triggered cases
-break that assumption: they only appear when a message arrives.
-
-### Options considered
-
-- **Report the earliest queued time from `next_event_time()` instead of the head's time.**
-  Doesn't help: `step()` would still run the head, so the orchestrator would choose an engine
-  based on one event and run a different, later one.
-- **Remove only the timer shortcut.** Timers go back to their place in time, but priority rules
-  still reorder time, and single-run results for models with timers and priorities would change.
-- **Pass priorities on with messages.** Good for keeping a VIP a VIP end to end, but it doesn't fix
-  the timing problem: the late order in the example isn't unimportant, it just arrives too late.
-  Better to pass the case's attributes (e.g. `client_type`) and let each process apply its own
-  priority rules.
-- **Handle the to-do list in time order, and use priority only to decide which waiting task gets
-  a free worker.** This is how most simulators handle priorities and would fix the problem. It's a
-  real change to the engine, and single-run results with priority rules would change, so it needs
-  checking against the existing prioritisation tests.
-
-Suggested direction when messages are designed: pass case attributes with messages, and move the
-engine to time-ordered handling with priority only deciding who gets a free worker.
-
-### Related: priorities also distort single-process runs (confirmed)
-
-The same ordering affects a single engine on its own, with no orchestrator involved. Every case is
-created at the start of the run, and the to-do list puts all important cases before all others, so
-a regular case waits for every important case, including ones that haven't arrived yet. Since a
-worker can only be booked forward, the idle time before those important cases is lost.
-
-Confirmed on 2026-09-27, with the same result on `8e627e2` (release 2.1.0, before this work).
-Setup: `timer_with_task.bpmn` with one worker available around the clock, "Task 1" taking 30
-minutes, a new case every 4 hours all week, each case's `client_type` randomly `Business` or
-`Regular` (50/50), 8 cases, the same seed for both runs. Without priority rules no case waits.
-With the rules Business = 1, Regular = 2:
-
-| Case | Client   | Arrived   | Started   | Waited |
-|------|----------|-----------|-----------|--------|
-| 0    | Business | Mon 09:00 | Mon 09:00 | 0 h    |
-| 1    | Regular  | Mon 13:00 | Tue 09:30 | 20.5 h |
-| 2    | Business | Mon 17:00 | Mon 17:00 | 0 h    |
-| 3    | Regular  | Mon 21:00 | Tue 10:00 | 13 h   |
-| 4    | Regular  | Tue 01:00 | Tue 10:30 | 9.5 h  |
-| 5    | Business | Tue 05:00 | Tue 05:00 | 0 h    |
-| 6    | Business | Tue 09:00 | Tue 09:00 | 0 h    |
-| 7    | Regular  | Tue 13:00 | Tue 13:00 | 0 h    |
-
-Before Tuesday 09:30 the worker was busy only for four half-hours, yet the regular cases arriving
-Monday 13:00, Monday 21:00 and Tuesday 01:00 waited until the last Business case, arriving Tuesday
-09:00, was done. So any simulation with priority rules and arrivals spread over time can report
-greatly inflated waiting times for lower-priority cases. The fix suggested above (handle the to-do
-list in time order, with priority only deciding who gets a free worker) would also fix this.

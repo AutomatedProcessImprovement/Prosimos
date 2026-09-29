@@ -71,39 +71,7 @@ class SimBPMEnv:
 
         self.sim_setup.bpmn_graph.all_attributes = all_attributes
 
-    def calc_priority_and_append_to_queue(self, enabled_event: EnabledEvent, is_arrival_event: bool):
-        if enabled_event.is_inter_event:
-            # append with the highest priority
-            highest_priority = 0
-            self.append_enabled_event_to_queue(enabled_event, is_arrival_event, highest_priority)
-            return
-
-        case_priority = self.calc_priority_for_task_or_batch(enabled_event)
-
-        self.append_enabled_event_to_queue(enabled_event, is_arrival_event, case_priority)
-
-    def calc_priority_for_task_or_batch(self, enabled_event):
-        """
-        Calculate case priority by following one of two path:
-        1) no batching  - use current case's priority
-        2) batching     - find case id with the highest priority
-        """
-        if enabled_event.batch_info_exec is not None:
-            # batched task
-            multiple_cases_dict = enabled_event.batch_info_exec.case_ids
-            multiple_cases_arr = [(k, v) for k, v in multiple_cases_dict.items()]
-            case_priority = self.case_prioritisation.calculate_max_priority(multiple_cases_arr)
-        else:
-            case_priority = self.case_prioritisation.get_priority_by_case_id(enabled_event.p_case)
-
-        return case_priority
-
-    def append_enabled_event_to_queue(self, enabled_event: EnabledEvent, is_arrival_event: bool, case_priority):
-        "Append as either an arrival event or enabled intermediate/end event"
-        if is_arrival_event:
-            self.events_queue.append_arrival_event(enabled_event, case_priority)
-        else:
-            self.events_queue.append_enabled_event(enabled_event, case_priority)
+    # Queue priorities (case priority first, timers at 0) were removed; last version with them: 5f40913
 
     def generate_all_arrival_events(self):
         sim_setup = self.sim_setup
@@ -154,7 +122,7 @@ class SimBPMEnv:
         self.log_info.trace_list.append(Trace(p_case, enabled_datetime))
         for task in enabled_tasks:
             task_id = task.task_id
-            self.calc_priority_and_append_to_queue(
+            self.events_queue.append_event(
                 EnabledEvent(
                     p_case,
                     p_state,
@@ -165,7 +133,6 @@ class SimBPMEnv:
                     task.duration_sec,
                     task.is_event,
                 ),
-                True,
             )
         return enabled_datetime
 
@@ -190,7 +157,7 @@ class SimBPMEnv:
                 )
 
                 for next_task in enabled_tasks:
-                    self.calc_priority_and_append_to_queue(
+                    self.events_queue.append_event(
                         EnabledEvent(
                             p_case,
                             p_state,
@@ -201,7 +168,6 @@ class SimBPMEnv:
                             next_task.duration_sec,
                             next_task.is_event,
                         ),
-                        False,
                     )
         else:
             if event_element_info.type == BPMN.TASK:
@@ -219,7 +185,7 @@ class SimBPMEnv:
             # self.time_update_process_state += (datetime.datetime.now() - s_t).total_seconds()
 
             for next_task in enabled_tasks:
-                self.calc_priority_and_append_to_queue(
+                self.events_queue.append_event(
                     EnabledEvent(
                         c_event.p_case,
                         c_event.p_state,
@@ -230,7 +196,6 @@ class SimBPMEnv:
                         next_task.duration_sec,
                         next_task.is_event,
                     ),
-                    False,
                 )
 
     def pop_and_allocate_resource(self, task_id: str, num_allocated_tasks: int):
@@ -426,7 +391,7 @@ class SimBPMEnv:
                     enabled_datetime,
                     batch_info,
                 )
-                self.calc_priority_and_append_to_queue(c_event, False)
+                self.events_queue.append_event(c_event)
 
     def execute_if_any_unexecuted_batch(self, last_task_enabled_time: CustomDatetimeAndSeconds):
         for case_id, enabled_datetime in self.sim_setup.is_any_unexecuted_batch(last_task_enabled_time):
@@ -454,7 +419,7 @@ class SimBPMEnv:
                         batch_info.start_time_from_rule,
                         batch_info,
                     )
-                    self.calc_priority_and_append_to_queue(c_event, False)
+                    self.events_queue.append_event(c_event)
 
     def _get_chunk(self, batch_spec, curr_index, all_case_ids):
         """Return only the part of the all_case_ids that will be executed as a batch"""
@@ -631,7 +596,7 @@ class SimBPMEnv:
 
     def simulation_at_from_datetime(self, datetime):
         td = datetime - self.sim_setup.start_datetime
-        return td.seconds
+        return td.total_seconds()
 
     def get_utilization_for(self, resource_id):
         if self.sim_resources[resource_id].available_time == 0:

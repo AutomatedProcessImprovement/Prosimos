@@ -147,8 +147,6 @@ def run_orchestrator(
     Simulate several processes side by side on one shared clock, repeatedly stepping the
     engine whose next_event_time() is earliest. Ties are broken by process name, so runs given
     the same seed are repeatable; without a seed each run draws different random values.
-    An engine's next event isn't always its earliest one (timers and case priorities jump
-    ahead), so engines aren't strictly kept in step; see docs/orchestrator.md.
     When log_out_path is given, every process's events are written to that one CSV, sorted
     by start time, with the process name as the first column.
     Returns the executed (event time, process name) pairs in execution order.

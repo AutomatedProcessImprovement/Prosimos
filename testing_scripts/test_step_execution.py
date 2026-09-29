@@ -1,7 +1,8 @@
 import csv
 import io
+import json
 import random
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import numpy as np
 import pytz
@@ -82,3 +83,43 @@ def test_step_by_step_reaches_the_final_batch():
 
     # header row + one row per case
     assert len(stepped_log) == TOTAL_CASES + 1
+
+
+def _timer_model_engine(tmp_path, total_cases):
+    # every case arrives at once, so tasks due at the start wait for the single worker while
+    # each finished task starts a 15-minute timer ("15m") that is due later
+    assets_path = get_path()
+    with open(assets_path / "timer_with_task.json") as f:
+        config = json.load(f)
+    config["arrival_time_distribution"] = {"distribution_name": "fix", "distribution_params": [{"value": 0}, {"value": 0}, {"value": 1}]}
+    config["arrival_time_calendar"] = [{"from": "MONDAY", "to": "SUNDAY", "beginTime": "00:00:00", "endTime": "23:59:59"}]
+    json_path = tmp_path / "timer_with_task.json"
+    with open(json_path, "w") as f:
+        json.dump(config, f)
+
+    sim_setup = SimDiffSetup(assets_path / "timer_with_task.bpmn", json_path, False, total_cases,
+                             pytz.utc.localize(datetime(2024, 1, 1, 9, 0)))
+    return SimBPMEnv(sim_setup, None, None)
+
+
+def test_timer_due_later_is_not_handled_before_task_due_earlier(tmp_path):
+    engine = _timer_model_engine(tmp_path, total_cases=12)
+    names = engine.sim_setup.bpmn_graph.element_info
+
+    handled = []
+    while (due := engine.next_event_time()) is not None:
+        event = engine.step()
+        handled.append((due, names[event.task_id].name))
+
+    tasks_due_at_nine = [i for i, (due, name) in enumerate(handled) if name == "Task 1" and due.hour == 9 and due.minute == 0]
+    timer_due_at_two = [i for i, (due, name) in enumerate(handled) if name == "15m" and due.hour == 14 and due.minute == 0]
+    assert len(tasks_due_at_nine) == 12 and len(timer_due_at_two) == 1
+    assert timer_due_at_two[0] > max(tasks_due_at_nine)
+    assert [due for due, _ in handled] == sorted(due for due, _ in handled)
+
+
+def test_seconds_since_start_counts_whole_days(tmp_path):
+    engine = _timer_model_engine(tmp_path, total_cases=1)
+    start = engine.sim_setup.start_datetime
+
+    assert engine.simulation_at_from_datetime(start + timedelta(days=3, hours=2)) == 3 * 86400 + 2 * 3600
