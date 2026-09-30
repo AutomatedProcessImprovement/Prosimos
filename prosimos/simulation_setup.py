@@ -9,6 +9,7 @@ from prosimos.batch_processing import BatchConfigPerTask
 from prosimos.control_flow_manager import BPMN, ElementInfo, ProcessState
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.histogram_distribution import HistogramDistribution
+from prosimos.messaging_parser import parse_messages_file
 from prosimos.simulation_properties_parser import parse_json_sim_parameters, parse_simulation_model, add_default_flows
 
 
@@ -36,6 +37,7 @@ class SimDiffSetup:
         self.case_attributes = self.all_attributes.case_attributes
 
         self.bpmn_graph = parse_simulation_model(bpmn_path)
+        self.messaging = parse_messages_file(json_path, bpmn_path)
         self.bpmn_graph.set_additional_fields_from_json(self.element_probability,
                                                         self.task_resource, self.event_distibution,
                                                         self.batch_processing, self.gateway_conditions,
