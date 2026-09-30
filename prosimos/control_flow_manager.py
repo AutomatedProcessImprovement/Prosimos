@@ -51,6 +51,8 @@ class BPMN(Enum):
     START_EVENT = 'START-EVENT'
     END_EVENT = 'END-EVENT',
     INTERMEDIATE_EVENT = 'INTERMEDIATE_EVENT',
+    # passes its token straight on, taking no time, like a gateway
+    INTERMEDIATE_THROW_EVENT = 'INTERMEDIATE-THROW-EVENT'
     EXCLUSIVE_GATEWAY = 'EXCLUSIVE-GATEWAY'
     INCLUSIVE_GATEWAY = 'INCLUSIVE-GATEWAY'
     PARALLEL_GATEWAY = 'PARALLEL-GATEWAY'
@@ -59,7 +61,7 @@ class BPMN(Enum):
 
     @classmethod
     def is_event(cls, type):
-        if (type in [cls.START_EVENT, cls.END_EVENT, cls.INTERMEDIATE_EVENT]):
+        if (type in [cls.START_EVENT, cls.END_EVENT, cls.INTERMEDIATE_EVENT, cls.INTERMEDIATE_THROW_EVENT]):
             return True
         else:
             return False
@@ -97,7 +99,7 @@ class ElementInfo:
         return self.type in [BPMN.START_EVENT, BPMN.END_EVENT]
 
     def is_event(self):
-        return self.type in [BPMN.START_EVENT, BPMN.END_EVENT, BPMN.INTERMEDIATE_EVENT]
+        return self.type in [BPMN.START_EVENT, BPMN.END_EVENT, BPMN.INTERMEDIATE_EVENT, BPMN.INTERMEDIATE_THROW_EVENT]
 
 
 class ProcessState:
@@ -292,7 +294,8 @@ class BPMNGraph:
                     return False
 
             return True
-        if e_info.type in [BPMN.END_EVENT, BPMN.PARALLEL_GATEWAY, BPMN.INTERMEDIATE_EVENT]:
+        if e_info.type in [BPMN.END_EVENT, BPMN.PARALLEL_GATEWAY, BPMN.INTERMEDIATE_EVENT,
+                           BPMN.INTERMEDIATE_THROW_EVENT]:
             for f_arc in e_info.incoming_flows:
                 if p_state.tokens[f_arc] < 1:
                     return False

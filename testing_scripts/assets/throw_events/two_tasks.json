@@ -1,0 +1,20 @@
+{
+  "resource_profiles": [
+    {"id": "Clerks", "name": "Clerks", "resource_list": [
+      {"id": "Clerk_1", "name": "Clerk 1", "cost_per_hour": 1, "amount": 2, "calendar": "Always",
+       "assigned_tasks": ["Task_A", "Task_B"]}
+    ]}
+  ],
+  "arrival_time_distribution": {"distribution_name": "expon", "distribution_params": [{"value": 1800}, {"value": 0}, {"value": 3600}]},
+  "arrival_time_calendar": [{"from": "MONDAY", "to": "SUNDAY", "beginTime": "00:00:00", "endTime": "23:59:59"}],
+  "gateway_branching_probabilities": [],
+  "task_resource_distribution": [
+    {"task_id": "Task_A", "resources": [{"resource_id": "Clerk_1", "distribution_name": "expon",
+      "distribution_params": [{"value": 1200}, {"value": 0}, {"value": 7200}]}]},
+    {"task_id": "Task_B", "resources": [{"resource_id": "Clerk_1", "distribution_name": "expon",
+      "distribution_params": [{"value": 900}, {"value": 0}, {"value": 7200}]}]}
+  ],
+  "resource_calendars": [
+    {"id": "Always", "name": "Always", "time_periods": [{"from": "MONDAY", "to": "SUNDAY", "beginTime": "00:00:00", "endTime": "23:59:59"}]}
+  ]
+}

@@ -115,9 +115,10 @@ class SimBPMEnv:
         p_state = sim_setup.initial_state()
         enabled_datetime = self.simulation_datetime_from(arrival_time)
         enabled_time = CustomDatetimeAndSeconds(arrival_time, enabled_datetime)
-        enabled_tasks, _ = sim_setup.update_process_state(
+        enabled_tasks, visited_at = sim_setup.update_process_state(
             p_case, sim_setup.bpmn_graph.starting_event, p_state, enabled_time
         )
+        self._log_passed_throw_events(p_case, p_state, visited_at)
         self.all_process_states[p_case] = p_state
         self.log_info.trace_list.append(Trace(p_case, enabled_datetime))
         for task in enabled_tasks:
@@ -155,6 +156,7 @@ class SimBPMEnv:
                     self.all_process_states[p_case],
                     enabled_time,
                 )
+                self._log_passed_throw_events(p_case, p_state, visited_at)
 
                 for next_task in enabled_tasks:
                     self.events_queue.append_event(
@@ -182,6 +184,7 @@ class SimBPMEnv:
             enabled_tasks, visited_at = self.sim_setup.update_process_state(
                 c_event.p_case, c_event.task_id, c_event.p_state, enabled_time
             )
+            self._log_passed_throw_events(c_event.p_case, c_event.p_state, visited_at)
             # self.time_update_process_state += (datetime.datetime.now() - s_t).total_seconds()
 
             for next_task in enabled_tasks:
@@ -569,6 +572,17 @@ class SimBPMEnv:
         completed_datetime = full_evt.completed_datetime
 
         return completed_at, completed_datetime
+
+    def _log_passed_throw_events(self, p_case, p_state, visited_at):
+        # throw events pass their token straight on inside update_process_state, so they never
+        # reach execute_event; like other intermediate events, they are logged only on request
+        if not self.sim_setup.is_event_added_to_log:
+            return
+        for e_id, passed_at in visited_at.items():
+            if self.sim_setup.bpmn_graph.element_info[e_id].type is BPMN.INTERMEDIATE_THROW_EVENT:
+                c_event = EnabledEvent(p_case, p_state, e_id, passed_at.seconds_from_start, passed_at.datetime)
+                full_evt = TaskEvent.create_event_entity(c_event, passed_at.seconds_from_start, passed_at.datetime)
+                self.log_writer.add_csv_row(self.get_csv_row_data(full_evt))
 
     def execute_event(self, c_event):
         # Handle event types separately (they don't need assigned resource)

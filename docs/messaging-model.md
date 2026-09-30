@@ -21,6 +21,12 @@ exposes (`subscriptions()`, the messages `step()` returns, the verdicts `deliver
 An event is a message event when it has a `messageEventDefinition`. A throw event without one, or
 a catch event with a timer definition, can't be used for messages.
 
+A case passes an intermediate throw event instantly, like a gateway, whether it is a message
+event or has no definition at all (a milestone). It appears in the log only when intermediate
+events are logged (`is_event_added_to_log`). Signal, escalation, compensation and link throw events
+are rejected when the model is loaded (`throw event <id> of kind <kind> is not supported`): they
+mean something the simulator doesn't do, so passing them silently would change the model.
+
 ## JSON: what
 
 The Sales process of the [running example](running-example.md): a case places an order, announces
@@ -94,7 +100,5 @@ subscribes to nothing.
 - Only parsing and validation are done: cases don't publish or wait for messages yet, and
   conditions aren't evaluated yet. `ProsimosEngine` still subscribes to nothing: subscribing
   now would get it offered messages it can only discard, and a discard is permanent.
-- The simulator's BPMN reader doesn't know intermediate throw events yet: it keeps them only as
-  nodes of unknown type. They need handling before a case can pass through one.
 - Names under `attributes` and `case_attribute` aren't checked against the model's case
   attributes, and one event may appear in more than one entry.

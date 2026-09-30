@@ -16,7 +16,8 @@ class OutgoingFlowSelector:
         elif e_info.type is BPMN.INCLUSIVE_GATEWAY:
             return OutgoingFlowSelector._handle_inclusive_gateway(e_info, element_probability, all_attributes,
                                                                   gateway_conditions)
-        elif e_info.type in [BPMN.TASK, BPMN.PARALLEL_GATEWAY, BPMN.START_EVENT, BPMN.INTERMEDIATE_EVENT]:
+        elif e_info.type in [BPMN.TASK, BPMN.PARALLEL_GATEWAY, BPMN.START_EVENT, BPMN.INTERMEDIATE_EVENT,
+                             BPMN.INTERMEDIATE_THROW_EVENT]:
             return OutgoingFlowSelector._handle_parallel_events(e_info)
 
     @staticmethod

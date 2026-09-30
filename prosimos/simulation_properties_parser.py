@@ -12,6 +12,7 @@ from prosimos.fuzzy_engine.fuzzy_calendar import FuzzyModel, WeeklyFuzzyCalendar
 from prosimos.batch_processing_parser import BatchProcessingParser
 from prosimos.case_attributes import AllCaseAttributes, CaseAttribute
 from prosimos.control_flow_manager import BPMN, EVENT_TYPE, BPMNGraph, ElementInfo
+from prosimos.exceptions import InvalidBpmnModelException
 from prosimos.histogram_distribution import HistogramDistribution
 from prosimos.multitasking.multitasking_struct import MultiTaskDS
 from prosimos.prioritisation import AllPriorityRules
@@ -420,6 +421,7 @@ def parse_simulation_model(bpmn_path):
         "xmlns:inclusiveGateway": BPMN.INCLUSIVE_GATEWAY,
         "xmlns:eventBasedGateway": BPMN.EVENT_BASED_GATEWAY,
         "xmlns:intermediateCatchEvent": BPMN.INTERMEDIATE_EVENT,
+        "xmlns:intermediateThrowEvent": BPMN.INTERMEDIATE_THROW_EVENT,
     }
 
     bpmn_graph = BPMNGraph()
@@ -433,6 +435,8 @@ def parse_simulation_model(bpmn_path):
                     else bpmn_element.attrib["id"]
                 )
                 elem_general_type: BPMN = to_extract[xmlns_key]
+                if elem_general_type is BPMN.INTERMEDIATE_THROW_EVENT:
+                    _check_throw_event_supported(bpmn_element)
 
                 event_type = (
                     _get_event_type_from_element(name, bpmn_element) if BPMN.is_event(elem_general_type) else None
@@ -453,12 +457,12 @@ def parse_simulation_model(bpmn_path):
                 elements_map[flow_arc.attrib["targetRef"]]["in"] += 1
             # bpmn_graph.add_flow_arc(flow_arc.attrib["id"], flow_arc.attrib["sourceRef"], flow_arc.attrib["targetRef"])
 
-        # Adding fake gateways for tasks with multiple incoming/outgoing flow arcs
+        # Adding fake gateways for tasks and throw events with multiple incoming/outgoing flow arcs
         join_gateways = dict()
         split_gateways = dict()
         for t_id in elements_map:
             e_info = elements_map[t_id]["info"]
-            if e_info.type is BPMN.TASK:
+            if e_info.type in (BPMN.TASK, BPMN.INTERMEDIATE_THROW_EVENT):
                 if elements_map[t_id]["in"] > 1:
                     _add_fake_gateway(
                         bpmn_graph,
@@ -524,6 +528,19 @@ def _get_event_type_from_element(name: str, bpmn_element):
                 print(f"WARNING: {name} event has an undefined event type")
 
             return event_type
+
+
+def _check_throw_event_supported(bpmn_element):
+    # message and none (no definition) throw events pass their token straight on. The other kinds
+    # mean something that isn't simulated (a compensation undoes earlier work, an escalation alerts
+    # a parent process) or can't pass a token on at all (a link throw has no outgoing flow), so
+    # skipping them would silently change the model
+    for child in bpmn_element:
+        kind = child.tag.split("}")[1].removesuffix("EventDefinition") if "EventDefinition" in child.tag else None
+        if kind is not None and kind != "message":
+            kind = "compensation" if kind == "compensate" else kind
+            raise InvalidBpmnModelException(
+                f"throw event {bpmn_element.attrib['id']} of kind {kind} is not supported")
 
 
 def _add_fake_gateway(bpmn_graph, g_id, g_type, t_id, e_map, in_front=True):

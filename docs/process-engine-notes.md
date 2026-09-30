@@ -21,9 +21,18 @@ missing a branch) simply holds the token; it is not queued.
 - **Event-based gateways** don't wait either: `get_event_gateway_choice` draws a duration for each
   following event the moment the case arrives and takes the shortest. A real race between a timer and
   a message needs a new mechanism (wait, first one wins, cancel the others).
-- **Sending is not supported yet.** Intermediate throw events, send/receive tasks and boundary events
-  are not parsed; a model with an intermediate throw event crashes with `KeyError` as soon as a case
-  reaches it *(run)*. Message end events are parsed, as ordinary end events.
+- **Sending.** Intermediate throw events (message and none) are parsed and passed straight
+  through, like gateways; signal, escalation, compensation and link throws are rejected at load
+  (see [messaging-model.md](messaging-model.md)). Before that, a model with a throw event crashed
+  with `KeyError` as soon as a case reached it *(run)*. Message end events are parsed, as ordinary
+  end events. Send/receive tasks and boundary events are still not parsed.
+- **Elements right after the start event are passed too early.** All arrivals are generated up
+  front (section 2), and `_update_initial_event_info` runs `update_process_state` from the start
+  event straight away. So a throw or end event directly after the start (with only gateways in
+  between) is passed when arrivals are generated, before the simulation reaches that case's arrival
+  time *(run)*. The log is unaffected apart from row order (the times are right), but publishing a
+  message there would hand it to the orchestrator too early. Publishing must happen at the arrival
+  time, e.g. by queueing the start event as an ordinary event instead of passing it at generation.
 - A parked case has nothing in the queue, so the engine would report "finished" (`next_event_time()`
   = `None`) while cases still wait. This is what `blocked_on()` has to express.
 
