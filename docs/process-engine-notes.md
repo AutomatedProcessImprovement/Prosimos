@@ -1,6 +1,6 @@
 # Process engine notes: waiting cases, new cases, randomness
 
-Groundwork for Sprint 3 (a case waits at a message event; a message starts a new case). Based on
+Groundwork for future work (a case waits at a message event; a message starts a new case). Based on
 reading `simulation_engine.py`, `control_flow_manager.py`, `simulation_setup.py` and
 `prioritisation.py` at commit `44274d6`, plus small runs where marked *(run)*.
 

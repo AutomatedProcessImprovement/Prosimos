@@ -1,11 +1,11 @@
 # Running example: orders, warehouses and trucks
 
-This scenario is used throughout the design documents and the protocol tests (Sprint 2, task 6).
+This scenario is used throughout the design documents and the protocol tests.
 It exercises every rule of the orchestrator protocol in a single run: announcements, a shared
 group, a random tie, correlation, pending messages, discards, warnings and the end-of-run report.
 
 The processes are scripted fake engines in the tests (`testing_scripts/protocol_scenario.py`, checked
-by `testing_scripts/test_protocol_scenario.py`); later sprints replace them with real Prosimos models.
+by `testing_scripts/test_protocol_scenario.py`); replacing them with real Prosimos models is future work.
 
 ## Processes and messages
 

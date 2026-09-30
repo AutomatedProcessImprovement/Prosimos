@@ -1,4 +1,4 @@
-"""The run report: one test per warning and per count. Stalled cases are left for Sprint 3."""
+"""The run report: one test per warning and per count. Stalled cases are future work."""
 from prosimos.orchestrator import Verdict, run_engines
 from testing_scripts.protocol_scenario import at, run_scenario
 from testing_scripts.scripted_engine import ScriptedEngine
