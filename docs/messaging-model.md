@@ -88,10 +88,11 @@ The section is checked when the model is loaded (`SimDiffSetup`, code in
 | `type` is a non-empty string                                                                                                                                                               |
 | `attributes` is a list of names, each `case_id` or a declared case, global or event attribute                                                                                              |
 | a message end event under `publish`, or a catch event under `consume`, has exactly one incoming arrow ("draw an explicit gateway before <event id>")                                       |
+| a catch event under `consume` doesn't follow an event-based gateway (see "Waiting"; test in `testing_scripts/test_waiting.py`)                                                             |
 | `condition` is a non-empty list of non-empty lists of terms                                                                                                                                |
 | a term has `attribute`, a `comparison` branch rules know (`=`, `!=`, `<`, `<=`, `>`, `>=`, `in`) and exactly one of `value` and `case_attribute`; `in` takes a fixed `value` `[low, high]` |
 
-Each rule has a test in `testing_scripts/test_messaging_parser.py`.
+Each rule has a test in `testing_scripts/test_messaging_parser.py`, unless noted.
 
 Why one incoming arrow: in BPMN, several arrows into one element mean "fire once per arriving
 token", but Prosimos joins several arrows into an end event as an OR join (once per case) and into
@@ -127,14 +128,49 @@ the time the case really passes the event, not earlier:
   attribute of a task the case hasn't done) is sent as `None`, with one warning per event and
   attribute in Prosimos's warnings.
 
-Holding is general: an item is a case and an element of the model with a due time, so cases
-arriving at catch events can reuse it. Tested with the Sales model in isolation
+Holding is used only for publishing: catch events are already queued at the time the case
+reaches them, so waiting needs no holding (see "Waiting"). Tested with the Sales model in isolation
 (`testing_scripts/test_publishing.py`, models in `testing_scripts/assets/messaging/`).
+
+## Waiting
+
+A case reaching a catch event listed under `consume` waits there for a message instead of getting
+a delay. `subscriptions()` returns the types under `consume`.
+
+- **Where it parks.** The case is moved onto the catch event during the step of the task before
+  it, but the catch event is queued at the time the case really reaches it. The case parks when that
+  queued event is executed, so it never waits (or claims a message) before it is there. Its token
+  stays on the event's incoming flow, and the engine records (case, event, time it reached it).
+- **`deliver(message, now)`** checks the message against the waiting cases:
+  - **`CLAIMED`**: it matches a waiting case's condition. The catch event is queued for that case
+    at `now` and the case continues from there; one message resumes one case. If several waiting
+    cases match, the one waiting longest claims it; ties by case id.
+  - **`DISCARDED`**: no case can ever accept it: it fails every condition on the message alone
+    (fixed values, `source`), or the case it correlates with through `case_id` doesn't exist or has
+    finished.
+  - **`PENDING`**: otherwise, e.g. its case hasn't reached the catch event yet. Other case
+    attributes can still change, so a condition on them alone never makes a discard.
+- **Conditions** use the branch-rule comparisons. `case_attribute: "case_id"` resolves to the same
+  `<process name>-<n>` as when publishing (both use `SimBPMEnv.case_id`).
+- **No duration.** A waiting catch event needs no `event_distribution` entry; one given anyway is
+  ignored, with a warning when the model is loaded (`duration of Catch_Shipment is ignored: it waits
+  for a message`). Catch events not listed under `consume` keep their drawn delay.
+- **After an event-based gateway** a catch event can't wait yet, so such a model is rejected when
+  it is loaded (`... follows an event-based gateway, where waiting for a message isn't supported
+  yet`). Prosimos decides an event-based gateway the moment a case reaches it: it draws a duration
+  for every event after the gateway and takes the shortest (`get_event_gateway_choice`). A waiting
+  catch event has no duration, so without this rule the run would crash (no `event_distribution`
+  entry) or treat the message like a timer (an entry given anyway). A real race, where the case
+  waits and the first of a message or a timer wins, is future work. This restriction was added while
+  implementing waiting and is still to be agreed.
+- **An engine whose cases all wait** returns `next_event_time() = None`: it has nothing to do now,
+  but it isn't finished. The orchestrator still offers it every new message, and a claim queues an
+  event, so it steps again.
+
+Tested in `testing_scripts/test_waiting.py` (models in `testing_scripts/assets/messaging/`).
 
 ## Not done yet
 
-- Cases don't wait for messages yet, and conditions aren't evaluated yet. `ProsimosEngine` still
-  subscribes to nothing: subscribing now would get it offered messages it can only discard, and a
-  discard is permanent.
+- A catch event racing other events after an event-based gateway (see above).
 - Names under `case_attribute` in conditions aren't checked against the declared attributes, and
   one event may appear in more than one entry.

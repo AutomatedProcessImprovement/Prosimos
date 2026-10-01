@@ -61,9 +61,9 @@ processes is a message: it leaves an engine as the result of `step()` and enters
 | `step()`                | list of published messages          | to perform one event              |
 | `deliver(message, now)` | `CLAIMED`, `DISCARDED` or `PENDING` | to offer one message to an engine |
 
-`ProsimosEngine` implements all four. It publishes the messages its model lists under `publish`
-([messaging-model.md](messaging-model.md)), but doesn't consume yet: it subscribes to nothing and
-`deliver()` answers `DISCARDED` (it isn't offered anything, as it subscribes to nothing).
+`ProsimosEngine` implements all four. It publishes the messages its model lists under `publish`,
+subscribes to the types under `consume`, and lets cases wait at those catch events until `deliver()`
+resumes them ([messaging-model.md](messaging-model.md)).
 
 #### `subscriptions()`
 

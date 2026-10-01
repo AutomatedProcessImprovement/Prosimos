@@ -56,11 +56,11 @@ def _published(steps):
     return [(now, message) for now, messages, _ in steps for message in messages]
 
 
-def _without_messages(tmp_path, json_path):
+def _without_publishing(tmp_path, json_path):
     with open(json_path) as file:
         settings = json.load(file)
-    del settings["messages"]
-    path = tmp_path / "no_messages.json"
+    del settings["messages"]["publish"]
+    path = tmp_path / "no_publishing.json"
     path.write_text(json.dumps(settings))
     return str(path)
 
@@ -105,13 +105,13 @@ def test_a_throw_event_right_after_the_start_publishes_at_the_case_arrival_befor
 
 
 def test_publishing_leaves_the_log_unchanged(tmp_path):
-    no_messages = _without_messages(tmp_path, SALES_JSON)
+    no_publishing = _without_publishing(tmp_path, SALES_JSON)
 
     for bpmn in (SALES, SALES_ANNOUNCED_AT_START):
-        assert _step_by_hand("Sales", bpmn, SALES_JSON, 20)[1] == _step_by_hand("Sales", bpmn, no_messages, 20)[1]
+        assert _step_by_hand("Sales", bpmn, SALES_JSON, 20)[1] == _step_by_hand("Sales", bpmn, no_publishing, 20)[1]
 
         logs = []
-        for json_path in (SALES_JSON, no_messages):
+        for json_path in (SALES_JSON, no_publishing):
             random.seed(1)
             np.random.seed(1)
             run_simulation(bpmn, json_path, 20, None, tmp_path / "log.csv", "2024-01-01T09:00:00+00:00")

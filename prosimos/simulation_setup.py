@@ -10,6 +10,7 @@ from prosimos.control_flow_manager import BPMN, ElementInfo, ProcessState
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.histogram_distribution import HistogramDistribution
 from prosimos.messaging_parser import parse_messages_file
+from prosimos.warning_logger import warning_logger
 from prosimos.simulation_properties_parser import parse_json_sim_parameters, parse_simulation_model, add_default_flows
 
 
@@ -38,6 +39,9 @@ class SimDiffSetup:
 
         self.bpmn_graph = parse_simulation_model(bpmn_path)
         self.messaging = parse_messages_file(json_path, bpmn_path)
+        for event_id in sorted({point.event_id for point in self.messaging.consume}):
+            if event_id in self.event_distibution:
+                warning_logger.add_warning(f"duration of {event_id} is ignored: it waits for a message")
         self.bpmn_graph.set_additional_fields_from_json(self.element_probability,
                                                         self.task_resource, self.event_distibution,
                                                         self.batch_processing, self.gateway_conditions,

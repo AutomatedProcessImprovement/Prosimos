@@ -10,6 +10,7 @@ import random
 
 import pytz
 
+from prosimos.branch_condition_rules import BranchConditionRule
 from prosimos.control_flow_manager import (
     BPMN,
     CustomDatetimeAndSeconds,
@@ -87,6 +88,14 @@ class SimBPMEnv:
         self.outbox = []  # (message type, attributes) released by step(), oldest first
         self._warned_missing_values = set()
 
+        # Waiting. A case reaching a catch event listed under 'consume' doesn't get a delay: when
+        # the queued catch event is executed (at the time the case really reaches it), the case is parked
+        # there, its token left on the event's incoming flow, until deliver() resumes it.
+        self._consume_points = dict()  # event id -> the 'consume' entries for it
+        for point in sim_setup.messaging.consume:
+            self._consume_points.setdefault(point.event_id, []).append(point)
+        self._waiting = dict()  # (case id, event id) -> the parked EnabledEvent
+
     # Queue priorities (case priority first, timers at 0) were removed; last version with them: 5f40913
 
     def generate_all_arrival_events(self):
@@ -156,13 +165,73 @@ class SimBPMEnv:
             for point in self._publish_points.get(element_id, []):
                 self.outbox.append((point.type, self._message_attributes(point, p_case)))
 
+    def case_id(self, p_case):
+        """How a case is named in messages, both when publishing and in conditions: e.g. Sales-7."""
+        return f"{self.process_name}-{p_case}"
+
+    def deliver(self, message_type, attributes, source, now):
+        """Offers one message: 'claimed' if it resumed a waiting case (the one waiting longest, ties
+        by case id), 'discarded' if it can never match, 'pending' otherwise."""
+        self._ensure_arrivals_generated()
+        values = dict(attributes, source=source)
+        for p_case, event_id in sorted(self._waiting, key=lambda key: (self._waiting[key].enabled_datetime, key)):
+            parked = self._waiting[(p_case, event_id)]
+            if not any(parked.p_state.has_token(flow) for flow in self.sim_setup.bpmn_graph.element_info[event_id].incoming_flows):
+                del self._waiting[(p_case, event_id)]  # the case moved on without it (e.g. a terminate end event)
+                continue
+            if any(point.type == message_type and self._condition_holds(point.condition, values, p_case)
+                   for point in self._consume_points[event_id]):
+                del self._waiting[(p_case, event_id)]
+                resumed = EnabledEvent(p_case, parked.p_state, event_id, self.simulation_at_from_datetime(now), now,
+                                       is_inter_event=True)
+                resumed.parked_event = parked
+                self.events_queue.append_event(resumed)
+                return "claimed"
+        points = [point for points in self._consume_points.values() for point in points if point.type == message_type]
+        if any(self._could_match(point.condition, values) for point in points):
+            return "pending"
+        return "discarded"
+
+    def _condition_holds(self, condition, values, p_case):
+        if condition is None:
+            return True
+        return any(all(self._term_holds(term, values, p_case) for term in alternative) for alternative in condition)
+
+    def _term_holds(self, term, values, p_case):
+        if term.attribute not in values:
+            return False
+        if term.case_attribute is None:
+            compared_with = term.value
+        elif term.case_attribute == "case_id":
+            compared_with = self.case_id(p_case)
+        else:
+            case_values = self.sim_setup.bpmn_graph.get_all_attributes(p_case)
+            if term.case_attribute not in case_values:
+                return False
+            compared_with = case_values[term.case_attribute]
+        # the same comparison as branch rules
+        return BranchConditionRule(term.attribute, term.comparison, compared_with).is_rule_true(
+            {term.attribute: values[term.attribute]})
+
+    def _could_match(self, condition, values):
+        """Whether some case that hasn't finished could still accept the message. Only terms on fixed
+        values and on case_id are decided now; other case attributes can still change."""
+        unfinished = [p_case for p_case, p_state in self.all_process_states.items() if any(p_state.tokens.values())]
+        if condition is None:
+            return bool(unfinished)
+        for alternative in condition:
+            decided = [term for term in alternative if term.case_attribute in (None, "case_id")]
+            if any(all(self._term_holds(term, values, p_case) for term in decided) for p_case in unfinished):
+                return True
+        return False
+
     def _message_attributes(self, point, p_case):
         """The listed attributes, copied from the case's current values."""
         values = self.sim_setup.bpmn_graph.get_all_attributes(p_case)
         attributes = dict()
         for name in point.attributes:
             if name == "case_id":
-                attributes[name] = f"{self.process_name}-{p_case}"
+                attributes[name] = self.case_id(p_case)
             elif name in values:
                 attributes[name] = values[name]
             else:
@@ -238,6 +307,9 @@ class SimBPMEnv:
                         ),
                     )
         else:
+            if c_event.task_id in self._consume_points and c_event.parked_event is None:
+                self._waiting[(c_event.p_case, c_event.task_id)] = c_event
+                return
             if event_element_info.type == BPMN.TASK:
                 # execute not batched task
                 completed_at, completed_datetime = self.execute_task(c_event)
@@ -652,6 +724,13 @@ class SimBPMEnv:
 
     def execute_event(self, c_event):
         # Handle event types separately (they don't need assigned resource)
+        if c_event.parked_event is not None:
+            # resumed by a message: the event lasted from when the case reached it until the message
+            full_evt = TaskEvent.create_event_entity(c_event.parked_event, c_event.enabled_at, c_event.enabled_datetime)
+            self.log_info.add_event_info(c_event.p_case, full_evt, 0)
+            if self.sim_setup.is_event_added_to_log:
+                self.log_writer.add_csv_row(self.get_csv_row_data(full_evt))
+            return c_event.enabled_at, c_event.enabled_datetime
         event_duration_seconds = None
         event_element = self.sim_setup.bpmn_graph.element_info[c_event.task_id]
         [event_duration_seconds] = self.sim_setup.bpmn_graph.event_duration(event_element.id)

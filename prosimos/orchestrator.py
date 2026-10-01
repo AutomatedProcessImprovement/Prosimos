@@ -166,18 +166,19 @@ class SimulationEngine(ABC):
 
 class ProsimosEngine(SimulationEngine):
     """A Prosimos simulation (SimBPMEnv) seen through the SimulationEngine interface. It publishes
-    the messages its model lists under 'publish' (docs/messaging-model.md), each at the time the
-    case passes the event. It doesn't consume yet: it subscribes to nothing and discards anything
-    offered."""
+    the messages its model lists under 'publish', each at the time the case passes the event, and
+    subscribes to the types under 'consume': a case reaching such a catch event waits there until a
+    delivered message matches (docs/messaging-model.md)."""
 
     def __init__(self, spec: ProcessSpec, start_datetime: datetime, log_writer=None):
         sim_setup = SimDiffSetup(spec.bpmn_path, spec.json_path, False, spec.total_cases, start_datetime)
         self._env = SimBPMEnv(sim_setup, None, log_writer, process_name=spec.name)
 
     def subscriptions(self) -> List[str]:
-        return []
+        return self._env.sim_setup.messaging.subscriptions()
 
     def next_event_time(self) -> Optional[datetime]:
+        # None while only waiting cases are left: nothing to do now, but not finished
         return self._env.next_event_time()
 
     def step(self) -> List[Message]:
@@ -190,7 +191,7 @@ class ProsimosEngine(SimulationEngine):
         return released
 
     def deliver(self, message: Message, now: datetime) -> Verdict:
-        return Verdict.DISCARDED
+        return Verdict(self._env.deliver(message.type, message.attributes, message.source, now))
 
 
 class _MergedLog:

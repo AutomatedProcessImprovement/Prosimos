@@ -15,6 +15,7 @@ class EnabledEvent:
         self.batch_info_exec = batch_info_exec
         self.duration_sec = duration_sec        # filled only in case of event-based gateway
         self.is_inter_event = is_inter_event    # whether the enabled event is the intermediate event
+        self.parked_event = None                # for a case resumed by a message: the event it waited at
 
 
 class ProcessInfo:

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Sales" targetNamespace="http://bpmn.io/schema/bpmn">
-  <!-- Sales from docs/running-example.md: take an order, announce it, wait for its shipment -->
+  <!-- Sales from docs/running-example.md: take an order, announce it, wait for its shipment, close it -->
   <bpmn:process id="Sales" isExecutable="false">
     <bpmn:startEvent id="Start" name="Order received">
       <bpmn:outgoing>Flow_1</bpmn:outgoing>
@@ -19,12 +19,17 @@
       <bpmn:outgoing>Flow_4</bpmn:outgoing>
       <bpmn:messageEventDefinition id="Catch_Shipment_definition" />
     </bpmn:intermediateCatchEvent>
-    <bpmn:endEvent id="End" name="Order closed">
+    <bpmn:task id="Close_Order" name="Close order">
       <bpmn:incoming>Flow_4</bpmn:incoming>
+      <bpmn:outgoing>Flow_5</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="End" name="Order closed">
+      <bpmn:incoming>Flow_5</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Take_Order" />
     <bpmn:sequenceFlow id="Flow_2" sourceRef="Take_Order" targetRef="Throw_OrderPlaced" />
     <bpmn:sequenceFlow id="Flow_3" sourceRef="Throw_OrderPlaced" targetRef="Catch_Shipment" />
-    <bpmn:sequenceFlow id="Flow_4" sourceRef="Catch_Shipment" targetRef="End" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Catch_Shipment" targetRef="Close_Order" />
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="Close_Order" targetRef="End" />
   </bpmn:process>
 </bpmn:definitions>

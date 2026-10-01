@@ -104,7 +104,7 @@ def _entries(messages_json, section, events, allowed_kinds):
 def _check_event(where, event_id, events, allowed_kinds):
     if not isinstance(event_id, str) or event_id not in events:
         _fail(f"{where}: event_id {event_id!r} is not an element of the BPMN model")
-    kind, is_message, incoming = events[event_id]
+    kind, is_message, incoming, after_event_gateway = events[event_id]
     if kind == "startEvent" and is_message:
         _fail(f"{where}: event_id {event_id!r} is a message start event, which isn't supported yet")
     if kind not in allowed_kinds or not is_message:
@@ -117,6 +117,11 @@ def _check_event(where, event_id, events, allowed_kinds):
     if kind in ("endEvent", "intermediateCatchEvent") and incoming != 1:
         _fail(f"{where}: event_id {event_id!r} has {incoming} incoming arrows, expected exactly one; "
               f"draw an explicit gateway before {event_id}")
+    # an event-based gateway races the events after it by drawing a duration for each; a case
+    # waiting for a message can't take part in such a race yet (future work)
+    if kind == "intermediateCatchEvent" and after_event_gateway:
+        _fail(f"{where}: event_id {event_id!r} follows an event-based gateway, where waiting for a "
+              f"message isn't supported yet")
 
 
 def _attributes(entry, where, declared):
@@ -163,16 +168,20 @@ def _term(term, where):
 
 
 def _bpmn_events(bpmn_path):
-    """event id -> (element kind, whether it has a message event definition, incoming arrows)."""
+    """event id -> (element kind, whether it has a message event definition, incoming arrows,
+    whether one of them comes from an event-based gateway)."""
     elements = list(ET.parse(bpmn_path).getroot().iter())
-    incoming = Counter(element.attrib.get("targetRef") for element in elements
-                       if element.tag == BPMN_NS + "sequenceFlow")
+    flows = [element.attrib for element in elements if element.tag == BPMN_NS + "sequenceFlow"]
+    incoming = Counter(flow.get("targetRef") for flow in flows)
+    event_gateways = {element.attrib.get("id") for element in elements if element.tag == BPMN_NS + "eventBasedGateway"}
+    after_event_gateway = {flow.get("targetRef") for flow in flows if flow.get("sourceRef") in event_gateways}
     events = {}
     for element in elements:
         if element.tag.startswith(BPMN_NS) and "id" in element.attrib:
             element_id = element.attrib["id"]
             kind = element.tag[len(BPMN_NS):]
-            events[element_id] = (kind, element.find(MESSAGE_DEFINITION) is not None, incoming[element_id])
+            events[element_id] = (kind, element.find(MESSAGE_DEFINITION) is not None, incoming[element_id],
+                                  element_id in after_event_gateway)
     return events
 
 

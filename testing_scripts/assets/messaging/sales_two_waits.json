@@ -26,6 +26,8 @@
     ],
     "consume": [
       {"event_id": "Catch_Shipment", "type": "Shipment",
+       "condition": [[{"attribute": "order_id", "comparison": "=", "case_attribute": "case_id"}]]},
+      {"event_id": "Catch_Invoice", "type": "Invoice",
        "condition": [[{"attribute": "order_id", "comparison": "=", "case_attribute": "case_id"}]]}
     ]
   }

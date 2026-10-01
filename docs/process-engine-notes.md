@@ -16,14 +16,15 @@ missing a branch) simply holds the token; it is not queued.
   `messageEventDefinition`, but every catch event (timer, message, signal) is simulated the same way:
   queued at once and completed after a delay drawn from `event_distribution` (`execute_event`).
   The case reaches a catch event during the step of the task before it (see "Effects are computed
-  ahead of their time" below), but the catch event is queued at its arrival time and only stepped
+  ahead of their time" below), but the catch event is queued at the time the case reaches it and only stepped
   then *(run)*. So parking belongs where that queued event is executed, not in `_find_next`, where
-  it is created: parking in `_find_next` would make the case wait before it has arrived. Parking =
-  on that step, leave the case waiting at the event and record `(case, event, arrival time)` instead
+  it is created: parking in `_find_next` would make the case wait before it has reached the event. Parking =
+  on that step, leave the case waiting at the event and record `(case, event, time reached)` instead
   of completing it. Resuming = queue an `EnabledEvent` for that event at the message's time and let
-  the existing path continue.
+  the existing path continue. Implemented this way, see "Waiting" in
+  [messaging-model.md](messaging-model.md).
 - **Event-based gateways** don't wait either: `get_event_gateway_choice` draws a duration for each
-  following event the moment the case arrives and takes the shortest. A real race between a timer and
+  following event the moment the case reaches the gateway and takes the shortest. A real race between a timer and
   a message needs a new mechanism (wait, first one wins, cancel the others).
 - **Sending.** Intermediate throw events (message and none) are parsed and passed straight
   through, like gateways; signal, escalation, compensation and link throws are rejected at load
@@ -47,8 +48,6 @@ missing a branch) simply holds the token; it is not queued.
   time *(run)*. The log is unaffected apart from row order (the times are right), but publishing a
   message there would hand it to the orchestrator too early. Holding (above) covers this too: the
   message is held until the case's arrival time.
-- A parked case has nothing in the queue, so the engine would report "finished" (`next_event_time()`
-  = `None`) while cases still wait. This is what `blocked_on()` has to express.
 
 ### Implicit merges differ from the BPMN standard
 
@@ -112,7 +111,7 @@ Not directly. Draws, by source:
 | `secrets.choice` in `get_event_gateway_choice`                                   | ties at event-based gateways                                                                | **no**: never seedable; should become an ordinary random call                                                   |
 
 A cheap alternative needs no library changes: before each engine call (building, `next_event_time`,
-`step`, future `inject`), load that engine's saved Python and NumPy generator states; save them after.
+`step`, `deliver`), load that engine's saved Python and NumPy generator states; save them after.
 *(run)* Engine A's draws are then identical with or without engine B running beside it, at about 36 µs
 per call, roughly doubling the orchestrator's per-step time (~25 µs).
 
