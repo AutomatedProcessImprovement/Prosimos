@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Sales" targetNamespace="http://bpmn.io/schema/bpmn">
+  <!-- the Sales model where, in parallel with waiting for the shipment, the order is cancelled; the
+       first branch to finish reaches the terminate end event, which ends the whole case, the other
+       branch included (Prosimos allows one end event per model, hence the merge) -->
+  <bpmn:process id="Sales" isExecutable="false">
+    <bpmn:startEvent id="Start" name="Order received"><bpmn:outgoing>Flow_1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:task id="Take_Order" name="Take order"><bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing></bpmn:task>
+    <bpmn:intermediateThrowEvent id="Throw_OrderPlaced" name="Order placed"><bpmn:incoming>Flow_2</bpmn:incoming><bpmn:outgoing>Flow_3</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:intermediateThrowEvent>
+    <bpmn:parallelGateway id="Split"><bpmn:incoming>Flow_3</bpmn:incoming><bpmn:outgoing>Flow_4</bpmn:outgoing><bpmn:outgoing>Flow_5</bpmn:outgoing></bpmn:parallelGateway>
+    <bpmn:intermediateCatchEvent id="Catch_Shipment" name="Shipment received"><bpmn:incoming>Flow_4</bpmn:incoming><bpmn:outgoing>Flow_6</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:intermediateCatchEvent>
+    <bpmn:task id="Cancel_Order" name="Cancel order"><bpmn:incoming>Flow_5</bpmn:incoming><bpmn:outgoing>Flow_7</bpmn:outgoing></bpmn:task>
+    <bpmn:exclusiveGateway id="First_Done"><bpmn:incoming>Flow_6</bpmn:incoming><bpmn:incoming>Flow_7</bpmn:incoming><bpmn:outgoing>Flow_8</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:endEvent id="End" name="Order ended"><bpmn:incoming>Flow_8</bpmn:incoming><bpmn:terminateEventDefinition /></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Take_Order" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Take_Order" targetRef="Throw_OrderPlaced" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Throw_OrderPlaced" targetRef="Split" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Split" targetRef="Catch_Shipment" />
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="Split" targetRef="Cancel_Order" />
+    <bpmn:sequenceFlow id="Flow_6" sourceRef="Catch_Shipment" targetRef="First_Done" />
+    <bpmn:sequenceFlow id="Flow_7" sourceRef="Cancel_Order" targetRef="First_Done" />
+    <bpmn:sequenceFlow id="Flow_8" sourceRef="First_Done" targetRef="End" />
+  </bpmn:process>
+</bpmn:definitions>

@@ -4,7 +4,7 @@ there; deliver() resumes the matching case at the time of delivery.
 """
 import json
 import random
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import numpy as np
 import pytest
@@ -128,6 +128,83 @@ def test_a_message_no_case_can_ever_accept_is_discarded(message):
     _run_until_idle(engine)
 
     assert engine.deliver(message, at("12:00")) is Verdict.DISCARDED
+
+
+def _second_branch(*tasks, or_split=False):
+    """Settings for the models where a second branch runs tasks (task id, seconds) while the case waits."""
+    def change(settings):
+        for task_id, seconds in tasks:
+            settings["resource_profiles"][0]["resource_list"][0]["assigned_tasks"].append(task_id)
+            settings["task_resource_distribution"].append({"task_id": task_id, "resources": [
+                {"resource_id": "Clerk", "distribution_name": "fix", "distribution_params": [{"value": seconds}]}]})
+        if or_split:  # each branch of the OR split is taken with probability 1, so both are taken
+            settings["gateway_branching_probabilities"] = [{"gateway_id": "Split", "probabilities": [
+                {"path_id": "Flow_4", "value": 1}, {"path_id": "Flow_5", "value": 1}]}]
+    return change
+
+
+@pytest.mark.parametrize("shipped_after, close_after", [
+    (180, 180),  # the shipment comes after packing ends: the join waits for it
+    (10, 60),  # the shipment comes while packing: the join waits for packing
+])
+def test_an_and_join_after_a_waiting_branch_fires_at_the_later_of_the_two_branches(tmp_path, shipped_after, close_after):
+    # after Take order, one branch waits for the shipment, the other packs the order (one hour);
+    # times are in minutes after the case reaches the split
+    settings = _settings(tmp_path, _second_branch(("Pack_Order", 3600)))
+    engine, log = _sales(1, bpmn=f"{ASSETS}/sales_parallel.bpmn", json_path=settings)
+    _run_until_idle(engine)
+    split = log.times("Pack order")[0]
+    assert "Close order" not in [row[1] for row in log.rows]  # packed, but the shipment hasn't come
+
+    engine.deliver(shipment("Sales-0"), split + timedelta(minutes=shipped_after))
+    _run_until_idle(engine)
+
+    assert log.times("Close order") == {0: split + timedelta(minutes=close_after)}
+
+
+def test_an_or_join_after_a_waiting_branch_waits_for_it(tmp_path):
+    # both branches of the OR split are taken: the confirmation is prepared (10 min) and sent (1 h),
+    # the shipment comes at 18:00. When the confirmation reaches the OR join, the other branch is
+    # parked at the catch event, outside the queue; the join must still see its token and wait
+    settings = _settings(tmp_path, _second_branch(("Prepare_Confirmation", 600), ("Send_Confirmation", 3600),
+                                                  or_split=True))
+    engine, log = _sales(1, bpmn=f"{ASSETS}/sales_or_join.bpmn", json_path=settings)
+    _run_until_idle(engine)
+    assert "Send confirmation" in [row[1] for row in log.rows]
+    assert "Close order" not in [row[1] for row in log.rows]
+
+    engine.deliver(shipment("Sales-0"), at("18:00"))
+    _run_until_idle(engine)
+
+    assert log.times("Close order") == {0: at("18:00")}
+
+
+def test_a_message_for_a_case_that_has_not_started_yet_is_pending():
+    # all cases exist from the start of the run; "no such case" means beyond the number of cases
+    engine, _ = _sales(5)
+    engine.step()  # only case 0 has started
+
+    assert engine.deliver(shipment("Sales-4"), START) is Verdict.PENDING
+    assert engine.deliver(shipment("Sales-5"), START) is Verdict.DISCARDED
+
+
+def test_a_case_ended_by_a_terminate_end_event_while_waiting_discards_its_message(tmp_path):
+    # after Take order the case splits: one branch waits for the shipment, the other cancels the
+    # order and reaches the terminate end event first, which removes every token of the case
+    def with_cancel_order(settings):
+        settings["resource_profiles"][0]["resource_list"][0]["assigned_tasks"].append("Cancel_Order")
+        settings["task_resource_distribution"].append({"task_id": "Cancel_Order", "resources": [
+            {"resource_id": "Clerk", "distribution_name": "fix", "distribution_params": [{"value": 600}]}]})
+
+    engine, log = _sales(1, bpmn=f"{ASSETS}/sales_cancelled.bpmn", json_path=_settings(tmp_path, with_cancel_order))
+    _run_until_idle(engine)
+
+    assert "Cancel order" in [row[1] for row in log.rows]
+    assert list(engine._env._waiting) == [(0, "Catch_Shipment")]  # the record is still there...
+    assert not any(engine._env.all_process_states[0].tokens.values())  # ...but the case has ended
+    assert engine.deliver(shipment("Sales-0"), at("12:00")) is Verdict.DISCARDED
+    assert engine._env._waiting == {}
+    assert engine.next_event_time() is None
 
 
 def test_a_condition_on_the_message_alone_decides_a_discard(tmp_path):

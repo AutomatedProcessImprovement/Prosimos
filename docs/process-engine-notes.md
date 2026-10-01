@@ -95,9 +95,12 @@ Works with the existing token logic *(run: split → Task A and a 10-hour messag
 Task A's token waits on the join's incoming flow; the join fires only when the other branch arrives,
 and Task B is enabled at the later branch's time (19:00, not 10:00), because
 `_check_and_update_enabling_time` keeps the latest time per element and case. All branches share one
-`ProcessState`, so resuming must use `all_process_states[case]`. Still to check: a *terminate* end
-event on the other branch clears every token (the parked one included) and any later message for that
-case must be dropped; inclusive (OR) joins use look-ahead (`or_join_pred`) and need a test.
+`ProcessState`, so resuming must use `all_process_states[case]`. Now tested with real waiting
+(`testing_scripts/test_waiting.py`): an AND join after a waiting branch fires at the later of the two
+branches; a *terminate* end event on the other branch clears every token, the parked one included, and
+a later message for that case is discarded (the stale waiting record is dropped); an inclusive (OR) join
+waits for a parked branch, because its look-ahead (`or_join_pred`) checks the case's tokens
+(`state_mask`), not the event queue, and a parked token stays on its flow.
 
 ## 4. Can every random draw use a per-engine generator?
 
