@@ -16,6 +16,10 @@ pd.set_option('display.width', 5000)
 
 LOGGER = logging.getLogger(__name__)
 TOTAL_CASES = 10
+# mean, variance, min, max. The values used before ([1, 2, 3, 4, 5]: mean 1 with min 3) fell outside the
+# limits so often that pix-framework filled in its default 3.5 for about 2% of draws, and two 3.5 in a
+# row failed check_attribute_change now and then
+GAMMA_BETWEEN_3_AND_4 = [{"value": 3.5}, {"value": 0.1}, {"value": 3}, {"value": 4}]
 
 
 @pytest.fixture
@@ -312,13 +316,13 @@ CONFIG = [
 
     *ConfigBuilder("test single attribute creation - GLOBAL CASE")
     .add_global_attribute("G_CASE", 0)
-    .add_case_attribute("G_CASE", [{"value": 1}, {"value": 2}, {"value": 3}, {"value": 4}, {"value": 5}], "gamma")
+    .add_case_attribute("G_CASE", GAMMA_BETWEEN_3_AND_4, "gamma")
     .add_assertion(lambda log: check_attribute_change(log, [{"attribute": "G_CASE", "event": "START"}]))
     .build(),
 
     *ConfigBuilder("test single attribute creation - GLOBAL EVENT")
     .add_global_attribute("G_EVENT", 0)
-    .add_event_attribute("G_EVENT", [{"value": 1}, {"value": 2}, {"value": 3}, {"value": 4}, {"value": 5}], "gamma")
+    .add_event_attribute("G_EVENT", GAMMA_BETWEEN_3_AND_4, "gamma")
     .add_assertion(lambda log: check_attribute_change(log, [{"attribute": "G_EVENT", "event": "Generate Attribute"}]))
     .build(),
 
@@ -362,9 +366,9 @@ CONFIG = [
 
     *ConfigBuilder("test multiple attributes creation - GLOBAL CASE")
     .add_global_attribute("G_CASE_1", 0)
-    .add_case_attribute("G_CASE_1", [{"value": 1}, {"value": 2}, {"value": 3}, {"value": 4}, {"value": 5}], "gamma")
+    .add_case_attribute("G_CASE_1", GAMMA_BETWEEN_3_AND_4, "gamma")
     .add_global_attribute("G_CASE_2", 0)
-    .add_case_attribute("G_CASE_2", [{"value": 1}, {"value": 2}, {"value": 3}, {"value": 4}, {"value": 5}], "gamma")
+    .add_case_attribute("G_CASE_2", GAMMA_BETWEEN_3_AND_4, "gamma")
     .add_assertion(lambda log: check_attribute_change(log, [
         {"attribute": "G_CASE_1", "event": "START"},
         {"attribute": "G_CASE_2", "event": "START"}
@@ -373,9 +377,9 @@ CONFIG = [
 
     *ConfigBuilder("test multiple attributes creation - GLOBAL EVENT")
     .add_global_attribute("G_EVENT_1", 0)
-    .add_event_attribute("G_EVENT_1", [{"value": 1}, {"value": 2}, {"value": 3}, {"value": 4}, {"value": 5}], "gamma")
+    .add_event_attribute("G_EVENT_1", GAMMA_BETWEEN_3_AND_4, "gamma")
     .add_global_attribute("G_EVENT_2", 0)
-    .add_event_attribute("G_EVENT_2", [{"value": 1}, {"value": 2}, {"value": 3}, {"value": 4}, {"value": 5}], "gamma")
+    .add_event_attribute("G_EVENT_2", GAMMA_BETWEEN_3_AND_4, "gamma")
     .add_assertion(lambda log: check_attribute_change(log, [
         {"attribute": "G_EVENT_1", "event": "Generate Attribute"},
         {"attribute": "G_EVENT_2", "event": "Generate Attribute"}
