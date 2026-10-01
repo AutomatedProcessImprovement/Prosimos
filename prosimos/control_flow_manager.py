@@ -167,6 +167,10 @@ class BPMNGraph:
         self.gateway_conditions = None
         self.gateway_execution_limit = 1000
         self.simulation_execution_stats = SimulationExecutionStats()
+        # elements passed straight through whose passing the engine wants to know about (e.g. events
+        # that publish a message); each pass is recorded as (case_id, element_id, time), in order
+        self.watched_elements = set()
+        self.passed_watched_elements = []
 
     def set_element_probabilities(self, element_probability, task_resource_probability):
         self.element_probability = element_probability
@@ -347,6 +351,8 @@ class BPMNGraph:
                     if p_state.tokens[in_flow] > 0:
                         p_state.tokens[in_flow] -= 1
                         p_state.state_mask &= ~self.arcs_bitset[in_flow]
+            if e_info.id in self.watched_elements:
+                self.passed_watched_elements.append((case_id, e_info.id, last_enabled))
             flows = e_info.outgoing_flows
             f_arcs = [(flow, None) for flow in flows]
 

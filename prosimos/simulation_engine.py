@@ -1,6 +1,8 @@
 import csv
 import datetime
+import itertools
 import os
+from heapq import heappop, heappush
 import numpy as np
 from datetime import timedelta
 from typing import List
@@ -35,7 +37,7 @@ class SimResource:
 
 
 class SimBPMEnv:
-    def __init__(self, sim_setup: SimDiffSetup, stat_fwriter, log_fwriter):
+    def __init__(self, sim_setup: SimDiffSetup, stat_fwriter, log_fwriter, process_name=None):
         self.sim_setup = sim_setup
         self.sim_resources = dict()
         self.stat_fwriter = stat_fwriter
@@ -71,6 +73,20 @@ class SimBPMEnv:
 
         self.sim_setup.bpmn_graph.all_attributes = all_attributes
 
+        # Held effects. A case passes events that take no time (e.g. a message throw event) during
+        # the step of the task before them, ahead of their real time, or even while arrivals are
+        # generated. What passing them does is therefore held here and done by step() when it is
+        # due: a heap of (due datetime, case id, pass order, element id).
+        self.process_name = process_name or sim_setup.process_name  # the prefix of published case ids
+        self._publish_points = dict()  # event id -> the 'publish' entries for it
+        for point in sim_setup.messaging.publish:
+            self._publish_points.setdefault(point.event_id, []).append(point)
+        self.sim_setup.bpmn_graph.watched_elements = set(self._publish_points)
+        self._held = []
+        self._pass_order = itertools.count()
+        self.outbox = []  # (message type, attributes) released by step(), oldest first
+        self._warned_missing_values = set()
+
     # Queue priorities (case priority first, timers at 0) were removed; last version with them: 5f40913
 
     def generate_all_arrival_events(self):
@@ -98,16 +114,66 @@ class SimBPMEnv:
         self._arrivals_generated = True
 
     def next_event_time(self):
-        """Datetime of the next event this engine would execute, or None if it has nothing left to do."""
+        """Datetime of what this engine does next (the next event, or held effects that are due
+        earlier), or None if it has nothing left to do."""
         self._ensure_arrivals_generated()
+        self._hold_passed_elements()
         next_event = self.events_queue.peek()
-        return next_event.enabled_datetime if next_event is not None else None
+        times = [next_event.enabled_datetime] if next_event is not None else []
+        if self._held:
+            times.append(self._held[0][0])
+        return min(times) if times else None
 
     def step(self):
-        """Execute exactly one event and return it, or None if there was nothing left to do."""
+        """Do what next_event_time() announced. If held effects are due no later than the next
+        event, do all those due at that time (in order of time, case id, then order passed) and
+        return None; they happened before anything that comes after them. Otherwise, execute exactly
+        one event and return it. Returns None if there was nothing left to do."""
+        self._ensure_arrivals_generated()
+        self._hold_passed_elements()
+        next_event = self.events_queue.peek()
+        if self._held and (next_event is None or self._held[0][0] <= next_event.enabled_datetime):
+            self._release_held(self._held[0][0])
+            return None
+        if next_event is None:
+            # the generator is only advanced while the queue has an event, so it never runs dry
+            return None
         if self._event_generator is None:
             self._event_generator = execute_full_process(self)
-        return next(self._event_generator, None)
+        executed = next(self._event_generator, None)
+        self._hold_passed_elements()
+        return executed
+
+    def _hold_passed_elements(self):
+        passed = self.sim_setup.bpmn_graph.passed_watched_elements
+        for p_case, element_id, passed_at in passed:
+            heappush(self._held, (passed_at.datetime, p_case, next(self._pass_order), element_id))
+        passed.clear()
+
+    def _release_held(self, due):
+        while self._held and self._held[0][0] == due:
+            _, p_case, _, element_id = heappop(self._held)
+            for point in self._publish_points.get(element_id, []):
+                self.outbox.append((point.type, self._message_attributes(point, p_case)))
+
+    def _message_attributes(self, point, p_case):
+        """The listed attributes, copied from the case's current values."""
+        values = self.sim_setup.bpmn_graph.get_all_attributes(p_case)
+        attributes = dict()
+        for name in point.attributes:
+            if name == "case_id":
+                attributes[name] = f"{self.process_name}-{p_case}"
+            elif name in values:
+                attributes[name] = values[name]
+            else:
+                # declared (checked at load time) but not given a value on this case's path yet
+                attributes[name] = None
+                if (point.event_id, name) not in self._warned_missing_values:
+                    self._warned_missing_values.add((point.event_id, name))
+                    warning_logger.add_warning(
+                        f"Attribute {name} has no value when case {p_case} passes {point.event_id}; "
+                        f"its {point.type} message carries None")
+        return attributes
 
     def _update_initial_event_info(self, sim_setup, p_case, arrival_time):
         for e_id in sim_setup.bpmn_graph.last_datetime:

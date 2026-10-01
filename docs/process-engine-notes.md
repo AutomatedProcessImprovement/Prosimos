@@ -36,17 +36,17 @@ missing a branch) simply holds the token; it is not queued.
   (gateways, throw and end events) is therefore passed during the step at the task's *enabled* time,
   while its own time is the task's *end* time *(run)*:
   `step at 09:16:11 → logs Task A (ends 09:19:21) and Throw at 09:19:21`. The log times are right,
-  but a message published there would be early. Decided: the engine holds such zero-time effects and
-  releases each at its own time (`next_event_time()` is the earlier of the queue head and the
-  earliest held effect; at equal times held effects go first; an engine with held effects isn't
-  finished).
+  but a message published there would be early. Solved by holding: the engine holds such zero-time
+  effects and releases each at its own time (`next_event_time()` is the earlier of the queue head
+  and the earliest held effect; at equal times held effects go first; an engine with held effects
+  isn't finished). See "Publishing" in [messaging-model.md](messaging-model.md).
 - **Elements right after the start event are passed too early.** All arrivals are generated up
   front (section 2), and `_update_initial_event_info` runs `update_process_state` from the start
   event straight away. So a throw or end event directly after the start (with only gateways in
   between) is passed when arrivals are generated, before the simulation reaches that case's arrival
   time *(run)*. The log is unaffected apart from row order (the times are right), but publishing a
-  message there would hand it to the orchestrator too early. Publishing must happen at the arrival
-  time, e.g. by queueing the start event as an ordinary event instead of passing it at generation.
+  message there would hand it to the orchestrator too early. Holding (above) covers this too: the
+  message is held until the case's arrival time.
 - A parked case has nothing in the queue, so the engine would report "finished" (`next_event_time()`
   = `None`) while cases still wait. This is what `blocked_on()` has to express.
 

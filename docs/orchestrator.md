@@ -61,9 +61,9 @@ processes is a message: it leaves an engine as the result of `step()` and enters
 | `step()`                | list of published messages          | to perform one event              |
 | `deliver(message, now)` | `CLAIMED`, `DISCARDED` or `PENDING` | to offer one message to an engine |
 
-`ProsimosEngine` implements all four, but doesn't exchange messages yet: it subscribes to nothing,
-`step()` always returns an empty list, and `deliver()` answers `DISCARDED`, since it will never use a
-message (it isn't offered any, as it subscribes to nothing).
+`ProsimosEngine` implements all four. It publishes the messages its model lists under `publish`
+([messaging-model.md](messaging-model.md)), but doesn't consume yet: it subscribes to nothing and
+`deliver()` answers `DISCARDED` (it isn't offered anything, as it subscribes to nothing).
 
 #### `subscriptions()`
 
@@ -90,6 +90,9 @@ the cases inside a batch.
 #### `step()`
 
 Performs exactly one event and returns the messages that event published, an empty list if none.
+A Prosimos engine may instead release messages it held until they were due, without performing an
+event (see "Publishing" in [messaging-model.md](messaging-model.md)); `next_event_time()` announces
+that step like any other.
 This is the only way to publish messages. The orchestrator calls it only after `next_event_time()`
 returned a time for this engine. The sending engine never addresses another engine directly; the
 orchestrator routes its messages.

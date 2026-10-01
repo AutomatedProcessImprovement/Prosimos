@@ -1,0 +1,28 @@
+{
+  "resource_profiles": [
+    {"id": "Team", "name": "Team", "resource_list": [
+      {"id": "Worker", "name": "Worker", "cost_per_hour": 1, "amount": 1, "calendar": "Always", "assigned_tasks": ["Work"]}
+    ]}
+  ],
+  "arrival_time_distribution": {"distribution_name": "fix", "distribution_params": [{"value": 0}]},
+  "arrival_time_calendar": [{"from": "MONDAY", "to": "SUNDAY", "beginTime": "00:00:00", "endTime": "23:59:59"}],
+  "gateway_branching_probabilities": [],
+  "task_resource_distribution": [
+    {"task_id": "Work", "resources": [{"resource_id": "Worker", "distribution_name": "fix", "distribution_params": [{"value": 600}]}]}
+  ],
+  "resource_calendars": [
+    {"id": "Always", "name": "Always", "time_periods": [{"from": "MONDAY", "to": "SUNDAY", "beginTime": "00:00:00", "endTime": "23:59:59"}]}
+  ],
+  "event_attributes": [
+    {"event_id": "Work", "attributes": [{"name": "weight", "type": "discrete", "values": [{"key": "heavy", "value": 1}]}]}
+  ],
+  "messages": {
+    "publish": [
+      {"event_id": "Throw_First", "type": "First", "attributes": ["case_id", "weight"]},
+      {"event_id": "Throw_Second", "type": "Second", "attributes": ["case_id"]},
+      {"event_id": "Throw_Left", "type": "Left", "attributes": ["case_id"]},
+      {"event_id": "Throw_Right", "type": "Right", "attributes": ["case_id"]},
+      {"event_id": "End_Done", "type": "Done", "attributes": ["case_id", "weight"]}
+    ]
+  }
+}

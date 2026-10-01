@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Bursts" targetNamespace="http://bpmn.io/schema/bpmn">
+  <!-- several messages per step: two throw events in a row, one on each of two parallel branches,
+       and (with all cases arriving at once) several cases due at the same time -->
+  <bpmn:process id="Bursts" isExecutable="false">
+    <bpmn:startEvent id="Start"><bpmn:outgoing>Flow_1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:intermediateThrowEvent id="Throw_First" name="First"><bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:intermediateThrowEvent>
+    <bpmn:intermediateThrowEvent id="Throw_Second" name="Second"><bpmn:incoming>Flow_2</bpmn:incoming><bpmn:outgoing>Flow_3</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:intermediateThrowEvent>
+    <bpmn:parallelGateway id="Split"><bpmn:incoming>Flow_3</bpmn:incoming><bpmn:outgoing>Flow_4</bpmn:outgoing><bpmn:outgoing>Flow_5</bpmn:outgoing></bpmn:parallelGateway>
+    <bpmn:intermediateThrowEvent id="Throw_Left" name="Left"><bpmn:incoming>Flow_4</bpmn:incoming><bpmn:outgoing>Flow_6</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:intermediateThrowEvent>
+    <bpmn:intermediateThrowEvent id="Throw_Right" name="Right"><bpmn:incoming>Flow_5</bpmn:incoming><bpmn:outgoing>Flow_7</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:intermediateThrowEvent>
+    <bpmn:parallelGateway id="Join"><bpmn:incoming>Flow_6</bpmn:incoming><bpmn:incoming>Flow_7</bpmn:incoming><bpmn:outgoing>Flow_8</bpmn:outgoing></bpmn:parallelGateway>
+    <bpmn:task id="Work" name="Work"><bpmn:incoming>Flow_8</bpmn:incoming><bpmn:outgoing>Flow_9</bpmn:outgoing></bpmn:task>
+    <bpmn:endEvent id="End_Done" name="Done"><bpmn:incoming>Flow_9</bpmn:incoming><bpmn:messageEventDefinition /></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Throw_First" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Throw_First" targetRef="Throw_Second" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Throw_Second" targetRef="Split" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Split" targetRef="Throw_Left" />
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="Split" targetRef="Throw_Right" />
+    <bpmn:sequenceFlow id="Flow_6" sourceRef="Throw_Left" targetRef="Join" />
+    <bpmn:sequenceFlow id="Flow_7" sourceRef="Throw_Right" targetRef="Join" />
+    <bpmn:sequenceFlow id="Flow_8" sourceRef="Join" targetRef="Work" />
+    <bpmn:sequenceFlow id="Flow_9" sourceRef="Work" targetRef="End_Done" />
+  </bpmn:process>
+</bpmn:definitions>

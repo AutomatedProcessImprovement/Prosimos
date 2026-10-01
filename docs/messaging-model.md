@@ -103,10 +103,38 @@ rule: they get a hidden XOR join, which matches the standard.
 A model without a `messages` section behaves exactly as before: it publishes nothing and
 subscribes to nothing.
 
+## Publishing
+
+When a case passes an event listed under `publish`, the engine returns a message from `step()` at
+the time the case really passes the event, not earlier:
+
+- **Why holding is needed.** Prosimos executes a task in one go when it leaves the queue at its
+  enabled time, and moves the case on right away, so the case passes the throw event after a task
+  during the step at the task's enabled time, while the event's real time is the task's end. Events
+  right after the start are passed even earlier, while arrivals are generated. So passing a
+  publishing event is *held* with its due time (`SimBPMEnv._held`), and the message is built and
+  returned when it is due. The control flow is untouched, so logs are identical with or without a
+  `messages` section.
+- **`next_event_time()`** is the earlier of the next queued event and the earliest held item.
+- **`step()`** releases all held items due at that time instead of running an event. If a held item
+  and the next event are due at the same time, the held item goes first. An engine that still holds
+  items isn't finished, even when its queue is empty.
+- **Order.** Messages returned together are ordered by time, then case id, then the order in which
+  the case passed the events (two throw events in a row, one on each of two parallel branches).
+- **Values.** The attributes are copied from the case's values when the message is released, i.e.
+  at its real time. `case_id` is the process name from the simulation configuration plus the case
+  number, e.g. `Sales-7`. A declared attribute that has no value yet for this case (e.g. an event
+  attribute of a task the case hasn't done) is sent as `None`, with one warning per event and
+  attribute in Prosimos's warnings.
+
+Holding is general: an item is a case and an element of the model with a due time, so cases
+arriving at catch events can reuse it. Tested with the Sales model in isolation
+(`testing_scripts/test_publishing.py`, models in `testing_scripts/assets/messaging/`).
+
 ## Not done yet
 
-- Only parsing and validation are done: cases don't publish or wait for messages yet, and
-  conditions aren't evaluated yet. `ProsimosEngine` still subscribes to nothing: subscribing
-  now would get it offered messages it can only discard, and a discard is permanent.
+- Cases don't wait for messages yet, and conditions aren't evaluated yet. `ProsimosEngine` still
+  subscribes to nothing: subscribing now would get it offered messages it can only discard, and a
+  discard is permanent.
 - Names under `case_attribute` in conditions aren't checked against the declared attributes, and
   one event may appear in more than one entry.

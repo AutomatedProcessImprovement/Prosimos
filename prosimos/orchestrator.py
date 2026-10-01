@@ -165,13 +165,14 @@ class SimulationEngine(ABC):
 
 
 class ProsimosEngine(SimulationEngine):
-    """A Prosimos simulation (SimBPMEnv) seen through the SimulationEngine interface. It doesn't
-    exchange messages yet: it subscribes to nothing, publishes nothing and discards anything
-    offered, since it will never use a message."""
+    """A Prosimos simulation (SimBPMEnv) seen through the SimulationEngine interface. It publishes
+    the messages its model lists under 'publish' (docs/messaging-model.md), each at the time the
+    case passes the event. It doesn't consume yet: it subscribes to nothing and discards anything
+    offered."""
 
     def __init__(self, spec: ProcessSpec, start_datetime: datetime, log_writer=None):
         sim_setup = SimDiffSetup(spec.bpmn_path, spec.json_path, False, spec.total_cases, start_datetime)
-        self._env = SimBPMEnv(sim_setup, None, log_writer)
+        self._env = SimBPMEnv(sim_setup, None, log_writer, process_name=spec.name)
 
     def subscriptions(self) -> List[str]:
         return []
@@ -184,7 +185,9 @@ class ProsimosEngine(SimulationEngine):
         # the engine buffers its log rows; hand them over now so nobody outside the engine
         # has to reach into it to flush them at the end
         self._env.log_writer.force_write()
-        return []
+        released = [Message(message_type, attributes) for message_type, attributes in self._env.outbox]
+        self._env.outbox.clear()
+        return released
 
     def deliver(self, message: Message, now: datetime) -> Verdict:
         return Verdict.DISCARDED
