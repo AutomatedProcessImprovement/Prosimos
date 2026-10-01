@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="D" targetNamespace="x">
+  <bpmn:process id="P">
+    <bpmn:startEvent id="Start"><bpmn:outgoing>F1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:parallelGateway id="AND"><bpmn:incoming>F1</bpmn:incoming><bpmn:outgoing>F2</bpmn:outgoing><bpmn:outgoing>F3</bpmn:outgoing></bpmn:parallelGateway>
+    <bpmn:task id="Task_A" name="Task A"><bpmn:incoming>F2</bpmn:incoming><bpmn:outgoing>F4</bpmn:outgoing></bpmn:task>
+    <bpmn:task id="Task_B" name="Task B"><bpmn:incoming>F3</bpmn:incoming><bpmn:outgoing>F5</bpmn:outgoing></bpmn:task>
+    <bpmn:endEvent id="End" name="End"><bpmn:incoming>F4</bpmn:incoming><bpmn:incoming>F5</bpmn:incoming><bpmn:messageEventDefinition/></bpmn:endEvent>
+    <bpmn:sequenceFlow id="F1" sourceRef="Start" targetRef="AND"/>
+    <bpmn:sequenceFlow id="F2" sourceRef="AND" targetRef="Task_A"/>
+    <bpmn:sequenceFlow id="F3" sourceRef="AND" targetRef="Task_B"/>
+    <bpmn:sequenceFlow id="F4" sourceRef="Task_A" targetRef="End"/>
+    <bpmn:sequenceFlow id="F5" sourceRef="Task_B" targetRef="End"/>
+  </bpmn:process>
+</bpmn:definitions>

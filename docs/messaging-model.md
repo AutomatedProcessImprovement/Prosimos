@@ -79,18 +79,26 @@ The section is checked when the model is loaded (`SimDiffSetup`, code in
 `InvalidSimScenarioException` that names the entry, e.g.
 `Invalid 'messages' section: messages.consume[0]: event_id 'Timer_Cancel' is an intermediateCatchEvent, expected an intermediate message catch event`.
 
-| Rule                                                                                                 |
-|------------------------------------------------------------------------------------------------------|
-| the section holds only `publish` and `consume`, each a list                                          |
-| every `event_id` exists in the BPMN model                                                            |
-| a `publish` event is an intermediate message throw event or a message end event                      |
-| a `consume` event is an intermediate message catch event (message start events: future work)   |
-| `type` is a non-empty string                                                                         |
-| `attributes` is a list of names                                                                      |
-| `condition` is a non-empty list of non-empty lists of terms                                          |
+| Rule                                                                                                                                                                                       |
+|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| the section holds only `publish` and `consume`, each a list                                                                                                                                |
+| every `event_id` exists in the BPMN model                                                                                                                                                  |
+| a `publish` event is an intermediate message throw event or a message end event                                                                                                            |
+| a `consume` event is an intermediate message catch event (message start events: future work)                                                                                               |
+| `type` is a non-empty string                                                                                                                                                               |
+| `attributes` is a list of names, each `case_id` or a declared case, global or event attribute                                                                                              |
+| a message end event under `publish`, or a catch event under `consume`, has exactly one incoming arrow ("draw an explicit gateway before <event id>")                                       |
+| `condition` is a non-empty list of non-empty lists of terms                                                                                                                                |
 | a term has `attribute`, a `comparison` branch rules know (`=`, `!=`, `<`, `<=`, `>`, `>=`, `in`) and exactly one of `value` and `case_attribute`; `in` takes a fixed `value` `[low, high]` |
 
 Each rule has a test in `testing_scripts/test_messaging_parser.py`.
+
+Why one incoming arrow: in BPMN, several arrows into one element mean "fire once per arriving
+token", but Prosimos joins several arrows into an end event as an OR join (once per case) and into
+a catch event as an AND merge (waits for all); see "Implicit merges" in
+[process-engine-notes.md](process-engine-notes.md). Requiring an explicit gateway means the
+question never comes up for messages, without changing existing models. Throw events need no such
+rule: they get a hidden XOR join, which matches the standard.
 
 A model without a `messages` section behaves exactly as before: it publishes nothing and
 subscribes to nothing.
@@ -100,5 +108,5 @@ subscribes to nothing.
 - Only parsing and validation are done: cases don't publish or wait for messages yet, and
   conditions aren't evaluated yet. `ProsimosEngine` still subscribes to nothing: subscribing
   now would get it offered messages it can only discard, and a discard is permanent.
-- Names under `attributes` and `case_attribute` aren't checked against the model's case
-  attributes, and one event may appear in more than one entry.
+- Names under `case_attribute` in conditions aren't checked against the declared attributes, and
+  one event may appear in more than one entry.

@@ -6,7 +6,8 @@ import pytest
 import pytz
 
 from prosimos.exceptions import InvalidSimScenarioException
-from prosimos.messaging_parser import ConditionTerm, ConsumePoint, MessagingModel, PublishPoint, parse_messages
+from prosimos.messaging_parser import (ConditionTerm, ConsumePoint, MessagingModel, PublishPoint, declared_attributes,
+                                       parse_messages)
 from prosimos.simulation_setup import SimDiffSetup
 
 EVENTS = {
@@ -19,16 +20,24 @@ EVENTS = {
     "Catch_Reminder": '<bpmn:intermediateCatchEvent id="Catch_Reminder"><bpmn:messageEventDefinition/></bpmn:intermediateCatchEvent>',
     "Timer_Cancel": '<bpmn:intermediateCatchEvent id="Timer_Cancel"><bpmn:timerEventDefinition/></bpmn:intermediateCatchEvent>',
     "End_Closed": '<bpmn:endEvent id="End_Closed"><bpmn:messageEventDefinition/></bpmn:endEvent>',
+    "Catch_Merged": '<bpmn:intermediateCatchEvent id="Catch_Merged"><bpmn:messageEventDefinition/></bpmn:intermediateCatchEvent>',
+    "End_Merged": '<bpmn:endEvent id="End_Merged"><bpmn:messageEventDefinition/></bpmn:endEvent>',
 }
+# one arrow into each catch and end event, except two into the *_Merged ones
+ARROWS = [("Place_Order", target) for target in ("Catch_Shipment", "Catch_Reminder", "Timer_Cancel", "End_Closed",
+                                                 "Catch_Merged", "Catch_Merged", "End_Merged", "End_Merged")]
+DECLARED = {"city"}  # attributes declared in the process's JSON settings
 SHIPMENT_FOR_THIS_CASE = [[{"attribute": "order_id", "comparison": "=", "case_attribute": "case_id"}]]
 
 
 @pytest.fixture
 def bpmn(tmp_path):
-    # the elements only, no flows: the section is checked against the kinds of events, not the control flow
+    # not a runnable model: the section is checked against the kinds of events and their incoming arrows
+    flows = "".join(f'<bpmn:sequenceFlow id="Flow_{index}" sourceRef="{source}" targetRef="{target}"/>'
+                    for index, (source, target) in enumerate(ARROWS))
     path = tmp_path / "sales.bpmn"
     path.write_text('<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL">'
-                    f'<bpmn:process id="Sales">{"".join(EVENTS.values())}</bpmn:process></bpmn:definitions>')
+                    f'<bpmn:process id="Sales">{"".join(EVENTS.values())}{flows}</bpmn:process></bpmn:definitions>')
     return path
 
 
@@ -42,7 +51,7 @@ def consume(event_id="Catch_Shipment", type="Shipment", **extra):
 
 def rejected(section, bpmn):
     with pytest.raises(InvalidSimScenarioException) as error:
-        parse_messages(section, bpmn)
+        parse_messages(section, bpmn, DECLARED)
     return str(error.value)
 
 
@@ -60,7 +69,7 @@ def test_a_valid_section_is_parsed(bpmn):
         ],
     }
 
-    model = parse_messages(section, bpmn)
+    model = parse_messages(section, bpmn, DECLARED)
 
     assert model.publish == (PublishPoint("Throw_OrderPlaced", "OrderPlaced", ("case_id", "city")),
                              PublishPoint("End_Closed", "OrderClosed", ()))
@@ -71,11 +80,11 @@ def test_a_valid_section_is_parsed(bpmn):
 
 
 def test_a_consuming_point_without_a_condition_accepts_every_message(bpmn):
-    assert parse_messages(consume(), bpmn).consume[0].condition is None
+    assert parse_messages(consume(), bpmn, DECLARED).consume[0].condition is None
 
 
 def test_no_section_gives_an_empty_model(bpmn):
-    assert parse_messages(None, bpmn) == MessagingModel()
+    assert parse_messages(None, bpmn, DECLARED) == MessagingModel()
     assert MessagingModel().subscriptions() == []
 
 
@@ -118,6 +127,20 @@ def test_type_must_be_non_empty(bpmn, section):
     assert "'type' must be a non-empty string" in rejected(section, bpmn)
 
 
+def test_published_attributes_must_be_declared(bpmn):
+    reason = rejected(publish(attributes=["case_id", "city", "cty", "zip"]), bpmn)
+
+    assert reason.endswith("messages.publish[0]: 'cty', 'zip' not declared as a case, global or event attribute")
+
+
+@pytest.mark.parametrize("section", [publish("End_Merged"), consume("Catch_Merged")])
+def test_end_and_catch_message_events_need_exactly_one_incoming_arrow(bpmn, section):
+    event_id = (section.get("publish") or section["consume"])[0]["event_id"]
+
+    assert f"{event_id!r} has 2 incoming arrows, expected exactly one; draw an explicit gateway before {event_id}" \
+        in rejected(section, bpmn)
+
+
 def test_published_attributes_must_be_names(bpmn):
     assert "'attributes' must be a list of attribute names" in rejected(publish(attributes="city"), bpmn)
 
@@ -156,3 +179,45 @@ def test_the_engine_rejects_an_invalid_section_when_it_loads_a_model(tmp_path):
     with pytest.raises(InvalidSimScenarioException, match="Event_056pdi5"):
         SimDiffSetup("testing_scripts/assets/timer_with_task.bpmn", json_path, False, 1,
                      pytz.utc.localize(datetime(2024, 1, 1)))
+
+
+def _load(tmp_path, bpmn_path, messages, **extra_settings):
+    """Loads a model as the simulator does, with the test JSON settings plus the given sections."""
+    with open("testing_scripts/assets/throw_events/two_tasks.json") as file:
+        settings = json.load(file)
+    settings.update(messages=messages, **extra_settings)
+    json_path = tmp_path / "settings.json"
+    json_path.write_text(json.dumps(settings))
+    return SimDiffSetup(bpmn_path, json_path, False, 1, pytz.utc.localize(datetime(2024, 1, 1)))
+
+
+CITY = {"name": "city", "type": "discrete",
+        "values": [{"key": "Tartu", "value": 0.5}, {"key": "Tallinn", "value": 0.5}]}
+
+
+def test_a_model_publishing_an_undeclared_attribute_is_rejected(tmp_path):
+    model = "testing_scripts/assets/throw_events/with_message_throw.bpmn"
+    published = publish("Throw", attributes=["case_id", "city"])
+
+    assert _load(tmp_path, model, published, case_attributes=[CITY]).messaging.publish[0].attributes == ("case_id", "city")
+    with pytest.raises(InvalidSimScenarioException, match="'city' not declared as a case, global or event attribute"):
+        _load(tmp_path, model, published)
+
+
+def test_declared_attributes_are_case_global_and_event_attributes():
+    settings = {"case_attributes": [{"name": "city"}], "global_attributes": [{"name": "stock"}],
+                "event_attributes": [{"event_id": "Task_A", "attributes": [{"name": "weight"}]}]}
+
+    assert declared_attributes(settings) == {"city", "stock", "weight"}
+    assert declared_attributes({}) == set()
+
+
+@pytest.mark.parametrize("model, messages", [
+    ("two_arrows_into_end.bpmn", publish("End")),
+    ("two_arrows_into_catch.bpmn", consume("Catch")),
+])
+def test_a_model_with_two_arrows_into_a_message_end_or_catch_event_is_rejected(tmp_path, model, messages):
+    event_id = (messages.get("publish") or messages["consume"])[0]["event_id"]
+
+    with pytest.raises(InvalidSimScenarioException, match=f"draw an explicit gateway before {event_id}$"):
+        _load(tmp_path, f"testing_scripts/assets/messaging/{model}", messages)

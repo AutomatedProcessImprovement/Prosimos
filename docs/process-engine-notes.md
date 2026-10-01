@@ -67,7 +67,7 @@ intermediate throw events (the parser adds a hidden `xor_join_<id>`), but not fo
 
 Not changed, since it affects models outside the messaging work. For messages the ambiguity is
 avoided instead: a message end event listed under `publish` or a message catch event listed under
-`consume` must have a single incoming arrow (to be enforced at load time).
+`consume` must have a single incoming arrow, checked when the model is loaded.
 
 ## 2. What creating a case mid-run needs
 

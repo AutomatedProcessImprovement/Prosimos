@@ -5,6 +5,7 @@ publishes or accepts. Parsing only: nothing here publishes or consumes a message
 """
 import json
 import xml.etree.ElementTree as ET
+from collections import Counter
 from dataclasses import dataclass
 from typing import Any, List, Optional, Tuple
 
@@ -53,12 +54,22 @@ class MessagingModel:
 
 def parse_messages_file(json_path, bpmn_path) -> MessagingModel:
     with open(json_path) as json_file:
-        return parse_messages(json.load(json_file).get("messages"), bpmn_path)
+        settings = json.load(json_file)
+    return parse_messages(settings.get("messages"), bpmn_path, declared_attributes(settings))
 
 
-def parse_messages(messages_json, bpmn_path) -> MessagingModel:
-    """Validates the 'messages' section against the BPMN model. None (no section) gives an empty
-    model, so processes without messages behave as before."""
+def declared_attributes(settings):
+    """Names of the case, global and event attributes declared in a process's JSON settings."""
+    names = {attribute["name"] for section in ("case_attributes", "global_attributes")
+             for attribute in settings.get(section, [])}
+    names.update(attribute["name"] for event in settings.get("event_attributes", [])
+                 for attribute in event["attributes"])
+    return names
+
+
+def parse_messages(messages_json, bpmn_path, declared_attributes) -> MessagingModel:
+    """Validates the 'messages' section against the BPMN model and the declared attribute names.
+    None (no section) gives an empty model, so processes without messages behave as before."""
     if messages_json is None:
         return MessagingModel()
     if not isinstance(messages_json, dict) or set(messages_json) - {"publish", "consume"}:
@@ -66,7 +77,7 @@ def parse_messages(messages_json, bpmn_path) -> MessagingModel:
 
     events = _bpmn_events(bpmn_path)
     publish = tuple(
-        PublishPoint(entry["event_id"], entry["type"], _attributes(entry, where))
+        PublishPoint(entry["event_id"], entry["type"], _attributes(entry, where, declared_attributes))
         for where, entry in _entries(messages_json, "publish", events, PUBLISHING_EVENTS)
     )
     consume = tuple(
@@ -93,19 +104,28 @@ def _entries(messages_json, section, events, allowed_kinds):
 def _check_event(where, event_id, events, allowed_kinds):
     if not isinstance(event_id, str) or event_id not in events:
         _fail(f"{where}: event_id {event_id!r} is not an element of the BPMN model")
-    kind, is_message = events[event_id]
+    kind, is_message, incoming = events[event_id]
     if kind == "startEvent" and is_message:
         _fail(f"{where}: event_id {event_id!r} is a message start event, which isn't supported yet")
     if kind not in allowed_kinds or not is_message:
         expected = " or ".join(allowed_kinds.values())
         found = f"a message {kind}" if is_message else f"{'an' if kind[0] in 'aeiou' else 'a'} {kind}"
         _fail(f"{where}: event_id {event_id!r} is {found}, expected {expected}")
+    # several arrows into an end or catch event mean "once per arriving token" in BPMN, but Prosimos
+    # joins them (OR for end events, AND for catch events); requiring an explicit gateway avoids the
+    # question. Throw events need no rule: they get a hidden XOR join, as the standard says
+    if kind in ("endEvent", "intermediateCatchEvent") and incoming != 1:
+        _fail(f"{where}: event_id {event_id!r} has {incoming} incoming arrows, expected exactly one; "
+              f"draw an explicit gateway before {event_id}")
 
 
-def _attributes(entry, where):
+def _attributes(entry, where, declared):
     attributes = entry.get("attributes", [])
     if not isinstance(attributes, list) or not all(isinstance(name, str) and name for name in attributes):
         _fail(f"{where}: 'attributes' must be a list of attribute names")
+    unknown = [name for name in attributes if name != "case_id" and name not in declared]
+    if unknown:
+        _fail(f"{where}: {', '.join(map(repr, unknown))} not declared as a case, global or event attribute")
     return tuple(attributes)
 
 
@@ -143,12 +163,16 @@ def _term(term, where):
 
 
 def _bpmn_events(bpmn_path):
-    """event id -> (element kind, whether it has a message event definition)."""
+    """event id -> (element kind, whether it has a message event definition, incoming arrows)."""
+    elements = list(ET.parse(bpmn_path).getroot().iter())
+    incoming = Counter(element.attrib.get("targetRef") for element in elements
+                       if element.tag == BPMN_NS + "sequenceFlow")
     events = {}
-    for element in ET.parse(bpmn_path).getroot().iter():
+    for element in elements:
         if element.tag.startswith(BPMN_NS) and "id" in element.attrib:
+            element_id = element.attrib["id"]
             kind = element.tag[len(BPMN_NS):]
-            events[element.attrib["id"]] = (kind, element.find(MESSAGE_DEFINITION) is not None)
+            events[element_id] = (kind, element.find(MESSAGE_DEFINITION) is not None, incoming[element_id])
     return events
 
 
