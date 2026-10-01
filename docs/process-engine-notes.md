@@ -15,9 +15,13 @@ missing a branch) simply holds the token; it is not queued.
 - **Intermediate catch events** are the natural place. The parser already reads
   `messageEventDefinition`, but every catch event (timer, message, signal) is simulated the same way:
   queued at once and completed after a delay drawn from `event_distribution` (`execute_event`).
-  Parking = leave the token on the event's incoming flow and record `(case, event, enabled time)`
-  instead of queueing it (in `_find_next`, where `is_event=True` tasks are created). Resuming = queue
-  an `EnabledEvent` for that event at the message's time and let the existing path continue.
+  The case reaches a catch event during the step of the task before it (see "Effects are computed
+  ahead of their time" below), but the catch event is queued at its arrival time and only stepped
+  then *(run)*. So parking belongs where that queued event is executed, not in `_find_next`, where
+  it is created: parking in `_find_next` would make the case wait before it has arrived. Parking =
+  on that step, leave the case waiting at the event and record `(case, event, arrival time)` instead
+  of completing it. Resuming = queue an `EnabledEvent` for that event at the message's time and let
+  the existing path continue.
 - **Event-based gateways** don't wait either: `get_event_gateway_choice` draws a duration for each
   following event the moment the case arrives and takes the shortest. A real race between a timer and
   a message needs a new mechanism (wait, first one wins, cancel the others).
@@ -26,6 +30,16 @@ missing a branch) simply holds the token; it is not queued.
   (see [messaging-model.md](messaging-model.md)). Before that, a model with a throw event crashed
   with `KeyError` as soon as a case reached it *(run)*. Message end events are parsed, as ordinary
   end events. Send/receive tasks and boundary events are still not parsed.
+- **Effects are computed ahead of their time.** A task is executed in one go when it is taken from
+  the queue at its enabled time: the resource is booked, the end time computed, and
+  `update_process_state` called with that end time. Everything passed straight through after it
+  (gateways, throw and end events) is therefore passed during the step at the task's *enabled* time,
+  while its own time is the task's *end* time *(run)*:
+  `step at 09:16:11 → logs Task A (ends 09:19:21) and Throw at 09:19:21`. The log times are right,
+  but a message published there would be early. Decided: the engine holds such zero-time effects and
+  releases each at its own time (`next_event_time()` is the earlier of the queue head and the
+  earliest held effect; at equal times held effects go first; an engine with held effects isn't
+  finished).
 - **Elements right after the start event are passed too early.** All arrivals are generated up
   front (section 2), and `_update_initial_event_info` runs `update_process_state` from the start
   event straight away. So a throw or end event directly after the start (with only gateways in
@@ -35,6 +49,25 @@ missing a branch) simply holds the token; it is not queued.
   time, e.g. by queueing the start event as an ordinary event instead of passing it at generation.
 - A parked case has nothing in the queue, so the engine would report "finished" (`next_event_time()`
   = `None`) while cases still wait. This is what `blocked_on()` has to express.
+
+### Implicit merges differ from the BPMN standard
+
+BPMN lets a modeller draw several arrows into an element without a gateway. The standard calls
+this uncontrolled flow: the element fires once per arriving token, without waiting for the others
+(an AND merge must be drawn as an explicit parallel gateway). Prosimos follows this for tasks and
+intermediate throw events (the parser adds a hidden `xor_join_<id>`), but not for:
+
+- **Intermediate catch events:** no hidden gateway, and `is_enabled` requires a token on every
+  incoming arrow, so they behave as an AND merge. AND split -> Task A, Task B -> both into one timer
+  catch event -> Task C: the catch event fired once, after the later branch, and Task C ran once per
+  case; the standard gives two firings *(run)*.
+- **End events:** the parser adds a hidden `or_join_<id>`, which waits for every branch that can
+  still arrive. AND split -> Task A, Task B -> both into one message end event: the end event was
+  passed once per case, after the later branch; the standard passes it twice *(run)*.
+
+Not changed, since it affects models outside the messaging work. For messages the ambiguity is
+avoided instead: a message end event listed under `publish` or a message catch event listed under
+`consume` must have a single incoming arrow (to be enforced at load time).
 
 ## 2. What creating a case mid-run needs
 
