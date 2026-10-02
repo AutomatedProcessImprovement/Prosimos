@@ -5,6 +5,7 @@ import json
 import random
 from abc import ABC, abstractmethod
 from collections import Counter
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -17,6 +18,7 @@ import pytz
 from prosimos.simulation_engine import SimBPMEnv
 from prosimos.simulation_properties_parser import parse_datetime
 from prosimos.simulation_setup import SimDiffSetup
+from prosimos.warning_logger import warning_logger
 
 
 @dataclass(frozen=True)
@@ -130,6 +132,24 @@ class Verdict(Enum):
     PENDING = "pending"
 
 
+@dataclass
+class StalledCase:
+    """A case still waiting for a message when the run ended."""
+
+    case_id: str
+    event_id: str
+    message_types: List[str]  # the types it waits for: any one of them resumes it (usually just one)
+    waiting_since: datetime
+
+
+@dataclass
+class EngineReport:
+    """What one engine has to report when the run is over."""
+
+    stalled: List[StalledCase] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)  # raised inside this engine during the run
+
+
 class SimulationEngine(ABC):
     """
     The complete set of methods the orchestrator may call on an engine, as defined by the
@@ -163,35 +183,66 @@ class SimulationEngine(ABC):
         must answer PENDING.
         """
 
+    @abstractmethod
+    def finish(self) -> EngineReport:
+        """Called once, after the loop stops: the cases still waiting for a message and the warnings
+        this engine raised. A lifecycle call, not a messaging one: nothing is published or delivered."""
+
 
 class ProsimosEngine(SimulationEngine):
     """A Prosimos simulation (SimBPMEnv) seen through the SimulationEngine interface. It publishes
     the messages its model lists under 'publish', each at the time the case passes the event, and
     subscribes to the types under 'consume': a case reaching such a catch event waits there until a
-    delivered message matches (docs/messaging-model.md)."""
+    delivered message matches (docs/messaging-model.md).
+
+    Prosimos writes its warnings to one list shared by every engine (warning_logger). Each method
+    therefore hands Prosimos this engine's own list for the duration of the call, so the warnings
+    of two engines never mix."""
 
     def __init__(self, spec: ProcessSpec, start_datetime: datetime, log_writer=None):
-        sim_setup = SimDiffSetup(spec.bpmn_path, spec.json_path, False, spec.total_cases, start_datetime)
-        self._env = SimBPMEnv(sim_setup, None, log_writer, process_name=spec.name)
+        self._warnings: List[str] = []
+        with self._own_warnings():
+            sim_setup = SimDiffSetup(spec.bpmn_path, spec.json_path, False, spec.total_cases, start_datetime)
+            self._env = SimBPMEnv(sim_setup, None, log_writer, process_name=spec.name)
+
+    @contextmanager
+    def _own_warnings(self):
+        shared = warning_logger.warnings_queue
+        warning_logger.warnings_queue = self._warnings
+        try:
+            yield
+        finally:
+            warning_logger.warnings_queue = shared
 
     def subscriptions(self) -> List[str]:
-        return self._env.sim_setup.messaging.subscriptions()
+        with self._own_warnings():
+            return self._env.sim_setup.messaging.subscriptions()
 
     def next_event_time(self) -> Optional[datetime]:
         # None while only waiting cases are left: nothing to do now, but not finished
-        return self._env.next_event_time()
+        with self._own_warnings():
+            return self._env.next_event_time()
 
     def step(self) -> List[Message]:
-        self._env.step()
-        # the engine buffers its log rows; hand them over now so nobody outside the engine
-        # has to reach into it to flush them at the end
-        self._env.log_writer.force_write()
-        released = [Message(message_type, attributes) for message_type, attributes in self._env.outbox]
-        self._env.outbox.clear()
-        return released
+        with self._own_warnings():
+            self._env.step()
+            # the engine buffers its log rows; hand them over now so nobody outside the engine
+            # has to reach into it to flush them at the end
+            self._env.log_writer.force_write()
+            released = [Message(message_type, attributes) for message_type, attributes in self._env.outbox]
+            self._env.outbox.clear()
+            return released
 
     def deliver(self, message: Message, now: datetime) -> Verdict:
-        return Verdict(self._env.deliver(message.type, message.attributes, message.source, now))
+        with self._own_warnings():
+            return Verdict(self._env.deliver(message.type, message.attributes, message.source, now))
+
+    def finish(self) -> EngineReport:
+        with self._own_warnings():
+            stalled = [StalledCase(self._env.case_id(parked.p_case), parked.task_id,
+                                   self._env.waiting_for(parked.task_id), parked.enabled_datetime)
+                       for parked in self._env.waiting_cases()]
+        return EngineReport(stalled, list(self._warnings))
 
 
 class _MergedLog:
@@ -267,7 +318,9 @@ class RunReport:
     claims: List[Tuple[str, str, datetime]] = field(default_factory=list)  # (message id, process, time)
     discards: List[Tuple[str, str, datetime]] = field(default_factory=list)  # (message id, process, time)
     unclaimed: List[Tuple[str, Message]] = field(default_factory=list)  # (group, message) left in the pool
-    warnings: List[str] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)  # the orchestrator's own, about routing
+    stalled: List[Tuple[str, StalledCase]] = field(default_factory=list)  # (process, case) from finish()
+    engine_warnings: List[Tuple[str, str]] = field(default_factory=list)  # (process, warning) from finish()
 
     @property
     def discarded_counts(self) -> Dict[Tuple[str, str], int]:
@@ -371,6 +424,12 @@ def run_engines(
                     resolve(pooled)
 
     report.unclaimed = [(pooled.group, pooled.message) for pooled in pool]
+    for name in names:
+        engine_report = engines[name].finish()
+        if not isinstance(engine_report, EngineReport):
+            raise TypeError(f"{name}.finish() must return an EngineReport, got {engine_report!r}")
+        report.stalled.extend((name, case) for case in engine_report.stalled)
+        report.engine_warnings.extend((name, warning) for warning in engine_report.warnings)
     return report
 
 

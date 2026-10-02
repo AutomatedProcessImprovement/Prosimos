@@ -13,7 +13,6 @@ import pytz
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.orchestrator import Message, ProcessSpec, ProsimosEngine, Verdict, run_engines
 from prosimos.simulation_setup import SimDiffSetup
-from prosimos.warning_logger import warning_logger
 from testing_scripts.scripted_engine import ScriptedEngine
 
 ASSETS = "testing_scripts/assets/messaging"
@@ -324,14 +323,12 @@ def test_a_catch_event_not_listed_under_consume_keeps_its_drawn_delay(tmp_path):
 def test_a_duration_given_for_a_waiting_catch_event_is_ignored_with_a_warning(tmp_path):
     with_duration = _settings(tmp_path, lambda settings: settings.update(event_distribution=[
         {"event_id": "Catch_Shipment", "distribution_name": "fix", "distribution_params": [{"value": 3600}]}]))
-    warning_logger.clear_warnings()
 
     engine, log = _sales(1, json_path=with_duration)
     _run_until_idle(engine)
 
-    assert warning_logger.get_all_warnings() == ["duration of Catch_Shipment is ignored: it waits for a message"]
+    assert engine.finish().warnings == ["duration of Catch_Shipment is ignored: it waits for a message"]
     assert engine.next_event_time() is None and "Close order" not in [row[1] for row in log.rows]
-    warning_logger.clear_warnings()
 
 
 def test_a_waiting_catch_event_after_an_event_based_gateway_is_rejected(tmp_path):

@@ -47,12 +47,12 @@ simulation (`SimBPMEnv`), and the orchestrator only talks to engines through it.
 ### The rule
 
 Each engine is a black box. A process may not read or change another process's data (its cases,
-queues, resources, attributes, logs) by any route other than the four methods below. That includes
+queues, resources, attributes, logs) by any route other than the five methods below. That includes
 the orchestrator: it may not look inside an engine either. Anything that needs to pass between
 processes is a message: it leaves an engine as the result of `step()` and enters another through
 `deliver()`. Engines never call the orchestrator; they only answer its calls.
 
-### The four methods
+### The five methods
 
 | Method                  | Returns                             | When                              |
 |-------------------------|-------------------------------------|-----------------------------------|
@@ -60,8 +60,12 @@ processes is a message: it leaves an engine as the result of `step()` and enters
 | `next_event_time()`     | date and time, or `None`            | before every step                 |
 | `step()`                | list of published messages          | to perform one event              |
 | `deliver(message, now)` | `CLAIMED`, `DISCARDED` or `PENDING` | to offer one message to an engine |
+| `finish()`              | an `EngineReport`                   | once, after the loop stops        |
 
-`ProsimosEngine` implements all four. It publishes the messages its model lists under `publish`,
+The first four are the messaging calls. `finish()` is a lifecycle call: it publishes and delivers
+nothing, so it doesn't change how processes interact.
+
+`ProsimosEngine` implements all five. It publishes the messages its model lists under `publish`,
 subscribes to the types under `consume`, and lets cases wait at those catch events until `deliver()`
 resumes them ([messaging-model.md](messaging-model.md)).
 
@@ -110,6 +114,26 @@ Offers the engine one pending message at time `now` and returns a `Verdict`:
 
 This is the only way anything from another process enters an engine.
 
+#### `finish()`
+
+Called once on every engine, after the loop stops (no engine has a next event). It returns an
+`EngineReport`:
+
+- **`stalled`**: the cases still waiting for a message, each as a `StalledCase` with its case id
+  (e.g. `Sales-1`), the catch event, the message types it waits for (a list, usually of one: an event
+  listed several times under `consume` accepts any of its types), and since when it waits.
+- **`warnings`**: the warnings the engine raised during the run, including while it was built.
+
+The orchestrator adds both to the `RunReport`, tagged with the engine's process name.
+
+Prosimos writes its warnings to one list shared by all engines (`warning_logger`, used from 5
+modules), without process names. `ProsimosEngine` therefore hands Prosimos its own list at the start
+of each of its methods, including building it, and puts the shared one back at the end, so two
+engines' warnings never mix and Prosimos itself is unchanged. The swap lives in the engine rather
+than the orchestrator, so the orchestrator stays independent of Prosimos and engines of other kinds
+need nothing. It only collects warnings raised during the run: Prosimos's own end-of-run usage
+statistics (`find_issues`, e.g. "element used in less than 1% of cases") are left out.
+
 The protocol originally defined this as `deliver(msgs, now)`, returning lists of claimed and
 discarded ids. The orchestrator always offers one copy at a time, because a claim by one member must
 stop the offer to the others, so a single message and a single answer carry the same information,
@@ -118,11 +142,11 @@ that brokers such as RabbitMQ use (ack, reject, requeue).
 
 ### What else crosses the boundary today
 
-To be honest about where the current code stands, beyond the four methods:
+To be honest about where the current code stands, beyond the five methods:
 
 1. **Building an engine.** The orchestrator builds each engine (`ProsimosEngine(...)`) from the
    configuration: a BPMN file, a JSON file, a number of cases and the shared start time. This
-   happens once, before any of the four methods.
+   happens once, before any of the five methods.
 2. **The event log.** When it builds an engine, the orchestrator gives it a writer to send its log
    rows to. The engine hands its rows over after every step, so the orchestrator never reaches into
    the engine to collect them.
@@ -135,9 +159,6 @@ To be honest about where the current code stands, beyond the four methods:
 
 1. Is building an engine and collecting its log part of this interface, or a separate one? The
    protocol doesn't cover either.
-2. The protocol's end-of-run report includes stalled cases "reported by each engine", but none of
-   the four methods lets an engine report them. This part of the report is future work, for when
-   Prosimos engines get waiting cases; it will need a way for engines to report them.
 
 ## Message routing
 
@@ -158,10 +179,11 @@ To be honest about where the current code stands, beyond the four methods:
   warehouse can't shift the engines' random draws.
 - **Report**: `run_engines` and `run_orchestrator` return a `RunReport` with every step, published
   message, copy, claim and discard, the copies still in the pool at the end (unclaimed messages),
-  discard counts per message type and process, and the warnings.
+  discard counts per message type and process, the orchestrator's warnings, and, from each engine's
+  `finish()`, its stalled cases (`stalled`) and warnings (`engine_warnings`), as (process, ...) pairs.
 
-Warnings are collected in the report as they occur, not printed: a message type nobody subscribes
-to, and a message whose every recipient discarded it without anyone claiming a copy. The second applies
+The orchestrator's own warnings (`warnings`) are collected in the report as they occur, not printed:
+a message type nobody subscribes to, and a message whose every recipient discarded it without anyone claiming a copy. The second applies
 even when the discard is expected, for example a shipment for an order that was canceled.
 
 Copies are offered only to the members that subscribe to the message's type. In the protocol's

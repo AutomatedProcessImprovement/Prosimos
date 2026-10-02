@@ -126,7 +126,8 @@ the time the case really passes the event, not earlier:
   at its real time. `case_id` is the process name from the simulation configuration plus the case
   number, e.g. `Sales-7`. A declared attribute that has no value yet for this case (e.g. an event
   attribute of a task the case hasn't done) is sent as `None`, with one warning per event and
-  attribute in Prosimos's warnings.
+  attribute, among the engine's warnings (reported by `finish()`, see
+  [orchestrator.md](orchestrator.md)).
 
 Holding is used only for publishing: catch events are already queued at the time the case
 reaches them, so waiting needs no holding (see "Waiting"). Tested with the Sales model in isolation

@@ -174,11 +174,8 @@ class SimBPMEnv:
         by case id), 'discarded' if it can never match, 'pending' otherwise."""
         self._ensure_arrivals_generated()
         values = dict(attributes, source=source)
-        for p_case, event_id in sorted(self._waiting, key=lambda key: (self._waiting[key].enabled_datetime, key)):
-            parked = self._waiting[(p_case, event_id)]
-            if not any(parked.p_state.has_token(flow) for flow in self.sim_setup.bpmn_graph.element_info[event_id].incoming_flows):
-                del self._waiting[(p_case, event_id)]  # the case moved on without it (e.g. a terminate end event)
-                continue
+        for parked in self.waiting_cases():
+            p_case, event_id = parked.p_case, parked.task_id
             if any(point.type == message_type and self._condition_holds(point.condition, values, p_case)
                    for point in self._consume_points[event_id]):
                 del self._waiting[(p_case, event_id)]
@@ -191,6 +188,18 @@ class SimBPMEnv:
         if any(self._could_match(point.condition, values) for point in points):
             return "pending"
         return "discarded"
+
+    def waiting_cases(self):
+        """The parked events of the cases waiting for a message, the one waiting longest first (ties by
+        case id)."""
+        for key, parked in list(self._waiting.items()):
+            if not any(parked.p_state.has_token(flow) for flow in self.sim_setup.bpmn_graph.element_info[parked.task_id].incoming_flows):
+                del self._waiting[key]  # the case moved on without it (e.g. a terminate end event)
+        return [self._waiting[key] for key in sorted(self._waiting, key=lambda key: (self._waiting[key].enabled_datetime, key))]
+
+    def waiting_for(self, event_id):
+        """The message types a case waiting at event_id accepts."""
+        return sorted({point.type for point in self._consume_points[event_id]})
 
     def _condition_holds(self, condition, values, p_case):
         if condition is None:

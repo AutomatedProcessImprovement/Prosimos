@@ -1,7 +1,7 @@
 import itertools
 from heapq import heappop, heappush
 
-from prosimos.orchestrator import Message, SimulationEngine, Verdict
+from prosimos.orchestrator import EngineReport, Message, SimulationEngine, Verdict
 
 
 class ScriptedEngine(SimulationEngine):
@@ -20,6 +20,7 @@ class ScriptedEngine(SimulationEngine):
         self.offered = []  # (message, time) every offer this engine received
         self.claimed = []  # (message, time) this engine claimed
         self.discarded = []  # (message, time) this engine discarded
+        self.report = EngineReport()  # what finish() returns; tests may fill it in
 
     def at(self, time, action):
         """Run action(now) at time; it may return messages to publish."""
@@ -55,3 +56,6 @@ class ScriptedEngine(SimulationEngine):
             self.discarded.append((message, now))
             return Verdict.DISCARDED
         return Verdict.PENDING
+
+    def finish(self):
+        return self.report

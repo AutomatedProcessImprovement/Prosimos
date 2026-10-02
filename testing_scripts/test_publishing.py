@@ -13,7 +13,6 @@ import pytz
 
 from prosimos.orchestrator import ProcessSpec, ProsimosEngine
 from prosimos.simulation_engine import run_simulation
-from prosimos.warning_logger import warning_logger
 
 ASSETS = "testing_scripts/assets/messaging"
 SALES = f"{ASSETS}/sales.bpmn"  # start -> Take order -> throw OrderPlaced -> catch Shipment -> end
@@ -39,8 +38,9 @@ def _time(logged):
     return datetime.fromisoformat(logged)
 
 
-def _step_by_hand(name, bpmn, json_path, cases, seed=1):
-    """Steps one engine until it is finished: (time announced, messages returned, log rows written) per step."""
+def _step_by_hand(name, bpmn, json_path, cases, seed=1, reports=None):
+    """Steps one engine until it is finished: (time announced, messages returned, log rows written) per step.
+    The engine's finish() report is appended to reports, if given."""
     random.seed(seed)
     np.random.seed(seed)
     log = _Log()
@@ -49,6 +49,8 @@ def _step_by_hand(name, bpmn, json_path, cases, seed=1):
     while (now := engine.next_event_time()) is not None:
         written = len(log.rows)
         steps.append((now, engine.step(), log.rows[written:]))
+    if reports is not None:
+        reports.append(engine.finish())
     return steps, log.rows
 
 
@@ -124,10 +126,8 @@ def test_publishing_leaves_the_log_unchanged(tmp_path):
 def bursts():
     # three cases arriving together at 09:00; each passes First, Second, then Left and Right on two
     # parallel branches, all at once; then Work (10 min, one worker) and the message end event Done
-    warning_logger.clear_warnings()
     steps, _ = _step_by_hand("Bursts", f"{ASSETS}/bursts.bpmn", f"{ASSETS}/bursts.json", 3)
-    yield steps
-    warning_logger.clear_warnings()
+    return steps
 
 
 def test_messages_due_together_come_out_of_one_step_by_case_then_order_passed(bursts):
@@ -152,12 +152,14 @@ def test_an_engine_holding_messages_is_not_finished_even_with_an_empty_queue(bur
     ]
 
 
-def test_an_attribute_without_a_value_yet_is_sent_as_none_with_one_warning_per_event_and_attribute(bursts):
+def test_an_attribute_without_a_value_yet_is_sent_as_none_with_one_warning_per_event_and_attribute():
     # weight is an event attribute of Work: unset when a case passes First, set when it passes Done
-    published = [message for _, messages, _ in bursts for message in messages]
+    reports = []
+    steps, _ = _step_by_hand("Bursts", f"{ASSETS}/bursts.bpmn", f"{ASSETS}/bursts.json", 3, reports=reports)
+    published = [message for _, messages, _ in steps for message in messages]
 
     assert [m.attributes["weight"] for m in published if m.type == "First"] == [None, None, None]
     assert [m.attributes["weight"] for m in published if m.type == "Done"] == ["heavy", "heavy", "heavy"]
-    assert [w for w in warning_logger.get_all_warnings() if "weight" in w] == [
+    assert [w for w in reports[0].warnings if "weight" in w] == [
         "Attribute weight has no value when case 0 passes Throw_First; its First message carries None"
     ]
