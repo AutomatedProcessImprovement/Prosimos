@@ -34,6 +34,13 @@ without a time zone is taken as UTC. Without `consumer_groups`, every process is
 configuration is rejected if process names repeat, a process is in no group or in more than one, or
 a group names a process that doesn't exist.
 
+Engines that aren't built from a BPMN and JSON file, such as the scripted test engines, can run
+alongside the configured ones: list their names in the configuration's `extra_processes` (in code;
+not in the JSON file), so that consumer groups can name them, and pass the engines themselves to
+`run_orchestrator(config, log_out_path, extra_engines={name: engine, ...})`. The engines given must
+be exactly the declared names. They get no log writer, so the merged log holds only the configured
+processes.
+
 A `Message` has a `type` and `attributes`, set by the publishing process, and an `id`, `source` and
 `time`, set by the orchestrator when it stamps the message.
 

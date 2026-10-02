@@ -172,6 +172,31 @@ def test_config_accepts_processes_sharing_a_group():
     assert config.consumer_groups == groups
 
 
+def test_config_groups_may_name_the_extra_processes_it_declares():
+    groups = {"Sales": ["Sales"], "Warehouses": ["TartuWarehouse", "TallinnWarehouse"]}
+
+    config = SimulationConfig([_spec("Sales")], START, SEED, groups,
+                              extra_processes=["TartuWarehouse", "TallinnWarehouse"])
+
+    assert config.consumer_groups == groups
+    with pytest.raises(ValueError, match=r"unknown processes \['TallinnWarehouse'\]"):
+        SimulationConfig([_spec("Sales")], START, SEED, groups, extra_processes=["TartuWarehouse"])
+
+
+def test_config_rejects_an_extra_process_with_the_name_of_a_configured_one():
+    with pytest.raises(ValueError, match=r"repeated: \['Sales'\]"):
+        SimulationConfig([_spec("Sales")], START, SEED, extra_processes=["Sales"])
+
+
+@pytest.mark.parametrize("given", [{}, {"Billing": None, "Carrier": None}])
+def test_run_orchestrator_rejects_extra_engines_other_than_the_declared_ones(given):
+    config = SimulationConfig([_spec("Sales")], START, SEED, extra_processes=["Billing"])
+
+    # checked before anything is built, so the files and the engines needn't exist
+    with pytest.raises(ValueError, match=r"exactly the configuration's extra_processes \['Billing'\]"):
+        run_orchestrator(config, extra_engines=given)
+
+
 def test_config_loads_from_a_json_file_and_runs(tmp_path):
     assets = get_path().resolve()
     config_file = tmp_path / "simulation.json"

@@ -72,16 +72,20 @@ class SimulationConfig:
     """
     Everything needed for one multi-process run. Each consumer group maps a group name to the
     processes in it; without consumer_groups, every process is its own group. Every process must
-    be in exactly one group, and groups may only name known processes.
+    be in exactly one group, and groups may only name known processes. extra_processes names the
+    processes that run_orchestrator receives as ready-made engines instead of building them from a
+    ProcessSpec (e.g. scripted test engines), so that groups can name them too.
     """
 
     processes: List[ProcessSpec]
     start_datetime: datetime
     seed: Optional[int] = None
     consumer_groups: Optional[Dict[str, List[str]]] = None
+    extra_processes: Tuple[str, ...] = ()
 
     def __post_init__(self):
-        names = [spec.name for spec in self.processes]
+        object.__setattr__(self, "extra_processes", tuple(self.extra_processes))
+        names = [spec.name for spec in self.processes] + list(self.extra_processes)
         duplicates = sorted({name for name in names if names.count(name) > 1})
         if duplicates:
             raise ValueError(f"Process names must be unique, repeated: {duplicates}")
@@ -433,14 +437,23 @@ def run_engines(
     return report
 
 
-def run_orchestrator(config: SimulationConfig, log_out_path: Optional[str] = None) -> RunReport:
+def run_orchestrator(config: SimulationConfig, log_out_path: Optional[str] = None,
+                     extra_engines: Optional[Dict[str, SimulationEngine]] = None) -> RunReport:
     """
     Simulate the configured processes side by side on one shared clock (see run_engines),
     stepping the engine whose next_event_time() is earliest, ties broken by process name, so runs
     given the same seed are repeatable; without a seed each run draws different random values.
     When log_out_path is given, every process's events are written to that one CSV, sorted
     by start time, with the process name as the first column.
+    extra_engines are ready-made engines, keyed by process name, that run alongside the ones built
+    from config.processes; their names must be exactly config.extra_processes. They get no log
+    writer, so the merged log holds only the configured processes.
     """
+    extra_engines = dict(extra_engines or {})
+    if sorted(extra_engines) != sorted(config.extra_processes):
+        raise ValueError(f"extra_engines must be exactly the configuration's extra_processes "
+                         f"{sorted(config.extra_processes)}, got {sorted(extra_engines)}")
+
     if config.seed is not None:
         random.seed(config.seed)
         np.random.seed(config.seed)
@@ -454,6 +467,7 @@ def run_orchestrator(config: SimulationConfig, log_out_path: Optional[str] = Non
     for spec in sorted(config.processes, key=lambda p: p.name):
         log_writer = merged_log.writer_for(spec.name) if merged_log is not None else None
         engines[spec.name] = ProsimosEngine(spec, config.start_datetime, log_writer)
+    engines.update(extra_engines)
 
     report = run_engines(engines, config.consumer_groups, config.seed)
 

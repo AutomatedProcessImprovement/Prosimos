@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Sales" targetNamespace="http://bpmn.io/schema/bpmn">
+  <!-- Sales of the running example (docs/running-example.md), as a real Prosimos model -->
+  <bpmn:process id="Sales" isExecutable="false">
+    <bpmn:startEvent id="Start" name="Order received">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:task id="Place_Order" name="Place order">
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:intermediateThrowEvent id="Throw_OrderPlaced" name="Order placed">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_3</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="Throw_OrderPlaced_definition" />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:intermediateCatchEvent id="Catch_Shipment" name="Shipment received">
+      <bpmn:incoming>Flow_3</bpmn:incoming>
+      <bpmn:outgoing>Flow_4</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="Catch_Shipment_definition" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:task id="Close_Order" name="Close order">
+      <bpmn:incoming>Flow_4</bpmn:incoming>
+      <bpmn:outgoing>Flow_5</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="End" name="Order closed">
+      <bpmn:incoming>Flow_5</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Place_Order" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Place_Order" targetRef="Throw_OrderPlaced" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Throw_OrderPlaced" targetRef="Catch_Shipment" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Catch_Shipment" targetRef="Close_Order" />
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="Close_Order" targetRef="End" />
+  </bpmn:process>
+</bpmn:definitions>

@@ -5,7 +5,8 @@ It exercises every rule of the orchestrator protocol in a single run: announceme
 group, a random tie, correlation, pending messages, discards, warnings and the end-of-run report.
 
 The processes are scripted fake engines in the tests (`testing_scripts/protocol_scenario.py`, checked
-by `testing_scripts/test_protocol_scenario.py`); replacing them with real Prosimos models is future work.
+by `testing_scripts/test_protocol_scenario.py`). A first version with a real Prosimos Sales model is
+described at the end ("First real-engine version"); replacing the other processes is future work.
 
 ## Processes and messages
 
@@ -111,3 +112,38 @@ still a negative one, so the orchestrator warns about it like any other message 
 Details that depend on ord3's warehouse (which truck carries it, when its shipment is published)
 change with the seed. Tests check the rules that always hold for any seed, plus the exact outcome of
 one fixed seed.
+
+## First real-engine version
+
+The first run in which a real Prosimos engine publishes and waits inside the protocol: Sales is a
+Prosimos model, Billing and the two warehouses are scripted fake engines, given to `run_orchestrator`
+as extra engines (`testing_scripts/real_sales_scenario.py`, checked by `testing_scripts/test_real_sales.py`).
+
+```
+Sales (real Prosimos, testing_scripts/assets/running_example/):
+  start -> Place order -> throw OrderPlaced{case_id, city}
+        -> catch Shipment (order_id == case_id) -> Close order -> end
+
+Billing:                claims every OrderPlaced
+TartuWarehouse:         claims OrderPlaced for Tartu and Tapa,   ships 1 h after claiming
+TallinnWarehouse:       claims OrderPlaced for Tallinn and Tapa, ships 1.5 h after claiming
+                        (Shipment{order_id}, where order_id is the order's case_id, e.g. Sales-3)
+```
+
+`city` is a case attribute drawn by Prosimos: Tartu 40%, Tallinn 30%, Tapa 20%, Pärnu 10%. Orders
+arrive about every 30 minutes; consumer groups are as above (the warehouses share one group).
+
+Compared with the scripted version, this one is simpler: no Carrier and no trucks (a warehouse
+ships a fixed time after claiming), no Newsletter, and no canceled order.
+
+What it shows, for seed 1 and 20 orders (7 Tartu, 5 Tallinn, 6 Tapa, 2 Pärnu):
+
+| Check          | Result                                                                                                                                                   |
+|----------------|----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Shipped orders | every Tartu, Tallinn and Tapa order is closed after its shipment's time, shipped by a warehouse that serves its city; Tapa orders go to either warehouse |
+| Pärnu orders   | Billing claims them, both warehouses discard them, so they wait forever: `finish()` reports them as the run's only stalled cases                         |
+| Repeatability  | the same seed gives the same report and the same merged log                                                                                              |
+
+The merged log holds only Sales rows, since the fake engines keep no log. Each order's
+"Shipment received" wait shows in the log as the gap between Place order and Close order.
+
