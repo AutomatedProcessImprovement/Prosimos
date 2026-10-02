@@ -1,5 +1,5 @@
 """
-Waiting (docs/messaging-model.md): a case reaching a catch event listed under 'consume' waits
+Waiting (docs/messaging.md): a case reaching a catch event listed under 'consume' waits
 there; deliver() resumes the matching case at the time of delivery.
 """
 import json

@@ -1,17 +1,17 @@
-# Multi-process orchestrator
+# Multi-process simulation
 
-`run_orchestrator` in `prosimos/orchestrator.py` simulates several processes side by side on one
-shared clock. Each process is simulated by its own engine; the orchestrator repeatedly steps the
-engine whose next event is earliest (ties broken by process name), routes the messages engines
-publish to the processes that consume them, and writes one merged log sorted by start time. The loop
-itself is `run_engines`, which works on any engines implementing the interface below; the tests run
-it with scripted fake engines (see `running-example.md`).
+The orchestrator simulates several processes side by side on one shared clock. Each process is
+simulated by its own engine, usually a Prosimos simulation of a BPMN model. The orchestrator
+repeatedly steps the engine whose next event is earliest, passes the messages engines publish to the
+processes that consume them, and writes one merged event log.
 
-## Simulation configuration
+How a process model publishes and waits for messages is described in [messaging.md](messaging.md);
+a complete example is in [running-example.md](running-example.md).
 
-`run_orchestrator` takes a `SimulationConfig`: the processes (a name, BPMN file, JSON parameters and
-number of cases each), an optional seed, the shared start time and the consumer groups. It can be
-built in code or loaded with `SimulationConfig.from_json(path)`:
+## Quick start
+
+A configuration file lists the processes, the shared start time and, optionally, a seed and the
+consumer groups:
 
 ```json
 {
@@ -29,170 +29,153 @@ built in code or loaded with `SimulationConfig.from_json(path)`:
 }
 ```
 
-File paths are relative to the configuration file's folder. `seed` is optional, and a start time
-without a time zone is taken as UTC. Without `consumer_groups`, every process is its own group. A
-configuration is rejected if process names repeat, a process is in no group or in more than one, or
-a group names a process that doesn't exist.
+```python
+from prosimos.orchestrator import SimulationConfig, run_orchestrator
 
-Engines that aren't built from a BPMN and JSON file, such as the scripted test engines, can run
-alongside the configured ones: list their names in the configuration's `extra_processes` (in code;
-not in the JSON file), so that consumer groups can name them, and pass the engines themselves to
-`run_orchestrator(config, log_out_path, extra_engines={name: engine, ...})`. The engines given must
-be exactly the declared names. They get no log writer, so the merged log holds only the configured
-processes.
+config = SimulationConfig.from_json("config.json")
+report = run_orchestrator(config, log_out_path="merged_log.csv")
 
-A `Message` has a `type` and `attributes`, set by the publishing process, and an `id`, `source` and
-`time`, set by the orchestrator when it stamps the message.
+print(report.stalled)    # cases still waiting for a message at the end
+print(report.warnings)   # e.g. messages nobody could use
+```
+
+## Configuration
+
+`run_orchestrator` takes a `SimulationConfig`, built in code or loaded with
+`SimulationConfig.from_json(path)`:
+
+| Field             | Meaning                                                                                                    |
+|-------------------|------------------------------------------------------------------------------------------------------------|
+| `processes`       | one entry per process: a unique `name`, `bpmn_path`, `json_path` and `total_cases`                          |
+| `start_time`      | the simulation's start, shared by all processes; a time without a time zone is taken as UTC                |
+| `seed`            | optional; the same seed gives the same run. Without one, every run draws different random values           |
+| `consumer_groups` | optional; group name → processes in it. Without it, every process is its own group (see "Message routing") |
+
+File paths are relative to the configuration file's folder. A configuration is rejected if process
+names repeat, a process is in no group or in more than one, or a group names a process that doesn't
+exist.
+
+**Extra engines.** Engines that aren't built from a BPMN and JSON file, such as the scripted engines
+in the tests, can run alongside the configured ones. List their names in the configuration's
+`extra_processes` (in code only, not in the JSON file), so that consumer groups can name them, and
+pass the engines to `run_orchestrator(config, log_out_path, extra_engines={name: engine, ...})`. The
+engines given must be exactly the declared names.
+
+## Output
+
+**Merged log.** With `log_out_path`, the events of every configured process are written to one CSV,
+sorted by start time. The first column is the process name; the other columns are the union of the
+processes' log columns (`case_id`, `activity`, `enable_time`, `start_time`, `end_time`, `resource`,
+plus attribute and batch columns where a model has them). A process leaves blank the columns it
+doesn't produce. Extra engines get no log writer, so their events aren't in the merged log.
+
+**Run report.** `run_orchestrator` (and `run_engines`) return a `RunReport`:
+
+| Field              | Content                                                                                                |
+|--------------------|--------------------------------------------------------------------------------------------------------|
+| `executed`         | (time, process) for every step                                                                         |
+| `published`        | every message, as stamped by the orchestrator                                                          |
+| `copies`           | (message id, group) for every copy put in the pool                                                     |
+| `claims`           | (message id, process, time) for every claim                                                            |
+| `discards`         | (message id, process, time) for every discard                                                          |
+| `unclaimed`        | (group, message) for the copies still in the pool at the end                                           |
+| `warnings`         | the orchestrator's warnings: a message type nobody subscribes to; a message every recipient discarded |
+| `stalled`          | (process, `StalledCase`) for every case still waiting for a message at the end                         |
+| `engine_warnings`  | (process, warning) for the warnings raised inside each engine                                          |
+| `discarded_counts` | discards per (message type, process)                                                                   |
+
+A `StalledCase` has the case id (e.g. `Sales-1`), the catch event it waits at, the message types it
+waits for, and since when. The "discarded by every recipient" warning appears even when the discard
+is expected, for example a shipment for an order that was cancelled.
+
+## Message routing
+
+A `Message` has a `type` and `attributes`, set by the publishing process. The orchestrator stamps
+it with an `id` (`m1`, `m2`, ...), its `source` process and the `time` of the step that published it.
+
+- **Consumer groups.** Each process belongs to exactly one group. Every group whose members
+  subscribe to a message type gets its own copy of each such message, and only one member of the
+  group can claim it. Two warehouses in one group compete for an order; a separate Billing group
+  gets its own copy.
+- **Routing table**, built once at the start: for each message type, the groups with at least one
+  member subscribed to it.
+- **Pool.** Copies wait in a pool until a member claims them, or until every member subscribed to
+  the type has discarded them. A message type nobody subscribes to gets no copy and a warning.
+- **Offers.** After each step, the orchestrator offers the new copies, then the pooled copies of the
+  stepping engine's group, to the group's members, in random order, at the step's time, until one
+  claims it. A member is offered copies only of the types it subscribes to, and never a copy it
+  discarded before. An engine is offered new copies even when it has no next event of its own.
+- **Randomness.** The member order comes from the orchestrator's own random generator, seeded from
+  the simulation seed, so choosing a member never changes the engines' own random draws.
+- **Order of steps.** The engine with the earliest next event steps first; ties are broken by
+  process name. Engines are built in name order. Together with the seed, this makes runs repeatable.
 
 ## Engine interface
 
-This section lists everything the orchestrator may ask of an engine. **Nothing else may cross that
-boundary.** It follows the Orchestrator Protocol (kept outside this repo). In code, it is the
-`SimulationEngine` class in `prosimos/orchestrator.py`; `ProsimosEngine` implements it for a Prosimos
-simulation (`SimBPMEnv`), and the orchestrator only talks to engines through it.
+Everything the orchestrator may ask of an engine; nothing else crosses that boundary. It follows the
+Orchestrator Protocol (kept outside this repository). In code it is the `SimulationEngine` class in
+`prosimos/orchestrator.py`, and `ProsimosEngine` implements it for a Prosimos simulation. To add
+another kind of engine, implement these five methods.
 
-### The rule
+Each engine is a black box: no process may read or change another process's cases, queues,
+resources, attributes or logs, and the orchestrator doesn't look inside engines either. Anything
+that passes between processes is a message: it leaves an engine as the result of `step()` and enters
+another through `deliver()`. Engines never call the orchestrator.
 
-Each engine is a black box. A process may not read or change another process's data (its cases,
-queues, resources, attributes, logs) by any route other than the five methods below. That includes
-the orchestrator: it may not look inside an engine either. Anything that needs to pass between
-processes is a message: it leaves an engine as the result of `step()` and enters another through
-`deliver()`. Engines never call the orchestrator; they only answer its calls.
-
-### The five methods
-
-| Method                  | Returns                             | When                              |
+| Method                  | Returns                             | Called                            |
 |-------------------------|-------------------------------------|-----------------------------------|
-| `subscriptions()`       | list of message types               | once, at setup                    |
+| `subscriptions()`       | list of message types               | once, at the start                |
 | `next_event_time()`     | date and time, or `None`            | before every step                 |
 | `step()`                | list of published messages          | to perform one event              |
 | `deliver(message, now)` | `CLAIMED`, `DISCARDED` or `PENDING` | to offer one message to an engine |
 | `finish()`              | an `EngineReport`                   | once, after the loop stops        |
 
-The first four are the messaging calls. `finish()` is a lifecycle call: it publishes and delivers
-nothing, so it doesn't change how processes interact.
+The first four are the messaging calls; `finish()` is a lifecycle call that publishes and delivers
+nothing.
 
-`ProsimosEngine` implements all five. It publishes the messages its model lists under `publish`,
-subscribes to the types under `consume`, and lets cases wait at those catch events until `deliver()`
-resumes them ([messaging-model.md](messaging-model.md)).
+**`subscriptions()`**: the message types this process consumes. For a Prosimos engine, the types
+under `consume` in its model ([messaging.md](messaging.md)).
 
-#### `subscriptions()`
+**`next_event_time()`**: the date and time of what the engine will do on its next `step()`, or `None`
+when it has nothing to do right now. `None` doesn't mean finished: cases waiting for a message don't
+count, and a delivered message can give the engine work again. Work waiting in a batch to fire does
+count. Times are absolute dates, so answers from different engines can be compared; all engines get
+the same start time. An engine handles its events strictly in time order, so it never goes back in
+time. The first call prepares a Prosimos engine (it generates the arrival times of all its cases);
+after that, asking twice gives the same answer.
 
-The message types this process consumes, read from its model configuration. The orchestrator asks
-once, when the engine is set up.
+**`step()`**: performs exactly one event and returns the messages it published (often none). This is
+the only way to publish. The orchestrator calls it only after `next_event_time()` returned a time.
+A Prosimos engine may instead release messages it held until they were due; `next_event_time()`
+announces that step like any other.
 
-#### `next_event_time()`
+**`deliver(message, now)`**: offers one message at time `now` and returns a `Verdict`:
 
-Returns the date and time of the event the engine will perform on its next `step()`, or `None` when
-there is nothing to do right now. Cases waiting for a message don't count, so `None` doesn't mean the
-engine is finished: a delivered message can give it work again. Work parked in a batch waiting to
-fire does count: the answer is that batch's time. The first call also prepares the engine (it
-generates the arrival times of all its cases); after that, asking changes nothing and asking twice
-gives the same answer.
-
-Times are absolute dates and times, not "seconds since start", so answers from different engines can
-be compared directly. All engines are given the same start time when they are built.
-
-Each engine handles its events strictly in time order (events due at the same moment in the order
-they were added), so this is always its earliest pending event and an engine never goes back in
-time. Case priority rules therefore no longer decide which case is handled first; they only order
-the cases inside a batch.
-
-#### `step()`
-
-Performs exactly one event and returns the messages that event published, an empty list if none.
-A Prosimos engine may instead release messages it held until they were due, without performing an
-event (see "Publishing" in [messaging-model.md](messaging-model.md)); `next_event_time()` announces
-that step like any other.
-This is the only way to publish messages. The orchestrator calls it only after `next_event_time()`
-returned a time for this engine. The sending engine never addresses another engine directly; the
-orchestrator routes its messages.
-
-#### `deliver(message, now)`
-
-Offers the engine one pending message at time `now` and returns a `Verdict`:
-
-- **`CLAIMED`** is a commitment: the message is already bound to one case, taking effect at `now`,
-  and the orchestrator never offers this copy to anyone again (other groups keep their own copies).
+- **`CLAIMED`** is a commitment: the message is now bound to one case, taking effect at `now`, and
+  this copy is never offered to anyone again.
 - **`DISCARDED`** is permanent: the engine will never want this message, even after its state
-  changes, so the orchestrator never offers it to this engine again.
-- **`PENDING`**: not now; the message may be offered again later. An engine that isn't sure must
-  answer `PENDING`.
+  changes, so it is never offered to this engine again.
+- **`PENDING`**: not now; it may be offered again later. An engine that isn't sure must answer
+  `PENDING`.
 
-This is the only way anything from another process enters an engine.
+It is the same per-message acknowledgement that message brokers such as RabbitMQ use (ack, reject,
+requeue).
 
-#### `finish()`
+**`finish()`**: called once on every engine after the loop stops, i.e. when no engine has a next
+event. It returns an `EngineReport` with the engine's stalled cases and the warnings it raised during
+the run (including while it was built). The orchestrator adds both to the run report, tagged with
+the process name.
 
-Called once on every engine, after the loop stops (no engine has a next event). It returns an
-`EngineReport`:
+A Prosimos engine collects its own warnings: Prosimos writes warnings to one list shared by all
+engines (`warning_logger`), so `ProsimosEngine` hands Prosimos its own list for the duration of each
+of its methods, and two engines' warnings never mix. Prosimos's end-of-run usage statistics
+(`find_issues`, e.g. "element used in less than 1% of cases") aren't included.
 
-- **`stalled`**: the cases still waiting for a message, each as a `StalledCase` with its case id
-  (e.g. `Sales-1`), the catch event, the message types it waits for (a list, usually of one: an event
-  listed several times under `consume` accepts any of its types), and since when it waits.
-- **`warnings`**: the warnings the engine raised during the run, including while it was built.
+## Limitations
 
-The orchestrator adds both to the `RunReport`, tagged with the engine's process name.
-
-Prosimos writes its warnings to one list shared by all engines (`warning_logger`, used from 5
-modules), without process names. `ProsimosEngine` therefore hands Prosimos its own list at the start
-of each of its methods, including building it, and puts the shared one back at the end, so two
-engines' warnings never mix and Prosimos itself is unchanged. The swap lives in the engine rather
-than the orchestrator, so the orchestrator stays independent of Prosimos and engines of other kinds
-need nothing. It only collects warnings raised during the run: Prosimos's own end-of-run usage
-statistics (`find_issues`, e.g. "element used in less than 1% of cases") are left out.
-
-The protocol originally defined this as `deliver(msgs, now)`, returning lists of claimed and
-discarded ids. The orchestrator always offers one copy at a time, because a claim by one member must
-stop the offer to the others, so a single message and a single answer carry the same information,
-and an engine can no longer give contradictory answers. It is the same per-message acknowledgement
-that brokers such as RabbitMQ use (ack, reject, requeue).
-
-### What else crosses the boundary today
-
-To be honest about where the current code stands, beyond the five methods:
-
-1. **Building an engine.** The orchestrator builds each engine (`ProsimosEngine(...)`) from the
-   configuration: a BPMN file, a JSON file, a number of cases and the shared start time. This
-   happens once, before any of the five methods.
-2. **The event log.** When it builds an engine, the orchestrator gives it a writer to send its log
-   rows to. The engine hands its rows over after every step, so the orchestrator never reaches into
-   the engine to collect them.
-3. **Random numbers.** All engines draw from one shared random number generator, so a process's
-   results depend on which other processes run beside it. This isn't a route to another process's
-   data, but it means processes aren't fully independent yet. The protocol calls for one generator
-   per engine, derived from the seed and the process name; that isn't implemented yet.
-
-### Questions to agree on
-
-1. Is building an engine and collecting its log part of this interface, or a separate one? The
-   protocol doesn't cover either.
-
-## Message routing
-
-`run_engines` implements the orchestrator loop from the protocol:
-
-- **Routing table**, built once at setup: for each message type, the consumer groups with at least
-  one member subscribed to it.
-- **Stamping**: every message returned by `step()` gets an id (`m1`, `m2`, ...), its source process
-  and the step's time.
-- **Pool**: one copy of each message per subscribed group. A copy remembers its group and which
-  members have discarded it. A message type nobody subscribes to gets no copy and a warning.
-- **Offers**: after each step, the orchestrator offers the new copies, then the pooled copies of the
-  stepping engine's group, to the group's members in random order at the step's time, until one
-  claims it. A member that discarded a copy is never offered it again. A copy leaves the pool when
-  a member claims it, or when every member subscribed to its type has discarded it.
-- **Randomness**: the member order comes from the orchestrator's own generator, seeded from the
-  simulation seed, never from the global `random` module the engines draw from, so choosing a
-  warehouse can't shift the engines' random draws.
-- **Report**: `run_engines` and `run_orchestrator` return a `RunReport` with every step, published
-  message, copy, claim and discard, the copies still in the pool at the end (unclaimed messages),
-  discard counts per message type and process, the orchestrator's warnings, and, from each engine's
-  `finish()`, its stalled cases (`stalled`) and warnings (`engine_warnings`), as (process, ...) pairs.
-
-The orchestrator's own warnings (`warnings`) are collected in the report as they occur, not printed:
-a message type nobody subscribes to, and a message whose every recipient discarded it without anyone claiming a copy. The second applies
-even when the discard is expected, for example a shipment for an order that was canceled.
-
-Copies are offered only to the members that subscribe to the message's type. In the protocol's
-example every member of a shared group subscribes to the same types, so this only matters for groups
-whose members consume different messages.
+- **Shared random generators.** All Prosimos engines draw from the same global Python and NumPy
+  generators, so a process's random draws depend on which other processes run beside it. A run is
+  still repeatable with a seed, but processes aren't statistically independent of each other (see
+  "Random numbers" in [engine-internals.md](engine-internals.md)).
+- **Outside the interface.** Building an engine (from a BPMN file, a JSON file, a number of cases and
+  the start time) and handing it a log writer happen outside the five methods.

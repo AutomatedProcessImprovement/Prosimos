@@ -11,7 +11,7 @@ Besides, pools can share resources, i.e., a resource may play different roles in
 
 ## Requirements
 
-- Python 3.9+
+- Python 3.11 or 3.12
 - Poetry 1.4.2
 - For dependencies, please, check `pyproject.toml`
 
@@ -28,13 +28,41 @@ Once all the dependencies all installed, open a terminal and from the root folde
     poetry run prosimos start-simulation --bpmn_path <Path to the BPMN file with the process model> 
                                          --json_path <Path to the JSON file with the differentiated simulation parameters>
                                          --total_cases <Number of process instances to simulate>
-                                         --log_out_path <(Optional) Path to the CSV file to save the statistics/metrics after running the simulations>
-                                         --stat_out_path <(Optional) Path to the CSV file to save the event-log of the simulation>
+                                         --stat_out_path <(Optional) Path to the CSV file to save the statistics/metrics after running the simulations>
+                                         --log_out_path <(Optional) Path to the CSV file to save the event-log of the simulation>
                                          --starting_at <(Optional) Date-time of the first process case in the simulation as a string. For example, 2022-06-21T13:22:30.035185+03:00>
+                                         --is_event_added_to_log <(Optional) True to also log intermediate events>
+                                         --seed <(Optional) Integer seed, so that the same seed gives the same simulation>
 
-The last three parameters are optional. 
+All parameters after **_total_cases_** are optional. 
 If none of the output file paths **_stat_out_path_** and **_log_out_path_** are provided, then **_stat_out_path_** is used by default, and the statistics file generated in the current directory. 
 If parameter **_starting_at_** is not provided, the current date-time is assigned as starting point for the simulation.
+Without **_seed_**, every run draws different random values.
+
+## Multi-process simulation
+
+Several processes can be simulated side by side on one shared clock, exchanging messages: for
+example, a Sales process announces each order, warehouses compete to handle it, and the Sales case
+waits until its shipment arrives. Each process is an ordinary Prosimos model (BPMN plus JSON); its
+JSON settings list which message events publish or wait for which messages. A configuration file
+lists the processes, and one call runs them together:
+
+```python
+from prosimos.orchestrator import SimulationConfig, run_orchestrator
+
+config = SimulationConfig.from_json("config.json")
+report = run_orchestrator(config, log_out_path="merged_log.csv")
+```
+
+The result is one event log of all processes and a report of every message, claim and discard,
+plus the cases still waiting for a message at the end. See:
+
+- [docs/orchestrator.md](docs/orchestrator.md): configuration, output, how messages are routed, and
+  the engine interface;
+- [docs/messaging.md](docs/messaging.md): how to model message events and the `messages` section;
+- [docs/running-example.md](docs/running-example.md): a complete example with orders, warehouses and
+  trucks;
+- [docs/engine-internals.md](docs/engine-internals.md): how Prosimos runs a case, for developers.
 
 
 ## Simulation Input File Formats 

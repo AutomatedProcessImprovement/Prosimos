@@ -1,4 +1,4 @@
-"""The 'messages' section of a process's JSON settings (docs/messaging-model.md): one test per rule."""
+"""The 'messages' section of a process's JSON settings (docs/messaging.md): one test per rule."""
 import json
 from datetime import datetime
 

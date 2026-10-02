@@ -1,5 +1,5 @@
 """
-Publishing (docs/messaging-model.md): a case passing an event listed under 'publish' produces a
+Publishing (docs/messaging.md): a case passing an event listed under 'publish' produces a
 message, held until the time the case really passes the event and then returned by step().
 """
 import csv

@@ -197,7 +197,7 @@ class ProsimosEngine(SimulationEngine):
     """A Prosimos simulation (SimBPMEnv) seen through the SimulationEngine interface. It publishes
     the messages its model lists under 'publish', each at the time the case passes the event, and
     subscribes to the types under 'consume': a case reaching such a catch event waits there until a
-    delivered message matches (docs/messaging-model.md).
+    delivered message matches (docs/messaging.md).
 
     Prosimos writes its warnings to one list shared by every engine (warning_logger). Each method
     therefore hands Prosimos this engine's own list for the duration of the call, so the warnings

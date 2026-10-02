@@ -1,14 +1,20 @@
 # Running example: orders, warehouses and trucks
 
-This scenario is used throughout the design documents and the protocol tests.
-It exercises every rule of the orchestrator protocol in a single run: announcements, a shared
-group, a random tie, correlation, pending messages, discards, warnings and the end-of-run report.
+One scenario, used throughout this documentation and in the tests, that shows how processes
+exchange messages through the orchestrator ([orchestrator.md](orchestrator.md)): orders placed in
+Sales are billed, packed by one of two warehouses, shipped, and closed.
 
-The processes are scripted fake engines in the tests (`testing_scripts/protocol_scenario.py`, checked
-by `testing_scripts/test_protocol_scenario.py`). A first version with a real Prosimos Sales model is
-described at the end ("First real-engine version"); replacing the other processes is future work.
+It exists in two versions:
 
-## Processes and messages
+- **[Scripted version](#scripted-version)**: every process is a scripted test engine. In a single
+  run it exercises every rule of the orchestrator: announcements, a shared group, a random tie,
+  correlation, pending messages, discards, warnings and the end-of-run report.
+- **[Real-engine version](#real-engine-version)**: Sales is a real Prosimos model that publishes and
+  waits ([messaging.md](messaging.md)); the other processes are still scripted.
+
+## The scenario
+
+### Processes and messages
 
 | Process              | Publishes                                            | Consumes                                                                       |
 |----------------------|------------------------------------------------------|--------------------------------------------------------------------------------|
@@ -29,11 +35,11 @@ consumer_groups:
 Packing takes 1 h in Tartu and 1.5 h in Tallinn. A packed order waits for a truck. A warehouse that
 claims a truck loads up to 2 waiting orders, oldest first, and publishes a `Shipment` for each.
 
-## Process models
+### Process models
 
 ![Process models of the running example](running-example-processes.svg)
 
-## Who talks to whom
+### Who talks to whom
 
 Every arrow goes through the orchestrator; processes never address each other.
 
@@ -57,7 +63,14 @@ flowchart LR
     Sales -.->|Newsletter| Nobody
 ```
 
-## Timeline
+## Scripted version
+
+All five processes are scripted engines (`testing_scripts/protocol_scenario.py`) with fixed orders
+and trucks. Five orders arrive between 09:00 and 09:40 (ord1 Tartu, ord2 Tallinn, ord3 Tapa, ord4
+Pärnu, ord5 Tartu), Sales sends one Newsletter, ord2 is cancelled at 10:00, and trucks arrive at
+09:45 (Narva), 10:30, 13:00 and 16:00 (Tartu) and 12:00 (Tallinn).
+
+### Timeline
 
 ```mermaid
 sequenceDiagram
@@ -92,9 +105,9 @@ sequenceDiagram
     Note over C: 16:00 Truck T4 Tartu, nothing waiting, stays unclaimed
 ```
 
-## Expected results
+### What this run demonstrates
 
-| Check        | Expected                                                                                                                                                           |
+| Rule         | What happens                                                                                                                                                       |
 |--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Announcement | Billing claims all five `OrderPlaced`; the Warehouses group gets one copy of each                                                                                  |
 | Shared group | every order is claimed by at most one warehouse; ord1 and ord5 go to Tartu, ord2 to Tallinn                                                                        |
@@ -110,14 +123,14 @@ sequenceDiagram
 still a negative one, so the orchestrator warns about it like any other message nobody could use.
 
 Details that depend on ord3's warehouse (which truck carries it, when its shipment is published)
-change with the seed. Tests check the rules that always hold for any seed, plus the exact outcome of
-one fixed seed.
+change with the seed. `testing_scripts/test_protocol_scenario.py` checks the rules that always hold
+for any seed, plus the exact outcome of one fixed seed.
 
-## First real-engine version
+## Real-engine version
 
-The first run in which a real Prosimos engine publishes and waits inside the protocol: Sales is a
-Prosimos model, Billing and the two warehouses are scripted fake engines, given to `run_orchestrator`
-as extra engines (`testing_scripts/real_sales_scenario.py`, checked by `testing_scripts/test_real_sales.py`).
+Sales is a real Prosimos model; Billing and the two warehouses are scripted engines, given to
+`run_orchestrator` as extra engines (`testing_scripts/real_sales_scenario.py`, checked by
+`testing_scripts/test_real_sales.py`).
 
 ```
 Sales (real Prosimos, testing_scripts/assets/running_example/):

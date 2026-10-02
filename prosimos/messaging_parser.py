@@ -1,5 +1,5 @@
 """
-The optional 'messages' section of a process's JSON settings (docs/messaging-model.md). The BPMN
+The optional 'messages' section of a process's JSON settings (docs/messaging.md). The BPMN
 model says where a process publishes or waits (message events); this section says what it
 publishes or accepts. Parsing only: nothing here publishes or consumes a message yet.
 """
