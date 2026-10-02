@@ -18,6 +18,7 @@ subscribes to nothing.
 |-----------------------------------------------------|-------------------------------------------|
 | intermediate message throw event, message end event | the case publishes a message here         |
 | intermediate message catch event                    | the case waits here for a message         |
+| message start event                                 | a message starts a new case               |
 
 An event is a message event when it has a `messageEventDefinition`.
 
@@ -58,9 +59,14 @@ message carries (optional, default none). Their values are copied from the case 
 event. `case_id` is a reserved name for the case's identifier: the process name followed by the case
 number, e.g. `Sales-7`, so orders get unique ids without a new case attribute.
 
-**consume**: each entry names a catch event, the message `type` it accepts, and an optional
-`condition`; without one, any message of that type is accepted. The process subscribes to every
-type listed under `consume`.
+**consume**: each entry names a catch event (or the start event, see "Processes started by
+messages"), the message `type` it accepts, and an optional `condition`; without one, any message of
+that type is accepted. The process subscribes to every type listed under `consume`.
+
+**copy** (optional, on any `consume` entry) maps case attributes to message attributes:
+`"copy": {"order_id": "case_id"}` sets the case's `order_id` to the message's `case_id`. A copied
+name counts as declared, so the process can publish it later (e.g. `Shipment{order_id}`). The target
+can't be `case_id`, which is reserved.
 
 One event may appear in several entries: under `publish`, passing it publishes one message per
 entry; under `consume`, a case waiting there accepts any of the entries' types. To wait for all of
@@ -103,7 +109,7 @@ The section is checked when the model is loaded. An invalid section stops loadin
 - The section holds only `publish` and `consume`, each a list.
 - Every `event_id` exists in the BPMN model.
 - A `publish` event is an intermediate message throw event or a message end event.
-- A `consume` event is an intermediate message catch event.
+- A `consume` event is an intermediate message catch event or a message start event.
 - `type` is a non-empty string.
 - `attributes` is a list of names, each `case_id` or a declared case, global or event attribute.
 - A message end event under `publish`, or a catch event under `consume`, has exactly one incoming
@@ -112,6 +118,10 @@ The section is checked when the model is loaded. An invalid section stops loadin
   as an OR join and into a catch event as an AND merge (see
   [engine-internals.md](engine-internals.md)). With an explicit gateway, the meaning is clear.
 - A catch event under `consume` doesn't directly follow an event-based gateway (see "Limitations").
+- `copy` maps case attribute names to message attribute names, and doesn't set `case_id`.
+- A process started by messages (a `consume` entry on its start event) has exactly one start event,
+  and the start event's condition uses only fixed values and `source`, not `case_attribute`: there
+  is no case yet to compare with.
 - `condition` is a non-empty list of non-empty lists of terms.
 - A term has `attribute`, a known `comparison`, and exactly one of `value` and `case_attribute`;
   `in` takes a fixed `value` `[low, high]`.
@@ -159,9 +169,33 @@ case's arrival at the event until the message.
 
 Cases still waiting when the run ends are reported as stalled cases ([orchestrator.md](orchestrator.md)).
 
+## Processes started by messages
+
+A `consume` entry on the model's start event (a message start event) makes messages start the
+process's cases, instead of an arrival schedule. The Tartu warehouse, for example, starts a case for
+every order from Tartu or Tapa and keeps the order's id (model: `testing_scripts/assets/messaging/tartu_warehouse.*`):
+
+```json
+"consume": [
+  {"event_id": "Start_Order", "type": "OrderPlaced",
+   "condition": [[{"attribute": "city", "comparison": "=", "value": "Tartu"}],
+                 [{"attribute": "city", "comparison": "=", "value": "Tapa"}]],
+   "copy": {"order_id": "case_id"}}
+]
+```
+
+A process is started either by its arrival schedule or by messages, never both:
+
+- the model has exactly one start event;
+- in the simulation configuration, the process has no `total_cases` (giving one is an error, so
+  nobody thinks it limits anything), while every other process needs one;
+- its JSON settings need no `arrival_time_distribution` or `arrival_time_calendar`; every other
+  process needs an `arrival_time_distribution`.
+
 ## Limitations
 
-- **Message start events** (a message starting a new case) aren't supported yet.
+- **Message start events** are checked when a model is loaded, but cases aren't created from
+  messages yet, and `copy` isn't applied yet.
 - **Event-based gateways.** A catch event listed under `consume` can't directly follow an
   event-based gateway, so a race such as "the shipment or a timeout, whichever comes first" can't be
   modelled yet; such a model is rejected when it is loaded. Prosimos decides an event-based gateway

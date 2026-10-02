@@ -118,8 +118,16 @@ def test_consuming_needs_a_message_catch_event(bpmn, event_id, found):
     assert f"{event_id!r} is {found}, expected an intermediate message catch event" in reason
 
 
-def test_message_start_events_are_not_supported_yet(bpmn):
-    assert "'Start_Message' is a message start event, which isn't supported yet" in rejected(consume("Start_Message"), bpmn)
+def test_a_process_started_by_messages_has_exactly_one_start_event(bpmn):
+    # the test model has a plain start event next to the message start event
+    reason = rejected(consume("Start_Message"), bpmn)
+
+    assert "a process started by messages must have exactly one start event; the model has 2 (Start, Start_Message)" in reason
+
+
+def test_a_start_event_without_a_message_definition_cannot_start_cases(bpmn):
+    assert "'Start' is a startEvent, expected an intermediate message catch event or a message start event" \
+        in rejected(consume("Start"), bpmn)
 
 
 @pytest.mark.parametrize("section", [publish(type=""), consume(type="   "), {"publish": [{"event_id": "Throw_OrderPlaced"}]}])

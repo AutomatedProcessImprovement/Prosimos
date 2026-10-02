@@ -76,7 +76,7 @@ def parse_json_sim_parameters(json_path):
         )
 
         element_distribution = parse_arrival_branching_probabilities(
-            json_data["arrival_time_distribution"],
+            json_data.get("arrival_time_distribution"),  # absent for a process started by messages
             json_data["gateway_branching_probabilities"]
         )
 
@@ -368,8 +368,9 @@ def parse_gateway_conditions(gateway_json, branch_rules):
 def parse_arrival_branching_probabilities(arrival_json, gateway_json):
     element_distribution = dict()
 
-    dist_name = arrival_json["distribution_name"]
-    if dist_name == "histogram_sampling":
+    if arrival_json is None:
+        pass  # a process started by messages has no arrival schedule
+    elif arrival_json["distribution_name"] == "histogram_sampling":
         # Custom distribution: we expect a list of inter-arrival interval values (floats),
         # prosimos will take randomly a value from this list each time it needs a new
         # observation, so the output will follow (if the sample is big enough) the same

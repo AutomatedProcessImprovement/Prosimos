@@ -226,10 +226,11 @@ def test_config_loads_from_a_json_file_and_runs(tmp_path):
 def test_config_file_missing_a_required_field_is_rejected(tmp_path):
     config_file = tmp_path / "simulation.json"
     with open(config_file, "w") as f:
-        json.dump({"processes": [{"name": "Sales", "bpmn_path": "sales.bpmn", "json_path": "sales.json"}],
+        # total_cases is optional (a process started by messages has none), json_path isn't
+        json.dump({"processes": [{"name": "Sales", "bpmn_path": "sales.bpmn", "total_cases": 5}],
                    "start_time": "2024-01-01T09:30:00+00:00"}, f)
 
-    with pytest.raises(ValueError, match=r"Sales is missing \['total_cases'\]"):
+    with pytest.raises(ValueError, match=r"Sales is missing \['json_path'\]"):
         SimulationConfig.from_json(config_file)
 
 

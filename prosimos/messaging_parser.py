@@ -1,7 +1,7 @@
 """
 The optional 'messages' section of a process's JSON settings (docs/messaging.md). The BPMN
-model says where a process publishes or waits (message events); this section says what it
-publishes or accepts. Parsing only: nothing here publishes or consumes a message yet.
+model says where a process publishes, waits or is started (message events); this section says what
+it publishes or accepts. Parsing and validation only; the engine acts on the result.
 """
 import json
 import xml.etree.ElementTree as ET
@@ -14,7 +14,7 @@ from prosimos.exceptions import InvalidSimScenarioException
 BPMN_NS = "{http://www.omg.org/spec/BPMN/20100524/MODEL}"
 MESSAGE_DEFINITION = BPMN_NS + "messageEventDefinition"
 PUBLISHING_EVENTS = {"intermediateThrowEvent": "an intermediate message throw event", "endEvent": "a message end event"}
-CONSUMING_EVENTS = {"intermediateCatchEvent": "an intermediate message catch event"}
+CONSUMING_EVENTS = {"intermediateCatchEvent": "an intermediate message catch event", "startEvent": "a message start event"}
 COMPARISONS = ("=", "!=", "<", "<=", ">", ">=", "in")  # the ones branch rules understand
 TERM_KEYS = {"attribute", "comparison", "value", "case_attribute"}
 
@@ -41,6 +41,8 @@ class ConsumePoint:
     event_id: str
     type: str
     condition: Optional[Tuple[Tuple[ConditionTerm, ...], ...]]  # any alternative whose terms all hold; None accepts every message
+    copy: Tuple[Tuple[str, str], ...] = ()  # (case attribute, message attribute): copied into the case
+    starts_case: bool = False  # at the start event: an accepted message starts a new case
 
 
 @dataclass(frozen=True)
@@ -50,6 +52,11 @@ class MessagingModel:
 
     def subscriptions(self) -> List[str]:
         return sorted({point.type for point in self.consume})
+
+    @property
+    def started_by_messages(self) -> bool:
+        """Whether the process's cases are started by messages instead of an arrival schedule."""
+        return any(point.starts_case for point in self.consume)
 
 
 def parse_messages_file(json_path, bpmn_path) -> MessagingModel:
@@ -64,6 +71,11 @@ def declared_attributes(settings):
              for attribute in settings.get(section, [])}
     names.update(attribute["name"] for event in settings.get("event_attributes", [])
                  for attribute in event["attributes"])
+    # attributes a consume entry copies from a message into the case can be published too
+    messages = settings.get("messages")
+    consume = messages.get("consume", []) if isinstance(messages, dict) else []
+    names.update(target for entry in consume if isinstance(entry, dict) and isinstance(entry.get("copy"), dict)
+                 for target in entry["copy"] if isinstance(target, str))
     return names
 
 
@@ -76,15 +88,43 @@ def parse_messages(messages_json, bpmn_path, declared_attributes) -> MessagingMo
         _fail("'messages' must be an object with only 'publish' and/or 'consume'")
 
     events = _bpmn_events(bpmn_path)
+    # consume first, so that a malformed copy (whose targets publish entries may use) is reported
+    # as such rather than as an undeclared published attribute
+    consume = []
+    for where, entry in _entries(messages_json, "consume", events, CONSUMING_EVENTS):
+        point = ConsumePoint(entry["event_id"], entry["type"], _condition(entry, where), _copy(entry, where),
+                             starts_case=events[entry["event_id"]][0] == "startEvent")
+        if point.starts_case:
+            _check_start(where, point, events)
+        consume.append(point)
     publish = tuple(
         PublishPoint(entry["event_id"], entry["type"], _attributes(entry, where, declared_attributes))
         for where, entry in _entries(messages_json, "publish", events, PUBLISHING_EVENTS)
     )
-    consume = tuple(
-        ConsumePoint(entry["event_id"], entry["type"], _condition(entry, where))
-        for where, entry in _entries(messages_json, "consume", events, CONSUMING_EVENTS)
-    )
-    return MessagingModel(publish, consume)
+    return MessagingModel(publish, tuple(consume))
+
+
+def _check_start(where, point, events):
+    # Prosimos runs one start event per process, so a process is started either by its arrival
+    # schedule or by messages, and there is no case yet for a condition to compare with
+    starts = sorted(event_id for event_id, (kind, *_) in events.items() if kind == "startEvent")
+    if len(starts) > 1:
+        _fail(f"{where}: a process started by messages must have exactly one start event; "
+              f"the model has {len(starts)} ({', '.join(starts)})")
+    on_case = [term.attribute for alternative in point.condition or () for term in alternative if term.case_attribute]
+    if on_case:
+        _fail(f"{where}: the condition of a start event may only use fixed values and source, not "
+              f"case_attribute (there is no case yet), but its terms on {', '.join(map(repr, on_case))} do")
+
+
+def _copy(entry, where):
+    copy = entry.get("copy", {})
+    if not isinstance(copy, dict) or not all(isinstance(target, str) and target and isinstance(source, str) and source
+                                             for target, source in copy.items()):
+        _fail(f"{where}: 'copy' must map case attribute names to message attribute names")
+    if "case_id" in copy:
+        _fail(f"{where}: 'copy' can't set case_id, which is reserved for the case's own identifier")
+    return tuple(copy.items())
 
 
 def _entries(messages_json, section, events, allowed_kinds):
@@ -105,8 +145,6 @@ def _check_event(where, event_id, events, allowed_kinds):
     if not isinstance(event_id, str) or event_id not in events:
         _fail(f"{where}: event_id {event_id!r} is not an element of the BPMN model")
     kind, is_message, incoming, after_event_gateway = events[event_id]
-    if kind == "startEvent" and is_message:
-        _fail(f"{where}: event_id {event_id!r} is a message start event, which isn't supported yet")
     if kind not in allowed_kinds or not is_message:
         expected = " or ".join(allowed_kinds.values())
         found = f"a message {kind}" if is_message else f"{'an' if kind[0] in 'aeiou' else 'a'} {kind}"

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Warehouse" targetNamespace="http://bpmn.io/schema/bpmn">
+  <!-- the Tartu warehouse: every OrderPlaced for Tartu or Tapa starts a case, which packs the order
+       and announces its shipment -->
+  <bpmn:process id="TartuWarehouse" isExecutable="false">
+    <bpmn:startEvent id="Start_Order" name="Order received">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="Start_Order_definition" />
+    </bpmn:startEvent>
+    <bpmn:task id="Pack_Order" name="Pack order">
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:intermediateThrowEvent id="Throw_Shipment" name="Shipped">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_3</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="Throw_Shipment_definition" />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:endEvent id="End" name="Done">
+      <bpmn:incoming>Flow_3</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_Order" targetRef="Pack_Order" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Pack_Order" targetRef="Throw_Shipment" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Throw_Shipment" targetRef="End" />
+  </bpmn:process>
+</bpmn:definitions>

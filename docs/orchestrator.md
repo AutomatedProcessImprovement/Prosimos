@@ -11,14 +11,14 @@ a complete example is in [running-example.md](running-example.md).
 ## Quick start
 
 A configuration file lists the processes, the shared start time and, optionally, a seed and the
-consumer groups:
+consumer groups. Here the warehouses are started by Sales's orders, so they have no `total_cases`:
 
 ```json
 {
   "processes": [
     {"name": "Sales", "bpmn_path": "sales.bpmn", "json_path": "sales.json", "total_cases": 100},
-    {"name": "TartuWarehouse", "bpmn_path": "tartu.bpmn", "json_path": "tartu.json", "total_cases": 0},
-    {"name": "TallinnWarehouse", "bpmn_path": "tallinn.bpmn", "json_path": "tallinn.json", "total_cases": 0}
+    {"name": "TartuWarehouse", "bpmn_path": "tartu.bpmn", "json_path": "tartu.json"},
+    {"name": "TallinnWarehouse", "bpmn_path": "tallinn.bpmn", "json_path": "tallinn.json"}
   ],
   "seed": 42,
   "start_time": "2024-01-01T09:00:00+00:00",
@@ -44,12 +44,12 @@ print(report.warnings)   # e.g. messages nobody could use
 `run_orchestrator` takes a `SimulationConfig`, built in code or loaded with
 `SimulationConfig.from_json(path)`:
 
-| Field             | Meaning                                                                                                    |
-|-------------------|------------------------------------------------------------------------------------------------------------|
-| `processes`       | one entry per process: a unique `name`, `bpmn_path`, `json_path` and `total_cases`                          |
-| `start_time`      | the simulation's start, shared by all processes; a time without a time zone is taken as UTC                |
-| `seed`            | optional; the same seed gives the same run. Without one, every run draws different random values           |
-| `consumer_groups` | optional; group name → processes in it. Without it, every process is its own group (see "Message routing") |
+| Field             | Meaning                                                                                                                                                           |
+|-------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `processes`       | one entry per process: a unique `name`, `bpmn_path`, `json_path`, and `total_cases` <br/>unless the process is started by messages ([messaging.md](messaging.md)) |
+| `start_time`      | the simulation's start, shared by all processes; a time without a time zone is taken as UTC                                                                       |
+| `seed`            | optional; the same seed gives the same run. Without one, every run draws different random values                                                                  |
+| `consumer_groups` | optional; group name → processes in it. Without it, every process is its own group (see "Message routing")                                                        |
 
 File paths are relative to the configuration file's folder. A configuration is rejected if process
 names repeat, a process is in no group or in more than one, or a group names a process that doesn't
@@ -71,18 +71,18 @@ doesn't produce. Extra engines get no log writer, so their events aren't in the 
 
 **Run report.** `run_orchestrator` (and `run_engines`) return a `RunReport`:
 
-| Field              | Content                                                                                                |
-|--------------------|--------------------------------------------------------------------------------------------------------|
-| `executed`         | (time, process) for every step                                                                         |
-| `published`        | every message, as stamped by the orchestrator                                                          |
-| `copies`           | (message id, group) for every copy put in the pool                                                     |
-| `claims`           | (message id, process, time) for every claim                                                            |
-| `discards`         | (message id, process, time) for every discard                                                          |
-| `unclaimed`        | (group, message) for the copies still in the pool at the end                                           |
+| Field              | Content                                                                                               |
+|--------------------|-------------------------------------------------------------------------------------------------------|
+| `executed`         | (time, process) for every step                                                                        |
+| `published`        | every message, as stamped by the orchestrator                                                         |
+| `copies`           | (message id, group) for every copy put in the pool                                                    |
+| `claims`           | (message id, process, time) for every claim                                                           |
+| `discards`         | (message id, process, time) for every discard                                                         |
+| `unclaimed`        | (group, message) for the copies still in the pool at the end                                          |
 | `warnings`         | the orchestrator's warnings: a message type nobody subscribes to; a message every recipient discarded |
-| `stalled`          | (process, `StalledCase`) for every case still waiting for a message at the end                         |
-| `engine_warnings`  | (process, warning) for the warnings raised inside each engine                                          |
-| `discarded_counts` | discards per (message type, process)                                                                   |
+| `stalled`          | (process, `StalledCase`) for every case still waiting for a message at the end                        |
+| `engine_warnings`  | (process, warning) for the warnings raised inside each engine                                         |
+| `discarded_counts` | discards per (message type, process)                                                                  |
 
 A `StalledCase` has the case id (e.g. `Sales-1`), the catch event it waits at, the message types it
 waits for, and since when. The "discarded by every recipient" warning appears even when the discard

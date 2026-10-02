@@ -26,7 +26,7 @@ class ProcessSpec:
     name: str
     bpmn_path: str
     json_path: str
-    total_cases: int
+    total_cases: Optional[int] = None  # None for a process started by messages
 
 
 @dataclass
@@ -101,7 +101,8 @@ class SimulationConfig:
              "seed": 42, "start_time": "2024-01-01T09:00:00+00:00",
              "consumer_groups": {"Sales": ["Sales"], ...}}
         BPMN and JSON paths are relative to the configuration file's folder. seed and
-        consumer_groups are optional; a start time without a time zone is taken as UTC.
+        consumer_groups are optional; a start time without a time zone is taken as UTC. A process
+        started by messages has no total_cases.
         """
         path = Path(path)
         with open(path) as f:
@@ -114,11 +115,11 @@ class SimulationConfig:
         folder = path.parent
         processes = []
         for entry in data["processes"]:
-            missing = [key for key in ("name", "bpmn_path", "json_path", "total_cases") if key not in entry]
+            missing = [key for key in ("name", "bpmn_path", "json_path") if key not in entry]
             if missing:
                 raise ValueError(f"{path}: process {entry.get('name', '?')} is missing {missing}")
             processes.append(ProcessSpec(
-                entry["name"], str(folder / entry["bpmn_path"]), str(folder / entry["json_path"]), entry["total_cases"]
+                entry["name"], str(folder / entry["bpmn_path"]), str(folder / entry["json_path"]), entry.get("total_cases")
             ))
 
         start = parse_datetime(data["start_time"], True)

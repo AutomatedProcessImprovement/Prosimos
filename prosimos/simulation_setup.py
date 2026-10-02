@@ -47,15 +47,31 @@ class SimDiffSetup:
                                                         self.batch_processing, self.gateway_conditions,
                                                         self.gateway_execution_limit)
 
-        if not self.arrival_calendar:
+        self._check_arrival_schedule(total_cases)
+        if not self.arrival_calendar and not self.messaging.started_by_messages:
             self.arrival_calendar = self.find_arrival_calendar()
 
         self.is_event_added_to_log = is_event_added_to_log
-        self.total_num_cases = total_cases  # how many process cases should be simulated
+        self.total_num_cases = total_cases  # how many process cases should be simulated; None if started by messages
 
         # every internal time is an offset from this moment, so engines that must agree on
         # absolute time need to be given the same value rather than each reading the clock
         self.set_starting_datetime(start_datetime)
+
+    def _check_arrival_schedule(self, total_cases):
+        """A process is started either by its arrival schedule or by messages, never both."""
+        if self.messaging.started_by_messages:
+            if total_cases is not None:
+                raise InvalidSimScenarioException(
+                    f"{self.process_name} is started by messages, so it takes no total_cases (got {total_cases}): "
+                    f"its cases are created by the messages it accepts")
+            return
+        if total_cases is None:
+            raise InvalidSimScenarioException(
+                f"{self.process_name} needs total_cases: it isn't started by messages")
+        if "arrivalTime" not in self.element_probability:
+            raise InvalidSimScenarioException(
+                f"{self.process_name} needs an arrival_time_distribution: it isn't started by messages")
 
     def verify_simulation_input(self):
         for e_id in self.bpmn_graph.element_info:
@@ -149,6 +165,9 @@ class SimDiffSetup:
             )
 
     def set_starting_datetime(self, new_datetime):
+        if self.arrival_calendar is None:  # started by messages: no arrival calendar to align with
+            self.start_datetime = new_datetime
+            return
         (
             is_inside_arrival_calendar,
             _,
