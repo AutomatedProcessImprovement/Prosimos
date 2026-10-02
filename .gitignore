@@ -22,3 +22,5 @@ testing_scripts/assets/simulation_warnings.txt
 run_two_processes.py
 merged_log.csv
 .claude/
+run_real_sales.py
+real_sales_log.csv
