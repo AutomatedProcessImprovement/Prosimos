@@ -149,7 +149,7 @@ arrive about every 30 minutes; consumer groups are as above (the warehouses shar
 Compared with the scripted version, this one is simpler: no Carrier and no trucks (a warehouse
 ships a fixed time after claiming), no Newsletter, and no canceled order.
 
-What it shows, for seed 1 and 20 orders (7 Tartu, 5 Tallinn, 6 Tapa, 2 Pärnu):
+What it shows, for seed 1 and 20 orders (8 Tartu, 2 Tallinn, 7 Tapa, 3 Pärnu):
 
 | Check          | Result                                                                                                                                                   |
 |----------------|----------------------------------------------------------------------------------------------------------------------------------------------------------|

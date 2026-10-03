@@ -218,7 +218,7 @@ def test_a_condition_on_the_message_alone_decides_a_discard(tmp_path):
 
 def test_when_several_cases_match_the_one_waiting_longest_claims_it(tmp_path):
     any_shipment = _settings(tmp_path, lambda settings: settings["messages"]["consume"][0].pop("condition"))
-    engine, log = _sales(3, json_path=any_shipment, seed=2)  # with this seed case 2 reaches the catch event before case 1
+    engine, log = _sales(3, json_path=any_shipment, seed=4)  # with this seed case 1 reaches the catch event before case 0
     _run_until_idle(engine)
     reached = {row[0]: _time(row[4]) for row in log.rows if row[1] == "Take order"}  # Take order ends = catch event reached
     longest_first = sorted(reached, key=reached.get)
@@ -228,7 +228,7 @@ def test_when_several_cases_match_the_one_waiting_longest_claims_it(tmp_path):
         assert engine.deliver(shipment("anything"), at(hour)) is Verdict.CLAIMED
         _run_until_idle(engine)
         resumed.extend(case for case, time in log.times("Close order").items() if time == at(hour))
-    assert longest_first == [0, 2, 1] and resumed == longest_first
+    assert longest_first == [1, 0, 2] and resumed == longest_first
 
 
 def test_cases_waiting_equally_long_are_resumed_by_case_id(tmp_path):

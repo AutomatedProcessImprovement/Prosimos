@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Billing" targetNamespace="http://bpmn.io/schema/bpmn">
+  <!-- Billing of the running example: every placed order starts a case that sends an invoice -->
+  <bpmn:process id="Billing" isExecutable="false">
+    <bpmn:startEvent id="Start_Order" name="Order placed">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="Start_Order_definition" />
+    </bpmn:startEvent>
+    <bpmn:task id="Send_Invoice" name="Send invoice">
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="End" name="Invoiced">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_Order" targetRef="Send_Invoice" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Send_Invoice" targetRef="End" />
+  </bpmn:process>
+</bpmn:definitions>

@@ -10,7 +10,7 @@ import pytest
 from testing_scripts.real_sales_scenario import run_with_real_sales
 
 SEED = 1
-CASES = 20  # with this seed: 7 Tartu, 5 Tallinn, 6 Tapa and 2 Pärnu orders
+CASES = 20  # with this seed: 8 Tartu, 2 Tallinn, 7 Tapa and 3 Pärnu orders
 WAREHOUSE_OF = {"Tartu": {"TartuWarehouse"}, "Tallinn": {"TallinnWarehouse"},
                 "Tapa": {"TartuWarehouse", "TallinnWarehouse"}}
 
@@ -47,7 +47,7 @@ def test_parnu_orders_appear_as_stalled_cases(run):
     report, rows, city = run
     parnu = sorted(order for order, order_city in city.items() if order_city == "Pärnu")
 
-    assert len(parnu) == 2
+    assert len(parnu) == 3
     assert [(process, case.case_id, case.event_id, case.message_types) for process, case in report.stalled] == [
         ("Sales", order, "Catch_Shipment", ["Shipment"]) for order in parnu]
     assert report.unclaimed == [] and report.warnings == [] and report.engine_warnings == []

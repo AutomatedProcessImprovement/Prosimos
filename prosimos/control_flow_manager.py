@@ -1,6 +1,5 @@
 import copy
 import random
-import secrets
 import sys
 from collections import deque
 from enum import Enum
@@ -518,7 +517,7 @@ class BPMNGraph:
 
         # return randomly selected outgoing flow
         # in case of same value for multiple flows
-        return secrets.choice(res)
+        return random.choice(res)
 
 
     def event_duration(self, event_id):

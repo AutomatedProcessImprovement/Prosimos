@@ -100,25 +100,31 @@ events that publish or wait must have a single incoming arrow instead (checked a
   whose start event is started by messages is rejected if it has more than one.
 - **One end event** per model (`BPMNGraph.validate_model`).
 - **Event-based gateways** are decided when the case reaches them: `get_event_gateway_choice` draws
-  a duration for each following event and takes the shortest, breaking ties with `secrets.choice`.
+  a duration for each following event and takes the shortest, breaking ties with `random.choice`.
   Nothing waits there.
 
 ## Random numbers
 
-Random draws come from four sources:
+All of Prosimos's random draws come from the two global generators:
 
-| Source                                                                           | Used for                                                                                    | Can a per-engine generator control it?                                                                  |
-|----------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------|
-| Python `random` (`random.shuffle`, `choices`, `random.randint`, `random.random`) | order of parallel branches, discrete attributes, batch sizes, resource choice, multitasking | only if replaced by a per-engine `random.Random` at ~10 call sites                                      |
-| NumPy global (`np.random.rand`, `numpy.random.choice/uniform`)                   | histograms, gateway probabilities, fuzzy calendars                                          | only if replaced at ~7 call sites                                                                       |
-| SciPy `.rvs()` inside pix-framework `DurationDistribution.generate_sample`       | every duration, arrival gap, continuous attribute                                           | **no**: pix-framework calls `.rvs()` without `random_state`, so it always uses NumPy's global generator |
-| `secrets.choice` in `get_event_gateway_choice`                                   | ties at event-based gateways                                                                | **no**: never seedable; should become an ordinary random call                                           |
+| Source                                                                       | Used for                                                                                                                                    |
+|------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------|
+| Python `random` (`random.shuffle`, `choices`, `choice`, `randint`, `random`) | order of parallel branches, discrete attributes, batch sizes, resource choice, multitasking, ties at event-based gateways                   |
+| NumPy global (`np.random.rand`, `numpy.random.choice/uniform`)               | histograms, gateway probabilities, fuzzy calendars                                                                                          |
+| SciPy `.rvs()` inside pix-framework `DurationDistribution.generate_sample`   | every duration, arrival gap, continuous attribute; pix-framework calls `.rvs()` without `random_state`, so it uses NumPy's global generator |
 
-`--seed` (and the seed of a multi-process configuration) seeds the global Python and NumPy
-generators, which makes runs repeatable apart from the rare `secrets.choice` ties. In a
-multi-process run all engines share these generators, so one engine's draws depend on the others.
+A single-process run (`--seed`) seeds these global generators directly.
 
-Giving each engine its own stream needs no library changes: before each call to an engine, load that
-engine's saved Python and NumPy generator states, and save them after. Measured on a small example,
-an engine's draws were then identical with or without another engine beside it, at about 36 µs per
-call, roughly doubling the orchestrator's time per step (~25 µs). This isn't implemented yet.
+**One stream per engine.** In a multi-process run every `ProsimosEngine` keeps its own Python and
+NumPy generator states. At the start of each of its methods, building it included, it saves the
+caller's states and loads its own; at the end it saves its own and puts the caller's back (together
+with its warning list, see [orchestrator.md](orchestrator.md)). Nothing in Prosimos or pix-framework
+changes: they keep drawing from "the global generators", which during the call are the engine's.
+So one engine's draws don't depend on which other engines run beside it, and a run leaves the
+caller's generators untouched. On a small example this cost about 36 µs per call.
+
+An engine's states are seeded from the simulation seed and its process name, with a stable hash
+(SHA-256 of `"<seed>/<name>"`, not Python's `hash()`, which differs between runs), so two engines of
+the same model under different names draw different values. Without a simulation seed, an engine is
+seeded from draws of the caller's global generators, so a run is unrepeatable unless the caller
+seeded those.

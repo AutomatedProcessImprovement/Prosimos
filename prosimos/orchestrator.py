@@ -1,5 +1,6 @@
 import copy
 import csv
+import hashlib
 import itertools
 import json
 import random
@@ -200,36 +201,48 @@ class ProsimosEngine(SimulationEngine):
     subscribes to the types under 'consume': a case reaching such a catch event waits there until a
     delivered message matches (docs/messaging.md).
 
-    Prosimos writes its warnings to one list shared by every engine (warning_logger). Each method
-    therefore hands Prosimos this engine's own list for the duration of the call, so the warnings
-    of two engines never mix."""
+    Prosimos writes its warnings to one list shared by every engine (warning_logger) and draws its
+    random numbers from the global Python and NumPy generators. Each method therefore hands Prosimos
+    this engine's own warning list and generator states for the duration of the call, so two engines'
+    warnings never mix and one engine's draws don't depend on which other engines run beside it.
 
-    def __init__(self, spec: ProcessSpec, start_datetime: datetime, log_writer=None):
+    With a seed, the engine's generators are seeded from the seed and the process name, so engines of
+    the same model under different names draw different values. Without one, they are seeded from the
+    global generators: if the caller seeded those first (random.seed, np.random.seed), the run is
+    repeatable; otherwise every run differs."""
+
+    def __init__(self, spec: ProcessSpec, start_datetime: datetime, log_writer=None, seed: Optional[int] = None):
         self._warnings: List[str] = []
-        with self._own_warnings():
+        self._python_state, self._numpy_state = _engine_random_states(seed, spec.name)
+        with self._own_globals():
             sim_setup = SimDiffSetup(spec.bpmn_path, spec.json_path, False, spec.total_cases, start_datetime)
             self._env = SimBPMEnv(sim_setup, None, log_writer, process_name=spec.name)
 
     @contextmanager
-    def _own_warnings(self):
-        shared = warning_logger.warnings_queue
+    def _own_globals(self):
+        shared_warnings, shared_python, shared_numpy = warning_logger.warnings_queue, random.getstate(), np.random.get_state()
         warning_logger.warnings_queue = self._warnings
+        random.setstate(self._python_state)
+        np.random.set_state(self._numpy_state)
         try:
             yield
         finally:
-            warning_logger.warnings_queue = shared
+            self._python_state, self._numpy_state = random.getstate(), np.random.get_state()
+            warning_logger.warnings_queue = shared_warnings
+            random.setstate(shared_python)
+            np.random.set_state(shared_numpy)
 
     def subscriptions(self) -> List[str]:
-        with self._own_warnings():
+        with self._own_globals():
             return self._env.sim_setup.messaging.subscriptions()
 
     def next_event_time(self) -> Optional[datetime]:
         # None while only waiting cases are left: nothing to do now, but not finished
-        with self._own_warnings():
+        with self._own_globals():
             return self._env.next_event_time()
 
     def step(self) -> List[Message]:
-        with self._own_warnings():
+        with self._own_globals():
             self._env.step()
             # the engine buffers its log rows; hand them over now so nobody outside the engine
             # has to reach into it to flush them at the end
@@ -239,15 +252,26 @@ class ProsimosEngine(SimulationEngine):
             return released
 
     def deliver(self, message: Message, now: datetime) -> Verdict:
-        with self._own_warnings():
+        with self._own_globals():
             return Verdict(self._env.deliver(message.type, message.attributes, message.source, now))
 
     def finish(self) -> EngineReport:
-        with self._own_warnings():
+        with self._own_globals():
             stalled = [StalledCase(self._env.case_id(parked.p_case), parked.task_id,
                                    self._env.waiting_for(parked.task_id), parked.enabled_datetime)
                        for parked in self._env.waiting_cases()]
         return EngineReport(stalled, list(self._warnings))
+
+
+def _engine_random_states(seed, process_name):
+    """Initial Python and NumPy generator states for one engine. A stable hash of the seed and the
+    process name, not Python's hash(), which differs between runs."""
+    if seed is None:
+        python_seed, numpy_seed = random.getrandbits(64), random.getrandbits(32)
+    else:
+        digest = hashlib.sha256(f"{seed}/{process_name}".encode("utf-8")).digest()
+        python_seed, numpy_seed = int.from_bytes(digest[:8], "big"), int.from_bytes(digest[8:12], "big")
+    return random.Random(python_seed).getstate(), np.random.RandomState(numpy_seed).get_state()
 
 
 class _MergedLog:
@@ -455,19 +479,15 @@ def run_orchestrator(config: SimulationConfig, log_out_path: Optional[str] = Non
         raise ValueError(f"extra_engines must be exactly the configuration's extra_processes "
                          f"{sorted(config.extra_processes)}, got {sorted(extra_engines)}")
 
-    if config.seed is not None:
-        random.seed(config.seed)
-        np.random.seed(config.seed)
-
     merged_log = _MergedLog() if log_out_path is not None else None
 
-    # engines share the global random generators, and an engine draws from them the first
-    # time it is asked for its next event, so build and query them in name order rather
-    # than input order to keep the result independent of how the list was written
+    # every engine has its own random generators, seeded from the seed and its process name; without a
+    # seed they are seeded from the global generators, so build them in name order rather than input
+    # order to keep the result independent of how the list was written
     engines: Dict[str, SimulationEngine] = {}
     for spec in sorted(config.processes, key=lambda p: p.name):
         log_writer = merged_log.writer_for(spec.name) if merged_log is not None else None
-        engines[spec.name] = ProsimosEngine(spec, config.start_datetime, log_writer)
+        engines[spec.name] = ProsimosEngine(spec, config.start_datetime, log_writer, config.seed)
     engines.update(extra_engines)
 
     report = run_engines(engines, config.consumer_groups, config.seed)

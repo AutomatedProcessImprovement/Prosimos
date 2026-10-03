@@ -44,12 +44,12 @@ print(report.warnings)   # e.g. messages nobody could use
 `run_orchestrator` takes a `SimulationConfig`, built in code or loaded with
 `SimulationConfig.from_json(path)`:
 
-| Field             | Meaning                                                                                                                                                           |
-|-------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `processes`       | one entry per process: a unique `name`, `bpmn_path`, `json_path`, and `total_cases` <br/>unless the process is started by messages ([messaging.md](messaging.md)) |
-| `start_time`      | the simulation's start, shared by all processes; a time without a time zone is taken as UTC                                                                       |
-| `seed`            | optional; the same seed gives the same run. Without one, every run draws different random values                                                                  |
-| `consumer_groups` | optional; group name → processes in it. Without it, every process is its own group (see "Message routing")                                                        |
+| Field             | Meaning                                                                                                                                                                                                                                                                 |
+|-------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `processes`       | one entry per process: a unique `name`, `bpmn_path`, `json_path`, and `total_cases` <br/>unless the process is started by messages ([messaging.md](messaging.md))                                                                                                       |
+| `start_time`      | the simulation's start, shared by all processes; a time without a time zone is taken as UTC                                                                                                                                                                             |
+| `seed`            | optional; the same seed gives the same run. Each Prosimos engine gets its own random generators, seeded from the seed and its process name, so adding or changing one process doesn't change the others' draws. Without a seed, every run draws different random values |
+| `consumer_groups` | optional; group name → processes in it. Without it, every process is its own group (see "Message routing")                                                                                                                                                              |
 
 File paths are relative to the configuration file's folder. A configuration is rejected if process
 names repeat, a process is in no group or in more than one, or a group names a process that doesn't
@@ -173,9 +173,5 @@ of its methods, and two engines' warnings never mix. Prosimos's end-of-run usage
 
 ## Limitations
 
-- **Shared random generators.** All Prosimos engines draw from the same global Python and NumPy
-  generators, so a process's random draws depend on which other processes run beside it. A run is
-  still repeatable with a seed, but processes aren't statistically independent of each other (see
-  "Random numbers" in [engine-internals.md](engine-internals.md)).
 - **Outside the interface.** Building an engine (from a BPMN file, a JSON file, a number of cases and
   the start time) and handing it a log writer happen outside the five methods.
