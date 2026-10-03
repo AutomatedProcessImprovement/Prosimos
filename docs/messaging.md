@@ -152,10 +152,12 @@ Each message delivered to the process gets one of three answers:
 
 - **`CLAIMED`**: it matches a waiting case's condition. That case continues from the catch event at
   the message's time; one message resumes one case. If several waiting cases match, the one waiting
-  longest takes it; ties go to the lower case id.
+  longest takes it; ties go to the lower case id. Only if no waiting case takes it, a matching start
+  event does: it starts a new case (see "Processes started by messages").
 - **`DISCARDED`**: no case can ever accept it: it fails every condition on the message alone (fixed
   values, `source`), or the case it names through `case_id` doesn't exist in this process or has
-  already finished. A case that just hasn't started yet still counts.
+  already finished. A case that just hasn't started yet still counts. A start event whose condition
+  fails never accepts it either.
 - **`PENDING`**: otherwise, e.g. its case hasn't reached the catch event yet. The orchestrator offers
   it again later. A condition on a case attribute other than `case_id` never causes a discard,
   because the attribute can still change.
@@ -192,10 +194,16 @@ A process is started either by its arrival schedule or by messages, never both:
 - its JSON settings need no `arrival_time_distribution` or `arrival_time_calendar`; every other
   process needs an `arrival_time_distribution`.
 
+Each message the start event accepts starts exactly one new case, at the time the message is
+claimed, with its case attributes drawn as usual. A message that a waiting case also accepts goes to
+the waiting case, not to the start event. A message the start condition rejects is discarded. Until
+its first message, such a process has nothing to do, so the orchestrator never steps it, but it is
+still offered every message it subscribes to.
+
 ## Limitations
 
-- **Message start events** are checked when a model is loaded, but cases aren't created from
-  messages yet, and `copy` isn't applied yet.
+- **`copy`** is checked when a model is loaded, but not applied yet: the values aren't copied into
+  the case.
 - **Event-based gateways.** A catch event listed under `consume` can't directly follow an
   event-based gateway, so a race such as "the shipment or a timeout, whichever comes first" can't be
   modelled yet; such a model is rejected when it is loaded. Prosimos decides an event-based gateway

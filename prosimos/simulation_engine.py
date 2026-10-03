@@ -62,7 +62,7 @@ class SimBPMEnv:
         self.all_process_states = dict()  # store all process states with a case_id as a key
 
         self.case_prioritisation = CasePrioritisation(
-            self.sim_setup.total_num_cases,
+            self.sim_setup.total_num_cases or 0,  # None for a process started by messages: no planned cases
             self.sim_setup.case_attributes,
             self.sim_setup.prioritisation_rules,
         )
@@ -101,7 +101,7 @@ class SimBPMEnv:
     def generate_all_arrival_events(self):
         sim_setup = self.sim_setup
         arrival_time = 0
-        for p_case in range(0, sim_setup.total_num_cases):
+        for p_case in range(0, sim_setup.total_num_cases or 0):
             enabled_datetime = self._update_initial_event_info(self.sim_setup, p_case, arrival_time)
             arrival_time += sim_setup.next_arrival_time(enabled_datetime)
 
@@ -171,7 +171,8 @@ class SimBPMEnv:
 
     def deliver(self, message_type, attributes, source, now):
         """Offers one message: 'claimed' if it resumed a waiting case (the one waiting longest, ties
-        by case id), 'discarded' if it can never match, 'pending' otherwise."""
+        by case id) or, failing that, started a new case at the start event; 'discarded' if it can
+        never match; 'pending' otherwise."""
         self._ensure_arrivals_generated()
         values = dict(attributes, source=source)
         for parked in self.waiting_cases():
@@ -185,9 +186,25 @@ class SimBPMEnv:
                 self.events_queue.append_event(resumed)
                 return "claimed"
         points = [point for points in self._consume_points.values() for point in points if point.type == message_type]
-        if any(self._could_match(point.condition, values) for point in points):
+        # a start event's condition looks only at the message, so it decides now: a new case, or never
+        if any(point.starts_case and self._condition_holds(point.condition, values, None) for point in points):
+            self.create_case(now)
+            return "claimed"
+        if any(self._could_match(point.condition, values) for point in points if not point.starts_case):
             return "pending"
         return "discarded"
+
+    def create_case(self, now):
+        """Starts a new case at now, as a planned arrival would (case attributes drawn as usual), and
+        returns its id: the next consecutive one, since the log's trace list is indexed by case id."""
+        p_case = len(self.log_info.trace_list)
+        case_values = self.sim_setup.case_attributes.get_values_calculated()
+        self.case_prioritisation.all_case_attributes[p_case] = case_values
+        self.case_prioritisation.all_case_priorities[p_case] = \
+            self.sim_setup.prioritisation_rules.get_priority(case_values)
+        self.sim_setup.bpmn_graph.all_attributes[p_case] = case_values
+        self._update_initial_event_info(self.sim_setup, p_case, self.simulation_at_from_datetime(now))
+        return p_case
 
     def waiting_cases(self):
         """The parked events of the cases waiting for a message, the one waiting longest first (ties by

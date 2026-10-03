@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Updates" targetNamespace="http://bpmn.io/schema/bpmn">
+  <!-- a process started by an Update message that, after handling it, waits for another Update:
+       a message both the waiting case and the start event accept -->
+  <bpmn:process id="Updates" isExecutable="false">
+    <bpmn:startEvent id="Start_Update" name="Update received">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="Start_Update_definition" />
+    </bpmn:startEvent>
+    <bpmn:task id="Handle" name="Handle">
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:intermediateCatchEvent id="Catch_Update" name="Next update received">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_3</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="Catch_Update_definition" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:task id="Close" name="Close">
+      <bpmn:incoming>Flow_3</bpmn:incoming>
+      <bpmn:outgoing>Flow_4</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="End" name="Done">
+      <bpmn:incoming>Flow_4</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_Update" targetRef="Handle" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Handle" targetRef="Catch_Update" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Catch_Update" targetRef="Close" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Close" targetRef="End" />
+  </bpmn:process>
+</bpmn:definitions>

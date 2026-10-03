@@ -20,9 +20,18 @@ An element with a token on its incoming flow but not yet enabled (e.g. a paralle
 branch) simply holds the token. When a join fires, `_check_and_update_enabling_time` gives the next
 element the latest of the branches' times.
 
-All cases are created before the first event (`generate_all_arrival_events`): case ids are
-`0 .. total_cases - 1`, case attributes are drawn up front, and each case is moved from its start
-event at once, so its first task is queued for its arrival time.
+In a process with an arrival schedule, all cases are created before the first event
+(`generate_all_arrival_events`): case ids are `0 .. total_cases - 1`, case attributes are drawn up
+front, and each case is moved from its start event at once, so its first task is queued for its
+arrival time.
+
+In a process started by messages there are no planned cases. `SimBPMEnv.create_case(now)` creates
+each case when a start message is claimed: it takes the next consecutive case id (the log's
+`trace_list` is indexed by case id), draws the case attributes and adds them to both
+`CasePrioritisation.all_case_attributes` and `bpmn_graph.all_attributes`, and then does what a planned
+arrival does (`_update_initial_event_info`): `last_datetime`, a new `ProcessState`, a `Trace`, and the
+start event's enabled tasks queued at `now`. Until the first claim the engine has nothing queued, so
+`next_event_time()` is `None`.
 
 ## Effects are computed ahead of their time
 
@@ -87,7 +96,8 @@ events that publish or wait must have a single incoming arrow instead (checked a
 
 ## Model restrictions
 
-- **One start event** per process (`BPMNGraph.starting_event`; the last one parsed wins).
+- **One start event** per process (`BPMNGraph.starting_event`; the last one parsed wins). A model
+  whose start event is started by messages is rejected if it has more than one.
 - **One end event** per model (`BPMNGraph.validate_model`).
 - **Event-based gateways** are decided when the case reaches them: `get_event_gateway_choice` draws
   a duration for each following event and takes the shortest, breaking ties with `secrets.choice`.
@@ -97,12 +107,12 @@ events that publish or wait must have a single incoming arrow instead (checked a
 
 Random draws come from four sources:
 
-| Source                                                                           | Used for                                                                                    | Can a per-engine generator control it?                                                                    |
-|----------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|
-| Python `random` (`random.shuffle`, `choices`, `random.randint`, `random.random`) | order of parallel branches, discrete attributes, batch sizes, resource choice, multitasking | only if replaced by a per-engine `random.Random` at ~10 call sites                                        |
-| NumPy global (`np.random.rand`, `numpy.random.choice/uniform`)                   | histograms, gateway probabilities, fuzzy calendars                                          | only if replaced at ~7 call sites                                                                         |
+| Source                                                                           | Used for                                                                                    | Can a per-engine generator control it?                                                                  |
+|----------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------|
+| Python `random` (`random.shuffle`, `choices`, `random.randint`, `random.random`) | order of parallel branches, discrete attributes, batch sizes, resource choice, multitasking | only if replaced by a per-engine `random.Random` at ~10 call sites                                      |
+| NumPy global (`np.random.rand`, `numpy.random.choice/uniform`)                   | histograms, gateway probabilities, fuzzy calendars                                          | only if replaced at ~7 call sites                                                                       |
 | SciPy `.rvs()` inside pix-framework `DurationDistribution.generate_sample`       | every duration, arrival gap, continuous attribute                                           | **no**: pix-framework calls `.rvs()` without `random_state`, so it always uses NumPy's global generator |
-| `secrets.choice` in `get_event_gateway_choice`                                   | ties at event-based gateways                                                                | **no**: never seedable; should become an ordinary random call                                             |
+| `secrets.choice` in `get_event_gateway_choice`                                   | ties at event-based gateways                                                                | **no**: never seedable; should become an ordinary random call                                           |
 
 `--seed` (and the seed of a multi-process configuration) seeds the global Python and NumPy
 generators, which makes runs repeatable apart from the rare `secrets.choice` ties. In a

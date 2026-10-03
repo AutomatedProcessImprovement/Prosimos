@@ -1,0 +1,24 @@
+{
+  "resource_profiles": [
+    {"id": "Team", "name": "Team", "resource_list": [
+      {"id": "Clerk", "name": "Clerk", "cost_per_hour": 1, "amount": 2, "calendar": "Always", "assigned_tasks": ["Handle", "Close"]}
+    ]}
+  ],
+  "gateway_branching_probabilities": [],
+  "task_resource_distribution": [
+    {"task_id": "Handle", "resources": [{"resource_id": "Clerk", "distribution_name": "fix", "distribution_params": [{"value": 600}]}]},
+    {"task_id": "Close", "resources": [{"resource_id": "Clerk", "distribution_name": "fix", "distribution_params": [{"value": 300}]}]}
+  ],
+  "resource_calendars": [
+    {"id": "Always", "name": "Always", "time_periods": [{"from": "MONDAY", "to": "SUNDAY", "beginTime": "00:00:00", "endTime": "23:59:59"}]}
+  ],
+  "case_attributes": [
+    {"name": "priority", "type": "discrete", "values": [{"key": "high", "value": 1}]}
+  ],
+  "messages": {
+    "consume": [
+      {"event_id": "Start_Update", "type": "Update"},
+      {"event_id": "Catch_Update", "type": "Update"}
+    ]
+  }
+}
