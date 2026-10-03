@@ -1,0 +1,39 @@
+{
+  "processes": [
+    {
+      "name": "Sales",
+      "bpmn_path": "sales.bpmn",
+      "json_path": "sales.json",
+      "total_cases": 20
+    },
+    {
+      "name": "Billing",
+      "bpmn_path": "billing.bpmn",
+      "json_path": "billing.json"
+    },
+    {
+      "name": "TartuWarehouse",
+      "bpmn_path": "tartu_warehouse.bpmn",
+      "json_path": "tartu_warehouse.json"
+    },
+    {
+      "name": "TallinnWarehouse",
+      "bpmn_path": "tallinn_warehouse.bpmn",
+      "json_path": "tallinn_warehouse.json"
+    }
+  ],
+  "seed": 1,
+  "start_time": "2024-01-01T09:00:00+00:00",
+  "consumer_groups": {
+    "Sales": [
+      "Sales"
+    ],
+    "Billing": [
+      "Billing"
+    ],
+    "Warehouses": [
+      "TartuWarehouse",
+      "TallinnWarehouse"
+    ]
+  }
+}

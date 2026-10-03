@@ -1,0 +1,26 @@
+{
+  "resource_profiles": [
+    {"id": "Packers", "name": "Packers", "resource_list": [
+      {"id": "Packer", "name": "Packer", "cost_per_hour": 1, "amount": 2, "calendar": "Always", "assigned_tasks": ["Pack_Order"]}
+    ]}
+  ],
+  "gateway_branching_probabilities": [],
+  "task_resource_distribution": [
+    {"task_id": "Pack_Order", "resources": [{"resource_id": "Packer", "distribution_name": "fix",
+      "distribution_params": [{"value": 3600}]}]}
+  ],
+  "resource_calendars": [
+    {"id": "Always", "name": "Always", "time_periods": [{"from": "MONDAY", "to": "SUNDAY", "beginTime": "00:00:00", "endTime": "23:59:59"}]}
+  ],
+  "messages": {
+    "publish": [
+      {"event_id": "End_Shipped", "type": "Shipment", "attributes": ["order_id"]}
+    ],
+    "consume": [
+      {"event_id": "Start_Order", "type": "OrderPlaced",
+       "condition": [[{"attribute": "city", "comparison": "=", "value": "Tartu"}],
+                     [{"attribute": "city", "comparison": "=", "value": "Tapa"}]],
+       "copy": {"order_id": "case_id"}}
+    ]
+  }
+}

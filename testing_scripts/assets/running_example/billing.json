@@ -1,12 +1,12 @@
 {
   "resource_profiles": [
     {"id": "Accountants", "name": "Accountants", "resource_list": [
-      {"id": "Accountant", "name": "Accountant", "cost_per_hour": 1, "amount": 1, "calendar": "Always", "assigned_tasks": ["Send_Invoice"]}
+      {"id": "Accountant", "name": "Accountant", "cost_per_hour": 1, "amount": 1, "calendar": "Always", "assigned_tasks": ["Create_Invoice"]}
     ]}
   ],
   "gateway_branching_probabilities": [],
   "task_resource_distribution": [
-    {"task_id": "Send_Invoice", "resources": [{"resource_id": "Accountant", "distribution_name": "expon",
+    {"task_id": "Create_Invoice", "resources": [{"resource_id": "Accountant", "distribution_name": "expon",
       "distribution_params": [{"value": 900}, {"value": 0}, {"value": 3600}]}]}
   ],
   "resource_calendars": [

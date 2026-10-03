@@ -4,13 +4,16 @@ One scenario, used throughout this documentation and in the tests, that shows ho
 exchange messages through the orchestrator ([orchestrator.md](orchestrator.md)): orders placed in
 Sales are billed, packed by one of two warehouses, shipped, and closed.
 
-It exists in two versions:
+It exists in three versions:
 
 - **[Scripted version](#scripted-version)**: every process is a scripted test engine. In a single
   run it exercises every rule of the orchestrator: announcements, a shared group, a random tie,
   correlation, pending messages, discards, warnings and the end-of-run report.
-- **[Real-engine version](#real-engine-version)**: Sales is a real Prosimos model that publishes and
-  waits ([messaging.md](messaging.md)); the other processes are still scripted.
+- **[Real Sales version](#real-sales-version)**: Sales is a real Prosimos model that publishes and
+  waits ([messaging.md](messaging.md)); the other processes are scripted.
+- **[All-real version](#all-real-version)**: Sales, Billing and both warehouses are real Prosimos
+  models, run from one configuration file. There are no trucks or Carrier yet: they need a case
+  that waits for several messages at once.
 
 ## The scenario
 
@@ -126,7 +129,7 @@ Details that depend on ord3's warehouse (which truck carries it, when its shipme
 change with the seed. `testing_scripts/test_protocol_scenario.py` checks the rules that always hold
 for any seed, plus the exact outcome of one fixed seed.
 
-## Real-engine version
+## Real Sales version
 
 Sales is a real Prosimos model; Billing and the two warehouses are scripted engines, given to
 `run_orchestrator` as extra engines (`testing_scripts/real_sales_scenario.py`, checked by
@@ -160,3 +163,43 @@ What it shows, for seed 1 and 20 orders (8 Tartu, 2 Tallinn, 7 Tapa, 3 Pärnu):
 The merged log holds only Sales rows, since the fake engines keep no log. Each order's
 "Shipment received" wait shows in the log as the gap between Place order and Close order.
 
+## All-real version
+
+All four processes are real Prosimos models in `testing_scripts/assets/running_example/`, run from
+one configuration file, `simulation.json` (checked by `testing_scripts/test_real_running_example.py`):
+
+```
+Sales:             start -> Place order -> throw OrderPlaced{case_id, city}
+                   -> catch Shipment (order_id = case_id) -> Close order -> end
+Billing:           message start OrderPlaced (any) -> Create invoice -> end
+TartuWarehouse:    message start OrderPlaced (city Tartu or Tapa), copy order_id <- case_id
+                   -> Pack order (1 h) -> message end Shipment{order_id}
+TallinnWarehouse:  the same for Tallinn or Tapa, Pack order 1.5 h
+
+consumer_groups:   Sales: [Sales]   Billing: [Billing]   Warehouses: [TartuWarehouse, TallinnWarehouse]
+```
+
+Only Sales has an arrival schedule (`total_cases: 20`); the other three are started by `OrderPlaced`
+messages, so they have no `total_cases` and no arrival settings. Billing and the warehouses copy the
+order's `case_id` into `order_id`, so the merged log shows which order each of their cases belongs
+to. The whole example runs from the file:
+
+```python
+from prosimos.orchestrator import SimulationConfig, run_orchestrator
+
+config = SimulationConfig.from_json("testing_scripts/assets/running_example/simulation.json")
+report = run_orchestrator(config, log_out_path="merged_log.csv")
+```
+
+For seed 1 and 20 orders (8 Tartu, 2 Tallinn, 7 Tapa, 3 Pärnu):
+
+| Process          | Cases                                                                                                         |
+|------------------|---------------------------------------------------------------------------------------------------------------|
+| Sales            | 20 orders; 17 closed, each after its shipment; the 3 Pärnu orders wait forever and are the only stalled cases |
+| Billing          | 20 invoices, one per order, Pärnu included                                                                    |
+| TartuWarehouse   | 12 cases: the 8 Tartu orders and 4 of the Tapa orders                                                         |
+| TallinnWarehouse | 5 cases: the 2 Tallinn orders and the other 3 Tapa orders                                                     |
+
+Every order from Tartu, Tallinn or Tapa has exactly one warehouse case, in a warehouse that serves its
+city; which warehouse takes a Tapa order is a random choice of the orchestrator. There are no warnings
+and no unclaimed messages, and the same seed gives the same run.

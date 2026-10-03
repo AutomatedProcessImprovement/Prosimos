@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_TartuWarehouse" targetNamespace="http://bpmn.io/schema/bpmn">
+  <!-- TartuWarehouse of the running example: every order from Tartu or Tapa starts a case, which packs the order and
+       ships it, announcing the Shipment at its message end event -->
+  <bpmn:process id="TartuWarehouse" isExecutable="false">
+    <bpmn:startEvent id="Start_Order" name="Order placed">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="Start_Order_definition" />
+    </bpmn:startEvent>
+    <bpmn:task id="Pack_Order" name="Pack order">
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="End_Shipped" name="Shipped">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:messageEventDefinition id="End_Shipped_definition" />
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_Order" targetRef="Pack_Order" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Pack_Order" targetRef="End_Shipped" />
+  </bpmn:process>
+</bpmn:definitions>
