@@ -2,8 +2,10 @@
 Cases started by messages (docs/messaging.md): deliver() offers a message to the waiting cases
 first, then to the start event, which creates a new case at the time of the claim.
 """
+import json
 from datetime import datetime
 
+import pytest
 import pytz
 
 from prosimos.orchestrator import Message, ProcessSpec, ProsimosEngine, Verdict, run_engines
@@ -115,3 +117,56 @@ def test_a_process_with_no_arrivals_runs_only_the_cases_its_messages_start():
     assert log.cases("Pack order") == {0: at("09:10"), 1: at("09:40")}
     assert [message.time for message in report.published if message.type == "Shipment"] == [at("10:10"), at("10:40")]
     assert [process for _, process, _ in report.discards] == ["TartuWarehouse"]
+
+
+def _updates_correlated(tmp_path):
+    """started_and_waiting, but started by an Open message, and waiting for the Update meant for it."""
+    with open(f"{ASSETS}/started_and_waiting.json") as file:
+        settings = json.load(file)
+    settings["messages"]["consume"] = [
+        {"event_id": "Start_Update", "type": "Open"},
+        {"event_id": "Catch_Update", "type": "Update",
+         "condition": [[{"attribute": "for_case", "comparison": "=", "case_attribute": "case_id"}]]}]
+    path = tmp_path / "updates.json"
+    path.write_text(json.dumps(settings))
+    log = _Log()
+    return ProsimosEngine(ProcessSpec("Updates", f"{ASSETS}/started_and_waiting.bpmn", str(path)), START, log), log
+
+
+def test_a_message_for_a_case_a_start_message_will_create_is_claimed_once_the_case_exists(tmp_path):
+    # the Update for Updates-0 comes at 09:00, before any case exists; Open starts case 0 at 09:30,
+    # which handles it for 10 minutes and then claims the pooled Update when it starts waiting
+    updates, log = _updates_correlated(tmp_path)
+    feed = ScriptedEngine("Feed")
+    feed.publish_at(at("09:00"), "Update", for_case="Updates-0")
+    feed.publish_at(at("09:30"), "Open")
+
+    report = run_engines({"Feed": feed, "Updates": updates}, None, 1)
+
+    published = {message.id: message.type for message in report.published}
+    assert [(published[message_id], time) for message_id, _, time in report.claims] == [
+        ("Open", at("09:30")), ("Update", at("09:40"))]
+    assert report.discards == [] and report.unclaimed == []
+    assert log.cases("Close") == {0: at("09:40")}
+
+
+@pytest.mark.parametrize("for_case, verdict", [
+    ("Updates-0", Verdict.PENDING),  # no case yet, but a start message may create it
+    ("Updates-007", Verdict.DISCARDED),  # case ids have no leading zeros
+    ("Other-0", Verdict.DISCARDED),  # a case of another process
+])
+def test_in_a_process_started_by_messages_a_case_that_doesnt_exist_yet_can_still_come(tmp_path, for_case, verdict):
+    updates, _ = _updates_correlated(tmp_path)
+
+    assert updates.deliver(Message("Update", {"for_case": for_case}, source="Feed"), START) is verdict
+
+
+def test_a_case_that_existed_and_finished_doesnt_come_back(tmp_path):
+    updates, _ = _updates_correlated(tmp_path)
+    updates.deliver(Message("Open", source="Feed"), START)
+    _run_until_idle(updates)
+    updates.deliver(Message("Update", {"for_case": "Updates-0"}, source="Feed"), at("12:00"))
+    _run_until_idle(updates)  # case 0 has finished
+
+    assert updates.deliver(Message("Update", {"for_case": "Updates-0"}, source="Feed"), at("13:00")) is Verdict.DISCARDED
+    assert updates.deliver(Message("Update", {"for_case": "Updates-1"}, source="Feed"), at("13:00")) is Verdict.PENDING

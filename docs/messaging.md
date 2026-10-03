@@ -170,9 +170,12 @@ Each message delivered to the process gets one of three answers:
   event does: it starts a new case (see "Processes started by messages").
 - **`DISCARDED`**: no case can ever accept it: it fails every condition on the message alone (fixed
   values, `source`), or the case it names through `case_id` doesn't exist in this process or has
-  already finished. A case that just hasn't started yet still counts. A start event whose condition
-  fails never accepts it either.
-- **`PENDING`**: otherwise, e.g. its case hasn't reached the catch event yet. The orchestrator offers
+  already finished. A case that just hasn't started yet still counts, and so, in a process started
+  by messages, does a case number beyond the cases created so far (e.g. `Warehouse-5` when there are
+  5): a start message may still create it. A start event whose condition fails never accepts it
+  either.
+- **`PENDING`**: otherwise, e.g. its case hasn't reached the catch event yet, or doesn't exist yet in
+  a process started by messages (if it never appears, the message ends the run unclaimed). The orchestrator offers
   it again later. A condition on a case attribute other than `case_id` never causes a discard,
   because the attribute can still change.
 

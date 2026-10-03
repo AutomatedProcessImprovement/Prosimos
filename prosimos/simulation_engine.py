@@ -263,16 +263,34 @@ class SimBPMEnv:
             {term.attribute: values[term.attribute]})
 
     def _could_match(self, condition, values):
-        """Whether some case that hasn't finished could still accept the message. Only terms on fixed
-        values and on case_id are decided now; other case attributes can still change."""
+        """Whether some case that hasn't finished, or (in a process started by messages) one that doesn't
+        exist yet, could still accept the message. Only terms on fixed values and on case_id are decided
+        now; other case attributes can still change."""
         unfinished = [p_case for p_case, p_state in self.all_process_states.items() if any(p_state.tokens.values())]
+        future_cases = self.sim_setup.messaging.started_by_messages
         if condition is None:
-            return bool(unfinished)
+            return bool(unfinished) or future_cases
         for alternative in condition:
             decided = [term for term in alternative if term.case_attribute in (None, "case_id")]
             if any(all(self._term_holds(term, values, p_case) for term in decided) for p_case in unfinished):
                 return True
+            if future_cases and all(self._term_could_hold_for_a_future_case(term, values) for term in decided):
+                return True
         return False
+
+    def _term_could_hold_for_a_future_case(self, term, values):
+        """For a case that a start message may still create. Its case_id isn't known yet, except that its
+        number is at least the number of cases so far: an '=' term holds only for such a name; any other
+        comparison might hold."""
+        if term.case_attribute is None:
+            return self._term_holds(term, values, None)
+        if term.attribute not in values:
+            return False
+        if term.comparison != "=":
+            return True
+        prefix, _, number = str(values[term.attribute]).rpartition("-")
+        return (prefix == self.process_name and number.isdigit() and str(int(number)) == number
+                and int(number) >= len(self.log_info.trace_list))
 
     def _message_attributes(self, point, p_case):
         """The listed attributes, copied from the case's current values."""
