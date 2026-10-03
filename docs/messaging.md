@@ -76,9 +76,10 @@ can be copied too. A copied name counts as declared, so the process can publish 
   claim, replacing earlier values. Sales waiting for `Shipment{order_id, tracking_no}` with
   `"copy": {"tracking_no": "tracking_no"}` can then publish `OrderClosed{case_id, tracking_no}`.
 
-Copied values are ordinary case attribute values from then on: later gateways, conditions and
-published messages see them, and so does the log, for attributes that also have a column there
-(declared case attributes). A message without one of the listed attributes
+Copied values are ordinary case attribute values from then on: later gateways, conditions,
+published messages and the log see them. Every copy target gets a column in the event log, even when
+it isn't a declared attribute (like the warehouse's `order_id`); the cell stays empty until a value
+is copied. A message without one of the listed attributes
 leaves that case attribute unchanged, with one warning per event and attribute.
 
 One event may appear in several entries: under `publish`, passing it publishes one message per

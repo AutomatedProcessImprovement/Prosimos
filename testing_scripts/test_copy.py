@@ -2,11 +2,13 @@
 Copying message values into the case (docs/messaging.md): when a message is claimed, the attributes
 listed in the consume entry's copy are written into the case it starts or resumes.
 """
+import csv
+import json
 from datetime import datetime
 
 import pytz
 
-from prosimos.orchestrator import Message, ProcessSpec, ProsimosEngine, Verdict
+from prosimos.orchestrator import Message, ProcessSpec, ProsimosEngine, SimulationConfig, Verdict, run_orchestrator
 
 ASSETS = "testing_scripts/assets/messaging"
 START = pytz.utc.localize(datetime(2024, 1, 1, 9))
@@ -84,3 +86,39 @@ def test_a_missing_message_attribute_leaves_the_value_unchanged_with_one_warning
     assert sales.finish().warnings == [
         "Shipment message accepted at Catch_Shipment has no tracking_no to copy into tracking_no; "
         "tracking_no is left unchanged"]
+
+
+def test_the_warehouses_copied_order_id_appears_in_the_merged_log(tmp_path):
+    # real Sales (running example) and the real Tartu warehouse, which starts a case for every Tartu or
+    # Tapa order and copies the order's case_id into order_id, a name it doesn't declare
+    sales = ProcessSpec("Sales", "testing_scripts/assets/running_example/sales.bpmn",
+                        "testing_scripts/assets/running_example/sales.json", 10)
+    warehouse = ProcessSpec("TartuWarehouse", f"{ASSETS}/tartu_warehouse.bpmn", f"{ASSETS}/tartu_warehouse.json")
+    run_orchestrator(SimulationConfig([sales, warehouse], START, seed=1), tmp_path / "merged_log.csv")
+
+    with open(tmp_path / "merged_log.csv", encoding="utf-8") as file:
+        rows = list(csv.DictReader(file))
+    city = {f"Sales-{row['case_id']}": row["city"] for row in rows if row["process"] == "Sales"}
+    packed = [row["order_id"] for row in rows if row["process"] == "TartuWarehouse"]
+
+    assert "order_id" in rows[0]
+    assert packed and all(city[order_id] in ("Tartu", "Tapa") for order_id in packed)
+    assert sorted(packed) == sorted(order for order, order_city in city.items() if order_city in ("Tartu", "Tapa"))
+    assert all(row["order_id"] == "" for row in rows if row["process"] == "Sales")  # not a Sales column
+
+
+def test_a_copied_name_gets_a_log_column_that_stays_empty_until_the_value_is_copied(tmp_path):
+    # sales_closing without its tracking_no case attribute: the name now exists only through copy
+    with open(f"{ASSETS}/sales_closing.json") as file:
+        settings = json.load(file)
+    settings["case_attributes"] = [a for a in settings["case_attributes"] if a["name"] != "tracking_no"]
+    (tmp_path / "sales_closing.json").write_text(json.dumps(settings))
+    log = _Log()
+    spec = ProcessSpec("Sales", f"{ASSETS}/sales_closing.bpmn", str(tmp_path / "sales_closing.json"), 1)
+    sales = ProsimosEngine(spec, START, log)
+    _run_until_idle(sales)
+    sales.deliver(Message("Shipment", {"order_id": "Sales-0", "tracking_no": "TRK-1"}, source="Warehouse"), NOON)
+    _run_until_idle(sales)
+
+    assert log.header[-2:] == ["city", "tracking_no"]
+    assert [(row[1], row[-1]) for row in log.rows] == [("Take order", ""), ("Close order", "TRK-1")]

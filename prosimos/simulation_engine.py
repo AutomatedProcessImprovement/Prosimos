@@ -43,6 +43,9 @@ class SimBPMEnv:
         self.sim_resources = dict()
         self.stat_fwriter = stat_fwriter
         self.additional_columns = self.sim_setup.all_attributes.get_all_columns_generated()
+        # attributes copied from messages get a column too; it stays empty until a value is copied
+        self.additional_columns.extend(sorted({target for point in self.sim_setup.messaging.consume
+                                               for target, _ in point.copy} - set(self.additional_columns)))
         if self.sim_setup.batch_processing not in [None, {}]:
             self.additional_columns.append("batch_id")
         self.log_writer = FileManager(10000, log_fwriter, self.additional_columns)
