@@ -63,10 +63,23 @@ number, e.g. `Sales-7`, so orders get unique ids without a new case attribute.
 messages"), the message `type` it accepts, and an optional `condition`; without one, any message of
 that type is accepted. The process subscribes to every type listed under `consume`.
 
-**copy** (optional, on any `consume` entry) maps case attributes to message attributes:
-`"copy": {"order_id": "case_id"}` sets the case's `order_id` to the message's `case_id`. A copied
-name counts as declared, so the process can publish it later (e.g. `Shipment{order_id}`). The target
-can't be `case_id`, which is reserved.
+**copy** (optional, on any `consume` entry) maps case attributes to message attributes: when the
+entry accepts a message, the listed message attributes are written into the case.
+`"copy": {"order_id": "case_id"}` sets the case's `order_id` to the message's `case_id`; `source`
+can be copied too. A copied name counts as declared, so the process can publish it later (e.g.
+`Shipment{order_id}`). The target can't be `case_id`, which is reserved.
+
+- **At a start event**, the values go into the new case, on top of its drawn case attributes, before
+  it starts: the Tartu warehouse's case gets `order_id = Sales-3` and later publishes
+  `Shipment{order_id: Sales-3}`.
+- **At a catch event**, they go into the waiting case that claims the message, at the time of the
+  claim, replacing earlier values. Sales waiting for `Shipment{order_id, tracking_no}` with
+  `"copy": {"tracking_no": "tracking_no"}` can then publish `OrderClosed{case_id, tracking_no}`.
+
+Copied values are ordinary case attribute values from then on: later gateways, conditions and
+published messages see them, and so does the log, for attributes that also have a column there
+(declared case attributes). A message without one of the listed attributes
+leaves that case attribute unchanged, with one warning per event and attribute.
 
 One event may appear in several entries: under `publish`, passing it publishes one message per
 entry; under `consume`, a case waiting there accepts any of the entries' types. To wait for all of
@@ -202,8 +215,6 @@ still offered every message it subscribes to.
 
 ## Limitations
 
-- **`copy`** is checked when a model is loaded, but not applied yet: the values aren't copied into
-  the case.
 - **Event-based gateways.** A catch event listed under `consume` can't directly follow an
   event-based gateway, so a race such as "the shipment or a timeout, whichever comes first" can't be
   modelled yet; such a model is rejected when it is loaded. Prosimos decides an event-based gateway

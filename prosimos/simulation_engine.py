@@ -95,6 +95,7 @@ class SimBPMEnv:
         for point in sim_setup.messaging.consume:
             self._consume_points.setdefault(point.event_id, []).append(point)
         self._waiting = dict()  # (case id, event id) -> the parked EnabledEvent
+        self._warned_missing_copies = set()
 
     # Queue priorities (case priority first, timers at 0) were removed; last version with them: 5f40913
 
@@ -177,9 +178,11 @@ class SimBPMEnv:
         values = dict(attributes, source=source)
         for parked in self.waiting_cases():
             p_case, event_id = parked.p_case, parked.task_id
-            if any(point.type == message_type and self._condition_holds(point.condition, values, p_case)
-                   for point in self._consume_points[event_id]):
+            claiming = next((point for point in self._consume_points[event_id] if point.type == message_type
+                             and self._condition_holds(point.condition, values, p_case)), None)
+            if claiming is not None:
                 del self._waiting[(p_case, event_id)]
+                self._apply_copy(claiming, values, self.sim_setup.bpmn_graph.all_attributes[p_case])
                 resumed = EnabledEvent(p_case, parked.p_state, event_id, self.simulation_at_from_datetime(now), now,
                                        is_inter_event=True)
                 resumed.parked_event = parked
@@ -187,24 +190,41 @@ class SimBPMEnv:
                 return "claimed"
         points = [point for points in self._consume_points.values() for point in points if point.type == message_type]
         # a start event's condition looks only at the message, so it decides now: a new case, or never
-        if any(point.starts_case and self._condition_holds(point.condition, values, None) for point in points):
-            self.create_case(now)
+        starting = next((point for point in points
+                         if point.starts_case and self._condition_holds(point.condition, values, None)), None)
+        if starting is not None:
+            self.create_case(now, lambda case_values: self._apply_copy(starting, values, case_values))
             return "claimed"
         if any(self._could_match(point.condition, values) for point in points if not point.starts_case):
             return "pending"
         return "discarded"
 
-    def create_case(self, now):
+    def create_case(self, now, set_values=None):
         """Starts a new case at now, as a planned arrival would (case attributes drawn as usual), and
-        returns its id: the next consecutive one, since the log's trace list is indexed by case id."""
+        returns its id: the next consecutive one, since the log's trace list is indexed by case id.
+        set_values(case_values), if given, changes the drawn values before the case starts."""
         p_case = len(self.log_info.trace_list)
         case_values = self.sim_setup.case_attributes.get_values_calculated()
+        if set_values is not None:
+            set_values(case_values)
         self.case_prioritisation.all_case_attributes[p_case] = case_values
         self.case_prioritisation.all_case_priorities[p_case] = \
             self.sim_setup.prioritisation_rules.get_priority(case_values)
         self.sim_setup.bpmn_graph.all_attributes[p_case] = case_values
         self._update_initial_event_info(self.sim_setup, p_case, self.simulation_at_from_datetime(now))
         return p_case
+
+    def _apply_copy(self, point, values, case_values):
+        """Writes the message attributes listed in point.copy into the case's values. A message without
+        one of them leaves that case attribute unchanged, with one warning per event and attribute."""
+        for target, source_name in point.copy:
+            if source_name in values:
+                case_values[target] = values[source_name]
+            elif (point.event_id, source_name) not in self._warned_missing_copies:
+                self._warned_missing_copies.add((point.event_id, source_name))
+                warning_logger.add_warning(
+                    f"{point.type} message accepted at {point.event_id} has no {source_name} to copy into "
+                    f"{target}; {target} is left unchanged")
 
     def waiting_cases(self):
         """The parked events of the cases waiting for a message, the one waiting longest first (ties by
