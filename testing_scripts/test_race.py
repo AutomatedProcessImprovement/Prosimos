@@ -123,6 +123,27 @@ def test_a_gateway_without_a_message_branch_behaves_as_before(tmp_path):
     assert log.times("Cancel order") == {}
 
 
+def test_a_race_timer_of_a_case_ended_by_a_terminate_end_event_is_skipped(tmp_path):
+    # after Take order the case splits: one branch races the Shipment against the 6 h timer, the other
+    # withdraws the order (2 h) and reaches a terminate end event, ending the whole case; no Shipment comes
+    def withdrawal(settings):
+        settings["resource_profiles"][0]["resource_list"][0]["assigned_tasks"].append("Withdraw_Order")
+        settings["task_resource_distribution"].append({"task_id": "Withdraw_Order", "resources": [
+            {"resource_id": "Clerk", "distribution_name": "fix", "distribution_params": [{"value": 7200}]}]})
+
+    log = _Log()
+    spec = ProcessSpec("Sales", f"{ASSETS}/sales_race_terminated.bpmn", _settings(tmp_path, withdrawal), 1)
+    sales = ProsimosEngine(spec, START, log, seed=1)
+    _run_until_idle(sales)
+
+    split = _reached_gateway(log, 0)
+    assert [(row[1], _time(row[4])) for row in log.rows if row[1] != "Take order"] == [
+        ("Withdraw order", split + timedelta(hours=2))]  # the case ended there; no Close or Cancel order
+    assert not any(sales._env.all_process_states[0].tokens.values())
+    assert sales.finish().stalled == []
+    assert sales._env._races == {}
+
+
 def _with_branch(tmp_path, branch_xml):
     """The deadline model with the timer branch replaced by branch_xml (id Deadline)."""
     with open(SALES) as file:

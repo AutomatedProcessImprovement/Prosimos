@@ -89,6 +89,9 @@ the gateway. The branches of one case share a `Race` (`SimBPMEnv._races`, keyed 
   won, or the message branch when its case is resumed (`_resume`). The other branches' tokens are
   taken off the flows into them, a parked branch's waiting record is dropped, and a canceled timer is
   skipped when it comes off the queue (its race is already won).
+- A timer that comes off the queue after its case has left the race without it (no token on the flow
+  into it anymore, e.g. after a terminate end event on another branch) is skipped too, and its race is
+  dropped; the parked message branch is cleaned up as any stale waiting record.
 
 The timer is queued for its firing time, rather than completed when it comes off the queue as other
 catch events are, so that a message coming before that time can still cancel it.

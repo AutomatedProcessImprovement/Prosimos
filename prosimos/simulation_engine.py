@@ -277,6 +277,12 @@ class SimBPMEnv:
         if c_event.race is not None:  # a timer branch due to fire
             if c_event.race.won:
                 return True  # canceled: another branch won
+            incoming = self.sim_setup.bpmn_graph.element_info[c_event.task_id].incoming_flows
+            if not any(c_event.p_state.has_token(flow) for flow in incoming):
+                # the case left the race without it, e.g. ended by a terminate end event on another branch
+                c_event.race.won = True
+                self._races.pop((c_event.race.p_case, c_event.race.gateway_id), None)
+                return True
             self._win_race(c_event.race, c_event.task_id, c_event.p_state)
             return False  # it completes now; execute_event logs it from when it was armed
         # armed when the case reached the gateway; the branches of one race share one Race
