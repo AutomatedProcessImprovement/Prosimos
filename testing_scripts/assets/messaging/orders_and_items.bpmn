@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Orders" targetNamespace="http://bpmn.io/schema/bpmn">
+  <!-- orders that, after Pick, wait until an ItemReady has come for each of their items, then are packed -->
+  <bpmn:process id="Orders" isExecutable="false">
+    <bpmn:startEvent id="Start" name="Order received">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:task id="Pick" name="Pick">
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:intermediateCatchEvent id="Catch_Items" name="All items ready">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_3</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="Catch_Items_definition" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:task id="Pack" name="Pack">
+      <bpmn:incoming>Flow_3</bpmn:incoming>
+      <bpmn:outgoing>Flow_4</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="End" name="Packed">
+      <bpmn:incoming>Flow_4</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Pick" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Pick" targetRef="Catch_Items" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Catch_Items" targetRef="Pack" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Pack" targetRef="End" />
+  </bpmn:process>
+</bpmn:definitions>

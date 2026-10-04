@@ -17,7 +17,7 @@ from prosimos.control_flow_manager import (
 )
 from prosimos.execution_info import EnabledEvent, TaskEvent, Trace
 from prosimos.file_manager import FileManager
-from prosimos.messaging_parser import is_whole_number_of_at_least_one
+from prosimos.messaging_parser import is_whole_number, is_whole_number_of_at_least_one
 from prosimos.prioritisation import CasePrioritisation
 from prosimos.simulation_properties_parser import parse_datetime
 from prosimos.simulation_queues_ds import (
@@ -101,6 +101,8 @@ class SimBPMEnv:
         self._parked_events = dict()  # (case id, event id) -> the parked EnabledEvent
         self._warned_missing_copies = set()
         self._warned_capacities = set()
+        self._collected = dict()  # (case id, event id) -> [messages claimed so far, messages needed]
+        self._warned_collects = set()
 
     # Queue priorities (case priority first, timers at 0) were removed; last version with them: 5f40913
 
@@ -182,22 +184,22 @@ class SimBPMEnv:
         self._ensure_arrivals_generated()
         values = dict(attributes, source=source)
         # the oldest matching waiting case claims the message; its consume entry's capacity says how
-        # many waiting cases at the same entry it resumes, oldest first, without waiting to fill up
-        claiming, to_resume = None, []
+        # many waiting cases at the same entry claim it, oldest first, without waiting to fill up
+        claiming, takers, capacity = None, [], 1
         for parked_event in self.parked_events():
             if claiming is None:
                 claiming = next((point for point in self._consume_points[parked_event.task_id] if point.type == message_type
                                  and self._condition_holds(point.condition, values, parked_event.p_case)), None)
                 if claiming is not None:
                     capacity = self._capacity(claiming, values)
-                    to_resume.append(parked_event)
+                    takers.append(parked_event)
             elif parked_event.task_id == claiming.event_id and self._condition_holds(claiming.condition, values, parked_event.p_case):
-                to_resume.append(parked_event)
-            if claiming is not None and len(to_resume) == capacity:
+                takers.append(parked_event)
+            if takers and len(takers) == capacity:
                 break
-        if to_resume:
-            for parked_event in to_resume:
-                self._resume(parked_event, claiming, values, now)
+        if takers:
+            for parked_event in takers:
+                self._claim(parked_event, claiming, values, now)
             return "claimed"
         points = [point for points in self._consume_points.values() for point in points if point.type == message_type]
         # a start event's condition looks only at the message, so it decides now: a new case, or never
@@ -210,10 +212,19 @@ class SimBPMEnv:
             return "pending"
         return "discarded"
 
-    def _resume(self, parked_event, point, values, now):
-        """Resumes a waiting case at now, with the message values listed in point.copy copied into it."""
-        del self._parked_events[(parked_event.p_case, parked_event.task_id)]
+    def _claim(self, parked_event, point, values, now):
+        """A waiting case claims one message: the values listed in point.copy are copied into it, and once it
+        has collected all the messages it needs, it is resumed at now."""
+        key = (parked_event.p_case, parked_event.task_id)
         self._apply_copy(point, values, self.sim_setup.bpmn_graph.all_attributes[parked_event.p_case])
+        self._collected[key][0] += 1
+        if self._collected[key][0] >= self._collected[key][1]:
+            self._resume(parked_event, now)
+
+    def _resume(self, parked_event, now):
+        """Resumes a waiting case at now: its catch event is queued again, and completes at once."""
+        del self._parked_events[(parked_event.p_case, parked_event.task_id)]
+        del self._collected[(parked_event.p_case, parked_event.task_id)]
         resumed = EnabledEvent(parked_event.p_case, parked_event.p_state, parked_event.task_id, self.simulation_at_from_datetime(now), now,
                                is_inter_event=True)
         resumed.parked_event = parked_event
@@ -233,6 +244,27 @@ class SimBPMEnv:
                 f"{point.type} message accepted at {point.event_id} has no valid {point.capacity_attribute} "
                 f"(got {capacity!r}); it resumes one waiting case")
         return 1
+
+    def _needed(self, c_event):
+        """How many messages a case arriving at a catch event must claim there: the entries' fixed collect, or
+        the case attribute holding it, read now; one that isn't a whole number of at least 0 counts as 1, with
+        one warning per event and attribute."""
+        point = self._consume_points[c_event.task_id][0]  # an event with collect has exactly one entry
+        if point.collect_attribute is None:
+            return point.collect
+        needed = self.sim_setup.bpmn_graph.get_all_attributes(c_event.p_case).get(point.collect_attribute)
+        if is_whole_number(needed, minimum=0):
+            return int(needed)
+        if (point.event_id, point.collect_attribute) not in self._warned_collects:
+            self._warned_collects.add((point.event_id, point.collect_attribute))
+            warning_logger.add_warning(
+                f"case {c_event.p_case} reaches {point.event_id} with no valid {point.collect_attribute} "
+                f"(got {needed!r}); it collects one message")
+        return 1
+
+    def collected(self, parked_event):
+        """(messages claimed so far, messages needed) by a case parked at its catch event."""
+        return tuple(self._collected[(parked_event.p_case, parked_event.task_id)])
 
     def create_case(self, now, set_values=None):
         """Starts a new case at now, as a planned arrival would (case attributes drawn as usual), and
@@ -267,6 +299,7 @@ class SimBPMEnv:
         for key, parked_event in list(self._parked_events.items()):
             if not any(parked_event.p_state.has_token(flow) for flow in self.sim_setup.bpmn_graph.element_info[parked_event.task_id].incoming_flows):
                 del self._parked_events[key]  # the case moved on without it (e.g. a terminate end event)
+                del self._collected[key]
         return [self._parked_events[key] for key in sorted(self._parked_events, key=lambda key: (self._parked_events[key].enabled_datetime, key))]
 
     def waiting_for(self, event_id):
@@ -407,8 +440,12 @@ class SimBPMEnv:
                     )
         else:
             if c_event.task_id in self._consume_points and c_event.parked_event is None:
-                self._parked_events[(c_event.p_case, c_event.task_id)] = c_event
-                return
+                needed = self._needed(c_event)
+                if needed > 0:
+                    self._parked_events[(c_event.p_case, c_event.task_id)] = c_event
+                    self._collected[(c_event.p_case, c_event.task_id)] = [0, needed]
+                    return
+                c_event.complete_at_once = True  # nothing to collect: the case passes straight on
             if event_element_info.type == BPMN.TASK:
                 # execute not batched task
                 completed_at, completed_datetime = self.execute_task(c_event)
@@ -823,9 +860,11 @@ class SimBPMEnv:
 
     def execute_event(self, c_event):
         # Handle event types separately (they don't need assigned resource)
-        if c_event.parked_event is not None:
-            # resumed by a message: the event lasted from when the case reached it until the message
-            full_evt = TaskEvent.create_event_entity(c_event.parked_event, c_event.enabled_at, c_event.enabled_datetime)
+        if c_event.parked_event is not None or c_event.complete_at_once:
+            # resumed by a message: the event lasted from when the case reached it until the message;
+            # nothing to collect: it took no time at all
+            reached = c_event.parked_event if c_event.parked_event is not None else c_event
+            full_evt = TaskEvent.create_event_entity(reached, c_event.enabled_at, c_event.enabled_datetime)
             self.log_info.add_event_info(c_event.p_case, full_evt, 0)
             if self.sim_setup.is_event_added_to_log:
                 self.log_writer.add_csv_row(self.get_csv_row_data(full_evt))

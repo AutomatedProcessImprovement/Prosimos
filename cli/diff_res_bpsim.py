@@ -11,7 +11,6 @@ import numpy as np
 from bpdfr_discovery.log_parser import preprocess_xes_log
 from prosimos.orchestrator import SimulationConfig, run_orchestrator
 from prosimos.simulation_engine import run_simulation
-from prosimos.simulation_setup import SimDiffSetup
 
 
 @click.group()
@@ -80,7 +79,8 @@ def run_summary(report):
     """A short, human-readable summary of a RunReport."""
     stalled = {}
     for process, case in report.stalled:
-        stalled.setdefault(process, []).append(case.case_id)
+        collecting = f" collected {case.collected} of {case.needed}" if case.needed > 1 else ""
+        stalled.setdefault(process, []).append(case.case_id + collecting)
     lines = [
         f"Messages: {len(report.published)} published, {len(report.claims)} claims, "
         f"{len(report.discards)} discards, {len(report.unclaimed)} unclaimed",

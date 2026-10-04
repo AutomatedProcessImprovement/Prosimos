@@ -94,6 +94,17 @@ capacity of them:
  "copy": {"truck_id": "case_id"}}
 ```
 
+**collect** (optional, on a catch event's entry) says how many matching messages a case must claim
+there before it continues: a fixed `{"value": 3}`, or `{"case_attribute": "items"}` to read it from the
+case when it reaches the event. Without it, one message is enough. For example, an order waiting until
+an `ItemReady` has come for each of its items:
+
+```json
+{"event_id": "Catch_Items", "type": "ItemReady",
+ "condition": [[{"attribute": "order_id", "comparison": "=", "case_attribute": "case_id"}]],
+ "collect": {"case_attribute": "items"}}
+```
+
 One event may appear in several entries: under `publish`, passing it publishes one message per
 entry; under `consume`, a case waiting there accepts any of the entries' types. To wait for all of
 them, use one catch event per message.
@@ -147,6 +158,16 @@ The section is checked when the model is loaded. An invalid section stops loadin
 - `copy` maps case attribute names to message attribute names, and doesn't set `case_id`.
 - `capacity` is either `{"value": <whole number of at least 1>}` or `{"attribute": <name>}`, and only
   on a catch event: a start message starts exactly one case.
+- `collect` is either `{"value": <whole number of at least 0>}` or `{"case_attribute": <name>}`.
+- `collect` is only on a catch event with exactly one `consume` entry: a case waiting there keeps one
+  count, so it must be clear which messages it counts. To accept several variants of one type, use one
+  entry with alternatives in its condition; to wait for several kinds, use one catch event per type.
+- `collect` isn't on a start event: a start event turns one message into a new case, and before that
+  case exists nothing holds the earlier messages or tells which ones belong together. Start on the
+  first message instead, then collect the rest at a catch event right after the start (e.g. a picking
+  batch: start on 1 order, then `"collect": {"value": 4}`). The rest is a fixed number, or a case
+  attribute holding the remaining count, since a count can't do arithmetic.
+- `collect` and `capacity` aren't on the same entry (see "Many messages for many cases").
 - A process started by messages (a `consume` entry on its start event) has exactly one start event,
   and the start event's condition uses only fixed values and `source`, not `case_attribute`: there
   is no case yet to compare with.
@@ -205,7 +226,29 @@ pool, it is claimed at once and the wait lasts zero time.
 When intermediate events are logged, a catch event a case waited at appears as lasting from the
 case's arrival at the event until the message.
 
-Cases still waiting when the run ends are reported as stalled cases ([orchestrator.md](orchestrator.md)).
+**Collecting.** With `collect`, the number is read when the case reaches the catch event. Each matching
+message is CLAIMED and bound to the case, and `copy` is applied at every claim (a later message
+overwrites an earlier value); the case stays parked until it has the number it needs, then continues
+at the time of the last one. Messages that came earlier wait in the orchestrator's pool and are
+claimed as soon as the case parks, possibly several in one step. When several waiting cases match,
+the one waiting longest that still needs messages gets it. A number of 0 means nothing to collect:
+the case passes straight on. A case attribute that isn't a whole number of at least 0 counts as 1,
+with one warning per event and attribute.
+
+Cases still waiting when the run ends are reported as stalled cases ([orchestrator.md](orchestrator.md)),
+with how many messages they had collected, e.g. `collected 2 of 3`.
+
+## Many messages for many cases
+
+`capacity` lets one message complete several cases (one → many), and `collect` lets several
+messages complete one case (many → one). Both on one entry would mean several messages jointly
+completing several cases in a single step. That is a design choice, not a missing feature: a model
+expresses it as **two simple steps through an intermediate case**. The intermediate case collects the
+messages (many → one), then publishes one message per target (one → many). For example, a truck
+collects packages, then sends one Shipment per package.
+
+The intermediate case is usually a real object (a truck, a package, a pallet). Making it explicit
+puts it in the log with its own links, and keeps each step readable and discoverable.
 
 ## Processes started by messages
 

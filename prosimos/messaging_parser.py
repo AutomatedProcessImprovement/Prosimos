@@ -45,6 +45,8 @@ class ConsumePoint:
     starts_case: bool = False  # at the start event: an accepted message starts a new case
     capacity: int = 1  # how many waiting cases one message resumes, unless read from the message
     capacity_attribute: Optional[str] = None  # the message attribute holding the capacity, if any
+    collect: int = 1  # how many messages a case must claim here before it continues, unless read from the case
+    collect_attribute: Optional[str] = None  # the case attribute holding that number, if any
 
 
 @dataclass(frozen=True)
@@ -92,14 +94,17 @@ def parse_messages(messages_json, bpmn_path, declared_attributes) -> MessagingMo
     events = _bpmn_events(bpmn_path)
     # consume first, so that a malformed copy (whose targets publish entries may use) is reported
     # as such rather than as an undeclared published attribute
-    consume = []
+    consume, collecting = [], []
     for where, entry in _entries(messages_json, "consume", events, CONSUMING_EVENTS):
         starts_case = events[entry["event_id"]][0] == "startEvent"
         point = ConsumePoint(entry["event_id"], entry["type"], _condition(entry, where), _copy(entry, where),
-                             starts_case, *_capacity(entry, where, starts_case))
+                             starts_case, *_capacity(entry, where, starts_case), *_collect(entry, where, starts_case))
         if point.starts_case:
             _check_start(where, point, events)
         consume.append(point)
+        if "collect" in entry:
+            collecting.append((where, point.event_id))
+    _check_collect_has_its_own_event(collecting, consume)
     publish = tuple(
         PublishPoint(entry["event_id"], entry["type"], _attributes(entry, where, declared_attributes))
         for where, entry in _entries(messages_json, "publish", events, PUBLISHING_EVENTS)
@@ -138,8 +143,50 @@ def _capacity(entry, where, starts_case):
     return int(capacity["value"]), None
 
 
+def _collect(entry, where, starts_case):
+    """(fixed number to collect, case attribute holding it): {"value": 3} or {"case_attribute": "items"}."""
+    if "collect" not in entry:
+        return 1, None
+    if starts_case:
+        _fail(f"{where}: a start event can't collect: it turns one message into a new case, and before that case "
+              f"exists nothing holds the earlier messages or tells which ones belong together. Start on the first "
+              f"message, then collect the rest at a catch event right after the start (e.g. a picking batch: "
+              f"start on 1 order, then collect {{\"value\": 4}})")
+    if "capacity" in entry:
+        _fail(f"{where}: collect and capacity can't be combined on one entry: that would be several messages "
+              f"completing several cases at once. Use two steps through an intermediate case instead: it collects "
+              f"the messages, then publishes one message per target (e.g. a truck collects packages, then sends "
+              f"one Shipment per package)")
+    collect = entry["collect"]
+    if not isinstance(collect, dict) or len(collect) != 1 or not set(collect) <= {"value", "case_attribute"}:
+        _fail(f"{where}: 'collect' must be either {{\"value\": <number>}} or {{\"case_attribute\": <case attribute>}}")
+    if "case_attribute" in collect:
+        if not isinstance(collect["case_attribute"], str) or not collect["case_attribute"]:
+            _fail(f"{where}: 'collect' case_attribute must be a case attribute name")
+        return 1, collect["case_attribute"]
+    if not is_whole_number(collect["value"], minimum=0):
+        _fail(f"{where}: 'collect' value must be a whole number of at least 0, got {collect['value']!r}")
+    return int(collect["value"]), None
+
+
+def _check_collect_has_its_own_event(collecting, consume):
+    """collect is allowed only on a catch event with exactly one consume entry: a waiting case keeps one
+    count there, so it must be clear which messages it counts."""
+    for where, event_id in collecting:
+        entries = sum(point.event_id == event_id for point in consume)
+        if entries > 1:
+            _fail(f"{where}: collect is only allowed on a catch event with exactly one consume entry, but "
+                  f"{event_id} has {entries}: a case waiting there keeps one count. To accept several variants of "
+                  f"one type, use one entry with alternatives in its condition; to wait for several kinds, use one "
+                  f"catch event per type")
+
+
+def is_whole_number(value, minimum):
+    return not isinstance(value, bool) and isinstance(value, (int, float)) and value >= minimum and float(value).is_integer()
+
+
 def is_whole_number_of_at_least_one(value):
-    return not isinstance(value, bool) and isinstance(value, (int, float)) and value >= 1 and float(value).is_integer()
+    return is_whole_number(value, minimum=1)
 
 
 def _copy(entry, where):

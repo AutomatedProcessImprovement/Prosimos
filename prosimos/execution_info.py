@@ -16,6 +16,7 @@ class EnabledEvent:
         self.duration_sec = duration_sec        # filled only in case of event-based gateway
         self.is_inter_event = is_inter_event    # whether the enabled event is the intermediate event
         self.parked_event = None                # for a case resumed by a message: the event it waited at
+        self.complete_at_once = False           # a catch event with nothing to collect: no wait, no delay
 
 
 class ProcessInfo:

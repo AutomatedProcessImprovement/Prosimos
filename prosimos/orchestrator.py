@@ -146,6 +146,8 @@ class StalledCase:
     event_id: str
     message_types: List[str]  # the types it waits for: any one of them resumes it (usually just one)
     waiting_since: datetime
+    collected: int = 0  # messages it had claimed at that event...
+    needed: int = 1  # ...of the ones it needed (more than 1 with collect)
 
 
 @dataclass
@@ -258,7 +260,8 @@ class ProsimosEngine(SimulationEngine):
     def finish(self) -> EngineReport:
         with self._own_globals():
             stalled = [StalledCase(self._env.case_id(parked_event.p_case), parked_event.task_id,
-                                   self._env.waiting_for(parked_event.task_id), parked_event.enabled_datetime)
+                                   self._env.waiting_for(parked_event.task_id), parked_event.enabled_datetime,
+                                   *self._env.collected(parked_event))
                        for parked_event in self._env.parked_events()]
         return EngineReport(stalled, list(self._warnings))
 
@@ -376,7 +379,8 @@ class RunReport:
             "discarded_counts": [{"type": message_type, "process": process, "count": count}
                                  for (message_type, process), count in self.discarded_counts.items()],
             "stalled": [{"process": process, "case_id": case.case_id, "event_id": case.event_id,
-                         "message_types": case.message_types, "waiting_since": when(case.waiting_since)}
+                         "message_types": case.message_types, "waiting_since": when(case.waiting_since),
+                         "collected": case.collected, "needed": case.needed}
                         for process, case in self.stalled],
             "warnings": list(self.warnings),
             "engine_warnings": [{"process": process, "warning": warning} for process, warning in self.engine_warnings],
