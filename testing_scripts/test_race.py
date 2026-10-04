@@ -2,6 +2,7 @@
 Races at event-based gateways (docs/messaging.md): when a branch after the gateway waits for a message,
 every branch is armed; the first to happen wins and the others are canceled.
 """
+import csv
 import json
 from datetime import datetime, timedelta
 
@@ -10,6 +11,7 @@ import pytz
 
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.orchestrator import Message, ProcessSpec, ProsimosEngine, Verdict, run_engines
+from prosimos.simulation_engine import run_simulation
 from prosimos.simulation_setup import SimDiffSetup
 from testing_scripts.scripted_engine import ScriptedEngine
 
@@ -19,6 +21,9 @@ SALES = f"{ASSETS}/sales_with_deadline.bpmn"
 SALES_JSON = f"{ASSETS}/sales_with_deadline.json"
 START = pytz.utc.localize(datetime(2024, 1, 1, 9))
 DEADLINE = timedelta(hours=6)
+# a race timer is due one microsecond after its time, so that a message at exactly that time wins; the
+# case continues from then (the timer's own log row shows the real time)
+AFTER_TIES = timedelta(microseconds=1)
 
 
 class _Log:
@@ -80,7 +85,7 @@ def test_a_shipment_before_the_deadline_closes_the_order_and_the_timer_never_fir
     assert report.stalled == []
     # the canceled timer still came off the queue at its time, but was skipped: Sales stepped then and
     # nothing happened
-    deadline = _reached_gateway(log, 0) + DEADLINE
+    deadline = _reached_gateway(log, 0) + DEADLINE + AFTER_TIES
     assert (deadline, "Sales") in report.executed
     assert all(_time(row[2]) < deadline for row in log.rows)
 
@@ -89,7 +94,7 @@ def test_no_shipment_before_the_deadline_cancels_the_order_and_a_later_shipment_
     sales, log = _sales()
     _run_until_idle(sales)
 
-    assert log.times("Cancel order") == {0: _reached_gateway(log, 0) + DEADLINE}
+    assert log.times("Cancel order") == {0: _reached_gateway(log, 0) + DEADLINE + AFTER_TIES}
     assert log.times("Close order") == {}
     assert sales._env._parked_events == {}  # the waiting record was dropped
     assert sales.deliver(shipment(), _reached_gateway(log, 0) + DEADLINE + timedelta(hours=1)) is Verdict.DISCARDED
@@ -104,7 +109,7 @@ def test_each_case_runs_its_own_race():
     _run_until_idle(sales)
 
     assert log.times("Close order") == {1: START.replace(hour=11)}
-    assert log.times("Cancel order") == {0: _reached_gateway(log, 0) + DEADLINE}
+    assert log.times("Cancel order") == {0: _reached_gateway(log, 0) + DEADLINE + AFTER_TIES}
 
 
 def test_a_gateway_without_a_message_branch_behaves_as_before(tmp_path):
@@ -142,6 +147,50 @@ def test_a_race_timer_of_a_case_ended_by_a_terminate_end_event_is_skipped(tmp_pa
     assert not any(sales._env.all_process_states[0].tokens.values())
     assert sales.finish().stalled == []
     assert sales._env._races == {}
+
+
+def _take_order_in_10_minutes(settings):
+    """Case 0 then reaches the gateway at 09:10, so the deadline is exactly 15:10."""
+    settings["task_resource_distribution"][0]["resources"][0].update(
+        distribution_name="fix", distribution_params=[{"value": 600}])
+
+
+EXACT_DEADLINE = START.replace(hour=15, minute=10)
+
+
+@pytest.mark.parametrize("warehouse_name", ["Warehouse", "Atelier"])  # steps after / before Sales at a tie
+def test_a_shipment_at_exactly_the_deadline_wins(tmp_path, warehouse_name):
+    sales, log = _sales(json_path=_settings(tmp_path, _take_order_in_10_minutes))
+    warehouse = ScriptedEngine(warehouse_name)
+    warehouse.publish_at(EXACT_DEADLINE, "Shipment", order_id="Sales-0")
+
+    report = run_engines({"Sales": sales, warehouse_name: warehouse}, None, 1)
+
+    assert [(process, time) for _, process, time in report.claims] == [("Sales", EXACT_DEADLINE)]
+    assert log.times("Close order") == {0: EXACT_DEADLINE}
+    assert log.times("Cancel order") == {}
+
+
+def test_the_timers_log_row_shows_its_real_time(tmp_path):
+    log_path = tmp_path / "log.csv"
+    run_simulation(SALES, _settings(tmp_path, _take_order_in_10_minutes), 1, None, log_path, START.isoformat(),
+                   is_event_added_to_log=True)
+
+    with open(log_path) as file:
+        rows = {row["activity"]: row for row in csv.DictReader(file)}
+    assert _time(rows["6 h"]["start_time"]) == START.replace(hour=9, minute=10)
+    assert _time(rows["6 h"]["end_time"]) == EXACT_DEADLINE  # not a microsecond later
+    assert _time(rows["Cancel order"]["enable_time"]) == EXACT_DEADLINE + AFTER_TIES
+
+
+def test_the_same_seed_gives_the_same_race(tmp_path):
+    def race():
+        sales, _ = _sales(cases=3)
+        warehouse = ScriptedEngine("Warehouse")
+        warehouse.publish_at(START.replace(hour=12), "Shipment", order_id="Sales-1")
+        return run_engines({"Sales": sales, "Warehouse": warehouse}, None, 1)
+
+    assert race() == race()
 
 
 def _with_branch(tmp_path, branch_xml):

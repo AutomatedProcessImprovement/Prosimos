@@ -269,9 +269,13 @@ any catch event. The first to happen wins and the others are canceled:
 
 - **The message comes first:** the case continues on the message branch at the message's time, and
   the timers never fire.
-- **A timer fires first:** the case continues on that timer's branch, and stops waiting for the
-  message, so a message for it that comes later finds a case that is no longer waiting (and is
-  discarded once the case has finished).
+- **A timer fires first:** the case continues on that timer's branch, one microsecond after the
+  timer's time, and stops waiting for the message, so a message for it that comes later finds a case
+  that is no longer waiting (and is discarded once the case has finished). Only the timer's own log
+  row shows its real time; what follows it (e.g. Cancel order) starts one microsecond later.
+- **A message at exactly the timer's time** wins, even when it comes from another process that steps
+  after this one at that time: that is what the microsecond is for (see
+  [engine-internals.md](engine-internals.md)).
 
 The other branches' tokens are removed, so the case continues on one branch only. A case still
 waiting when the run ends is reported as stalled at the gateway. An event-based gateway without a

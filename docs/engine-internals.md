@@ -20,6 +20,12 @@ An element with a token on its incoming flow but not yet enabled (e.g. a paralle
 branch) simply holds the token. When a join fires, `_check_and_update_enabling_time` gives the next
 element the latest of the branches' times.
 
+`update_process_state` returns two values, the enabled tasks and the times elements were reached, but
+when the element it is called for isn't enabled it returns a bare empty list, and the callers, which
+unpack two values, crash (`ValueError: not enough values to unpack`). It was behind the race-timer
+crash (a timer firing for a case that had left the race), now prevented before the call. Calling it
+only for enabled elements avoids it.
+
 In a process with an arrival schedule, all cases are created before the first event
 (`generate_all_arrival_events`): case ids are `0 .. total_cases - 1`, case attributes are drawn up
 front, and each case is moved from its start event at once, so its first task is queued for its
@@ -95,6 +101,15 @@ the gateway. The branches of one case share a `Race` (`SimBPMEnv._races`, keyed 
 
 The timer is queued for its firing time, rather than completed when it comes off the queue as other
 catch events are, so that a message coming before that time can still cancel it.
+
+**Ties.** A message at exactly the timer's time wins. Across engines, an engine can't know whether a
+message for that instant is still coming (another engine may step after it at the same time, ties
+being broken by process name), so a race timer is queued one microsecond after its time
+(`_race_step`): every message of that instant is offered first. The real firing time travels with it
+(`duration_sec` holds the delay, counted from `armed_event`), so the timer's log row ends at the real
+time. After a race timer wins, the case continues one microsecond after the timer's time: only the
+timer's own log row shows its real time, and what follows it starts a microsecond later. Continuing at
+the real time instead would make the engine go back in time, which it must never do.
 
 ## Implicit merges differ from the BPMN standard
 

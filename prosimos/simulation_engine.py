@@ -290,10 +290,12 @@ class SimBPMEnv:
         c_event.race = self._races.setdefault(key, Race(*key))
         if c_event.task_id in self._consume_points:
             return False  # the message branch parks, like any catch event waiting for a message
+        # a message at exactly the timer's time wins: other engines may still publish one for that instant,
+        # so the timer is due one microsecond later and every message of that instant is offered first
         [delay] = self.sim_setup.bpmn_graph.event_duration(c_event.task_id)
-        due = EnabledEvent(c_event.p_case, c_event.p_state, c_event.task_id, c_event.enabled_at + delay,
-                           c_event.enabled_datetime + timedelta(seconds=delay), is_inter_event=True)
-        due.race, due.armed_event = c_event.race, c_event
+        due = EnabledEvent(c_event.p_case, c_event.p_state, c_event.task_id, c_event.enabled_at + delay + 1e-6,
+                           c_event.enabled_datetime + timedelta(seconds=delay, microseconds=1), is_inter_event=True)
+        due.race, due.armed_event, due.duration_sec = c_event.race, c_event, delay
         self.events_queue.append_event(due)
         return True
 
@@ -940,7 +942,11 @@ class SimBPMEnv:
             # resumed by a message: the event lasted from when the case reached it until the message;
             # a timer that won a race: from when it was armed until it fired; nothing to collect: no time
             reached = c_event.parked_event or c_event.armed_event or c_event
-            full_evt = TaskEvent.create_event_entity(reached, c_event.enabled_at, c_event.enabled_datetime)
+            ended_at, ended_datetime = c_event.enabled_at, c_event.enabled_datetime
+            if c_event.armed_event is not None:  # logged at the timer's real time, not a microsecond later
+                ended_at = c_event.armed_event.enabled_at + c_event.duration_sec
+                ended_datetime = c_event.armed_event.enabled_datetime + timedelta(seconds=c_event.duration_sec)
+            full_evt = TaskEvent.create_event_entity(reached, ended_at, ended_datetime)
             self.log_info.add_event_info(c_event.p_case, full_evt, 0)
             if self.sim_setup.is_event_added_to_log:
                 self.log_writer.add_csv_row(self.get_csv_row_data(full_evt))
