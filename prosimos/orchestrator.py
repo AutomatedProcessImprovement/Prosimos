@@ -257,9 +257,9 @@ class ProsimosEngine(SimulationEngine):
 
     def finish(self) -> EngineReport:
         with self._own_globals():
-            stalled = [StalledCase(self._env.case_id(parked.p_case), parked.task_id,
-                                   self._env.waiting_for(parked.task_id), parked.enabled_datetime)
-                       for parked in self._env.waiting_cases()]
+            stalled = [StalledCase(self._env.case_id(parked_event.p_case), parked_event.task_id,
+                                   self._env.waiting_for(parked_event.task_id), parked_event.enabled_datetime)
+                       for parked_event in self._env.parked_events()]
         return EngineReport(stalled, list(self._warnings))
 
 

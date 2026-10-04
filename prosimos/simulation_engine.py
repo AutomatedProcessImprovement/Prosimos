@@ -17,6 +17,7 @@ from prosimos.control_flow_manager import (
 )
 from prosimos.execution_info import EnabledEvent, TaskEvent, Trace
 from prosimos.file_manager import FileManager
+from prosimos.messaging_parser import is_whole_number_of_at_least_one
 from prosimos.prioritisation import CasePrioritisation
 from prosimos.simulation_properties_parser import parse_datetime
 from prosimos.simulation_queues_ds import (
@@ -97,8 +98,9 @@ class SimBPMEnv:
         self._consume_points = dict()  # event id -> the 'consume' entries for it
         for point in sim_setup.messaging.consume:
             self._consume_points.setdefault(point.event_id, []).append(point)
-        self._waiting = dict()  # (case id, event id) -> the parked EnabledEvent
+        self._parked_events = dict()  # (case id, event id) -> the parked EnabledEvent
         self._warned_missing_copies = set()
+        self._warned_capacities = set()
 
     # Queue priorities (case priority first, timers at 0) were removed; last version with them: 5f40913
 
@@ -179,18 +181,24 @@ class SimBPMEnv:
         never match; 'pending' otherwise."""
         self._ensure_arrivals_generated()
         values = dict(attributes, source=source)
-        for parked in self.waiting_cases():
-            p_case, event_id = parked.p_case, parked.task_id
-            claiming = next((point for point in self._consume_points[event_id] if point.type == message_type
-                             and self._condition_holds(point.condition, values, p_case)), None)
-            if claiming is not None:
-                del self._waiting[(p_case, event_id)]
-                self._apply_copy(claiming, values, self.sim_setup.bpmn_graph.all_attributes[p_case])
-                resumed = EnabledEvent(p_case, parked.p_state, event_id, self.simulation_at_from_datetime(now), now,
-                                       is_inter_event=True)
-                resumed.parked_event = parked
-                self.events_queue.append_event(resumed)
-                return "claimed"
+        # the oldest matching waiting case claims the message; its consume entry's capacity says how
+        # many waiting cases at the same entry it resumes, oldest first, without waiting to fill up
+        claiming, to_resume = None, []
+        for parked_event in self.parked_events():
+            if claiming is None:
+                claiming = next((point for point in self._consume_points[parked_event.task_id] if point.type == message_type
+                                 and self._condition_holds(point.condition, values, parked_event.p_case)), None)
+                if claiming is not None:
+                    capacity = self._capacity(claiming, values)
+                    to_resume.append(parked_event)
+            elif parked_event.task_id == claiming.event_id and self._condition_holds(claiming.condition, values, parked_event.p_case):
+                to_resume.append(parked_event)
+            if claiming is not None and len(to_resume) == capacity:
+                break
+        if to_resume:
+            for parked_event in to_resume:
+                self._resume(parked_event, claiming, values, now)
+            return "claimed"
         points = [point for points in self._consume_points.values() for point in points if point.type == message_type]
         # a start event's condition looks only at the message, so it decides now: a new case, or never
         starting = next((point for point in points
@@ -201,6 +209,30 @@ class SimBPMEnv:
         if any(self._could_match(point.condition, values) for point in points if not point.starts_case):
             return "pending"
         return "discarded"
+
+    def _resume(self, parked_event, point, values, now):
+        """Resumes a waiting case at now, with the message values listed in point.copy copied into it."""
+        del self._parked_events[(parked_event.p_case, parked_event.task_id)]
+        self._apply_copy(point, values, self.sim_setup.bpmn_graph.all_attributes[parked_event.p_case])
+        resumed = EnabledEvent(parked_event.p_case, parked_event.p_state, parked_event.task_id, self.simulation_at_from_datetime(now), now,
+                               is_inter_event=True)
+        resumed.parked_event = parked_event
+        self.events_queue.append_event(resumed)
+
+    def _capacity(self, point, values):
+        """How many waiting cases this message resumes at point: its fixed capacity, or the one read from
+        the message; a missing or invalid one counts as 1, with one warning per event and attribute."""
+        if point.capacity_attribute is None:
+            return point.capacity
+        capacity = values.get(point.capacity_attribute)
+        if is_whole_number_of_at_least_one(capacity):
+            return int(capacity)
+        if (point.event_id, point.capacity_attribute) not in self._warned_capacities:
+            self._warned_capacities.add((point.event_id, point.capacity_attribute))
+            warning_logger.add_warning(
+                f"{point.type} message accepted at {point.event_id} has no valid {point.capacity_attribute} "
+                f"(got {capacity!r}); it resumes one waiting case")
+        return 1
 
     def create_case(self, now, set_values=None):
         """Starts a new case at now, as a planned arrival would (case attributes drawn as usual), and
@@ -229,13 +261,13 @@ class SimBPMEnv:
                     f"{point.type} message accepted at {point.event_id} has no {source_name} to copy into "
                     f"{target}; {target} is left unchanged")
 
-    def waiting_cases(self):
-        """The parked events of the cases waiting for a message, the one waiting longest first (ties by
-        case id)."""
-        for key, parked in list(self._waiting.items()):
-            if not any(parked.p_state.has_token(flow) for flow in self.sim_setup.bpmn_graph.element_info[parked.task_id].incoming_flows):
-                del self._waiting[key]  # the case moved on without it (e.g. a terminate end event)
-        return [self._waiting[key] for key in sorted(self._waiting, key=lambda key: (self._waiting[key].enabled_datetime, key))]
+    def parked_events(self):
+        """The queued catch events (EnabledEvents) at which cases are parked, waiting for a message: one
+        per waiting case and event, the one waiting longest first (ties by case id)."""
+        for key, parked_event in list(self._parked_events.items()):
+            if not any(parked_event.p_state.has_token(flow) for flow in self.sim_setup.bpmn_graph.element_info[parked_event.task_id].incoming_flows):
+                del self._parked_events[key]  # the case moved on without it (e.g. a terminate end event)
+        return [self._parked_events[key] for key in sorted(self._parked_events, key=lambda key: (self._parked_events[key].enabled_datetime, key))]
 
     def waiting_for(self, event_id):
         """The message types a case waiting at event_id accepts."""
@@ -375,7 +407,7 @@ class SimBPMEnv:
                     )
         else:
             if c_event.task_id in self._consume_points and c_event.parked_event is None:
-                self._waiting[(c_event.p_case, c_event.task_id)] = c_event
+                self._parked_events[(c_event.p_case, c_event.task_id)] = c_event
                 return
             if event_element_info.type == BPMN.TASK:
                 # execute not batched task

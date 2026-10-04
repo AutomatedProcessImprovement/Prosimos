@@ -89,7 +89,7 @@ def test_a_message_for_a_case_that_has_not_reached_the_catch_event_is_pending_an
 
     assert engine.deliver(shipment("Sales-0"), START) is Verdict.PENDING
     _run_until_idle(engine)
-    reached = engine._env._waiting[(0, "Catch_Shipment")].enabled_datetime
+    reached = engine._env._parked_events[(0, "Catch_Shipment")].enabled_datetime
     assert engine.deliver(shipment("Sales-0"), reached) is Verdict.CLAIMED
 
 
@@ -199,10 +199,10 @@ def test_a_case_ended_by_a_terminate_end_event_while_waiting_discards_its_messag
     _run_until_idle(engine)
 
     assert "Cancel order" in [row[1] for row in log.rows]
-    assert list(engine._env._waiting) == [(0, "Catch_Shipment")]  # the record is still there...
+    assert list(engine._env._parked_events) == [(0, "Catch_Shipment")]  # the record is still there...
     assert not any(engine._env.all_process_states[0].tokens.values())  # ...but the case has ended
     assert engine.deliver(shipment("Sales-0"), at("12:00")) is Verdict.DISCARDED
-    assert engine._env._waiting == {}
+    assert engine._env._parked_events == {}
     assert engine.next_event_time() is None
 
 
@@ -247,13 +247,13 @@ def test_cases_waiting_equally_long_are_resumed_by_case_id(tmp_path):
     engine.deliver(shipment("anything"), at("12:00"))
     _run_until_idle(engine)
     assert log.times("Close order") == {0: at("12:00")}
-    assert sorted(engine._env._waiting) == [(1, "Catch_Shipment")]  # case 1 still waits
+    assert sorted(engine._env._parked_events) == [(1, "Catch_Shipment")]  # case 1 still waits
 
 
 def test_other_cases_keep_running_while_one_waits():
     engine, log = _sales(5)
     _run_until_idle(engine)
-    reached_catch_event_at = {case: parked.enabled_datetime for (case, _), parked in engine._env._waiting.items()}
+    reached_catch_event_at = {case: parked_event.enabled_datetime for (case, _), parked_event in engine._env._parked_events.items()}
 
     assert sorted(reached_catch_event_at) == [0, 1, 2, 3, 4]
     # case 0 was already waiting when case 4 arrived (its Take order was enabled), and case 4 still
@@ -269,7 +269,7 @@ def test_a_shipment_for_sales_0_resumes_case_0_and_not_case_1():
     _run_until_idle(engine)
 
     assert list(log.times("Close order")) == [0]
-    assert sorted(engine._env._waiting) == [(1, "Catch_Shipment")]
+    assert sorted(engine._env._parked_events) == [(1, "Catch_Shipment")]
 
 
 def test_an_engine_whose_cases_all_wait_still_claims_a_message_published_later():

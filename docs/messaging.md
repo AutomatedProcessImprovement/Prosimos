@@ -82,6 +82,18 @@ it isn't a declared attribute (like the warehouse's `order_id`); the cell stays 
 is copied. A message without one of the listed attributes
 leaves that case attribute unchanged, with one warning per event and attribute.
 
+**capacity** (optional, on a catch event's entry) says how many waiting cases one message resumes:
+a fixed `{"value": 2}`, or `{"attribute": "capacity"}` to read it from the message. Without it, a
+message resumes one case. For example, orders waiting at the dock and a truck taking up to its
+capacity of them:
+
+```json
+{"event_id": "Catch_Truck", "type": "Truck",
+ "condition": [[{"attribute": "dock", "comparison": "=", "value": "Tartu"}]],
+ "capacity": {"attribute": "capacity"},
+ "copy": {"truck_id": "case_id"}}
+```
+
 One event may appear in several entries: under `publish`, passing it publishes one message per
 entry; under `consume`, a case waiting there accepts any of the entries' types. To wait for all of
 them, use one catch event per message.
@@ -133,6 +145,8 @@ The section is checked when the model is loaded. An invalid section stops loadin
   [engine-internals.md](engine-internals.md)). With an explicit gateway, the meaning is clear.
 - A catch event under `consume` doesn't directly follow an event-based gateway (see "Limitations").
 - `copy` maps case attribute names to message attribute names, and doesn't set `case_id`.
+- `capacity` is either `{"value": <whole number of at least 1>}` or `{"attribute": <name>}`, and only
+  on a catch event: a start message starts exactly one case.
 - A process started by messages (a `consume` entry on its start event) has exactly one start event,
   and the start event's condition uses only fixed values and `source`, not `case_attribute`: there
   is no case yet to compare with.
@@ -165,9 +179,14 @@ for a message`). Catch events not listed under `consume` keep their delay drawn 
 Each message delivered to the process gets one of three answers:
 
 - **`CLAIMED`**: it matches a waiting case's condition. That case continues from the catch event at
-  the message's time; one message resumes one case. If several waiting cases match, the one waiting
-  longest takes it; ties go to the lower case id. Only if no waiting case takes it, a matching start
-  event does: it starts a new case (see "Processes started by messages").
+  the message's time. If several waiting cases match, the one waiting longest takes it; ties go to
+  the lower case id. With a `capacity` above 1, the message then also resumes the next matching
+  cases waiting at the same entry, longest-waiting first, up to the capacity, all at the message's
+  time, and `copy` is applied to each. It doesn't wait to fill up: a truck that finds one order
+  takes one, and a truck that finds none stays `PENDING` and takes the first order that starts
+  waiting. A capacity read from the message that is missing or not a whole number of at least 1
+  counts as 1, with one warning per event and attribute. Only if no waiting case takes it, a
+  matching start event does: it starts a new case (see "Processes started by messages").
 - **`DISCARDED`**: no case can ever accept it: it fails every condition on the message alone (fixed
   values, `source`), or the case it names through `case_id` doesn't exist in this process or has
   already finished. A case that just hasn't started yet still counts, and so, in a process started
@@ -230,3 +249,7 @@ still offered every message it subscribes to.
   branches with an explicit XOR gateway into the single end event.
 - **`case_attribute` names** in conditions aren't checked against the declared attributes; a term
   naming an attribute the case doesn't have is simply false.
+- **Capacity is per `consume` entry.** One message resumes extra cases only at the entry that resumed
+  the first case, so a truck accepted at two different catch events doesn't load cases from both. To
+  let one truck serve several kinds of waiting cases, use one catch event whose condition accepts all
+  of them.

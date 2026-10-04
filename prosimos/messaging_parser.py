@@ -43,6 +43,8 @@ class ConsumePoint:
     condition: Optional[Tuple[Tuple[ConditionTerm, ...], ...]]  # any alternative whose terms all hold; None accepts every message
     copy: Tuple[Tuple[str, str], ...] = ()  # (case attribute, message attribute): copied into the case
     starts_case: bool = False  # at the start event: an accepted message starts a new case
+    capacity: int = 1  # how many waiting cases one message resumes, unless read from the message
+    capacity_attribute: Optional[str] = None  # the message attribute holding the capacity, if any
 
 
 @dataclass(frozen=True)
@@ -92,8 +94,9 @@ def parse_messages(messages_json, bpmn_path, declared_attributes) -> MessagingMo
     # as such rather than as an undeclared published attribute
     consume = []
     for where, entry in _entries(messages_json, "consume", events, CONSUMING_EVENTS):
+        starts_case = events[entry["event_id"]][0] == "startEvent"
         point = ConsumePoint(entry["event_id"], entry["type"], _condition(entry, where), _copy(entry, where),
-                             starts_case=events[entry["event_id"]][0] == "startEvent")
+                             starts_case, *_capacity(entry, where, starts_case))
         if point.starts_case:
             _check_start(where, point, events)
         consume.append(point)
@@ -115,6 +118,28 @@ def _check_start(where, point, events):
     if on_case:
         _fail(f"{where}: the condition of a start event may only use fixed values and source, not "
               f"case_attribute (there is no case yet), but its terms on {', '.join(map(repr, on_case))} do")
+
+
+def _capacity(entry, where, starts_case):
+    """(fixed capacity, message attribute holding it): {"value": 2} or {"attribute": "capacity"}."""
+    if "capacity" not in entry:
+        return 1, None
+    if starts_case:
+        _fail(f"{where}: a start event takes no capacity: a start message starts exactly one case")
+    capacity = entry["capacity"]
+    if not isinstance(capacity, dict) or len(capacity) != 1 or not set(capacity) <= {"value", "attribute"}:
+        _fail(f"{where}: 'capacity' must be either {{\"value\": <number>}} or {{\"attribute\": <message attribute>}}")
+    if "attribute" in capacity:
+        if not isinstance(capacity["attribute"], str) or not capacity["attribute"]:
+            _fail(f"{where}: 'capacity' attribute must be a message attribute name")
+        return 1, capacity["attribute"]
+    if not is_whole_number_of_at_least_one(capacity["value"]):
+        _fail(f"{where}: 'capacity' value must be a whole number of at least 1, got {capacity['value']!r}")
+    return int(capacity["value"]), None
+
+
+def is_whole_number_of_at_least_one(value):
+    return not isinstance(value, bool) and isinstance(value, (int, float)) and value >= 1 and float(value).is_integer()
 
 
 def _copy(entry, where):

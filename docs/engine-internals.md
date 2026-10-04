@@ -63,12 +63,12 @@ executed (`execute_enabled_event`), not where it is created (`_find_next`): park
 the case wait, and claim a message, before it has arrived.
 
 - **Parking**: the catch event is not completed; its token stays on the incoming flow, and the
-  parked `EnabledEvent` is kept in `SimBPMEnv._waiting`, keyed by (case, event).
+  parked `EnabledEvent` is kept in `SimBPMEnv._parked_events`, keyed by (case, event).
 - **Resuming** (`deliver`): a new `EnabledEvent` for the catch event is queued at the message's time,
   with `parked_event` pointing to the parked one; when it is executed, the event completes at once
   and the case continues.
 - **Stale records**: a case can lose its waiting token without a message, e.g. through a terminate
-  end event on another branch. `waiting_cases()` drops such records, so the case is neither resumed
+  end event on another branch. `parked_events()` drops such records, so the case is neither resumed
   nor reported as stalled.
 - **Joins after a waiting branch**: an AND join fires at the later of the branches. An inclusive (OR)
   join waits for a parked branch, because its look-ahead (`or_join_pred`) checks the case's tokens
