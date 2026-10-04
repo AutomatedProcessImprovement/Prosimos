@@ -1,4 +1,6 @@
 import csv
+import dataclasses
+import json
 import os
 import random
 from pathlib import Path
@@ -7,6 +9,7 @@ import click
 import numpy as np
 
 from bpdfr_discovery.log_parser import preprocess_xes_log
+from prosimos.orchestrator import SimulationConfig, run_orchestrator
 from prosimos.simulation_engine import run_simulation
 from prosimos.simulation_setup import SimDiffSetup
 
@@ -46,6 +49,48 @@ def start_simulation(ctx, bpmn_path, json_path, total_cases, stat_out_path=None,
         np.random.seed(seed)
 
     run_simulation(bpmn_path, json_path, total_cases, stat_out_path, log_out_path, starting_at, is_event_added_to_log)
+
+
+@cli.command()
+@click.option('--config', 'config_path', required=True,
+              help='Path to the JSON configuration file listing the processes to simulate together '
+                   '(see docs/orchestrator.md)')
+@click.option('--log_out_path', required=False,
+              help='Path to the CSV file to produce with the merged event log of all processes. Optional.')
+@click.option('--report_out_path', required=False,
+              help='Path to the JSON file to produce with the full run report. Optional.')
+@click.option('--seed', required=False, type=click.INT, default=None,
+              help="Seed for the random number generators; overrides the configuration's seed. Without "
+                   "either, every run draws different random values.")
+def start_orchestration(config_path, log_out_path=None, report_out_path=None, seed=None):
+    """Simulate several processes side by side, exchanging messages."""
+    config = SimulationConfig.from_json(config_path)
+    if seed is not None:
+        config = dataclasses.replace(config, seed=seed)
+
+    report = run_orchestrator(config, log_out_path)
+
+    click.echo(run_summary(report))
+    if report_out_path is not None:
+        with open(report_out_path, "w", encoding="utf-8") as report_file:
+            json.dump(report.to_dict(), report_file, indent=2, ensure_ascii=False, default=str)
+
+
+def run_summary(report):
+    """A short, human-readable summary of a RunReport."""
+    stalled = {}
+    for process, case in report.stalled:
+        stalled.setdefault(process, []).append(case.case_id)
+    lines = [
+        f"Messages: {len(report.published)} published, {len(report.claims)} claims, "
+        f"{len(report.discards)} discards, {len(report.unclaimed)} unclaimed",
+        "Stalled cases:" + ("" if stalled else " none"),
+        *(f"  {process}: {len(cases)} ({', '.join(cases)})" for process, cases in sorted(stalled.items())),
+        "Warnings:" + ("" if report.warnings or report.engine_warnings else " none"),
+        *(f"  {warning}" for warning in report.warnings),
+        *(f"  {process}: {warning}" for process, warning in report.engine_warnings),
+    ]
+    return "\n".join(lines)
 
 
 @cli.command()

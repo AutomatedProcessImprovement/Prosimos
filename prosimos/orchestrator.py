@@ -357,6 +357,31 @@ class RunReport:
         type_of = {message.id: message.type for message in self.published}
         return dict(Counter((type_of[message_id], process) for message_id, process, _ in self.discards))
 
+    def to_dict(self) -> Dict[str, Any]:
+        """The whole report as plain lists and dicts, with times as ISO strings, e.g. to save as JSON.
+        Messages are referred to by id, except in published."""
+        def when(time):
+            return time.isoformat()
+
+        return {
+            "executed": [{"time": when(time), "process": process} for time, process in self.executed],
+            "published": [{"id": m.id, "type": m.type, "source": m.source, "time": when(m.time),
+                           "attributes": m.attributes} for m in self.published],
+            "copies": [{"message": message_id, "group": group} for message_id, group in self.copies],
+            "claims": [{"message": message_id, "process": process, "time": when(time)}
+                       for message_id, process, time in self.claims],
+            "discards": [{"message": message_id, "process": process, "time": when(time)}
+                         for message_id, process, time in self.discards],
+            "unclaimed": [{"group": group, "message": message.id} for group, message in self.unclaimed],
+            "discarded_counts": [{"type": message_type, "process": process, "count": count}
+                                 for (message_type, process), count in self.discarded_counts.items()],
+            "stalled": [{"process": process, "case_id": case.case_id, "event_id": case.event_id,
+                         "message_types": case.message_types, "waiting_since": when(case.waiting_since)}
+                        for process, case in self.stalled],
+            "warnings": list(self.warnings),
+            "engine_warnings": [{"process": process, "warning": warning} for process, warning in self.engine_warnings],
+        }
+
 
 @dataclass(eq=False)
 class _PooledCopy:

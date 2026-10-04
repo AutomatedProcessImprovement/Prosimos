@@ -39,13 +39,28 @@ If none of the output file paths **_stat_out_path_** and **_log_out_path_** are 
 If parameter **_starting_at_** is not provided, the current date-time is assigned as starting point for the simulation.
 Without **_seed_**, every run draws different random values.
 
+To simulate several processes together, exchanging messages (see "Multi-process simulation" below),
+run from the root folder:
+
+    poetry run prosimos start-orchestration --config <Path to the JSON configuration file listing the processes>
+                                            --log_out_path <(Optional) Path to the CSV file to save the merged event-log of all processes>
+                                            --report_out_path <(Optional) Path to the JSON file to save the full run report>
+                                            --seed <(Optional) Integer seed; overrides the seed in the configuration file>
+
+It prints a short summary of the run: messages published, claimed, discarded and unclaimed, the cases
+still waiting for a message per process, and warnings. Without a seed in either the configuration or
+**_seed_**, every run draws different random values. For example, the running example with four
+processes:
+
+    poetry run prosimos start-orchestration --config testing_scripts/assets/running_example/simulation.json --log_out_path merged_log.csv
+
 ## Multi-process simulation
 
 Several processes can be simulated side by side on one shared clock, exchanging messages: for
 example, a Sales process announces each order, warehouses compete to handle it, and the Sales case
 waits until its shipment arrives. Each process is an ordinary Prosimos model (BPMN plus JSON); its
 JSON settings list which message events publish or wait for which messages. A configuration file
-lists the processes, and one call runs them together:
+lists the processes, and one command (`start-orchestration`, above) or one call runs them together:
 
 ```python
 from prosimos.orchestrator import SimulationConfig, run_orchestrator

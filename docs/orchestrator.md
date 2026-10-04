@@ -29,6 +29,24 @@ consumer groups. Here the warehouses are started by Sales's orders, so they have
 }
 ```
 
+Run it from the command line:
+
+```
+poetry run prosimos start-orchestration --config config.json --log_out_path merged_log.csv --report_out_path report.json
+```
+
+`--log_out_path` (the merged event log) and `--report_out_path` (the run report as JSON) are optional,
+and `--seed` overrides the configuration's seed. The command prints a short summary, e.g.
+
+```
+Messages: 37 published, 54 claims, 9 discards, 0 unclaimed
+Stalled cases:
+  Sales: 3 (Sales-2, Sales-6, Sales-7)
+Warnings: none
+```
+
+or from Python:
+
 ```python
 from prosimos.orchestrator import SimulationConfig, run_orchestrator
 
@@ -38,6 +56,8 @@ report = run_orchestrator(config, log_out_path="merged_log.csv")
 print(report.stalled)    # cases still waiting for a message at the end
 print(report.warnings)   # e.g. messages nobody could use
 ```
+
+Extra engines (see "Configuration") can only be passed from Python.
 
 ## Configuration
 
@@ -69,7 +89,8 @@ processes' log columns (`case_id`, `activity`, `enable_time`, `start_time`, `end
 plus attribute and batch columns where a model has them). A process leaves blank the columns it
 doesn't produce. Extra engines get no log writer, so their events aren't in the merged log.
 
-**Run report.** `run_orchestrator` (and `run_engines`) return a `RunReport`:
+**Run report.** `run_orchestrator` (and `run_engines`) return a `RunReport`; `RunReport.to_dict()`
+gives it as plain lists and dicts with times as ISO strings, which is what `--report_out_path` saves:
 
 | Field              | Content                                                                                               |
 |--------------------|-------------------------------------------------------------------------------------------------------|
