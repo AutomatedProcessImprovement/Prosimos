@@ -77,9 +77,25 @@ the case wait, and claim a message, before it has arrived.
 Before the messaging work, every catch event, whatever its kind, completed after a delay drawn from
 `event_distribution` (`execute_event`); catch events not listed under `consume` still do.
 
+**Races.** An event-based gateway with a branch listed under `consume` is a race gateway
+(`BPMNGraph.race_gateways`, set by `SimBPMEnv`). There `update_process_state` puts a token on every
+branch instead of choosing one, so every branch's catch event is queued at the time the case reaches
+the gateway. The branches of one case share a `Race` (`SimBPMEnv._races`, keyed by case and gateway):
+
+- When a timer branch comes off the queue, its delay is drawn, and it is queued again for when it fires,
+  as a new `EnabledEvent` with `race` set and `armed_event` pointing to the armed one (so the log row
+  spans the wait). The message branch parks as usual, with `race` set on its parked event.
+- The first branch to happen wins (`_win_race`): a timer that comes off the queue with its race not yet
+  won, or the message branch when its case is resumed (`_resume`). The other branches' tokens are
+  taken off the flows into them, a parked branch's waiting record is dropped, and a canceled timer is
+  skipped when it comes off the queue (its race is already won).
+
+The timer is queued for its firing time, rather than completed when it comes off the queue as other
+catch events are, so that a message coming before that time can still cancel it.
+
 ## Implicit merges differ from the BPMN standard
 
-BPMN lets a modeller draw several arrows into an element without a gateway. The standard calls this
+BPMN lets a modeler draw several arrows into an element without a gateway. The standard calls this
 uncontrolled flow: the element fires once per arriving token, without waiting for the others (an AND
 merge must be drawn as an explicit parallel gateway). Prosimos follows this for tasks and
 intermediate throw events (the parser adds a hidden `xor_join_<id>`), but not for:
@@ -99,9 +115,10 @@ events that publish or wait must have a single incoming arrow instead (checked a
 - **One start event** per process (`BPMNGraph.starting_event`; the last one parsed wins). A model
   whose start event is started by messages is rejected if it has more than one.
 - **One end event** per model (`BPMNGraph.validate_model`).
-- **Event-based gateways** are decided when the case reaches them: `get_event_gateway_choice` draws
-  a duration for each following event and takes the shortest, breaking ties with `random.choice`.
-  Nothing waits there.
+- **Event-based gateways** without a branch waiting for a message are decided when the case reaches
+  them: `get_event_gateway_choice` draws a duration for each following event and takes the shortest,
+  breaking ties with `random.choice`. Those with such a branch are races (see "Waiting at catch
+  events").
 
 ## Random numbers
 

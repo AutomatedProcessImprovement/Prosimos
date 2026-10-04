@@ -259,7 +259,7 @@ class ProsimosEngine(SimulationEngine):
 
     def finish(self) -> EngineReport:
         with self._own_globals():
-            stalled = [StalledCase(self._env.case_id(parked_event.p_case), parked_event.task_id,
+            stalled = [StalledCase(self._env.case_id(parked_event.p_case), self._env.stalled_at(parked_event),
                                    self._env.waiting_for(parked_event.task_id), parked_event.enabled_datetime,
                                    *self._env.collected(parked_event))
                        for parked_event in self._env.parked_events()]

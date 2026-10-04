@@ -10,9 +10,7 @@ import numpy as np
 import pytest
 import pytz
 
-from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.orchestrator import Message, ProcessSpec, ProsimosEngine, Verdict, run_engines
-from prosimos.simulation_setup import SimDiffSetup
 from testing_scripts.scripted_engine import ScriptedEngine
 
 ASSETS = "testing_scripts/assets/messaging"
@@ -329,24 +327,3 @@ def test_a_duration_given_for_a_waiting_catch_event_is_ignored_with_a_warning(tm
 
     assert engine.finish().warnings == ["duration of Catch_Shipment is ignored: it waits for a message"]
     assert engine.next_event_time() is None and "Close order" not in [row[1] for row in log.rows]
-
-
-def test_a_waiting_catch_event_after_an_event_based_gateway_is_rejected(tmp_path):
-    bpmn = tmp_path / "race.bpmn"
-    bpmn.write_text("""<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"><bpmn:process id="P">
-      <bpmn:startEvent id="Start"/><bpmn:task id="Take_Order"/><bpmn:eventBasedGateway id="Race"/>
-      <bpmn:intermediateCatchEvent id="Catch_Shipment"><bpmn:messageEventDefinition/></bpmn:intermediateCatchEvent>
-      <bpmn:intermediateCatchEvent id="Timeout"><bpmn:timerEventDefinition/></bpmn:intermediateCatchEvent>
-      <bpmn:intermediateThrowEvent id="Throw_OrderPlaced"><bpmn:messageEventDefinition/></bpmn:intermediateThrowEvent>
-      <bpmn:endEvent id="End"/>
-      <bpmn:sequenceFlow id="F1" sourceRef="Start" targetRef="Take_Order"/>
-      <bpmn:sequenceFlow id="F2" sourceRef="Take_Order" targetRef="Throw_OrderPlaced"/>
-      <bpmn:sequenceFlow id="F3" sourceRef="Throw_OrderPlaced" targetRef="Race"/>
-      <bpmn:sequenceFlow id="F4" sourceRef="Race" targetRef="Catch_Shipment"/>
-      <bpmn:sequenceFlow id="F5" sourceRef="Race" targetRef="Timeout"/>
-      <bpmn:sequenceFlow id="F6" sourceRef="Catch_Shipment" targetRef="End"/>
-      <bpmn:sequenceFlow id="F7" sourceRef="Timeout" targetRef="End"/>
-    </bpmn:process></bpmn:definitions>""")
-
-    with pytest.raises(InvalidSimScenarioException, match="'Catch_Shipment' follows an event-based gateway"):
-        SimDiffSetup(str(bpmn), SALES_JSON, False, 1, START)

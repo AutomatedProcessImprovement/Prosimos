@@ -91,7 +91,7 @@ def parse_messages(messages_json, bpmn_path, declared_attributes) -> MessagingMo
     if not isinstance(messages_json, dict) or set(messages_json) - {"publish", "consume"}:
         _fail("'messages' must be an object with only 'publish' and/or 'consume'")
 
-    events = _bpmn_events(bpmn_path)
+    events, gateway_branches = _bpmn_events(bpmn_path)
     # consume first, so that a malformed copy (whose targets publish entries may use) is reported
     # as such rather than as an undeclared published attribute
     consume, collecting = [], []
@@ -105,6 +105,7 @@ def parse_messages(messages_json, bpmn_path, declared_attributes) -> MessagingMo
         if "collect" in entry:
             collecting.append((where, point.event_id))
     _check_collect_has_its_own_event(collecting, consume)
+    _check_races(consume, events, gateway_branches)
     publish = tuple(
         PublishPoint(entry["event_id"], entry["type"], _attributes(entry, where, declared_attributes))
         for where, entry in _entries(messages_json, "publish", events, PUBLISHING_EVENTS)
@@ -216,7 +217,7 @@ def _entries(messages_json, section, events, allowed_kinds):
 def _check_event(where, event_id, events, allowed_kinds):
     if not isinstance(event_id, str) or event_id not in events:
         _fail(f"{where}: event_id {event_id!r} is not an element of the BPMN model")
-    kind, is_message, incoming, after_event_gateway = events[event_id]
+    kind, is_message, incoming, _ = events[event_id]
     if kind not in allowed_kinds or not is_message:
         expected = " or ".join(allowed_kinds.values())
         found = f"a message {kind}" if is_message else f"{'an' if kind[0] in 'aeiou' else 'a'} {kind}"
@@ -227,11 +228,23 @@ def _check_event(where, event_id, events, allowed_kinds):
     if kind in ("endEvent", "intermediateCatchEvent") and incoming != 1:
         _fail(f"{where}: event_id {event_id!r} has {incoming} incoming arrows, expected exactly one; "
               f"draw an explicit gateway before {event_id}")
-    # an event-based gateway races the events after it by drawing a duration for each; a case
-    # waiting for a message can't take part in such a race yet (future work)
-    if kind == "intermediateCatchEvent" and after_event_gateway:
-        _fail(f"{where}: event_id {event_id!r} follows an event-based gateway, where waiting for a "
-              f"message isn't supported yet")
+
+
+def _check_races(consume, events, gateway_branches):
+    """An event-based gateway with a branch that waits for a message is a race: every branch must be a
+    message catch event or a timer, and only one of them may wait for a message (for now)."""
+    waiting = {point.event_id for point in consume if not point.starts_case}
+    for gateway_id in sorted({events[event_id][3] for event_id in waiting if events[event_id][3]}):
+        branches = gateway_branches[gateway_id]
+        for target_id, kind, definition in branches:
+            if kind != "intermediateCatchEvent" or definition not in ("message", "timer"):
+                found = f"a {definition} {kind}" if definition else f"{'an' if kind[0] in 'aeiou' else 'a'} {kind}"
+                _fail(f"after the event-based gateway {gateway_id}, which races a branch waiting for a message, "
+                      f"every branch must be a message catch event or a timer, but {target_id} is {found}")
+        message_branches = sorted(target_id for target_id, _, _ in branches if target_id in waiting)
+        if len(message_branches) > 1:
+            _fail(f"the event-based gateway {gateway_id} has several branches waiting for a message "
+                  f"({', '.join(message_branches)}); a race with more than one isn't supported yet")
 
 
 def _attributes(entry, where, declared):
@@ -278,21 +291,29 @@ def _term(term, where):
 
 
 def _bpmn_events(bpmn_path):
-    """event id -> (element kind, whether it has a message event definition, incoming arrows,
-    whether one of them comes from an event-based gateway)."""
+    """element id -> (element kind, whether it has a message event definition, incoming arrows, the
+    event-based gateway it follows or None), and event-based gateway id -> its branches, each
+    (target id, target kind, its event definition: "message", "timer", ... or None)."""
     elements = list(ET.parse(bpmn_path).getroot().iter())
     flows = [element.attrib for element in elements if element.tag == BPMN_NS + "sequenceFlow"]
     incoming = Counter(flow.get("targetRef") for flow in flows)
     event_gateways = {element.attrib.get("id") for element in elements if element.tag == BPMN_NS + "eventBasedGateway"}
-    after_event_gateway = {flow.get("targetRef") for flow in flows if flow.get("sourceRef") in event_gateways}
-    events = {}
+    gateway_before = {flow.get("targetRef"): flow.get("sourceRef") for flow in flows if flow.get("sourceRef") in event_gateways}
+    events, definitions = {}, {}
     for element in elements:
         if element.tag.startswith(BPMN_NS) and "id" in element.attrib:
             element_id = element.attrib["id"]
             kind = element.tag[len(BPMN_NS):]
             events[element_id] = (kind, element.find(MESSAGE_DEFINITION) is not None, incoming[element_id],
-                                  element_id in after_event_gateway)
-    return events
+                                  gateway_before.get(element_id))
+            definitions[element_id] = next((child.tag[len(BPMN_NS):].removesuffix("EventDefinition") for child in element
+                                            if child.tag.endswith("EventDefinition")), None)
+    gateway_branches = {gateway_id: [] for gateway_id in event_gateways}
+    for flow in flows:
+        if flow.get("sourceRef") in event_gateways:
+            target_id = flow.get("targetRef")
+            gateway_branches[flow.get("sourceRef")].append((target_id, events[target_id][0], definitions[target_id]))
+    return events, gateway_branches
 
 
 def _fail(reason):

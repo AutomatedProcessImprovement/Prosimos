@@ -38,6 +38,15 @@ class SimResource:
         self.last_released = 0
 
 
+class Race:
+    """The branches of one event-based gateway, armed for one case: the first to happen wins."""
+
+    def __init__(self, p_case, gateway_id):
+        self.p_case = p_case
+        self.gateway_id = gateway_id
+        self.won = False
+
+
 class SimBPMEnv:
     def __init__(self, sim_setup: SimDiffSetup, stat_fwriter, log_fwriter, process_name=None):
         self.sim_setup = sim_setup
@@ -103,6 +112,21 @@ class SimBPMEnv:
         self._warned_capacities = set()
         self._collected = dict()  # (case id, event id) -> [messages claimed so far, messages needed]
         self._warned_collects = set()
+
+        # Races. At an event-based gateway with a branch that waits for a message, every branch is armed:
+        # timers are queued for when they fire, the message branch parks; the first to happen wins and
+        # the other branches are canceled. Gateways without such a branch keep drawing a duration per branch.
+        graph = self.sim_setup.bpmn_graph
+        self._race_branches = dict()  # race gateway id -> the catch events after it
+        for gateway_id, element in graph.element_info.items():
+            if element.type is BPMN.EVENT_BASED_GATEWAY:
+                branches = [graph.flow_arcs[flow][1] for flow in element.outgoing_flows]
+                if any(branch in self._consume_points for branch in branches):
+                    self._race_branches[gateway_id] = branches
+        graph.race_gateways = set(self._race_branches)
+        self._race_gateway_of = {branch: gateway_id for gateway_id, branches in self._race_branches.items()
+                                 for branch in branches}
+        self._races = dict()  # (case id, gateway id) -> the Race running for that case
 
     # Queue priorities (case priority first, timers at 0) were removed; last version with them: 5f40913
 
@@ -222,7 +246,10 @@ class SimBPMEnv:
             self._resume(parked_event, now)
 
     def _resume(self, parked_event, now):
-        """Resumes a waiting case at now: its catch event is queued again, and completes at once."""
+        """Resumes a waiting case at now: its catch event is queued again, and completes at once. If the
+        case was waiting in a race, its branch wins and the others are canceled."""
+        if parked_event.race is not None:
+            self._win_race(parked_event.race, parked_event.task_id, parked_event.p_state)
         del self._parked_events[(parked_event.p_case, parked_event.task_id)]
         del self._collected[(parked_event.p_case, parked_event.task_id)]
         resumed = EnabledEvent(parked_event.p_case, parked_event.p_state, parked_event.task_id, self.simulation_at_from_datetime(now), now,
@@ -244,6 +271,46 @@ class SimBPMEnv:
                 f"{point.type} message accepted at {point.event_id} has no valid {point.capacity_attribute} "
                 f"(got {capacity!r}); it resumes one waiting case")
         return 1
+
+    def _race_step(self, c_event):
+        """A branch of a race comes off the queue. Returns True if nothing more is to be done with it now."""
+        if c_event.race is not None:  # a timer branch due to fire
+            if c_event.race.won:
+                return True  # canceled: another branch won
+            self._win_race(c_event.race, c_event.task_id, c_event.p_state)
+            return False  # it completes now; execute_event logs it from when it was armed
+        # armed when the case reached the gateway; the branches of one race share one Race
+        key = (c_event.p_case, self._race_gateway_of[c_event.task_id])
+        c_event.race = self._races.setdefault(key, Race(*key))
+        if c_event.task_id in self._consume_points:
+            return False  # the message branch parks, like any catch event waiting for a message
+        [delay] = self.sim_setup.bpmn_graph.event_duration(c_event.task_id)
+        due = EnabledEvent(c_event.p_case, c_event.p_state, c_event.task_id, c_event.enabled_at + delay,
+                           c_event.enabled_datetime + timedelta(seconds=delay), is_inter_event=True)
+        due.race, due.armed_event = c_event.race, c_event
+        self.events_queue.append_event(due)
+        return True
+
+    def _win_race(self, race, winner, p_state):
+        """The branch winner wins race: every other branch is canceled. Its token is taken off the flow into
+        it, a parked case's waiting record is dropped, and a queued timer is skipped when it comes off."""
+        race.won = True
+        del self._races[(race.p_case, race.gateway_id)]
+        graph = self.sim_setup.bpmn_graph
+        for branch in self._race_branches[race.gateway_id]:
+            if branch == winner:
+                continue
+            for flow in graph.element_info[branch].incoming_flows:
+                if p_state.tokens[flow] > 0:
+                    p_state.tokens[flow] -= 1
+                    if p_state.tokens[flow] == 0:
+                        p_state.state_mask &= ~graph.arcs_bitset[flow]
+            self._parked_events.pop((race.p_case, branch), None)
+            self._collected.pop((race.p_case, branch), None)
+
+    def stalled_at(self, parked_event):
+        """Where a parked case is reported stalled: the race gateway if it waits in a race, else its event."""
+        return self._race_gateway_of.get(parked_event.task_id, parked_event.task_id)
 
     def _needed(self, c_event):
         """How many messages a case arriving at a catch event must claim there: the entries' fixed collect, or
@@ -439,6 +506,9 @@ class SimBPMEnv:
                         ),
                     )
         else:
+            if (c_event.task_id in self._race_gateway_of and c_event.parked_event is None
+                    and self._race_step(c_event)):
+                return
             if c_event.task_id in self._consume_points and c_event.parked_event is None:
                 needed = self._needed(c_event)
                 if needed > 0:
@@ -860,10 +930,10 @@ class SimBPMEnv:
 
     def execute_event(self, c_event):
         # Handle event types separately (they don't need assigned resource)
-        if c_event.parked_event is not None or c_event.complete_at_once:
+        if c_event.parked_event is not None or c_event.armed_event is not None or c_event.complete_at_once:
             # resumed by a message: the event lasted from when the case reached it until the message;
-            # nothing to collect: it took no time at all
-            reached = c_event.parked_event if c_event.parked_event is not None else c_event
+            # a timer that won a race: from when it was armed until it fired; nothing to collect: no time
+            reached = c_event.parked_event or c_event.armed_event or c_event
             full_evt = TaskEvent.create_event_entity(reached, c_event.enabled_at, c_event.enabled_datetime)
             self.log_info.add_event_info(c_event.p_case, full_evt, 0)
             if self.sim_setup.is_event_added_to_log:

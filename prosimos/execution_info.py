@@ -17,6 +17,8 @@ class EnabledEvent:
         self.is_inter_event = is_inter_event    # whether the enabled event is the intermediate event
         self.parked_event = None                # for a case resumed by a message: the event it waited at
         self.complete_at_once = False           # a catch event with nothing to collect: no wait, no delay
+        self.race = None                        # a branch of a race at an event-based gateway: its Race
+        self.armed_event = None                 # a timer branch due to fire: the event as armed at the gateway
 
 
 class ProcessInfo:

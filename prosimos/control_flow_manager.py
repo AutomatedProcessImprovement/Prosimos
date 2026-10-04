@@ -170,6 +170,9 @@ class BPMNGraph:
         # that publish a message); each pass is recorded as (case_id, element_id, time), in order
         self.watched_elements = set()
         self.passed_watched_elements = []
+        # event-based gateways with a branch that waits for a message: every branch is armed, and the
+        # engine lets the first happen win (instead of drawing a duration per branch here)
+        self.race_gateways = set()
 
     def set_element_probabilities(self, element_probability, task_resource_probability):
         self.element_probability = element_probability
@@ -359,13 +362,16 @@ class BPMNGraph:
                 if self.is_gateway_execution_limit_exceeded(case_id, e_info.id):
                     break
 
-                if e_info.type is BPMN.EVENT_BASED_GATEWAY:
-                    f_arcs = [self.get_event_gateway_choice(e_info, last_enabled.datetime)]
+                if e_info.id in self.race_gateways:
+                    pass  # arm every branch
                 else:
-                    all_curr_attributes = self.get_all_attributes(case_id)
-                    f_arcs = OutgoingFlowSelector.choose_outgoing_flow(e_info, self.element_probability,
-                                                                       all_curr_attributes, self.gateway_conditions)
-                random.shuffle(f_arcs)
+                    if e_info.type is BPMN.EVENT_BASED_GATEWAY:
+                        f_arcs = [self.get_event_gateway_choice(e_info, last_enabled.datetime)]
+                    else:
+                        all_curr_attributes = self.get_all_attributes(case_id)
+                        f_arcs = OutgoingFlowSelector.choose_outgoing_flow(e_info, self.element_probability,
+                                                                           all_curr_attributes, self.gateway_conditions)
+                    random.shuffle(f_arcs)
 
             self.simulation_execution_stats.update_element_execution(case_id, e_info, f_arcs)
 

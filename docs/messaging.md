@@ -154,7 +154,9 @@ The section is checked when the model is loaded. An invalid section stops loadin
   element mean "fire once per arriving token", but Prosimos joins several arrows into an end event
   as an OR join and into a catch event as an AND merge (see
   [engine-internals.md](engine-internals.md)). With an explicit gateway, the meaning is clear.
-- A catch event under `consume` doesn't directly follow an event-based gateway (see "Limitations").
+- After an event-based gateway with a branch that waits for a message (a race, see "Races at
+  event-based gateways"), every branch is a message catch event or a timer, and only one branch waits
+  for a message.
 - `copy` maps case attribute names to message attribute names, and doesn't set `case_id`.
 - `capacity` is either `{"value": <whole number of at least 1>}` or `{"attribute": <name>}`, and only
   on a catch event: a start message starts exactly one case.
@@ -250,6 +252,32 @@ collects packages, then sends one Shipment per package.
 The intermediate case is usually a real object (a truck, a package, a pallet). Making it explicit
 puts it in the log with its own links, and keeps each step readable and discoverable.
 
+## Races at event-based gateways
+
+An event-based gateway whose branches include a catch event listed under `consume` is a race, e.g.
+"the shipment or a 6-hour deadline, whichever comes first":
+
+```
+                 +--> (catch Shipment) --> Close order --+
+Order placed --> <event-based gateway>                    <XOR> --> end
+                 +--> (timer 6 h)      --> Cancel order --+
+```
+
+When a case reaches the gateway, every branch is armed at once: each timer is set to fire after its
+delay (from `event_distribution`, as for any timer), and the case waits at the message branch as at
+any catch event. The first to happen wins and the others are canceled:
+
+- **The message comes first:** the case continues on the message branch at the message's time, and
+  the timers never fire.
+- **A timer fires first:** the case continues on that timer's branch, and stops waiting for the
+  message, so a message for it that comes later finds a case that is no longer waiting (and is
+  discarded once the case has finished).
+
+The other branches' tokens are removed, so the case continues on one branch only. A case still
+waiting when the run ends is reported as stalled at the gateway. An event-based gateway without a
+branch waiting for a message works as before: it is decided as soon as a case reaches it, by drawing
+a duration for each branch and taking the shortest.
+
 ## Processes started by messages
 
 A `consume` entry on the model's start event (a message start event) makes messages start the
@@ -281,11 +309,8 @@ still offered every message it subscribes to.
 
 ## Limitations
 
-- **Event-based gateways.** A catch event listed under `consume` can't directly follow an
-  event-based gateway, so a race such as "the shipment or a timeout, whichever comes first" can't be
-  modelled yet; such a model is rejected when it is loaded. Prosimos decides an event-based gateway
-  as soon as a case reaches it, by drawing a duration for each event after it, and a waiting catch
-  event has no duration.
+- **Races** allow only one branch that waits for a message, and no other kinds of branches than
+  message catch events and timers.
 - **One end event per model.** Prosimos supports only one end event in a model ("Temporarily not
   supporting multiple end events"), so a model can't have a message end event next to another end
   event. Instead, publish with an intermediate message throw event on that branch, then merge the
