@@ -61,6 +61,39 @@ held item; `step()` releases all items due at that time instead of running an ev
 times held items go first. An engine that still holds items isn't finished, even with an empty
 queue. The message is built when it is released, so attribute values are those at the real time.
 
+**Batching.** The same applies to a batched task: a case joins its waiting list
+(`BPMNGraph.batch_waiting_processes`) during the step of the task before it, with the time it will
+reach the batched task. The list therefore holds cases that reach the task only later, and it is not
+in time order. Batching used to treat it as if it were, which went wrong once task durations varied:
+
+- the firing rule and the batch size counted cases that hadn't arrived yet, and `.seconds` turned
+  their negative waiting times into large positive ones, so the two disagreed (the "batch size ... 0"
+  warning);
+- after a batch fired, the first cases in the list were removed, not the ones the batch had taken, so
+  one case could run twice (a crash) while another was lost.
+
+This is fixed: the firing rule and the batch size see only the cases that have reached the task, in
+the order they reached it (`_reached_batch`), and exactly the cases a batch takes leave the list.
+`testing_scripts/test_batching_random_durations.py` covers it.
+
+Three older batching problems, which also happen with fixed durations, were fixed with it:
+
+- a single waiting case between the `ready_wt` boundaries no longer prints a false "batch size ... 0"
+  warning: the firing rule now agrees with the batch size that it waits for a second case;
+- the last cases of a run are no longer lost when the gap after the last of them is below the low
+  boundary: the end of the run now gives them a firing time;
+- a lone last case under `large_wt` waits up to the upper boundary instead of firing at the lower one,
+  which also makes `test_range_large_wt_rule_correct_log_distances` stable.
+
+Still open, both also on `main`:
+
+- with a `size >= 2` firing rule the batch never fires, so the batched task never runs and those cases
+  are stuck;
+- with `daily_hour`, a case left alone at the end of a run can be lost.
+
+Some batching tests rewrite `batch-example-with-batch.json` in place (firing rules, arrival
+distribution), so the new tests reset the sections they rely on to the committed values.
+
 ## Waiting at catch events
 
 A case is moved onto a catch event during the step of the task before it, but the catch event is
