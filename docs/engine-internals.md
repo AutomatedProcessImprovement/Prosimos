@@ -133,6 +133,18 @@ the gateway. The branches of one case share a `Race` (`SimBPMEnv._races`, keyed 
   first in the JSON takes it (`_consume_order`, the entries' positions), with one warning per gateway
   if there are several. Without this, the parked events' order (by time, then case and event id) would
   decide, since a case's branches are all parked at the same time.
+- With `collect`, a claim at a race branch wins the race only once the case has collected all it needs
+  (`_claim` resumes it then); until then the race stays open and a timer can still win, which drops the
+  branch's count (`_collected`) with its waiting record.
+- A message branch with nothing to collect wins at once. Which one, if several, is decided when the
+  case's first branch comes off the queue and starts the race (`_branch_with_nothing_to_collect`, stored
+  as `Race.wins_at_once`): the one whose `consume` entry comes first, with one warning per gateway. The
+  branches come off the queue in a random order (`update_process_state` shuffles what it enables), so
+  deciding when the winner comes off would leave it to the seed, and a branch with something to collect
+  could park and claim a message first. The other branches are skipped without being armed; the winner
+  completes when it comes off (`complete_at_once`) and wins the race then.
+- A branch that comes off the queue after its race was won at the same instant (no token on the flow
+  into it anymore) is skipped, so it isn't armed under a new `Race`.
 - A timer that comes off the queue after its case has left the race without it (no token on the flow
   into it anymore, e.g. after a terminate end event on another branch) is skipped too, and its race is
   dropped; the parked message branches are cleaned up as any stale waiting record.

@@ -45,6 +45,7 @@ class Race:
         self.p_case = p_case
         self.gateway_id = gateway_id
         self.won = False
+        self.wins_at_once = None  # the message branch with nothing to collect that wins at once, if any
 
 
 class SimBPMEnv:
@@ -130,6 +131,7 @@ class SimBPMEnv:
         # a message matching several branches of one race goes to the branch whose entry comes first
         self._consume_order = {id(point): index for index, point in enumerate(sim_setup.messaging.consume)}
         self._warned_overlapping_races = set()
+        self._warned_races_won_at_once = set()
 
     # Queue priorities (case priority first, timers at 0) were removed; last version with them: 5f40913
 
@@ -312,8 +314,16 @@ class SimBPMEnv:
             self._win_race(c_event.race, c_event.task_id, c_event.p_state)
             return False  # it completes now; execute_event logs it from when it was armed
         # armed when the case reached the gateway; the branches of one race share one Race
+        incoming = self.sim_setup.bpmn_graph.element_info[c_event.task_id].incoming_flows
+        if not any(c_event.p_state.has_token(flow) for flow in incoming):
+            return True  # another branch already won at this instant, e.g. one with nothing to collect
         key = (c_event.p_case, self._race_gateway_of[c_event.task_id])
-        c_event.race = self._races.setdefault(key, Race(*key))
+        if key not in self._races:  # the case's first branch to come off the queue starts the race
+            self._races[key] = Race(*key)
+            self._races[key].wins_at_once = self._branch_with_nothing_to_collect(*key)
+        c_event.race = self._races[key]
+        if c_event.race.wins_at_once not in (None, c_event.task_id):
+            return True  # a branch with nothing to collect wins at once; this one is never armed
         if c_event.task_id in self._consume_points:
             return False  # the message branch parks, like any catch event waiting for a message
         # a message at exactly the timer's time wins: other engines may still publish one for that instant,
@@ -324,6 +334,23 @@ class SimBPMEnv:
         due.race, due.armed_event, due.duration_sec = c_event.race, c_event, delay
         self.events_queue.append_event(due)
         return True
+
+    def _branch_with_nothing_to_collect(self, p_case, gateway_id):
+        """The message branch of the race that wins as soon as the case reaches the gateway: of the branches
+        with nothing to collect, the one whose consume entry comes first in the JSON, with one warning per
+        gateway if there are several; None if every message branch waits for something."""
+        branches = [branch for branch in self._race_branches[gateway_id]
+                    if branch in self._consume_points and self._needed(p_case, branch) == 0]
+        if not branches:
+            return None
+        # a branch with collect has exactly one consume entry
+        branches.sort(key=lambda branch: self._consume_order[id(self._consume_points[branch][0])])
+        if len(branches) > 1 and gateway_id not in self._warned_races_won_at_once:
+            self._warned_races_won_at_once.add(gateway_id)
+            warning_logger.add_warning(
+                f"several branches of the race at {gateway_id} have nothing to collect "
+                f"({', '.join(sorted(branches))}); {branches[0]}, whose 'consume' entry comes first, wins")
+        return branches[0]
 
     def _win_race(self, race, winner, p_state):
         """The branch winner wins race: every other branch is canceled. Its token is taken off the flow into
@@ -358,20 +385,20 @@ class SimBPMEnv:
             types.update(self.waiting_for(parked_event.task_id))
         return [(parked_event, place, sorted(types)) for parked_event, place, types in waits.values()]
 
-    def _needed(self, c_event):
+    def _needed(self, p_case, event_id):
         """How many messages a case arriving at a catch event must claim there: the entries' fixed collect, or
         the case attribute holding it, read now; one that isn't a whole number of at least 0 counts as 1, with
         one warning per event and attribute."""
-        point = self._consume_points[c_event.task_id][0]  # an event with collect has exactly one entry
+        point = self._consume_points[event_id][0]  # an event with collect has exactly one entry
         if point.collect_attribute is None:
             return point.collect
-        needed = self.sim_setup.bpmn_graph.get_all_attributes(c_event.p_case).get(point.collect_attribute)
+        needed = self.sim_setup.bpmn_graph.get_all_attributes(p_case).get(point.collect_attribute)
         if is_whole_number(needed, minimum=0):
             return int(needed)
         if (point.event_id, point.collect_attribute) not in self._warned_collects:
             self._warned_collects.add((point.event_id, point.collect_attribute))
             warning_logger.add_warning(
-                f"case {c_event.p_case} reaches {point.event_id} with no valid {point.collect_attribute} "
+                f"case {p_case} reaches {point.event_id} with no valid {point.collect_attribute} "
                 f"(got {needed!r}); it collects one message")
         return 1
 
@@ -556,12 +583,14 @@ class SimBPMEnv:
                     and self._race_step(c_event)):
                 return
             if c_event.task_id in self._consume_points and c_event.parked_event is None:
-                needed = self._needed(c_event)
+                needed = self._needed(c_event.p_case, c_event.task_id)
                 if needed > 0:
                     self._parked_events[(c_event.p_case, c_event.task_id)] = c_event
                     self._collected[(c_event.p_case, c_event.task_id)] = [0, needed]
                     return
                 c_event.complete_at_once = True  # nothing to collect: the case passes straight on
+                if c_event.race is not None:
+                    self._win_race(c_event.race, c_event.task_id, c_event.p_state)
             if event_element_info.type == BPMN.TASK:
                 # execute not batched task
                 completed_at, completed_datetime = self.execute_task(c_event)

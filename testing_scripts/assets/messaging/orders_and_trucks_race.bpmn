@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Orders" targetNamespace="http://bpmn.io/schema/bpmn">
+  <!-- warehouse orders racing a truck against a 4-hour deadline: a truck takes up to its capacity of waiting
+       orders and loads them; an order no truck has taken within 4 hours is sent by courier -->
+  <bpmn:process id="Orders" isExecutable="false">
+    <bpmn:startEvent id="Start" name="Order received"><bpmn:outgoing>Flow_1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:task id="Pack" name="Pack"><bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing></bpmn:task>
+    <bpmn:eventBasedGateway id="Race"><bpmn:incoming>Flow_2</bpmn:incoming><bpmn:outgoing>Flow_3</bpmn:outgoing><bpmn:outgoing>Flow_4</bpmn:outgoing></bpmn:eventBasedGateway>
+    <bpmn:intermediateCatchEvent id="Catch_Truck" name="Truck at the dock"><bpmn:incoming>Flow_3</bpmn:incoming><bpmn:outgoing>Flow_5</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="Courier_Deadline" name="4 h"><bpmn:incoming>Flow_4</bpmn:incoming><bpmn:outgoing>Flow_6</bpmn:outgoing><bpmn:timerEventDefinition /></bpmn:intermediateCatchEvent>
+    <bpmn:task id="Load" name="Load"><bpmn:incoming>Flow_5</bpmn:incoming><bpmn:outgoing>Flow_7</bpmn:outgoing></bpmn:task>
+    <bpmn:task id="Send_By_Courier" name="Send by courier"><bpmn:incoming>Flow_6</bpmn:incoming><bpmn:outgoing>Flow_8</bpmn:outgoing></bpmn:task>
+    <bpmn:exclusiveGateway id="Merge"><bpmn:incoming>Flow_7</bpmn:incoming><bpmn:incoming>Flow_8</bpmn:incoming><bpmn:outgoing>Flow_9</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:endEvent id="End" name="Shipped"><bpmn:incoming>Flow_9</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Pack" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Pack" targetRef="Race" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Race" targetRef="Catch_Truck" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Race" targetRef="Courier_Deadline" />
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="Catch_Truck" targetRef="Load" />
+    <bpmn:sequenceFlow id="Flow_6" sourceRef="Courier_Deadline" targetRef="Send_By_Courier" />
+    <bpmn:sequenceFlow id="Flow_7" sourceRef="Load" targetRef="Merge" />
+    <bpmn:sequenceFlow id="Flow_8" sourceRef="Send_By_Courier" targetRef="Merge" />
+    <bpmn:sequenceFlow id="Flow_9" sourceRef="Merge" targetRef="End" />
+  </bpmn:process>
+</bpmn:definitions>

@@ -327,3 +327,124 @@ def test_with_a_timer_as_well_the_first_of_the_three_branches_wins(tmp_path):
     assert log.times("Archive quote") == {}
     assert log.times("Follow up") == {1: START.replace(hour=10, minute=10) + timedelta(days=3) + AFTER_TIES}
     assert quote.finish().stalled == []
+
+
+# Capacity and collect inside a race. Orders racing a truck (capacity 2, then Load) against a 4-hour deadline
+# (Send by courier); an order arrives every 10 minutes from 09:00 and is packed in a minute, so orders 0, 1 and 2
+# reach the gateway at 09:01, 09:11 and 09:21
+TRUCK_RACE = f"{ASSETS}/orders_and_trucks_race.bpmn"
+TRUCK_RACE_JSON = f"{ASSETS}/orders_and_trucks_race.json"
+# orders racing their 3 items (ItemReady, then Pack) against a 2-hour deadline (Cancel order); an order arrives
+# every hour from 09:00 and is picked in 10 minutes, so orders 0 and 1 reach the gateway at 09:10 and 10:10
+ITEMS_RACE = f"{ASSETS}/orders_and_items_race.bpmn"
+ITEMS_RACE_JSON = f"{ASSETS}/orders_and_items_race.json"
+
+
+def _race_orders(bpmn_path, json_path, cases):
+    log = _Log()
+    return ProsimosEngine(ProcessSpec("Orders", bpmn_path, json_path, cases), START, log, seed=1), log
+
+
+def _message_types(report):
+    types = {message.id: message.type for message in report.published}
+    return lambda entries: [(types[message_id], process, time) for message_id, process, time in entries]
+
+
+def test_a_truck_of_capacity_2_wins_the_races_of_the_two_orders_it_picks_up_while_a_third_races_on():
+    orders, log = _race_orders(TRUCK_RACE, TRUCK_RACE_JSON, 3)
+    carrier = ScriptedEngine("Carrier")
+    carrier.publish_at(START.replace(minute=30), "Truck", dock="Tartu", case_id="Carrier-0")
+
+    report = run_engines({"Orders": orders, "Carrier": carrier}, None, 1)
+
+    assert log.times("Load") == {0: START.replace(minute=30), 1: START.replace(minute=30)}
+    # their timers never fire; order 2 didn't fit, so its race went on and its timer won 4 hours after 09:21
+    assert log.times("Send by courier") == {2: START.replace(hour=13, minute=21) + AFTER_TIES}
+    assert report.stalled == []
+
+
+@pytest.fixture
+def three_items_per_order():
+    """Order 0 gets one item before its deadline and one after; order 1 gets all three before its deadline."""
+    shelf = ScriptedEngine("Shelf")
+    shelf.publish_at(START.replace(hour=9, minute=30), "ItemReady", order_id="Orders-0", item_id="a")
+    for minute, item_id in [(20, "x"), (30, "y"), (40, "z")]:
+        shelf.publish_at(START.replace(hour=10, minute=minute), "ItemReady", order_id="Orders-1", item_id=item_id)
+    shelf.publish_at(START.replace(hour=14), "ItemReady", order_id="Orders-0", item_id="b")
+    return shelf
+
+
+def test_an_order_whose_timer_fires_after_1_of_3_items_takes_the_timer_branch_and_a_later_item_is_discarded(
+        three_items_per_order):
+    orders, log = _race_orders(ITEMS_RACE, ITEMS_RACE_JSON, 2)
+
+    report = run_engines({"Orders": orders, "Shelf": three_items_per_order}, None, 1)
+
+    assert log.times("Cancel order") == {0: START.replace(hour=11, minute=10) + AFTER_TIES}
+    assert 0 not in log.times("Pack")
+    as_types = _message_types(report)
+    # the item it got stays bound to it (a claim); the one after its deadline is discarded
+    assert ("ItemReady", "Orders", START.replace(hour=9, minute=30)) in as_types(report.claims)
+    assert as_types(report.discards) == [("ItemReady", "Orders", START.replace(hour=14))]
+    assert report.stalled == []
+
+
+def test_an_order_that_gets_all_3_items_before_its_timer_takes_the_message_branch(three_items_per_order):
+    orders, log = _race_orders(ITEMS_RACE, ITEMS_RACE_JSON, 2)
+
+    report = run_engines({"Orders": orders, "Shelf": three_items_per_order}, None, 1)
+
+    assert log.times("Pack") == {1: START.replace(hour=10, minute=40)}
+    assert 1 not in log.times("Cancel order")
+    assert [time for _, process, time in _message_types(report)(report.claims) if time.hour == 10] == [
+        START.replace(hour=10, minute=20), START.replace(hour=10, minute=30), START.replace(hour=10, minute=40)]
+
+
+def test_an_order_with_no_items_to_collect_takes_the_message_branch_at_once(tmp_path):
+    def no_items(settings):
+        settings["case_attributes"][0]["values"]["distribution_params"] = [{"value": 0}]
+
+    orders, log = _race_orders(ITEMS_RACE, _settings(tmp_path, no_items, base=ITEMS_RACE_JSON), 2)
+    _run_until_idle(orders)
+
+    assert log.times("Pack") == {0: START.replace(hour=9, minute=10), 1: START.replace(hour=10, minute=10)}
+    assert log.times("Cancel order") == {}  # the message branch won, so the timers never fire
+    assert orders._env._races == {}
+
+
+@pytest.mark.parametrize("listed_first, taken, not_taken", [
+    ("Catch_Accepted", "Confirm order", "Archive quote"),
+    ("Catch_Rejected", "Archive quote", "Confirm order"),  # the JSON order decides, not the event ids
+])
+def test_of_several_branches_with_nothing_to_collect_the_one_listed_first_wins_for_every_seed(
+        tmp_path, listed_first, taken, not_taken):
+    def nothing_to_collect(settings):
+        # read from a case attribute that is 0 for every case (a fixed 0 is rejected at load)
+        settings["case_attributes"] = [{"name": "answers_needed", "type": "continuous",
+                                        "values": {"distribution_name": "fix", "distribution_params": [{"value": 0}]}}]
+        consume = settings["messages"]["consume"]
+        for entry in consume:
+            entry["collect"] = {"case_attribute": "answers_needed"}
+        consume.sort(key=lambda entry: entry["event_id"] != listed_first)
+
+    json_path = _settings(tmp_path, nothing_to_collect, base=QUOTE_JSON)
+    for seed in range(1, 21):  # the branches come off the queue in a random order, which the seed decides
+        log = _Log()
+        quote = ProsimosEngine(ProcessSpec("Quote", QUOTE, json_path, 2), START, log, seed=seed)
+        _run_until_idle(quote)
+
+        assert log.times(taken) == {0: START.replace(hour=9, minute=10), 1: START.replace(hour=10, minute=10)}
+        assert log.times(not_taken) == {}
+        assert quote.finish().warnings == [  # once per gateway, though it happened for both cases
+            "several branches of the race at Race have nothing to collect (Catch_Accepted, Catch_Rejected); "
+            f"{listed_first}, whose 'consume' entry comes first, wins"]
+
+
+def test_a_race_branch_with_a_fixed_collect_of_0_is_rejected(tmp_path):
+    def fixed_0(settings):
+        settings["messages"]["consume"][1]["collect"] = {"value": 0}
+
+    with pytest.raises(InvalidSimScenarioException,
+                       match="Catch_Rejected, after the event-based gateway Race: a race branch with a fixed collect "
+                             "of 0 always wins its race; remove the race or the branch"):
+        SimDiffSetup(QUOTE, _settings(tmp_path, fixed_0, base=QUOTE_JSON), False, 1, START)

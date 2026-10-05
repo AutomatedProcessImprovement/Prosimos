@@ -155,7 +155,8 @@ The section is checked when the model is loaded. An invalid section stops loadin
   as an OR join and into a catch event as an AND merge (see
   [engine-internals.md](engine-internals.md)). With an explicit gateway, the meaning is clear.
 - After an event-based gateway with a branch that waits for a message (a race, see "Races at
-  event-based gateways"), every branch is a message catch event or a timer.
+  event-based gateways"), every branch is a message catch event or a timer, and no branch has a fixed
+  `collect` of 0.
 - `copy` maps case attribute names to message attribute names, and doesn't set `case_id`.
 - `capacity` is either `{"value": <whole number of at least 1>}` or `{"attribute": <name>}`, and only
   on a catch event: a start message starts exactly one case.
@@ -295,6 +296,20 @@ Send quote --> <event-based gateway>                              <XOR> --> end
   with `decision = yes` on one branch and no condition on the other): the branch whose `consume` entry
   comes first in the JSON takes it, with one warning per gateway the first time it happens.
 
+`capacity` and `collect` work on a race's message branches as on any catch event:
+
+- **Capacity:** a truck that picks up several waiting orders wins the race of each one it takes (their
+  timers never fire); orders that didn't fit keep waiting in their own races.
+- **Collect: the complete set decides.** The race stays open until the case has claimed all the
+  messages it needs; only then does the message branch win. If a timer fires first (e.g. after 1 of 3
+  items), the timer wins.
+- A branch with `collect` of 0 has nothing to wait for, so it wins its race immediately when the case
+  reaches the gateway. A fixed `{"value": 0}` on a race branch is therefore rejected at load ("a race
+  branch with a fixed collect of 0 always wins its race; remove the race or the branch"); a `collect`
+  read from a case attribute can still be 0 for some cases. If several branches have nothing to
+  collect, the one whose `consume` entry comes first in the JSON wins, with one warning per gateway
+  the first time it happens.
+
 A case still waiting when the run ends is reported once, as stalled at the gateway, with the message
 types of all its branches. An event-based gateway without a branch waiting for a message works as
 before: it is decided as soon as a case reaches it, by drawing a duration for each branch and taking
@@ -331,7 +346,17 @@ still offered every message it subscribes to.
 
 ## Limitations
 
-- **Races** allow no other kinds of branches than message catch events and timers.
+- **Races:**
+  - the branches after the gateway can only be message catch events and timers (no signal,
+    conditional or other catch events, and no receive tasks);
+  - with `collect`, the messages a case claimed before a timer won stay bound to it: they count as
+    claims and aren't offered to anyone else (sending them back is future work), and later ones for it
+    are discarded;
+  - a message for a branch the case no longer waits at is pending, not discarded, while the case is
+    still running and the condition is on `case_id`, since the case can still change; it is discarded
+    only when offered after the case has finished;
+  - a message matching several branches of one race goes to one of them, the one listed first, not to
+    all.
 - **One end event per model.** Prosimos supports only one end event in a model ("Temporarily not
   supporting multiple end events"), so a model can't have a message end event next to another end
   event. Instead, publish with an intermediate message throw event on that branch, then merge the

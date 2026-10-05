@@ -1,0 +1,145 @@
+{
+  "resource_profiles": [
+    {
+      "id": "Staff",
+      "name": "Staff",
+      "resource_list": [
+        {
+          "id": "Worker",
+          "name": "Worker",
+          "cost_per_hour": 1,
+          "amount": 5,
+          "calendar": "Always",
+          "assigned_tasks": [
+            "Pick",
+            "Pack",
+            "Cancel_Order"
+          ]
+        }
+      ]
+    }
+  ],
+  "arrival_time_distribution": {
+    "distribution_name": "fix",
+    "distribution_params": [
+      {
+        "value": 3600
+      }
+    ]
+  },
+  "arrival_time_calendar": [
+    {
+      "from": "MONDAY",
+      "to": "SUNDAY",
+      "beginTime": "00:00:00",
+      "endTime": "23:59:59"
+    }
+  ],
+  "gateway_branching_probabilities": [],
+  "task_resource_distribution": [
+    {
+      "task_id": "Pick",
+      "resources": [
+        {
+          "resource_id": "Worker",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 600
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Pack",
+      "resources": [
+        {
+          "resource_id": "Worker",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Cancel_Order",
+      "resources": [
+        {
+          "resource_id": "Worker",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "resource_calendars": [
+    {
+      "id": "Always",
+      "name": "Always",
+      "time_periods": [
+        {
+          "from": "MONDAY",
+          "to": "SUNDAY",
+          "beginTime": "00:00:00",
+          "endTime": "23:59:59"
+        }
+      ]
+    }
+  ],
+  "case_attributes": [
+    {
+      "name": "items",
+      "type": "continuous",
+      "values": {
+        "distribution_name": "fix",
+        "distribution_params": [
+          {
+            "value": 3
+          }
+        ]
+      }
+    }
+  ],
+  "messages": {
+    "consume": [
+      {
+        "event_id": "Catch_Items",
+        "type": "ItemReady",
+        "condition": [
+          [
+            {
+              "attribute": "order_id",
+              "comparison": "=",
+              "case_attribute": "case_id"
+            }
+          ]
+        ],
+        "collect": {
+          "case_attribute": "items"
+        },
+        "copy": {
+          "last_item": "item_id"
+        }
+      }
+    ]
+  },
+  "event_distribution": [
+    {
+      "event_id": "Items_Deadline",
+      "distribution_name": "fix",
+      "distribution_params": [
+        {
+          "value": 7200
+        }
+      ]
+    }
+  ]
+}

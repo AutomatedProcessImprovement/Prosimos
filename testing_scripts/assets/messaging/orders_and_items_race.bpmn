@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Orders" targetNamespace="http://bpmn.io/schema/bpmn">
+  <!-- orders racing their items against a 2-hour deadline: an order is packed once an ItemReady has come for
+       each of its items; if the deadline comes first, it is canceled -->
+  <bpmn:process id="Orders" isExecutable="false">
+    <bpmn:startEvent id="Start" name="Order received"><bpmn:outgoing>Flow_1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:task id="Pick" name="Pick"><bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing></bpmn:task>
+    <bpmn:eventBasedGateway id="Race"><bpmn:incoming>Flow_2</bpmn:incoming><bpmn:outgoing>Flow_3</bpmn:outgoing><bpmn:outgoing>Flow_4</bpmn:outgoing></bpmn:eventBasedGateway>
+    <bpmn:intermediateCatchEvent id="Catch_Items" name="All items ready"><bpmn:incoming>Flow_3</bpmn:incoming><bpmn:outgoing>Flow_5</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="Items_Deadline" name="2 h"><bpmn:incoming>Flow_4</bpmn:incoming><bpmn:outgoing>Flow_6</bpmn:outgoing><bpmn:timerEventDefinition /></bpmn:intermediateCatchEvent>
+    <bpmn:task id="Pack" name="Pack"><bpmn:incoming>Flow_5</bpmn:incoming><bpmn:outgoing>Flow_7</bpmn:outgoing></bpmn:task>
+    <bpmn:task id="Cancel_Order" name="Cancel order"><bpmn:incoming>Flow_6</bpmn:incoming><bpmn:outgoing>Flow_8</bpmn:outgoing></bpmn:task>
+    <bpmn:exclusiveGateway id="Merge"><bpmn:incoming>Flow_7</bpmn:incoming><bpmn:incoming>Flow_8</bpmn:incoming><bpmn:outgoing>Flow_9</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:endEvent id="End" name="Done"><bpmn:incoming>Flow_9</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Pick" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Pick" targetRef="Race" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Race" targetRef="Catch_Items" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Race" targetRef="Items_Deadline" />
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="Catch_Items" targetRef="Pack" />
+    <bpmn:sequenceFlow id="Flow_6" sourceRef="Items_Deadline" targetRef="Cancel_Order" />
+    <bpmn:sequenceFlow id="Flow_7" sourceRef="Pack" targetRef="Merge" />
+    <bpmn:sequenceFlow id="Flow_8" sourceRef="Cancel_Order" targetRef="Merge" />
+    <bpmn:sequenceFlow id="Flow_9" sourceRef="Merge" targetRef="End" />
+  </bpmn:process>
+</bpmn:definitions>

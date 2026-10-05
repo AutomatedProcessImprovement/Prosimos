@@ -1,0 +1,131 @@
+{
+  "resource_profiles": [
+    {
+      "id": "Staff",
+      "name": "Staff",
+      "resource_list": [
+        {
+          "id": "Worker",
+          "name": "Worker",
+          "cost_per_hour": 1,
+          "amount": 5,
+          "calendar": "Always",
+          "assigned_tasks": [
+            "Pack",
+            "Load",
+            "Send_By_Courier"
+          ]
+        }
+      ]
+    }
+  ],
+  "arrival_time_distribution": {
+    "distribution_name": "fix",
+    "distribution_params": [
+      {
+        "value": 600
+      }
+    ]
+  },
+  "arrival_time_calendar": [
+    {
+      "from": "MONDAY",
+      "to": "SUNDAY",
+      "beginTime": "00:00:00",
+      "endTime": "23:59:59"
+    }
+  ],
+  "gateway_branching_probabilities": [],
+  "task_resource_distribution": [
+    {
+      "task_id": "Pack",
+      "resources": [
+        {
+          "resource_id": "Worker",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 60
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Load",
+      "resources": [
+        {
+          "resource_id": "Worker",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 60
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Send_By_Courier",
+      "resources": [
+        {
+          "resource_id": "Worker",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 60
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "resource_calendars": [
+    {
+      "id": "Always",
+      "name": "Always",
+      "time_periods": [
+        {
+          "from": "MONDAY",
+          "to": "SUNDAY",
+          "beginTime": "00:00:00",
+          "endTime": "23:59:59"
+        }
+      ]
+    }
+  ],
+  "messages": {
+    "consume": [
+      {
+        "event_id": "Catch_Truck",
+        "type": "Truck",
+        "condition": [
+          [
+            {
+              "attribute": "dock",
+              "comparison": "=",
+              "value": "Tartu"
+            }
+          ]
+        ],
+        "capacity": {
+          "value": 2
+        },
+        "copy": {
+          "truck_id": "case_id"
+        }
+      }
+    ]
+  },
+  "event_distribution": [
+    {
+      "event_id": "Courier_Deadline",
+      "distribution_name": "fix",
+      "distribution_params": [
+        {
+          "value": 14400
+        }
+      ]
+    }
+  ]
+}
