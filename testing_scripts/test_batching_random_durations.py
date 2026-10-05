@@ -12,6 +12,7 @@ MODEL_FILENAME = "batch-example-end-task.bpmn"
 JSON_FILENAME = "batch-example-with-batch.json"
 BATCHED_TASK = "D"
 TOTAL_CASES = 40
+BATCH_SIZE_ZERO_WARNING = "batch size for the execution returned to be 0"
 
 # other batching tests overwrite these two sections of the example file in place,
 # so they are set back to the committed values here
@@ -60,7 +61,7 @@ def _run(assets_path, tmp_path, settings):
 
 
 @pytest.mark.parametrize("batch_type", ["Parallel", "Sequential"])
-def test_random_durations_run_every_case_through_the_batch_once(assets_path, tmp_path, batch_type):
+def test_random_durations_run_every_case_through_the_batch_once(assets_path, tmp_path, capsys, batch_type):
     # ====== ARRANGE ======
     # random task durations make cases reach the batched task out of the order they were added to its queue,
     # and the queue holds cases that reach it only later on
@@ -77,3 +78,21 @@ def test_random_durations_run_every_case_through_the_batch_once(assets_path, tmp
     # ====== ASSERT ======
     assert len(runs_per_case) == TOTAL_CASES
     assert (runs_per_case == 1).all()
+    assert BATCH_SIZE_ZERO_WARNING not in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("batch_type", ["Parallel", "Sequential"])
+def test_fixed_durations_print_no_batch_size_zero_warning(assets_path, tmp_path, capsys, batch_type):
+    # ====== ARRANGE ======
+    # the example as committed: a single waiting case between the ready_wt boundaries
+    # used to make the firing rule and the batch size disagree
+    settings = _committed_example(assets_path)
+    settings["batch_processing"][0]["type"] = batch_type
+
+    # ====== ACT ======
+    runs_per_case = _run(assets_path, tmp_path, settings)
+
+    # ====== ASSERT ======
+    assert len(runs_per_case) == TOTAL_CASES
+    assert (runs_per_case == 1).all()
+    assert BATCH_SIZE_ZERO_WARNING not in capsys.readouterr().out

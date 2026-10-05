@@ -119,6 +119,11 @@ class FiringSubRule():
             return is_rule_true
 
         elif self.variable1 == "ready_wt":
+            if queue_size == 1 and self.operator in [">", ">="]:
+                # a single waiting case does not fire on the low boundary:
+                # it waits for a second case up to the high boundary, as get_ready_wt counts it
+                return False
+
             last_enabled_datetime = element["enabled_datetimes"][-1]
             curr_enabled_datetime = element["curr_enabled_at"]
             op = _get_operator_symbols_ge(self.operator)
