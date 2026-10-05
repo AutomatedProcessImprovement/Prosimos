@@ -10,7 +10,7 @@ from typing import List
 from pix_framework.statistics.distribution import DurationDistribution
 
 from prosimos.batch_processing import (BATCH_TYPE, AndFiringRule,
-                                       BatchConfigPerTask)
+                                       BatchConfigPerTask, whole_seconds)
 from prosimos.exceptions import InvalidBpmnModelException
 from prosimos.weekday_helper import CustomDatetimeAndSeconds
 from prosimos.simulation_execution_stats import SimulationExecutionStats
@@ -1067,9 +1067,9 @@ class BPMNGraph:
         all_keys = list(waiting_tasks.keys())
 
         first_key = all_keys[0]
-        first_wt = (current_point_of_time.datetime - waiting_tasks[first_key].datetime).total_seconds()
+        first_wt = whole_seconds(current_point_of_time.datetime - waiting_tasks[first_key].datetime)
 
         last_key = all_keys[-1]
-        last_wt = (current_point_of_time.datetime - waiting_tasks[last_key].datetime).total_seconds()
+        last_wt = whole_seconds(current_point_of_time.datetime - waiting_tasks[last_key].datetime)
 
         return self.batch_info[task_id].firing_rules.is_invalid_end(num_tasks_wait_batch, first_wt, last_wt)

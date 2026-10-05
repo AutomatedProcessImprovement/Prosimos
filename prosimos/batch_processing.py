@@ -34,6 +34,13 @@ def _get_operator_symbols_lt(operator_str: str):
 def _is_greater(op: operator):
     return op in [operator.ge, operator.gt]
 
+def whole_seconds(difference: timedelta) -> int:
+    """
+    Seconds in a time difference, rounded down to a whole second, days included.
+    The rule boundaries are whole seconds; timedelta.seconds rounds down too but drops the days.
+    """
+    return difference // timedelta(seconds=1)
+
 class BATCH_TYPE(Enum):
     SEQUENTIAL = 'Sequential'   # one after another
     CONCURRENT = 'Concurrent'   # tasks are in progress simultaneously 
@@ -128,7 +135,7 @@ class FiringSubRule():
             curr_enabled_datetime = element["curr_enabled_at"]
             op = _get_operator_symbols_ge(self.operator)
 
-            ready_wt_sec = (curr_enabled_datetime - last_enabled_datetime).total_seconds()
+            ready_wt_sec = whole_seconds(curr_enabled_datetime - last_enabled_datetime)
             is_rule_true = op(ready_wt_sec, self.value2)
            
             if is_rule_true == False:
@@ -471,7 +478,7 @@ class AndFiringRule():
                 # happens when no new cases will arrive 
                 return en_time_index, _get_enabled_time_for_wt_rule(prev_item, operator.gt, high_boundary)
 
-            diff = (item - prev_item).total_seconds()
+            diff = whole_seconds(item - prev_item)
             is_batch_enabled_low = diff < low_boundary
 
             if is_batch_enabled_low:
@@ -513,7 +520,7 @@ class AndFiringRule():
         prev_item = first_item
         list_len = len(enabled_dt_with_curr_enabled)
         for en_time_index, item in enumerate(enabled_dt_with_curr_enabled[1:], 1):
-            diff = (item - first_item).total_seconds()
+            diff = whole_seconds(item - first_item)
             is_batch_enabled_low = diff > low_boundary
             
             if not is_batch_enabled_low:
@@ -937,7 +944,7 @@ class OrFiringRule():
         Check whether items waiting for batch execution might be satisfied in the future (valid for further processing)
         or they are invalid (one part of the AND rule could not be satisfied in the future at all)
         :param num_tasks: number of tasks waiting for batch execution
-        :param first_wt: waiting time of the first item (current_point_in_time - first_item.enable_time).total_seconds()
+        :param first_wt: waiting time of the first item, whole_seconds(current_point_in_time - first_item.enable_time)
         :param ready_wt: waiting time of the last task in the batch queue
         :return: whether the rule is invalid
         :rtype: boolean
