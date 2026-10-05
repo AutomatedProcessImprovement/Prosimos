@@ -1,0 +1,129 @@
+{
+  "resource_profiles": [
+    {
+      "id": "Sales_team",
+      "name": "Sales team",
+      "resource_list": [
+        {
+          "id": "Clerk",
+          "name": "Clerk",
+          "cost_per_hour": 1,
+          "amount": 2,
+          "calendar": "Always",
+          "assigned_tasks": [
+            "Send_Quote",
+            "Confirm_Order",
+            "Archive_Quote",
+            "Follow_Up"
+          ]
+        }
+      ]
+    }
+  ],
+  "arrival_time_distribution": {
+    "distribution_name": "fix",
+    "distribution_params": [
+      {
+        "value": 3600
+      }
+    ]
+  },
+  "arrival_time_calendar": [
+    {
+      "from": "MONDAY",
+      "to": "SUNDAY",
+      "beginTime": "00:00:00",
+      "endTime": "23:59:59"
+    }
+  ],
+  "gateway_branching_probabilities": [],
+  "task_resource_distribution": [
+    {
+      "task_id": "Send_Quote",
+      "resources": [
+        {
+          "resource_id": "Clerk",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 600
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Confirm_Order",
+      "resources": [
+        {
+          "resource_id": "Clerk",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Archive_Quote",
+      "resources": [
+        {
+          "resource_id": "Clerk",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "resource_calendars": [
+    {
+      "id": "Always",
+      "name": "Always",
+      "time_periods": [
+        {
+          "from": "MONDAY",
+          "to": "SUNDAY",
+          "beginTime": "00:00:00",
+          "endTime": "23:59:59"
+        }
+      ]
+    }
+  ],
+  "messages": {
+    "consume": [
+      {
+        "event_id": "Catch_Accepted",
+        "type": "QuoteAccepted",
+        "condition": [
+          [
+            {
+              "attribute": "quote_id",
+              "comparison": "=",
+              "case_attribute": "case_id"
+            }
+          ]
+        ]
+      },
+      {
+        "event_id": "Catch_Rejected",
+        "type": "QuoteRejected",
+        "condition": [
+          [
+            {
+              "attribute": "quote_id",
+              "comparison": "=",
+              "case_attribute": "case_id"
+            }
+          ]
+        ]
+      }
+    ]
+  },
+  "event_distribution": []
+}

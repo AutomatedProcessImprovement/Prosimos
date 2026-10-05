@@ -123,14 +123,21 @@ the gateway. The branches of one case share a `Race` (`SimBPMEnv._races`, keyed 
 
 - When a timer branch comes off the queue, its delay is drawn, and it is queued again for when it fires,
   as a new `EnabledEvent` with `race` set and `armed_event` pointing to the armed one (so the log row
-  spans the wait). The message branch parks as usual, with `race` set on its parked event.
+  spans the wait). Each message branch parks as usual, with `race` set on its parked event.
 - The first branch to happen wins (`_win_race`): a timer that comes off the queue with its race not yet
-  won, or the message branch when its case is resumed (`_resume`). The other branches' tokens are
-  taken off the flows into them, a parked branch's waiting record is dropped, and a canceled timer is
-  skipped when it comes off the queue (its race is already won).
+  won, or a message branch when its case is resumed (`_resume`). The other branches' tokens are
+  taken off the flows into them, the other parked branches' waiting records are dropped, and a
+  canceled timer is skipped when it comes off the queue (its race is already won).
+- When a delivered message is accepted by a case waiting in a race, `deliver` looks at all the parked
+  branches of that race that accept it (`_first_listed_branch`): the one whose `consume` entry comes
+  first in the JSON takes it (`_consume_order`, the entries' positions), with one warning per gateway
+  if there are several. Without this, the parked events' order (by time, then case and event id) would
+  decide, since a case's branches are all parked at the same time.
 - A timer that comes off the queue after its case has left the race without it (no token on the flow
   into it anymore, e.g. after a terminate end event on another branch) is skipped too, and its race is
-  dropped; the parked message branch is cleaned up as any stale waiting record.
+  dropped; the parked message branches are cleaned up as any stale waiting record.
+- A case still waiting in a race when the run ends has one parked event per message branch;
+  `stalled_waits` reports it once, at the gateway, with the message types of all of them.
 
 The timer is queued for its firing time, rather than completed when it comes off the queue as other
 catch events are, so that a message coming before that time can still cancel it.

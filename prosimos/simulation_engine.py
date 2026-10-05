@@ -114,7 +114,7 @@ class SimBPMEnv:
         self._warned_collects = set()
 
         # Races. At an event-based gateway with a branch that waits for a message, every branch is armed:
-        # timers are queued for when they fire, the message branch parks; the first to happen wins and
+        # timers are queued for when they fire, message branches park; the first to happen wins and
         # the other branches are canceled. Gateways without such a branch keep drawing a duration per branch.
         graph = self.sim_setup.bpmn_graph
         self._race_branches = dict()  # race gateway id -> the catch events after it
@@ -127,6 +127,9 @@ class SimBPMEnv:
         self._race_gateway_of = {branch: gateway_id for gateway_id, branches in self._race_branches.items()
                                  for branch in branches}
         self._races = dict()  # (case id, gateway id) -> the Race running for that case
+        # a message matching several branches of one race goes to the branch whose entry comes first
+        self._consume_order = {id(point): index for index, point in enumerate(sim_setup.messaging.consume)}
+        self._warned_overlapping_races = set()
 
     # Queue priorities (case priority first, timers at 0) were removed; last version with them: 5f40913
 
@@ -215,6 +218,8 @@ class SimBPMEnv:
                 claiming = next((point for point in self._consume_points[parked_event.task_id] if point.type == message_type
                                  and self._condition_holds(point.condition, values, parked_event.p_case)), None)
                 if claiming is not None:
+                    if parked_event.race is not None:
+                        parked_event, claiming = self._first_listed_branch(parked_event.race, message_type, values)
                     capacity = self._capacity(claiming, values)
                     takers.append(parked_event)
             elif parked_event.task_id == claiming.event_id and self._condition_holds(claiming.condition, values, parked_event.p_case):
@@ -256,6 +261,27 @@ class SimBPMEnv:
                                is_inter_event=True)
         resumed.parked_event = parked_event
         self.events_queue.append_event(resumed)
+
+    def _first_listed_branch(self, race, message_type, values):
+        """The parked branch of race, and its consume entry, that takes a message accepted by more than one
+        of the race's branches: the one whose entry comes first in the JSON, with one warning per gateway."""
+        accepting = []
+        for branch in self._race_branches[race.gateway_id]:
+            parked_event = self._parked_events.get((race.p_case, branch))
+            if parked_event is None:
+                continue  # a branch that doesn't wait for a message, e.g. a timer
+            point = next((point for point in self._consume_points[branch] if point.type == message_type
+                          and self._condition_holds(point.condition, values, race.p_case)), None)
+            if point is not None:
+                accepting.append((parked_event, point))
+        parked_event, point = min(accepting, key=lambda accepted: self._consume_order[id(accepted[1])])
+        if len(accepting) > 1 and race.gateway_id not in self._warned_overlapping_races:
+            self._warned_overlapping_races.add(race.gateway_id)
+            branches = ", ".join(sorted(accepted[0].task_id for accepted in accepting))
+            warning_logger.add_warning(
+                f"a {message_type} message matches several branches of the race at {race.gateway_id} ({branches}); "
+                f"it goes to {point.event_id}, whose 'consume' entry comes first")
+        return parked_event, point
 
     def _capacity(self, point, values):
         """How many waiting cases this message resumes at point: its fixed capacity, or the one read from
@@ -319,6 +345,18 @@ class SimBPMEnv:
     def stalled_at(self, parked_event):
         """Where a parked case is reported stalled: the race gateway if it waits in a race, else its event."""
         return self._race_gateway_of.get(parked_event.task_id, parked_event.task_id)
+
+    def stalled_waits(self):
+        """The cases still waiting for a message, once per case and place where they are reported stalled:
+        (the parked event, the place, the message types accepted there), the one waiting longest first.
+        A case waiting in a race is reported once, at the gateway, with the types of all its message
+        branches."""
+        waits = dict()  # (case id, place) -> (parked event, place, message types)
+        for parked_event in self.parked_events():
+            place = self.stalled_at(parked_event)
+            _, _, types = waits.setdefault((parked_event.p_case, place), (parked_event, place, set()))
+            types.update(self.waiting_for(parked_event.task_id))
+        return [(parked_event, place, sorted(types)) for parked_event, place, types in waits.values()]
 
     def _needed(self, c_event):
         """How many messages a case arriving at a catch event must claim there: the entries' fixed collect, or

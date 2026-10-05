@@ -232,7 +232,7 @@ def _check_event(where, event_id, events, allowed_kinds):
 
 def _check_races(consume, events, gateway_branches):
     """An event-based gateway with a branch that waits for a message is a race: every branch must be a
-    message catch event or a timer, and only one of them may wait for a message (for now)."""
+    message catch event or a timer."""
     waiting = {point.event_id for point in consume if not point.starts_case}
     for gateway_id in sorted({events[event_id][3] for event_id in waiting if events[event_id][3]}):
         branches = gateway_branches[gateway_id]
@@ -241,10 +241,6 @@ def _check_races(consume, events, gateway_branches):
                 found = f"a {definition} {kind}" if definition else f"{'an' if kind[0] in 'aeiou' else 'a'} {kind}"
                 _fail(f"after the event-based gateway {gateway_id}, which races a branch waiting for a message, "
                       f"every branch must be a message catch event or a timer, but {target_id} is {found}")
-        message_branches = sorted(target_id for target_id, _, _ in branches if target_id in waiting)
-        if len(message_branches) > 1:
-            _fail(f"the event-based gateway {gateway_id} has several branches waiting for a message "
-                  f"({', '.join(message_branches)}); a race with more than one isn't supported yet")
 
 
 def _attributes(entry, where, declared):

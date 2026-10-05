@@ -144,7 +144,7 @@ class StalledCase:
 
     case_id: str
     event_id: str
-    message_types: List[str]  # the types it waits for: any one of them resumes it (usually just one)
+    message_types: List[str]  # the types it waits for: any one of them resumes it (several in a race)
     waiting_since: datetime
     collected: int = 0  # messages it had claimed at that event...
     needed: int = 1  # ...of the ones it needed (more than 1 with collect)
@@ -259,10 +259,9 @@ class ProsimosEngine(SimulationEngine):
 
     def finish(self) -> EngineReport:
         with self._own_globals():
-            stalled = [StalledCase(self._env.case_id(parked_event.p_case), self._env.stalled_at(parked_event),
-                                   self._env.waiting_for(parked_event.task_id), parked_event.enabled_datetime,
-                                   *self._env.collected(parked_event))
-                       for parked_event in self._env.parked_events()]
+            stalled = [StalledCase(self._env.case_id(parked_event.p_case), place, message_types,
+                                   parked_event.enabled_datetime, *self._env.collected(parked_event))
+                       for parked_event, place, message_types in self._env.stalled_waits()]
         return EngineReport(stalled, list(self._warnings))
 
 

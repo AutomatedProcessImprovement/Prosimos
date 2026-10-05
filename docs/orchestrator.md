@@ -105,8 +105,9 @@ gives it as plain lists and dicts with times as ISO strings, which is what `--re
 | `engine_warnings`  | (process, warning) for the warnings raised inside each engine                                         |
 | `discarded_counts` | discards per (message type, process)                                                                  |
 
-A `StalledCase` has the case id (e.g. `Sales-1`), the catch event it waits at, the message types it
-waits for, since when, and how many messages it had collected there of the ones it needed
+A `StalledCase` has the case id (e.g. `Sales-1`), the catch event it waits at (or the event-based
+gateway, for a case waiting in a race, reported once with the types of all its message branches), the
+message types it waits for, since when, and how many messages it had collected there of the ones it needed
 (`collected` of `needed`; more than one with `collect`, see [messaging.md](messaging.md)). The "discarded by every recipient" warning appears even when the discard
 is expected, for example a shipment for an order that was cancelled.
 

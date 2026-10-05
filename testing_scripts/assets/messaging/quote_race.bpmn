@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Quote" targetNamespace="http://bpmn.io/schema/bpmn">
+  <!-- a quote raced between two answers: whichever comes first, QuoteAccepted (confirm the order)
+       or QuoteRejected (archive the quote) -->
+  <bpmn:process id="Quote" isExecutable="false">
+    <bpmn:startEvent id="Start" name="Quote requested"><bpmn:outgoing>Flow_1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:task id="Send_Quote" name="Send quote"><bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing></bpmn:task>
+    <bpmn:eventBasedGateway id="Race"><bpmn:incoming>Flow_2</bpmn:incoming><bpmn:outgoing>Flow_3</bpmn:outgoing><bpmn:outgoing>Flow_4</bpmn:outgoing></bpmn:eventBasedGateway>
+    <bpmn:intermediateCatchEvent id="Catch_Accepted" name="Quote accepted"><bpmn:incoming>Flow_3</bpmn:incoming><bpmn:outgoing>Flow_5</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="Catch_Rejected" name="Quote rejected"><bpmn:incoming>Flow_4</bpmn:incoming><bpmn:outgoing>Flow_6</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:intermediateCatchEvent>
+    <bpmn:task id="Confirm_Order" name="Confirm order"><bpmn:incoming>Flow_5</bpmn:incoming><bpmn:outgoing>Flow_7</bpmn:outgoing></bpmn:task>
+    <bpmn:task id="Archive_Quote" name="Archive quote"><bpmn:incoming>Flow_6</bpmn:incoming><bpmn:outgoing>Flow_8</bpmn:outgoing></bpmn:task>
+    <bpmn:exclusiveGateway id="Merge"><bpmn:incoming>Flow_7</bpmn:incoming><bpmn:incoming>Flow_8</bpmn:incoming><bpmn:outgoing>Flow_9</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:endEvent id="End" name="Done"><bpmn:incoming>Flow_9</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Send_Quote" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Send_Quote" targetRef="Race" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Race" targetRef="Catch_Accepted" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Race" targetRef="Catch_Rejected" />
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="Catch_Accepted" targetRef="Confirm_Order" />
+    <bpmn:sequenceFlow id="Flow_6" sourceRef="Catch_Rejected" targetRef="Archive_Quote" />
+    <bpmn:sequenceFlow id="Flow_7" sourceRef="Confirm_Order" targetRef="Merge" />
+    <bpmn:sequenceFlow id="Flow_8" sourceRef="Archive_Quote" targetRef="Merge" />
+    <bpmn:sequenceFlow id="Flow_9" sourceRef="Merge" targetRef="End" />
+  </bpmn:process>
+</bpmn:definitions>

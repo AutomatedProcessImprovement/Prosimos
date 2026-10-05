@@ -155,8 +155,7 @@ The section is checked when the model is loaded. An invalid section stops loadin
   as an OR join and into a catch event as an AND merge (see
   [engine-internals.md](engine-internals.md)). With an explicit gateway, the meaning is clear.
 - After an event-based gateway with a branch that waits for a message (a race, see "Races at
-  event-based gateways"), every branch is a message catch event or a timer, and only one branch waits
-  for a message.
+  event-based gateways"), every branch is a message catch event or a timer.
 - `copy` maps case attribute names to message attribute names, and doesn't set `case_id`.
 - `capacity` is either `{"value": <whole number of at least 1>}` or `{"attribute": <name>}`, and only
   on a catch event: a start message starts exactly one case.
@@ -277,10 +276,29 @@ any catch event. The first to happen wins and the others are canceled:
   after this one at that time: that is what the microsecond is for (see
   [engine-internals.md](engine-internals.md)).
 
-The other branches' tokens are removed, so the case continues on one branch only. A case still
-waiting when the run ends is reported as stalled at the gateway. An event-based gateway without a
-branch waiting for a message works as before: it is decided as soon as a case reaches it, by drawing
-a duration for each branch and taking the shortest.
+The other branches' tokens are removed, so the case continues on one branch only.
+
+A race can have several message branches, with or without timers, e.g. "the quote is accepted or
+rejected":
+
+```
+                 +--> (catch QuoteAccepted) --> Confirm order --+
+Send quote --> <event-based gateway>                              <XOR> --> end
+                 +--> (catch QuoteRejected) --> Archive quote --+
+```
+
+- **The first claim wins**, and the case stops waiting at the other branches, so a later message for
+  them finds a case that is no longer waiting (and is discarded once the case has finished).
+- **Two messages for different branches at the same instant:** whichever the orchestrator offers
+  first wins; with the same seed, that order is always the same.
+- **One message matching two branches** (the same type, with overlapping conditions, e.g. `Approval`
+  with `decision = yes` on one branch and no condition on the other): the branch whose `consume` entry
+  comes first in the JSON takes it, with one warning per gateway the first time it happens.
+
+A case still waiting when the run ends is reported once, as stalled at the gateway, with the message
+types of all its branches. An event-based gateway without a branch waiting for a message works as
+before: it is decided as soon as a case reaches it, by drawing a duration for each branch and taking
+the shortest.
 
 ## Processes started by messages
 
@@ -313,8 +331,7 @@ still offered every message it subscribes to.
 
 ## Limitations
 
-- **Races** allow only one branch that waits for a message, and no other kinds of branches than
-  message catch events and timers.
+- **Races** allow no other kinds of branches than message catch events and timers.
 - **One end event per model.** Prosimos supports only one end event in a model ("Temporarily not
   supporting multiple end events"), so a model can't have a message end event next to another end
   event. Instead, publish with an intermediate message throw event on that branch, then merge the

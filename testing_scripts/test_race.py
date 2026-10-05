@@ -10,7 +10,7 @@ import pytest
 import pytz
 
 from prosimos.exceptions import InvalidSimScenarioException
-from prosimos.orchestrator import Message, ProcessSpec, ProsimosEngine, Verdict, run_engines
+from prosimos.orchestrator import Message, ProcessSpec, ProsimosEngine, StalledCase, Verdict, run_engines
 from prosimos.simulation_engine import run_simulation
 from prosimos.simulation_setup import SimDiffSetup
 from testing_scripts.scripted_engine import ScriptedEngine
@@ -60,11 +60,11 @@ def _reached_gateway(log, case):
     return next(_time(row[4]) for row in log.rows if row[0] == case and row[1] == "Take order")
 
 
-def _settings(tmp_path, change):
-    with open(SALES_JSON) as file:
+def _settings(tmp_path, change, base=SALES_JSON):
+    with open(base) as file:
         settings = json.load(file)
     change(settings)
-    path = tmp_path / "sales.json"
+    path = tmp_path / "settings.json"
     path.write_text(json.dumps(settings))
     return str(path)
 
@@ -214,13 +214,116 @@ def test_a_branch_other_than_a_message_catch_event_or_a_timer_is_rejected(tmp_pa
         SimDiffSetup(_with_branch(tmp_path, signal), SALES_JSON, False, 1, START)
 
 
-def test_a_race_with_two_branches_waiting_for_messages_is_rejected_for_now(tmp_path):
-    second_message = ('<bpmn:intermediateCatchEvent id="Deadline"><bpmn:incoming>Flow_5</bpmn:incoming>'
-                      '<bpmn:outgoing>Flow_7</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:intermediateCatchEvent>')
-    two_waiting = _settings(tmp_path, lambda settings: settings["messages"]["consume"].append(
-        {"event_id": "Deadline", "type": "Cancellation"}))
+# Send quote -> event-based gateway: QuoteAccepted (Confirm order) or QuoteRejected (Archive quote); Send quote
+# takes 10 minutes and a case arrives every hour, so case 0 reaches the gateway at 09:10 and case 1 at 10:10
+QUOTE = f"{ASSETS}/quote_race.bpmn"
+QUOTE_JSON = f"{ASSETS}/quote_race.json"
+# the same with a third branch: a 3-day expiry timer (Follow up)
+QUOTE_WITH_EXPIRY = f"{ASSETS}/quote_race_with_expiry.bpmn"
+ELEVEN = START.replace(hour=11)
 
-    with pytest.raises(InvalidSimScenarioException,
-                       match=r"the event-based gateway Race has several branches waiting for a message \(Catch_Shipment, "
-                             r"Deadline\); a race with more than one isn't supported yet"):
-        SimDiffSetup(_with_branch(tmp_path, second_message), two_waiting, False, 1, START)
+
+def _quote(cases=1, json_path=QUOTE_JSON, bpmn_path=QUOTE):
+    log = _Log()
+    return ProsimosEngine(ProcessSpec("Quote", bpmn_path, json_path, cases), START, log, seed=1), log
+
+
+def _run_until(engine, time):
+    while engine.next_event_time() is not None and engine.next_event_time() < time:
+        engine.step()
+
+
+def answer(message_type, quote_id="Quote-0"):
+    return Message(message_type, {"quote_id": quote_id}, source="Customer")
+
+
+@pytest.mark.parametrize("first, second, taken, not_taken", [
+    ("QuoteAccepted", "QuoteRejected", "Confirm order", "Archive quote"),
+    ("QuoteRejected", "QuoteAccepted", "Archive quote", "Confirm order"),
+])
+def test_with_two_message_branches_the_first_claim_wins_and_a_later_message_of_the_other_type_is_discarded(
+        first, second, taken, not_taken):
+    quote, log = _quote()
+    customer = ScriptedEngine("Customer")
+    customer.publish_at(ELEVEN, first, quote_id="Quote-0")
+
+    report = run_engines({"Quote": quote, "Customer": customer}, None, 1)
+
+    assert log.times(taken) == {0: ELEVEN}
+    assert log.times(not_taken) == {}
+    assert report.stalled == []
+    assert quote._env._parked_events == {}  # the other branch's waiting record was dropped
+    assert quote.deliver(answer(second), START.replace(hour=12)) is Verdict.DISCARDED
+
+
+def test_two_answers_at_the_same_instant_go_to_the_one_the_orchestrator_offers_first():
+    def race():
+        quote, log = _quote()
+        customer = ScriptedEngine("Customer")
+        customer.publish_at(ELEVEN, "QuoteRejected", quote_id="Quote-0")
+        customer.publish_at(ELEVEN, "QuoteAccepted", quote_id="Quote-0")
+        return run_engines({"Quote": quote, "Customer": customer}, None, 1), log
+
+    report, log = race()
+
+    # Quote is the only subscriber, so the two answers are offered in the order they were published
+    types = {message.id: message.type for message in report.published}
+    assert [(types[message_id], process, time) for message_id, process, time in report.claims] == [
+        ("QuoteRejected", "Quote", ELEVEN)]
+    assert log.times("Archive quote") == {0: ELEVEN}
+    assert log.times("Confirm order") == {}
+    assert race()[0] == report  # the same seed gives the same order
+
+
+@pytest.mark.parametrize("listed_first, taken, not_taken", [
+    ("Catch_Accepted", "Confirm order", "Archive quote"),
+    ("Catch_Rejected", "Archive quote", "Confirm order"),  # the JSON order decides, not the event ids
+])
+def test_a_message_matching_two_branches_takes_the_branch_listed_first_with_one_warning(
+        tmp_path, listed_first, taken, not_taken):
+    def both_accept_replies(settings):
+        consume = settings["messages"]["consume"]
+        for entry in consume:
+            entry["type"] = "Reply"
+        consume.sort(key=lambda entry: entry["event_id"] != listed_first)
+
+    quote, log = _quote(cases=2, json_path=_settings(tmp_path, both_accept_replies, base=QUOTE_JSON))
+    _run_until(quote, ELEVEN)
+
+    assert quote.deliver(answer("Reply", "Quote-0"), ELEVEN) is Verdict.CLAIMED
+    assert quote.deliver(answer("Reply", "Quote-1"), ELEVEN) is Verdict.CLAIMED
+    _run_until_idle(quote)
+
+    assert log.times(taken) == {0: ELEVEN, 1: ELEVEN}
+    assert log.times(not_taken) == {}
+    assert quote.finish().warnings == [  # once per gateway, though it happened for both cases
+        "a Reply message matches several branches of the race at Race (Catch_Accepted, Catch_Rejected); "
+        f"it goes to {listed_first}, whose 'consume' entry comes first"]
+
+
+def test_a_case_waiting_in_a_race_of_two_message_branches_is_stalled_at_the_gateway_with_both_types():
+    quote, _ = _quote()
+    _run_until_idle(quote)
+
+    assert quote.finish().stalled == [
+        StalledCase("Quote-0", "Race", ["QuoteAccepted", "QuoteRejected"], START.replace(hour=9, minute=10))]
+
+
+def test_with_a_timer_as_well_the_first_of_the_three_branches_wins(tmp_path):
+    def expiry(settings):
+        settings["task_resource_distribution"].append({"task_id": "Follow_Up", "resources": [
+            {"resource_id": "Clerk", "distribution_name": "fix", "distribution_params": [{"value": 300}]}]})
+        settings["event_distribution"].append(
+            {"event_id": "Expiry", "distribution_name": "fix", "distribution_params": [{"value": 3 * 24 * 3600}]})
+
+    quote, log = _quote(cases=2, json_path=_settings(tmp_path, expiry, base=QUOTE_JSON), bpmn_path=QUOTE_WITH_EXPIRY)
+    _run_until(quote, ELEVEN)
+
+    # case 0 is accepted at 11:00; case 1 gets no answer, so its timer fires 3 days after it reached the gateway
+    assert quote.deliver(answer("QuoteAccepted", "Quote-0"), ELEVEN) is Verdict.CLAIMED
+    _run_until_idle(quote)
+
+    assert log.times("Confirm order") == {0: ELEVEN}
+    assert log.times("Archive quote") == {}
+    assert log.times("Follow up") == {1: START.replace(hour=10, minute=10) + timedelta(days=3) + AFTER_TIES}
+    assert quote.finish().stalled == []
