@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Picking" targetNamespace="http://bpmn.io/schema/bpmn">
+  <!-- picking: every ItemOrdered starts a case, which picks that one item -->
+  <bpmn:process id="Picking" isExecutable="false">
+    <bpmn:startEvent id="Start_Item" name="Item ordered"><bpmn:outgoing>Flow_1</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:startEvent>
+    <bpmn:task id="Pick_Item" name="Pick item"><bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing></bpmn:task>
+    <bpmn:endEvent id="End" name="Item picked"><bpmn:incoming>Flow_2</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_Item" targetRef="Pick_Item" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Pick_Item" targetRef="End" />
+  </bpmn:process>
+</bpmn:definitions>

@@ -105,8 +105,26 @@ an `ItemReady` has come for each of its items:
  "collect": {"case_attribute": "items"}}
 ```
 
+**count** (optional, on a `publish` entry) publishes several messages at once, one per object: a
+fixed `{"value": 3}`, or `{"case_attribute": "items"}` to read it from the case when it passes the
+event. Without it, the entry publishes one message. `index` is a reserved name for the message's
+number, 1..N, and can only be listed on an entry with `count`; together with `case_id` it identifies
+the object (`Sales-7` item 2), e.g. for the receiver to copy into its new case. For example, an order
+announcing each of its items, so that Picking starts one case per item:
+
+```json
+{"event_id": "Throw_Items", "type": "ItemOrdered",
+ "count": {"case_attribute": "items"},
+ "attributes": ["case_id", "index"]}
+```
+
+This is how an object-centric event log records it: one event (e.g. Place order) linked to N new
+objects. A loop publishing one message per round would put N extra events and a counter task into
+the log, and would be discovered as a loop rather than as one event creating N objects. The fan-out
+stays on the sending side: a start event still starts exactly one case per message.
+
 One event may appear in several entries: under `publish`, passing it publishes one message per
-entry; under `consume`, a case waiting there accepts any of the entries' types. To wait for all of
+entry (or `count` messages); under `consume`, a case waiting there accepts any of the entries' types. To wait for all of
 them, use one catch event per message.
 
 ### Conditions
@@ -148,7 +166,11 @@ The section is checked when the model is loaded. An invalid section stops loadin
 - A `publish` event is an intermediate message throw event or a message end event.
 - A `consume` event is an intermediate message catch event or a message start event.
 - `type` is a non-empty string.
-- `attributes` is a list of names, each `case_id` or a declared case, global or event attribute.
+- `attributes` is a list of names, each `case_id`, `index` (only with `count`) or a declared case,
+  global or event attribute.
+- `count` is either `{"value": <whole number of at least 0>}` or `{"case_attribute": <declared
+  attribute>}`, and only on a `publish` entry: only throw and end events publish, and a start event
+  starts exactly one case per message.
 - A message end event under `publish`, or a catch event under `consume`, has exactly one incoming
   arrow; otherwise: "draw an explicit gateway before <event id>". In BPMN, several arrows into one
   element mean "fire once per arriving token", but Prosimos joins several arrows into an end event
@@ -187,6 +209,10 @@ step, ordered by case id, then by the order in which the case passed the events.
 Attribute values are taken at that time. A declared attribute without a value yet for this case
 (e.g. an event attribute of a task the case hasn't done) is sent as `None`, with one warning per
 event and attribute in the engine's warnings.
+
+An entry with `count` reads the number at that time too, and publishes that many messages at once, in
+order of `index` 1..N. A count of 0 publishes nothing; a value that isn't a whole number of at least 0
+(or no value) publishes one message, with one warning per event and attribute.
 
 Publishing doesn't change the simulation itself: the log is the same with or without the `publish`
 entries.

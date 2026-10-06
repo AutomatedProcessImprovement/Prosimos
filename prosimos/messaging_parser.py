@@ -33,7 +33,15 @@ class ConditionTerm:
 class PublishPoint:
     event_id: str
     type: str
-    attributes: Tuple[str, ...]  # copied from the case's current values; 'case_id' is the case identifier
+    attributes: Tuple[str, ...]  # copied from the case's current values; 'case_id' is the case identifier,
+    # 'index' the message's number among the ones count publishes
+    count: Optional[int] = None  # how many messages are published at once, unless read from the case
+    count_attribute: Optional[str] = None  # the case attribute holding that number, if any
+
+    @property
+    def counted(self):
+        """Whether the entry has a count (else it publishes one message, without an index)."""
+        return self.count is not None or self.count_attribute is not None
 
 
 @dataclass(frozen=True)
@@ -99,6 +107,9 @@ def parse_messages(messages_json, bpmn_path, declared_attributes) -> MessagingMo
         starts_case = events[entry["event_id"]][0] == "startEvent"
         point = ConsumePoint(entry["event_id"], entry["type"], _condition(entry, where), _copy(entry, where),
                              starts_case, *_capacity(entry, where, starts_case), *_collect(entry, where, starts_case))
+        if "count" in entry:
+            _fail(f"{where}: count is only for publish entries, on throw and end events: only they publish, and a "
+                  f"start event starts exactly one case per message")
         if point.starts_case:
             _check_start(where, point, events)
         consume.append(point)
@@ -107,7 +118,8 @@ def parse_messages(messages_json, bpmn_path, declared_attributes) -> MessagingMo
     _check_collect_has_its_own_event(collecting, consume)
     _check_races(consume, events, gateway_branches)
     publish = tuple(
-        PublishPoint(entry["event_id"], entry["type"], _attributes(entry, where, declared_attributes))
+        PublishPoint(entry["event_id"], entry["type"], _attributes(entry, where, declared_attributes),
+                     *_count(entry, where, declared_attributes))
         for where, entry in _entries(messages_json, "publish", events, PUBLISHING_EVENTS)
     )
     return MessagingModel(publish, tuple(consume))
@@ -247,11 +259,32 @@ def _check_races(consume, events, gateway_branches):
                       f"collect of 0 always wins its race; remove the race or the branch")
 
 
+def _count(entry, where, declared):
+    """(fixed number of messages, case attribute holding it): {"value": 3} or {"case_attribute": "items"};
+    (None, None) without count."""
+    if "count" not in entry:
+        return None, None
+    count = entry["count"]
+    if not isinstance(count, dict) or len(count) != 1 or not set(count) <= {"value", "case_attribute"}:
+        _fail(f"{where}: 'count' must be either {{\"value\": <number>}} or {{\"case_attribute\": <case attribute>}}")
+    if "case_attribute" in count:
+        if not isinstance(count["case_attribute"], str) or count["case_attribute"] not in declared:
+            _fail(f"{where}: 'count' case_attribute {count['case_attribute']!r} is not a declared case, global or "
+                  f"event attribute")
+        return None, count["case_attribute"]
+    if not is_whole_number(count["value"], minimum=0):
+        _fail(f"{where}: 'count' value must be a whole number of at least 0, got {count['value']!r}")
+    return int(count["value"]), None
+
+
 def _attributes(entry, where, declared):
     attributes = entry.get("attributes", [])
     if not isinstance(attributes, list) or not all(isinstance(name, str) and name for name in attributes):
         _fail(f"{where}: 'attributes' must be a list of attribute names")
-    unknown = [name for name in attributes if name != "case_id" and name not in declared]
+    if "index" in attributes and "count" not in entry:
+        _fail(f"{where}: 'index' is the message's number among the ones count publishes, so it needs a 'count' "
+              f"on the same entry")
+    unknown = [name for name in attributes if name not in ("case_id", "index") and name not in declared]
     if unknown:
         _fail(f"{where}: {', '.join(map(repr, unknown))} not declared as a case, global or event attribute")
     return tuple(attributes)

@@ -1,0 +1,96 @@
+{
+  "resource_profiles": [
+    {
+      "id": "Sales_team",
+      "name": "Sales_team",
+      "resource_list": [
+        {
+          "id": "Clerk",
+          "name": "Clerk",
+          "cost_per_hour": 1,
+          "amount": 3,
+          "calendar": "Always",
+          "assigned_tasks": [
+            "Take_Order"
+          ]
+        }
+      ]
+    }
+  ],
+  "arrival_time_distribution": {
+    "distribution_name": "fix",
+    "distribution_params": [
+      {
+        "value": 3600
+      }
+    ]
+  },
+  "arrival_time_calendar": [
+    {
+      "from": "MONDAY",
+      "to": "SUNDAY",
+      "beginTime": "00:00:00",
+      "endTime": "23:59:59"
+    }
+  ],
+  "gateway_branching_probabilities": [],
+  "task_resource_distribution": [
+    {
+      "task_id": "Take_Order",
+      "resources": [
+        {
+          "resource_id": "Clerk",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 600
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "resource_calendars": [
+    {
+      "id": "Always",
+      "name": "Always",
+      "time_periods": [
+        {
+          "from": "MONDAY",
+          "to": "SUNDAY",
+          "beginTime": "00:00:00",
+          "endTime": "23:59:59"
+        }
+      ]
+    }
+  ],
+  "case_attributes": [
+    {
+      "name": "items",
+      "type": "continuous",
+      "values": {
+        "distribution_name": "fix",
+        "distribution_params": [
+          {
+            "value": 3
+          }
+        ]
+      }
+    }
+  ],
+  "messages": {
+    "publish": [
+      {
+        "event_id": "Throw_Items",
+        "type": "ItemOrdered",
+        "count": {
+          "case_attribute": "items"
+        },
+        "attributes": [
+          "case_id",
+          "index"
+        ]
+      }
+    ]
+  }
+}

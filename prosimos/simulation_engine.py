@@ -101,6 +101,7 @@ class SimBPMEnv:
         self._pass_order = itertools.count()
         self.outbox = []  # (message type, attributes) released by step(), oldest first
         self._warned_missing_values = set()
+        self._warned_counts = set()
 
         # Waiting. A case reaching a catch event listed under 'consume' doesn't get a delay: when
         # the queued catch event is executed (at the time the case really reaches it), the case is parked
@@ -200,7 +201,26 @@ class SimBPMEnv:
         while self._held and self._held[0][0] == due:
             _, p_case, _, element_id = heappop(self._held)
             for point in self._publish_points.get(element_id, []):
-                self.outbox.append((point.type, self._message_attributes(point, p_case)))
+                for index in range(1, self._count(point, p_case) + 1):
+                    self.outbox.append((point.type, self._message_attributes(point, p_case, index)))
+
+    def _count(self, point, p_case):
+        """How many messages point publishes for a case passing it now: 1 without count, else its fixed count
+        or the case attribute holding it, read now; one that isn't a whole number of at least 0 counts as 1,
+        with one warning per event and attribute."""
+        if not point.counted:
+            return 1
+        if point.count_attribute is None:
+            return point.count
+        count = self.sim_setup.bpmn_graph.get_all_attributes(p_case).get(point.count_attribute)
+        if is_whole_number(count, minimum=0):
+            return int(count)
+        if (point.event_id, point.count_attribute) not in self._warned_counts:
+            self._warned_counts.add((point.event_id, point.count_attribute))
+            warning_logger.add_warning(
+                f"case {p_case} passes {point.event_id} with no valid {point.count_attribute} (got {count!r}); "
+                f"it publishes one {point.type} message")
+        return 1
 
     def case_id(self, p_case):
         """How a case is named in messages, both when publishing and in conditions: e.g. Sales-7."""
@@ -497,13 +517,16 @@ class SimBPMEnv:
         return (prefix == self.process_name and number.isdigit() and str(int(number)) == number
                 and int(number) >= len(self.log_info.trace_list))
 
-    def _message_attributes(self, point, p_case):
-        """The listed attributes, copied from the case's current values."""
+    def _message_attributes(self, point, p_case, index):
+        """The listed attributes, copied from the case's current values; index is the message's number among
+        the ones point publishes for this pass."""
         values = self.sim_setup.bpmn_graph.get_all_attributes(p_case)
         attributes = dict()
         for name in point.attributes:
             if name == "case_id":
                 attributes[name] = self.case_id(p_case)
+            elif name == "index":  # only listed on an entry with count (checked at load time)
+                attributes[name] = index
             elif name in values:
                 attributes[name] = values[name]
             else:

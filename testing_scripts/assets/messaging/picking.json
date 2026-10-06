@@ -1,0 +1,63 @@
+{
+  "resource_profiles": [
+    {
+      "id": "Pickers",
+      "name": "Pickers",
+      "resource_list": [
+        {
+          "id": "Picker",
+          "name": "Picker",
+          "cost_per_hour": 1,
+          "amount": 3,
+          "calendar": "Always",
+          "assigned_tasks": [
+            "Pick_Item"
+          ]
+        }
+      ]
+    }
+  ],
+  "gateway_branching_probabilities": [],
+  "task_resource_distribution": [
+    {
+      "task_id": "Pick_Item",
+      "resources": [
+        {
+          "resource_id": "Picker",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "resource_calendars": [
+    {
+      "id": "Always",
+      "name": "Always",
+      "time_periods": [
+        {
+          "from": "MONDAY",
+          "to": "SUNDAY",
+          "beginTime": "00:00:00",
+          "endTime": "23:59:59"
+        }
+      ]
+    }
+  ],
+  "messages": {
+    "consume": [
+      {
+        "event_id": "Start_Item",
+        "type": "ItemOrdered",
+        "copy": {
+          "order_id": "case_id",
+          "item": "index"
+        }
+      }
+    ]
+  }
+}
