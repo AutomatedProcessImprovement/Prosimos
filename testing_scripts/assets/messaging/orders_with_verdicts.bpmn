@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Sales" targetNamespace="http://bpmn.io/schema/bpmn">
+  <!-- orders that announce each of their items, wait until every item is ready (or 2 days), and then
+       send each item its own verdict: Shipped if all items came in time, Cancelled otherwise -->
+  <bpmn:process id="Sales" isExecutable="false">
+    <bpmn:startEvent id="Start" name="Order received"><bpmn:outgoing>Flow_1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:task id="Place_Order" name="Place order"><bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing></bpmn:task>
+    <bpmn:intermediateThrowEvent id="Throw_Items" name="Items ordered"><bpmn:incoming>Flow_2</bpmn:incoming><bpmn:outgoing>Flow_3</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:intermediateThrowEvent>
+    <bpmn:eventBasedGateway id="Race"><bpmn:incoming>Flow_3</bpmn:incoming><bpmn:outgoing>Flow_4</bpmn:outgoing><bpmn:outgoing>Flow_5</bpmn:outgoing></bpmn:eventBasedGateway>
+    <bpmn:intermediateCatchEvent id="Catch_Items" name="All items ready"><bpmn:incoming>Flow_4</bpmn:incoming><bpmn:outgoing>Flow_6</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="Deadline" name="2 days"><bpmn:incoming>Flow_5</bpmn:incoming><bpmn:outgoing>Flow_7</bpmn:outgoing><bpmn:timerEventDefinition /></bpmn:intermediateCatchEvent>
+    <bpmn:intermediateThrowEvent id="Throw_Shipped" name="Items shipped"><bpmn:incoming>Flow_6</bpmn:incoming><bpmn:outgoing>Flow_8</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:intermediateThrowEvent>
+    <bpmn:intermediateThrowEvent id="Throw_Cancelled" name="Items cancelled"><bpmn:incoming>Flow_7</bpmn:incoming><bpmn:outgoing>Flow_9</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:intermediateThrowEvent>
+    <bpmn:exclusiveGateway id="Merge"><bpmn:incoming>Flow_8</bpmn:incoming><bpmn:incoming>Flow_9</bpmn:incoming><bpmn:outgoing>Flow_10</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:endEvent id="End" name="Order closed"><bpmn:incoming>Flow_10</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Place_Order" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Place_Order" targetRef="Throw_Items" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Throw_Items" targetRef="Race" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Race" targetRef="Catch_Items" />
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="Race" targetRef="Deadline" />
+    <bpmn:sequenceFlow id="Flow_6" sourceRef="Catch_Items" targetRef="Throw_Shipped" />
+    <bpmn:sequenceFlow id="Flow_7" sourceRef="Deadline" targetRef="Throw_Cancelled" />
+    <bpmn:sequenceFlow id="Flow_8" sourceRef="Throw_Shipped" targetRef="Merge" />
+    <bpmn:sequenceFlow id="Flow_9" sourceRef="Throw_Cancelled" targetRef="Merge" />
+    <bpmn:sequenceFlow id="Flow_10" sourceRef="Merge" targetRef="End" />
+  </bpmn:process>
+</bpmn:definitions>

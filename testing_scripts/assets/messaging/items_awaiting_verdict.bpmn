@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Picking" targetNamespace="http://bpmn.io/schema/bpmn">
+  <!-- picking: every ItemOrdered starts a case for that one item, which is picked, announced as ready,
+       and then waits for its order's verdict on it: Shipped ends it, Cancelled returns it to stock -->
+  <bpmn:process id="Picking" isExecutable="false">
+    <bpmn:startEvent id="Start_Item" name="Item ordered"><bpmn:outgoing>Flow_1</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:startEvent>
+    <bpmn:task id="Pick_Item" name="Pick item"><bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing></bpmn:task>
+    <bpmn:intermediateThrowEvent id="Throw_Ready" name="Item ready"><bpmn:incoming>Flow_2</bpmn:incoming><bpmn:outgoing>Flow_3</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:intermediateThrowEvent>
+    <bpmn:eventBasedGateway id="Verdict"><bpmn:incoming>Flow_3</bpmn:incoming><bpmn:outgoing>Flow_4</bpmn:outgoing><bpmn:outgoing>Flow_5</bpmn:outgoing></bpmn:eventBasedGateway>
+    <bpmn:intermediateCatchEvent id="Catch_Shipped" name="Shipped"><bpmn:incoming>Flow_4</bpmn:incoming><bpmn:outgoing>Flow_6</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="Catch_Cancelled" name="Cancelled"><bpmn:incoming>Flow_5</bpmn:incoming><bpmn:outgoing>Flow_7</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:intermediateCatchEvent>
+    <bpmn:task id="Return_To_Stock" name="Return to stock"><bpmn:incoming>Flow_7</bpmn:incoming><bpmn:outgoing>Flow_8</bpmn:outgoing></bpmn:task>
+    <bpmn:exclusiveGateway id="Merge"><bpmn:incoming>Flow_6</bpmn:incoming><bpmn:incoming>Flow_8</bpmn:incoming><bpmn:outgoing>Flow_9</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:endEvent id="End" name="Item done"><bpmn:incoming>Flow_9</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_Item" targetRef="Pick_Item" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Pick_Item" targetRef="Throw_Ready" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Throw_Ready" targetRef="Verdict" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Verdict" targetRef="Catch_Shipped" />
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="Verdict" targetRef="Catch_Cancelled" />
+    <bpmn:sequenceFlow id="Flow_6" sourceRef="Catch_Shipped" targetRef="Merge" />
+    <bpmn:sequenceFlow id="Flow_7" sourceRef="Catch_Cancelled" targetRef="Return_To_Stock" />
+    <bpmn:sequenceFlow id="Flow_8" sourceRef="Return_To_Stock" targetRef="Merge" />
+    <bpmn:sequenceFlow id="Flow_9" sourceRef="Merge" targetRef="End" />
+  </bpmn:process>
+</bpmn:definitions>

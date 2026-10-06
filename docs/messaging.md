@@ -370,14 +370,49 @@ the waiting case, not to the start event. A message the start condition rejects 
 its first message, such a process has nothing to do, so the orchestrator never steps it, but it is
 still offered every message it subscribes to.
 
+## One verdict per item
+
+An order can decide the fate of its items, e.g. ship them all or send them back, without remembering
+them: each item is its own case, waiting for its order's verdict on it, and the order sends one
+verdict per item with `count`. Each verdict is addressed to exactly one item, so none is shared or
+used up by another item. Only the features above are needed (models:
+`testing_scripts/assets/messaging/orders_with_verdicts` and `items_awaiting_verdict`):
+
+```
+Order (Sales):   Place order -> (throw ItemOrdered x items, index)
+                 -> race: (collect ItemReady, items) -> (throw Shipped x items, index)
+                        | (timer 2 days)           -> (throw Cancelled x items, index)
+Item (Picking):  start ItemOrdered (copy order_id, index) -> Pick -> (throw ItemReady{order_id})
+                 -> race: (catch Shipped,   case_id = order_id and index = index) -> done
+                        | (catch Cancelled, case_id = order_id and index = index) -> Return to stock
+```
+
+- **The order** publishes `ItemOrdered` with `"count": {"case_attribute": "items"}` and attributes
+  `case_id` and `index`; after its race, `Shipped` or `Cancelled` the same way, so verdict *i* carries
+  the same `case_id` and `index` as item *i*'s `ItemOrdered`.
+- **The item** starts on `ItemOrdered` and copies both into the case
+  (`"copy": {"order_id": "case_id", "index": "index"}`). Its two catch events accept only the verdict for
+  this order and this item:
+
+  ```json
+  "condition": [[{"attribute": "case_id", "comparison": "=", "case_attribute": "order_id"},
+                 {"attribute": "index", "comparison": "=", "case_attribute": "index"}]]
+  ```
+
+- **Late items:** an item still being picked when its order is canceled isn't waiting yet, so its
+  `Cancelled` is pending: it stays in the pool and is claimed as soon as the item reaches its race. The
+  items already waiting are released at once.
+- An `ItemReady` sent after the order was canceled finds no waiting order and is discarded once the
+  order has finished, with the usual "discarded by every recipient" warning; that is expected.
+
 ## Limitations
 
 - **Races:**
   - the branches after the gateway can only be message catch events and timers (no signal,
     conditional or other catch events, and no receive tasks);
   - with `collect`, the messages a case claimed before a timer won stay bound to it: they count as
-    claims and aren't offered to anyone else (sending them back is future work), and later ones for it
-    are discarded;
+    claims and aren't offered to anyone else (to send items back, see "One verdict per item"), and
+    later ones for it are discarded;
   - a message for a branch the case no longer waits at is pending, not discarded, while the case is
     still running and the condition is on `case_id`, since the case can still change; it is discarded
     only when offered after the case has finished;

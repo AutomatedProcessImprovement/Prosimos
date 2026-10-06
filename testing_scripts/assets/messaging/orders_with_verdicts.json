@@ -1,0 +1,147 @@
+{
+  "resource_profiles": [
+    {
+      "id": "Sales_team",
+      "name": "Sales_team",
+      "resource_list": [
+        {
+          "id": "Clerk",
+          "name": "Clerk",
+          "cost_per_hour": 1,
+          "amount": 1,
+          "calendar": "Always",
+          "assigned_tasks": [
+            "Place_Order"
+          ]
+        }
+      ]
+    }
+  ],
+  "arrival_time_distribution": {
+    "distribution_name": "fix",
+    "distribution_params": [
+      {
+        "value": 86400
+      }
+    ]
+  },
+  "arrival_time_calendar": [
+    {
+      "from": "MONDAY",
+      "to": "SUNDAY",
+      "beginTime": "00:00:00",
+      "endTime": "23:59:59"
+    }
+  ],
+  "gateway_branching_probabilities": [],
+  "task_resource_distribution": [
+    {
+      "task_id": "Place_Order",
+      "resources": [
+        {
+          "resource_id": "Clerk",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 600
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "resource_calendars": [
+    {
+      "id": "Always",
+      "name": "Always",
+      "time_periods": [
+        {
+          "from": "MONDAY",
+          "to": "SUNDAY",
+          "beginTime": "00:00:00",
+          "endTime": "23:59:59"
+        }
+      ]
+    }
+  ],
+  "case_attributes": [
+    {
+      "name": "items",
+      "type": "continuous",
+      "values": {
+        "distribution_name": "fix",
+        "distribution_params": [
+          {
+            "value": 3
+          }
+        ]
+      }
+    }
+  ],
+  "messages": {
+    "publish": [
+      {
+        "event_id": "Throw_Items",
+        "type": "ItemOrdered",
+        "count": {
+          "case_attribute": "items"
+        },
+        "attributes": [
+          "case_id",
+          "index"
+        ]
+      },
+      {
+        "event_id": "Throw_Shipped",
+        "type": "Shipped",
+        "count": {
+          "case_attribute": "items"
+        },
+        "attributes": [
+          "case_id",
+          "index"
+        ]
+      },
+      {
+        "event_id": "Throw_Cancelled",
+        "type": "Cancelled",
+        "count": {
+          "case_attribute": "items"
+        },
+        "attributes": [
+          "case_id",
+          "index"
+        ]
+      }
+    ],
+    "consume": [
+      {
+        "event_id": "Catch_Items",
+        "type": "ItemReady",
+        "condition": [
+          [
+            {
+              "attribute": "order_id",
+              "comparison": "=",
+              "case_attribute": "case_id"
+            }
+          ]
+        ],
+        "collect": {
+          "case_attribute": "items"
+        }
+      }
+    ]
+  },
+  "event_distribution": [
+    {
+      "event_id": "Deadline",
+      "distribution_name": "fix",
+      "distribution_params": [
+        {
+          "value": 172800
+        }
+      ]
+    }
+  ]
+}
