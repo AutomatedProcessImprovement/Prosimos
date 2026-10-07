@@ -3,6 +3,8 @@ import os
 from pathlib import Path
 import pytest
 import logging
+from prosimos.simulation_properties_parser import parse_gateway_conditions
+from prosimos.warning_logger import warning_logger
 from testing_scripts.bimp_diff_sim_tests import run_diff_res_simulation
 
 LOGGER = logging.getLogger(__name__)
@@ -199,3 +201,28 @@ def test_run_simulation(assets_path, config):
     if errors:
         errors_str = f"Test failed (json: {json_filename}, bpmn: {bpmn_filename})\n" + "\n".join(errors)
         raise AssertionError(errors_str)
+
+
+class _BranchRules:
+    """Stands in for the parsed branch rules: every condition id is a rule."""
+
+    def get_branch_condition_by_id(self, condition_id):
+        return condition_id
+
+
+@pytest.mark.parametrize("probabilities, warned", [
+    # probabilities only: no conditions to miss
+    ([{"path_id": "Flow_A", "value": 0.3}, {"path_id": "Flow_B", "value": 0.7}], False),
+    # some, but not all, arrows have a condition
+    ([{"path_id": "Flow_A", "value": 0.3, "condition_id": "rule_a"}, {"path_id": "Flow_B", "value": 0.7}], True),
+    # every arrow has a condition
+    ([{"path_id": "Flow_A", "value": 0.3, "condition_id": "rule_a"},
+      {"path_id": "Flow_B", "value": 0.7, "condition_id": "rule_b"}], False),
+])
+def test_a_gateway_is_warned_about_only_when_some_of_its_arrows_lack_a_condition(monkeypatch, probabilities, warned):
+    monkeypatch.setattr(warning_logger, "warnings_queue", [])
+
+    parse_gateway_conditions([{"gateway_id": "Gateway_1", "probabilities": probabilities}], _BranchRules())
+
+    expected = ["Gateway Gateway_1 is using conditions, but some are missing. Flows without conditions: Flow_B"]
+    assert warning_logger.get_all_warnings() == (expected if warned else [])

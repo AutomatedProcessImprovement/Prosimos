@@ -358,7 +358,7 @@ def parse_gateway_conditions(gateway_json, branch_rules):
             gateway_conditions[g_id] = GatewayConditionChoice(out_arc, gateway_rules)
 
         if len(missing_conditions) > 0 and \
-                len(missing_conditions) != g_info["probabilities"] and \
+                len(missing_conditions) != len(g_info["probabilities"]) and \
                 1 < len(g_info["probabilities"]) != len(gateway_rules):
             warning_logger.add_warning(f"Gateway {g_id} is using conditions, but some are missing. Flows without conditions: {', '.join(missing_conditions)}")
 
