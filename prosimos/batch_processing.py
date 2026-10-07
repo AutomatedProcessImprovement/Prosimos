@@ -34,6 +34,13 @@ def _get_operator_symbols_lt(operator_str: str):
 def _is_greater(op: operator):
     return op in [operator.ge, operator.gt]
 
+def whole_seconds(difference: timedelta) -> int:
+    """
+    Seconds in a time difference, rounded down to a whole second, days included.
+    The rule boundaries are whole seconds; timedelta.seconds rounds down too but drops the days.
+    """
+    return difference // timedelta(seconds=1)
+
 class BATCH_TYPE(Enum):
     SEQUENTIAL = 'Sequential'   # one after another
     CONCURRENT = 'Concurrent'   # tasks are in progress simultaneously 
@@ -119,11 +126,16 @@ class FiringSubRule():
             return is_rule_true
 
         elif self.variable1 == "ready_wt":
+            if queue_size == 1 and self.operator in [">", ">="]:
+                # a single waiting case does not fire on the low boundary:
+                # it waits for a second case up to the high boundary, as get_ready_wt counts it
+                return False
+
             last_enabled_datetime = element["enabled_datetimes"][-1]
             curr_enabled_datetime = element["curr_enabled_at"]
             op = _get_operator_symbols_ge(self.operator)
 
-            ready_wt_sec = (curr_enabled_datetime - last_enabled_datetime).seconds
+            ready_wt_sec = whole_seconds(curr_enabled_datetime - last_enabled_datetime)
             is_rule_true = op(ready_wt_sec, self.value2)
            
             if is_rule_true == False:
@@ -466,7 +478,7 @@ class AndFiringRule():
                 # happens when no new cases will arrive 
                 return en_time_index, _get_enabled_time_for_wt_rule(prev_item, operator.gt, high_boundary)
 
-            diff = (item - prev_item).seconds
+            diff = whole_seconds(item - prev_item)
             is_batch_enabled_low = diff < low_boundary
 
             if is_batch_enabled_low:
@@ -508,14 +520,18 @@ class AndFiringRule():
         prev_item = first_item
         list_len = len(enabled_dt_with_curr_enabled)
         for en_time_index, item in enumerate(enabled_dt_with_curr_enabled[1:], 1):
-            diff = (item - first_item).seconds
+            diff = whole_seconds(item - first_item)
             is_batch_enabled_low = diff > low_boundary
             
             if not is_batch_enabled_low:
                 if en_time_index == list_len - 1:
                     # last item of the evaluation
                     # this will enable the batch in the future
-                    result = en_time_index, _get_enabled_time_for_wt_rule(first_item, operator.ge, low_boundary)
+                    if en_time_index == 1:
+                        # a single waiting case waits for a second one up to the high boundary
+                        result = en_time_index, _get_enabled_time_for_wt_rule(first_item, operator.gt, high_boundary)
+                    else:
+                        result = en_time_index, _get_enabled_time_for_wt_rule(first_item, operator.ge, low_boundary)
                     break
 
                 prev_item = item
@@ -564,6 +580,21 @@ class AndFiringRule():
 
         wt_res = self.get_ready_wt(draft_element) \
             if rule_type == RULE_TYPE.READY_WT else self.get_large_wt(draft_element)
+
+        if wt_res == (0, None):
+            # no new case reaches the batched task anymore, so:
+            # - a single waiting case fires once it has waited past the high boundary;
+            # - several waiting cases fire once the low boundary has passed, counted from
+            #   the last case's arrival for ready_wt (time since the last arrival),
+            #   or from the first case's arrival for large_wt (time the oldest case has waited)
+            low_boundary, high_boundary = self.ready_wt_boundaries \
+                if rule_type == RULE_TYPE.READY_WT else self.large_wt_boundaries
+            enabled_datetimes = draft_element["enabled_datetimes"]
+            if draft_element["size"] == 1:
+                wt_res = 1, _get_enabled_time_for_wt_rule(enabled_datetimes[0], operator.gt, high_boundary)
+            else:
+                reference = enabled_datetimes[-1] if rule_type == RULE_TYPE.READY_WT else enabled_datetimes[0]
+                wt_res = draft_element["size"], _get_enabled_time_for_wt_rule(reference, operator.ge, low_boundary)
 
         if wt_res == None:
             return None
@@ -913,7 +944,7 @@ class OrFiringRule():
         Check whether items waiting for batch execution might be satisfied in the future (valid for further processing)
         or they are invalid (one part of the AND rule could not be satisfied in the future at all)
         :param num_tasks: number of tasks waiting for batch execution
-        :param first_wt: waiting time of the first item (current_point_in_time - first_item.enable_time).seconds
+        :param first_wt: waiting time of the first item, whole_seconds(current_point_in_time - first_item.enable_time)
         :param ready_wt: waiting time of the last task in the batch queue
         :return: whether the rule is invalid
         :rtype: boolean

@@ -10,7 +10,7 @@ from typing import List
 from pix_framework.statistics.distribution import DurationDistribution
 
 from prosimos.batch_processing import (BATCH_TYPE, AndFiringRule,
-                                       BatchConfigPerTask)
+                                       BatchConfigPerTask, whole_seconds)
 from prosimos.exceptions import InvalidBpmnModelException
 from prosimos.weekday_helper import CustomDatetimeAndSeconds
 from prosimos.simulation_execution_stats import SimulationExecutionStats
@@ -19,9 +19,9 @@ from prosimos.warning_logger import warning_logger
 seconds_per_unit = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
 
 class BatchInfoForExecution:
-    def __init__(self, all_case_ids, task_batch_info, curr_task_id, batch_spec, start_time_from_rule):
-        self.case_ids = all_case_ids[curr_task_id].copy()
-        self.task_batch_info = task_batch_info[curr_task_id]
+    def __init__(self, case_ids, task_batch_info, batch_spec, start_time_from_rule):
+        self.case_ids = case_ids
+        self.task_batch_info = task_batch_info
         self.batch_spec = batch_spec
         self.start_time_from_rule = start_time_from_rule
         self.batch_id = str(uuid.uuid4())
@@ -400,18 +400,19 @@ class BPMNGraph:
 
         firing_rules: List[AndFiringRule] = task_batch_info.firing_rules
 
-        size_count = self.batch_count[task_id] if self.batch_count.get(task_id, None) != None else 0
+        reached = self._reached_batch(task_id, enabled_at)
+        size_count = len(reached)
 
         if not firing_rules.is_batch_size_enough_for_exec(size_count): #size_count < 2:
             # not enough items for batch execution
             return False, None, None
 
-        waiting_time = [ (enabled_at.datetime - v.datetime).total_seconds() for (_, v) in self.batch_waiting_processes[task_id].items() ]
+        waiting_time = [ (enabled_at.datetime - v.datetime).total_seconds() for (_, v) in reached ]
 
         spec = {
             "size": size_count,
             "waiting_times": waiting_time,
-            "enabled_datetimes": [ v.datetime for (_, v) in self.batch_waiting_processes[task_id].items() ],
+            "enabled_datetimes": [ v.datetime for (_, v) in reached ],
             "curr_enabled_at": enabled_at.datetime,
             "is_triggered_by_batch": True, # specify where from we checking the rule. If not triggered by batch - then we move to midnight time
             "is_only_one_batch_return": False
@@ -424,6 +425,16 @@ class BPMNGraph:
             return firing_rules.is_true(spec)
         else:
             return self.get_batch_size_no_rules_defined(spec, firing_rules, task_batch_info)
+
+    def _reached_batch(self, task_id: str, enabled_at: CustomDatetimeAndSeconds):
+        """
+        Cases waiting for the batched task that have reached it by enabled_at, in the order they reached it.
+        A case is added to the waiting list when its previous task is computed, which happens ahead of time,
+        so the list also holds cases that reach the batched task only later, and it is not ordered by time.
+        """
+        reached = [ (case_id, reached_at) for (case_id, reached_at) in self.batch_waiting_processes[task_id].items()
+                    if reached_at.datetime <= enabled_at.datetime ]
+        return sorted(reached, key=lambda item: item[1].datetime)
 
     def get_batch_size_no_rules_defined(self, spec, firing_rules, task_batch_info):
         """
@@ -471,7 +482,8 @@ class BPMNGraph:
     def get_start_time(self, task_id, last_task_enabled_time) -> tuple([int, int, CustomDatetimeAndSeconds]):
         task_batch_info = self.batch_info.get(task_id, None)
         firing_rules: List[AndFiringRule] = task_batch_info.firing_rules
-        enabled_times = list(self.batch_waiting_processes[task_id].items())
+        # the waiting list is not ordered by the time cases reached the batched task
+        enabled_times = sorted(self.batch_waiting_processes[task_id].items(), key=lambda item: item[1].datetime)
         batch_enabled_time = firing_rules.get_enabled_time(
             enabled_times,
             last_task_enabled_time,
@@ -939,35 +951,23 @@ class BPMNGraph:
         is_enabled, batch_spec, start_time_from_rule = self.is_batched_task_enabled(task_id, enabled_time)
 
         if is_enabled:
-            batch_info = BatchInfoForExecution(
-                self.batch_waiting_processes,
-                self.batch_info,
-                task_id,
-                batch_spec,
-                start_time_from_rule)
+            batch_info = self.create_batch_info_and_clear_from_queue(
+                task_id, batch_spec, start_time_from_rule, self._reached_batch(task_id, enabled_time)
+            )
             enabled_tasks.append((EnabledTask(task_id, batch_info)))
-            self._clear_batch(task_id, batch_spec)
 
 
-    def _clear_batch(self, next_e, batch_spec):
+    def _clear_batch(self, next_e, case_ids):
         """
         When we passed on the information about the batch for the execution,
         clear that data from here to avoid multiple execution
         """
-        for batch_size in batch_spec:
-            if batch_size != None:
-                # remove first batch_size-element since they are being executed
-                # the rest stays in the queue for being enabled for batch execution
-                curr_index = 0
-                for item_key in list(self.batch_waiting_processes[next_e].keys()):
-                    del self.batch_waiting_processes[next_e][item_key]
-                    curr_index = curr_index + 1
+        # remove exactly the cases being executed
+        # the rest stays in the queue for being enabled for batch execution
+        for case_id in case_ids:
+            del self.batch_waiting_processes[next_e][case_id]
 
-                    if curr_index == batch_size:
-                        # all waiting processes regarding the selected batch was removed
-                        break
-
-                self.batch_count[next_e] = self.batch_count[next_e] - batch_size
+        self.batch_count[next_e] = self.batch_count[next_e] - len(case_ids)
 
 
     def increase_task_count(self, task_id, case_id, enabled_time):
@@ -998,7 +998,7 @@ class BPMNGraph:
             is_enabled, batch_spec, start_time_from_rule = self.is_batched_task_enabled(task_id, started_datetime)
             if is_enabled:
                 enabled_task_batch[task_id] = self.create_batch_info_and_clear_from_queue(
-                    task_id, batch_spec, start_time_from_rule
+                    task_id, batch_spec, start_time_from_rule, self._reached_batch(task_id, started_datetime)
                 )
 
         return enabled_task_batch
@@ -1042,30 +1042,34 @@ class BPMNGraph:
                 last_task_in_batch_start = waiting_tasks[last_added_key].datetime
                 start_time_from_rule = max(current_point_of_time.datetime, last_task_in_batch_start)
                 enabled_task_batch[task_id] = self.create_batch_info_and_clear_from_queue(
-                    task_id, batch_spec, start_time_from_rule
+                    task_id, batch_spec, start_time_from_rule, list(waiting_tasks.items())
                 )
                 continue
 
         return enabled_task_batch
 
-    def create_batch_info_and_clear_from_queue(self, task_id: str, batch_spec, start_time_from_rule):
+    def create_batch_info_and_clear_from_queue(self, task_id: str, batch_spec, start_time_from_rule, candidates):
+        """
+        :param candidates: (case_id, enabled_time) pairs the firing rule looked at, in the same order.
+            The batch takes the first of them, as many as batch_spec counts in total
+        """
+        case_ids = dict(candidates[:sum(batch_spec)])
         batch_info = BatchInfoForExecution(
-            self.batch_waiting_processes,
-            self.batch_info,
-            task_id,
+            case_ids,
+            self.batch_info[task_id],
             batch_spec,
             start_time_from_rule)
 
-        self._clear_batch(task_id, batch_spec)
+        self._clear_batch(task_id, case_ids)
         return batch_info
 
     def is_or_rule_invalid(self, waiting_tasks, task_id: str, num_tasks_wait_batch: int, current_point_of_time: CustomDatetimeAndSeconds):
         all_keys = list(waiting_tasks.keys())
 
         first_key = all_keys[0]
-        first_wt = (current_point_of_time.datetime - waiting_tasks[first_key].datetime).seconds
+        first_wt = whole_seconds(current_point_of_time.datetime - waiting_tasks[first_key].datetime)
 
         last_key = all_keys[-1]
-        last_wt = (current_point_of_time.datetime - waiting_tasks[last_key].datetime).seconds
+        last_wt = whole_seconds(current_point_of_time.datetime - waiting_tasks[last_key].datetime)
 
         return self.batch_info[task_id].firing_rules.is_invalid_end(num_tasks_wait_batch, first_wt, last_wt)
