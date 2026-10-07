@@ -11,6 +11,8 @@ repeats, and `collect` read from a case attribute.
 
 ## The processes
 
+![Process models of the Order Management example](order-management-processes.svg)
+
 ```
 Sales (order)        arrivals: weekdays 6:00-22:00, about one every 4.3 h, 2,000 orders
                      case attributes: customer (c1..c15), items (1..16, as in the log)
@@ -37,10 +39,69 @@ that customer's waiting items; that rule isn't available yet, so the package siz
 and waiting times are therefore approximate, and a customer's last package may still be collecting when
 the run ends.
 
-Not modeled: package weight, links between one event and many objects, that 88% of confirmations in the log
-are done by the customer's primary sales rep (any Sales employee confirms here), and the forwarder of a
-package (the shipper sends it). The Customer process only models how long a customer takes to pay; its rows
-aren't compared with the log.
+Not modeled, and where each goes:
+
+- **Links between one event and many objects** (e.g. create package with all its items, as OCEL records it):
+  future work.
+- **Package weight**: future work.
+- **The real packing rule**, the oldest waiting item and then all of that customer's waiting items
+  (`"collect": "all"` with `"same"`); it would also remove the packages still collecting at the end: future
+  work.
+- **Confirmation by the customer's primary sales rep** (88% of confirmations in the log; any Sales employee
+  confirms here): under discussion.
+- **The forwarder of a package** (the shipper sends it here): under discussion.
+
+The Customer process only models how long a customer takes to pay; its rows aren't compared with the log.
+
+## Who talks to whom
+
+Every arrow goes through the orchestrator; processes never address each other. Each process is its own
+consumer group, so every message goes to the one process that subscribes to its type.
+
+```mermaid
+flowchart LR
+    Sales([Sales<br/>one case per order])
+    Customer([Customer<br/>one case per confirmed order])
+    Warehouse([Warehouse<br/>one case per item])
+    Packaging([Packaging<br/>one case per package])
+
+    Sales -->|"ItemOrdered<br/>(one per item: count)"| Warehouse
+    Sales -->|"OrderConfirmed<br/>(starts a case)"| Customer
+    Customer -->|"Payment<br/>(same order)"| Sales
+    Warehouse -->|"ItemPicked<br/>(the customer's open package, or a new one)"| Packaging
+```
+
+## Messages
+
+| Process       | Publishes                                                                             | Consumes                                                                                                                                                      |
+|---------------|---------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Sales**     | `ItemOrdered{case_id, index, customer}`, `count` = `items`; `OrderConfirmed{case_id}` | `Payment` where `order_id == case_id`, in a race against the 20-day reminder timer                                                                            |
+| **Customer**  | `Payment{order_id}`, at its message end event                                         | `OrderConfirmed` at its start event; copies `order_id` from `case_id`                                                                                         |
+| **Warehouse** | `ItemPicked{order_id, item_index, customer}`, at its message end event                | `ItemOrdered` at its start event; copies `order_id` from `case_id`, `item_index` from `index`, `customer` from `customer`                                     |
+| **Packaging** | nothing                                                                               | `ItemPicked` at its start event, copying `customer`; and at "more items picked" where `customer == case.customer`, collecting `more_items` (a case attribute) |
+
+## How the log maps to the model
+
+| In the log                     | Process   | BPMN element              | Feature                                                                                              |
+|--------------------------------|-----------|---------------------------|------------------------------------------------------------------------------------------------------|
+| object type **orders**         | Sales     | one case per order        | arrivals on a weekday calendar; case attributes `customer` and `items`                               |
+| object type **items**          | Warehouse | one case per item         | a message start event on `ItemOrdered`, published once per item with `count`; `index` → `item_index` |
+| object type **packages**       | Packaging | one case per package      | a message start event on an `ItemPicked` no open package takes; `collect` of `more_items`            |
+| object type **customers**      | all       | case attribute `customer` | drawn on the order, copied to items and packages; the condition of the package's catch event         |
+| object type **products**       | -         | -                         | not modeled: no metric uses them                                                                     |
+| object type **employees**      | all       | resources                 | Sales (5), Warehousing (7, split 5 / 2 between Warehouse and Packaging), Shipment (6)                |
+| activity **place order**       | Sales     | task `Place_Order`        | done by the `Shop` resource; `ItemOrdered` is published right after it                               |
+| activity **confirm order**     | Sales     | task `Confirm_Order`      | Sales; `OrderConfirmed` is published right after it                                                  |
+| activity **payment reminder**  | Sales     | task `Payment_Reminder`   | the timer branch of the race (20 days), then back to the race                                        |
+| activity **pay order**         | Sales     | task `Pay_Order`          | after the message branch of the race (`Payment`); done by the `Payments` resource                    |
+| activity **item out of stock** | Warehouse | task `Item_Out_Of_Stock`  | the 20% branch of an XOR                                                                             |
+| activity **reorder item**      | Warehouse | task `Reorder_Item`       | after item out of stock                                                                              |
+| activity **pick item**         | Warehouse | task `Pick_Item`          | Warehousing; `ItemPicked` is published at the message end event after it                             |
+| activity **create package**    | Packaging | task `Create_Package`     | after the package has collected its items                                                            |
+| activity **send package**      | Packaging | task `Send_Package`       | Shipment                                                                                             |
+| activity **failed delivery**   | Packaging | task `Failed_Delivery`    | the 22% branch of an XOR, then back to it                                                            |
+| activity **package delivered** | Packaging | task `Package_Delivered`  | the 78% branch of that XOR                                                                           |
+| not in the log                 | Customer  | timer `Pay_Delay`         | how long the customer takes to pay; publishes `Payment`                                              |
 
 ## Numbers from the log
 
@@ -113,11 +174,8 @@ Found while building the example; no feature was added for them.
   publish its own number under that name. The Warehouse keeps it as `item_index` instead.
 - **Resources aren't shared between processes.** Picking (Warehouse) and packing (Packaging) are done by the
   same 7 Warehousing employees in the log, but each Prosimos process has its own resource pool; they are
-  split 5 / 2 here.
+  split 5 / 2 here. Under discussion.
 - **The merged log doesn't link packages to their items** (links between events and many objects); the
-  comparison script reconstructs them (see above).
+  comparison script reconstructs them (see above). Future work.
 - **Reminders are 20 days and one microsecond apart.** A race timer's branch continues one microsecond after
-  the timer's time, so that a message at exactly that time wins ([messaging.md](messaging.md)).
-- **A spurious warning for gateways with probabilities only**: "Gateway … is using conditions, but some are
-  missing". It comes from an older check in `parse_gateway_conditions`, which compares a count with a list; the
-  probabilities are used as expected.
+  the timer's time, so that a message at exactly that time wins ([messaging.md](messaging.md)). By design.

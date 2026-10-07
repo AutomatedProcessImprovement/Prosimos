@@ -15,6 +15,9 @@ It exists in three versions:
   models, run from one configuration file. There are no trucks or Carrier yet: they need a case
   that waits for several messages at once.
 
+A larger example, after a real event log and with a comparison against it, is the
+[Order Management example](order-management.md).
+
 ## The scenario
 
 ### Processes and messages

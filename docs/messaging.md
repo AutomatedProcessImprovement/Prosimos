@@ -289,6 +289,21 @@ Order placed --> <event-based gateway>                    <XOR> --> end
                  +--> (timer 6 h)      --> Cancel order --+
 ```
 
+A race needs no new keys: the message branch is listed under `consume` like any catch event, and the timer
+gets its delay from `event_distribution` (model: `testing_scripts/assets/messaging/sales_with_deadline`):
+
+```json
+"messages": {
+  "consume": [
+    {"event_id": "Catch_Shipment", "type": "Shipment",
+     "condition": [[{"attribute": "order_id", "comparison": "=", "case_attribute": "case_id"}]]}
+  ]
+},
+"event_distribution": [
+  {"event_id": "Deadline", "distribution_name": "fix", "distribution_params": [{"value": 21600}]}
+]
+```
+
 When a case reaches the gateway, every branch is armed at once: each timer is set to fire after its
 delay (from `event_distribution`, as for any timer), and the case waits at the message branch as at
 any catch event. The first to happen wins and the others are canceled:
@@ -422,6 +437,10 @@ Item (Picking):  start ItemOrdered (copy order_id, index) -> Pick -> (throw Item
   supporting multiple end events"), so a model can't have a message end event next to another end
   event. Instead, publish with an intermediate message throw event on that branch, then merge the
   branches with an explicit XOR gateway into the single end event.
+- **`index` is reserved for `count`.** A publish entry can list `index` only with `count`, where it is the
+  message's number, so a case can't pass on a number it was given under that name (e.g. an item publishing
+  the `index` it copied from `ItemOrdered`). Copy it into a case attribute with another name, e.g.
+  `"copy": {"item_index": "index"}`, and publish that.
 - **`case_attribute` names** in conditions aren't checked against the declared attributes; a term
   naming an attribute the case doesn't have is simply false.
 - **Capacity is per `consume` entry.** One message resumes extra cases only at the entry that resumed
