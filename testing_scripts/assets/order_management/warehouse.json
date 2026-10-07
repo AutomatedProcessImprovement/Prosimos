@@ -1,0 +1,137 @@
+{
+  "resource_profiles": [
+    {
+      "id": "Warehousing_team",
+      "name": "Warehousing_team",
+      "resource_list": [
+        {
+          "id": "Warehousing",
+          "name": "Warehousing",
+          "cost_per_hour": 1,
+          "amount": 5,
+          "calendar": "Weekdays",
+          "assigned_tasks": [
+            "Item_Out_Of_Stock",
+            "Reorder_Item",
+            "Pick_Item"
+          ]
+        }
+      ]
+    }
+  ],
+  "gateway_branching_probabilities": [
+    {
+      "gateway_id": "Stock_Check",
+      "probabilities": [
+        {
+          "path_id": "Flow_Out_Of_Stock",
+          "value": 0.2
+        },
+        {
+          "path_id": "Flow_In_Stock",
+          "value": 0.8
+        }
+      ]
+    }
+  ],
+  "task_resource_distribution": [
+    {
+      "task_id": "Item_Out_Of_Stock",
+      "resources": [
+        {
+          "resource_id": "Warehousing",
+          "distribution_name": "expon",
+          "distribution_params": [
+            {
+              "value": 900
+            },
+            {
+              "value": 0
+            },
+            {
+              "value": 14400
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Reorder_Item",
+      "resources": [
+        {
+          "resource_id": "Warehousing",
+          "distribution_name": "expon",
+          "distribution_params": [
+            {
+              "value": 1800
+            },
+            {
+              "value": 0
+            },
+            {
+              "value": 14400
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Pick_Item",
+      "resources": [
+        {
+          "resource_id": "Warehousing",
+          "distribution_name": "expon",
+          "distribution_params": [
+            {
+              "value": 7920.000000000001
+            },
+            {
+              "value": 0
+            },
+            {
+              "value": 172800
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "resource_calendars": [
+    {
+      "id": "Weekdays",
+      "name": "Weekdays",
+      "time_periods": [
+        {
+          "from": "MONDAY",
+          "to": "FRIDAY",
+          "beginTime": "06:00:00",
+          "endTime": "22:00:00"
+        }
+      ]
+    }
+  ],
+  "messages": {
+    "publish": [
+      {
+        "event_id": "End_Picked",
+        "type": "ItemPicked",
+        "attributes": [
+          "order_id",
+          "item_index",
+          "customer"
+        ]
+      }
+    ],
+    "consume": [
+      {
+        "event_id": "Start_Item",
+        "type": "ItemOrdered",
+        "copy": {
+          "order_id": "case_id",
+          "item_index": "index",
+          "customer": "customer"
+        }
+      }
+    ]
+  }
+}

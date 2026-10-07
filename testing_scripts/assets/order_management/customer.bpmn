@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Customer" targetNamespace="http://bpmn.io/schema/bpmn">
+  <!-- how long a customer takes to pay: every OrderConfirmed starts a case, which pays after a drawn delay -->
+  <bpmn:process id="Customer" isExecutable="false">
+    <bpmn:startEvent id="Start_Confirmed" name="order confirmed"><bpmn:outgoing>Flow_1</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:startEvent>
+    <bpmn:intermediateCatchEvent id="Pay_Delay" name="time to pay"><bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing><bpmn:timerEventDefinition /></bpmn:intermediateCatchEvent>
+    <bpmn:endEvent id="End_Payment" name="payment sent"><bpmn:incoming>Flow_2</bpmn:incoming><bpmn:messageEventDefinition /></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_Confirmed" targetRef="Pay_Delay" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Pay_Delay" targetRef="End_Payment" />
+  </bpmn:process>
+</bpmn:definitions>

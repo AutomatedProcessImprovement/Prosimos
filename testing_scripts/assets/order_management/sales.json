@@ -1,0 +1,333 @@
+{
+  "resource_profiles": [
+    {
+      "id": "Sales_team",
+      "name": "Sales_team",
+      "resource_list": [
+        {
+          "id": "Sales",
+          "name": "Sales",
+          "cost_per_hour": 1,
+          "amount": 5,
+          "calendar": "Weekdays",
+          "assigned_tasks": [
+            "Confirm_Order"
+          ]
+        },
+        {
+          "id": "Shop",
+          "name": "Shop",
+          "cost_per_hour": 1,
+          "amount": 20,
+          "calendar": "Always",
+          "assigned_tasks": [
+            "Place_Order",
+            "Payment_Reminder"
+          ]
+        },
+        {
+          "id": "Payments",
+          "name": "Payments",
+          "cost_per_hour": 1,
+          "amount": 20,
+          "calendar": "Weekdays",
+          "assigned_tasks": [
+            "Pay_Order"
+          ]
+        }
+      ]
+    }
+  ],
+  "arrival_time_distribution": {
+    "distribution_name": "expon",
+    "distribution_params": [
+      {
+        "value": 8280.0
+      },
+      {
+        "value": 0
+      },
+      {
+        "value": 604800
+      }
+    ]
+  },
+  "arrival_time_calendar": [
+    {
+      "from": "MONDAY",
+      "to": "FRIDAY",
+      "beginTime": "06:00:00",
+      "endTime": "22:00:00"
+    }
+  ],
+  "gateway_branching_probabilities": [],
+  "task_resource_distribution": [
+    {
+      "task_id": "Place_Order",
+      "resources": [
+        {
+          "resource_id": "Shop",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 60
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Confirm_Order",
+      "resources": [
+        {
+          "resource_id": "Sales",
+          "distribution_name": "expon",
+          "distribution_params": [
+            {
+              "value": 30600.0
+            },
+            {
+              "value": 0
+            },
+            {
+              "value": 259200
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Payment_Reminder",
+      "resources": [
+        {
+          "resource_id": "Shop",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Pay_Order",
+      "resources": [
+        {
+          "resource_id": "Payments",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 300
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "resource_calendars": [
+    {
+      "id": "Always",
+      "name": "Always",
+      "time_periods": [
+        {
+          "from": "MONDAY",
+          "to": "SUNDAY",
+          "beginTime": "00:00:00",
+          "endTime": "23:59:59"
+        }
+      ]
+    },
+    {
+      "id": "Weekdays",
+      "name": "Weekdays",
+      "time_periods": [
+        {
+          "from": "MONDAY",
+          "to": "FRIDAY",
+          "beginTime": "06:00:00",
+          "endTime": "22:00:00"
+        }
+      ]
+    }
+  ],
+  "case_attributes": [
+    {
+      "name": "customer",
+      "type": "discrete",
+      "values": [
+        {
+          "key": "c1",
+          "value": 0.06666666666666667
+        },
+        {
+          "key": "c2",
+          "value": 0.06666666666666667
+        },
+        {
+          "key": "c3",
+          "value": 0.06666666666666667
+        },
+        {
+          "key": "c4",
+          "value": 0.06666666666666667
+        },
+        {
+          "key": "c5",
+          "value": 0.06666666666666667
+        },
+        {
+          "key": "c6",
+          "value": 0.06666666666666667
+        },
+        {
+          "key": "c7",
+          "value": 0.06666666666666667
+        },
+        {
+          "key": "c8",
+          "value": 0.06666666666666667
+        },
+        {
+          "key": "c9",
+          "value": 0.06666666666666667
+        },
+        {
+          "key": "c10",
+          "value": 0.06666666666666667
+        },
+        {
+          "key": "c11",
+          "value": 0.06666666666666667
+        },
+        {
+          "key": "c12",
+          "value": 0.06666666666666667
+        },
+        {
+          "key": "c13",
+          "value": 0.06666666666666667
+        },
+        {
+          "key": "c14",
+          "value": 0.06666666666666667
+        },
+        {
+          "key": "c15",
+          "value": 0.06666666666666667
+        }
+      ]
+    },
+    {
+      "name": "items",
+      "type": "discrete",
+      "values": [
+        {
+          "key": 1,
+          "value": 0.0795
+        },
+        {
+          "key": 2,
+          "value": 0.18
+        },
+        {
+          "key": 3,
+          "value": 0.2445
+        },
+        {
+          "key": 4,
+          "value": 0.1835
+        },
+        {
+          "key": 5,
+          "value": 0.1375
+        },
+        {
+          "key": 6,
+          "value": 0.082
+        },
+        {
+          "key": 7,
+          "value": 0.05
+        },
+        {
+          "key": 8,
+          "value": 0.0205
+        },
+        {
+          "key": 9,
+          "value": 0.009
+        },
+        {
+          "key": 10,
+          "value": 0.007
+        },
+        {
+          "key": 11,
+          "value": 0.0035
+        },
+        {
+          "key": 12,
+          "value": 0.001
+        },
+        {
+          "key": 13,
+          "value": 0.0015
+        },
+        {
+          "key": 16,
+          "value": 0.0005
+        }
+      ]
+    }
+  ],
+  "messages": {
+    "publish": [
+      {
+        "event_id": "Throw_ItemOrdered",
+        "type": "ItemOrdered",
+        "count": {
+          "case_attribute": "items"
+        },
+        "attributes": [
+          "case_id",
+          "index",
+          "customer"
+        ]
+      },
+      {
+        "event_id": "Throw_OrderConfirmed",
+        "type": "OrderConfirmed",
+        "attributes": [
+          "case_id"
+        ]
+      }
+    ],
+    "consume": [
+      {
+        "event_id": "Catch_Payment",
+        "type": "Payment",
+        "condition": [
+          [
+            {
+              "attribute": "order_id",
+              "comparison": "=",
+              "case_attribute": "case_id"
+            }
+          ]
+        ]
+      }
+    ]
+  },
+  "event_distribution": [
+    {
+      "event_id": "Reminder_Due",
+      "distribution_name": "fix",
+      "distribution_params": [
+        {
+          "value": 1728000
+        }
+      ]
+    }
+  ]
+}

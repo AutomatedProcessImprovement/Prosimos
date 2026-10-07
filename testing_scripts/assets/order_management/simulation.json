@@ -1,0 +1,27 @@
+{
+  "processes": [
+    {
+      "name": "Sales",
+      "bpmn_path": "sales.bpmn",
+      "json_path": "sales.json",
+      "total_cases": 2000
+    },
+    {
+      "name": "Customer",
+      "bpmn_path": "customer.bpmn",
+      "json_path": "customer.json"
+    },
+    {
+      "name": "Warehouse",
+      "bpmn_path": "warehouse.bpmn",
+      "json_path": "warehouse.json"
+    },
+    {
+      "name": "Packaging",
+      "bpmn_path": "packaging.bpmn",
+      "json_path": "packaging.json"
+    }
+  ],
+  "seed": 1,
+  "start_time": "2023-04-03T06:00:00+00:00"
+}

@@ -77,6 +77,8 @@ plus the cases still waiting for a message at the end. See:
 - [docs/messaging.md](docs/messaging.md): how to model message events and the `messages` section;
 - [docs/running-example.md](docs/running-example.md): a complete example with orders, warehouses and
   trucks;
+- [docs/order-management.md](docs/order-management.md): an example after the OCEL 2.0 Order Management log,
+  with a comparison against the real log;
 - [docs/engine-internals.md](docs/engine-internals.md): how Prosimos runs a case, for developers.
 
 

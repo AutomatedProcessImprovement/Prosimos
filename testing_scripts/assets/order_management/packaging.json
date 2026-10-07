@@ -1,0 +1,258 @@
+{
+  "resource_profiles": [
+    {
+      "id": "Logistics",
+      "name": "Logistics",
+      "resource_list": [
+        {
+          "id": "Warehousing",
+          "name": "Warehousing",
+          "cost_per_hour": 1,
+          "amount": 2,
+          "calendar": "Weekdays",
+          "assigned_tasks": [
+            "Create_Package"
+          ]
+        },
+        {
+          "id": "Shipment",
+          "name": "Shipment",
+          "cost_per_hour": 1,
+          "amount": 6,
+          "calendar": "Weekdays",
+          "assigned_tasks": [
+            "Send_Package",
+            "Failed_Delivery",
+            "Package_Delivered"
+          ]
+        }
+      ]
+    }
+  ],
+  "gateway_branching_probabilities": [
+    {
+      "gateway_id": "Delivered",
+      "probabilities": [
+        {
+          "path_id": "Flow_Failed",
+          "value": 0.22
+        },
+        {
+          "path_id": "Flow_Delivered",
+          "value": 0.78
+        }
+      ]
+    }
+  ],
+  "task_resource_distribution": [
+    {
+      "task_id": "Create_Package",
+      "resources": [
+        {
+          "resource_id": "Warehousing",
+          "distribution_name": "expon",
+          "distribution_params": [
+            {
+              "value": 3600
+            },
+            {
+              "value": 0
+            },
+            {
+              "value": 86400
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Send_Package",
+      "resources": [
+        {
+          "resource_id": "Shipment",
+          "distribution_name": "expon",
+          "distribution_params": [
+            {
+              "value": 28800
+            },
+            {
+              "value": 0
+            },
+            {
+              "value": 259200
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Failed_Delivery",
+      "resources": [
+        {
+          "resource_id": "Shipment",
+          "distribution_name": "expon",
+          "distribution_params": [
+            {
+              "value": 25200
+            },
+            {
+              "value": 0
+            },
+            {
+              "value": 259200
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Package_Delivered",
+      "resources": [
+        {
+          "resource_id": "Shipment",
+          "distribution_name": "expon",
+          "distribution_params": [
+            {
+              "value": 25200
+            },
+            {
+              "value": 0
+            },
+            {
+              "value": 259200
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "resource_calendars": [
+    {
+      "id": "Weekdays",
+      "name": "Weekdays",
+      "time_periods": [
+        {
+          "from": "MONDAY",
+          "to": "FRIDAY",
+          "beginTime": "06:00:00",
+          "endTime": "22:00:00"
+        }
+      ]
+    }
+  ],
+  "case_attributes": [
+    {
+      "name": "more_items",
+      "type": "discrete",
+      "values": [
+        {
+          "key": 0,
+          "value": 0.01950354609929078
+        },
+        {
+          "key": 1,
+          "value": 0.05230496453900709
+        },
+        {
+          "key": 2,
+          "value": 0.08953900709219859
+        },
+        {
+          "key": 3,
+          "value": 0.1196808510638298
+        },
+        {
+          "key": 4,
+          "value": 0.11790780141843972
+        },
+        {
+          "key": 5,
+          "value": 0.13031914893617022
+        },
+        {
+          "key": 6,
+          "value": 0.10815602836879433
+        },
+        {
+          "key": 7,
+          "value": 0.08776595744680851
+        },
+        {
+          "key": 8,
+          "value": 0.07180851063829788
+        },
+        {
+          "key": 9,
+          "value": 0.05319148936170213
+        },
+        {
+          "key": 10,
+          "value": 0.047872340425531915
+        },
+        {
+          "key": 11,
+          "value": 0.03368794326241135
+        },
+        {
+          "key": 12,
+          "value": 0.0274822695035461
+        },
+        {
+          "key": 13,
+          "value": 0.018617021276595744
+        },
+        {
+          "key": 14,
+          "value": 0.007978723404255319
+        },
+        {
+          "key": 15,
+          "value": 0.007978723404255319
+        },
+        {
+          "key": 16,
+          "value": 0.0026595744680851063
+        },
+        {
+          "key": 17,
+          "value": 0.0008865248226950354
+        },
+        {
+          "key": 18,
+          "value": 0.0008865248226950354
+        },
+        {
+          "key": 19,
+          "value": 0.0017730496453900709
+        }
+      ]
+    }
+  ],
+  "messages": {
+    "consume": [
+      {
+        "event_id": "Start_Package",
+        "type": "ItemPicked",
+        "copy": {
+          "customer": "customer"
+        }
+      },
+      {
+        "event_id": "Catch_More_Items",
+        "type": "ItemPicked",
+        "condition": [
+          [
+            {
+              "attribute": "customer",
+              "comparison": "=",
+              "case_attribute": "customer"
+            }
+          ]
+        ],
+        "collect": {
+          "case_attribute": "more_items"
+        }
+      }
+    ]
+  }
+}

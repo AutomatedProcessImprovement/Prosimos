@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Packaging" targetNamespace="http://bpmn.io/schema/bpmn">
+  <!-- a package: an ItemPicked that no open package takes starts one, which then collects more_items more
+       items of the same customer; it is created and sent, and delivered, possibly after failed attempts -->
+  <bpmn:process id="Packaging" isExecutable="false">
+    <bpmn:startEvent id="Start_Package" name="first item picked"><bpmn:outgoing>Flow_1</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:startEvent>
+    <bpmn:intermediateCatchEvent id="Catch_More_Items" name="more items picked"><bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:intermediateCatchEvent>
+    <bpmn:task id="Create_Package" name="create package"><bpmn:incoming>Flow_2</bpmn:incoming><bpmn:outgoing>Flow_3</bpmn:outgoing></bpmn:task>
+    <bpmn:task id="Send_Package" name="send package"><bpmn:incoming>Flow_3</bpmn:incoming><bpmn:outgoing>Flow_4</bpmn:outgoing></bpmn:task>
+    <bpmn:exclusiveGateway id="Attempt"><bpmn:incoming>Flow_4</bpmn:incoming><bpmn:incoming>Flow_6</bpmn:incoming><bpmn:outgoing>Flow_5</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:exclusiveGateway id="Delivered" name="delivered?"><bpmn:incoming>Flow_5</bpmn:incoming><bpmn:outgoing>Flow_Failed</bpmn:outgoing><bpmn:outgoing>Flow_Delivered</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:task id="Failed_Delivery" name="failed delivery"><bpmn:incoming>Flow_Failed</bpmn:incoming><bpmn:outgoing>Flow_6</bpmn:outgoing></bpmn:task>
+    <bpmn:task id="Package_Delivered" name="package delivered"><bpmn:incoming>Flow_Delivered</bpmn:incoming><bpmn:outgoing>Flow_7</bpmn:outgoing></bpmn:task>
+    <bpmn:endEvent id="End" name="package done"><bpmn:incoming>Flow_7</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_Package" targetRef="Catch_More_Items" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Catch_More_Items" targetRef="Create_Package" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Create_Package" targetRef="Send_Package" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Send_Package" targetRef="Attempt" />
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="Attempt" targetRef="Delivered" />
+    <bpmn:sequenceFlow id="Flow_Failed" sourceRef="Delivered" targetRef="Failed_Delivery" />
+    <bpmn:sequenceFlow id="Flow_Delivered" sourceRef="Delivered" targetRef="Package_Delivered" />
+    <bpmn:sequenceFlow id="Flow_6" sourceRef="Failed_Delivery" targetRef="Attempt" />
+    <bpmn:sequenceFlow id="Flow_7" sourceRef="Package_Delivered" targetRef="End" />
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Warehouse" targetNamespace="http://bpmn.io/schema/bpmn">
+  <!-- an item: every ItemOrdered starts a case; 20% are out of stock and reordered first; then the item is
+       picked and announced as picked -->
+  <bpmn:process id="Warehouse" isExecutable="false">
+    <bpmn:startEvent id="Start_Item" name="item ordered"><bpmn:outgoing>Flow_1</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:startEvent>
+    <bpmn:exclusiveGateway id="Stock_Check" name="in stock?"><bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_Out_Of_Stock</bpmn:outgoing><bpmn:outgoing>Flow_In_Stock</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:task id="Item_Out_Of_Stock" name="item out of stock"><bpmn:incoming>Flow_Out_Of_Stock</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing></bpmn:task>
+    <bpmn:task id="Reorder_Item" name="reorder item"><bpmn:incoming>Flow_2</bpmn:incoming><bpmn:outgoing>Flow_3</bpmn:outgoing></bpmn:task>
+    <bpmn:exclusiveGateway id="In_Stock"><bpmn:incoming>Flow_In_Stock</bpmn:incoming><bpmn:incoming>Flow_3</bpmn:incoming><bpmn:outgoing>Flow_4</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:task id="Pick_Item" name="pick item"><bpmn:incoming>Flow_4</bpmn:incoming><bpmn:outgoing>Flow_5</bpmn:outgoing></bpmn:task>
+    <bpmn:endEvent id="End_Picked" name="item picked"><bpmn:incoming>Flow_5</bpmn:incoming><bpmn:messageEventDefinition /></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_Item" targetRef="Stock_Check" />
+    <bpmn:sequenceFlow id="Flow_Out_Of_Stock" sourceRef="Stock_Check" targetRef="Item_Out_Of_Stock" />
+    <bpmn:sequenceFlow id="Flow_In_Stock" sourceRef="Stock_Check" targetRef="In_Stock" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Item_Out_Of_Stock" targetRef="Reorder_Item" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Reorder_Item" targetRef="In_Stock" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="In_Stock" targetRef="Pick_Item" />
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="Pick_Item" targetRef="End_Picked" />
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,59 @@
+{
+  "resource_profiles": [],
+  "gateway_branching_probabilities": [],
+  "task_resource_distribution": [],
+  "resource_calendars": [
+    {
+      "id": "Always",
+      "name": "Always",
+      "time_periods": [
+        {
+          "from": "MONDAY",
+          "to": "SUNDAY",
+          "beginTime": "00:00:00",
+          "endTime": "23:59:59"
+        }
+      ]
+    }
+  ],
+  "messages": {
+    "publish": [
+      {
+        "event_id": "End_Payment",
+        "type": "Payment",
+        "attributes": [
+          "order_id"
+        ]
+      }
+    ],
+    "consume": [
+      {
+        "event_id": "Start_Confirmed",
+        "type": "OrderConfirmed",
+        "copy": {
+          "order_id": "case_id"
+        }
+      }
+    ]
+  },
+  "event_distribution": [
+    {
+      "event_id": "Pay_Delay",
+      "distribution_name": "lognorm",
+      "distribution_params": [
+        {
+          "value": 1879791
+        },
+        {
+          "value": 30602541360485
+        },
+        {
+          "value": 0
+        },
+        {
+          "value": 7862400
+        }
+      ]
+    }
+  ]
+}
