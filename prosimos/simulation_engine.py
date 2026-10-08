@@ -99,7 +99,7 @@ class SimBPMEnv:
         self.sim_setup.bpmn_graph.watched_elements = set(self._publish_points)
         self._held = []
         self._pass_order = itertools.count()
-        self.outbox = []  # (message type, attributes) released by step(), oldest first
+        self.outbox = []  # (message type, attributes, case id, element id) released by step(), oldest first
         self._warned_missing_values = set()
         self._warned_counts = set()
 
@@ -110,6 +110,7 @@ class SimBPMEnv:
         for point in sim_setup.messaging.consume:
             self._consume_points.setdefault(point.event_id, []).append(point)
         self._parked_events = dict()  # (case id, event id) -> the parked EnabledEvent
+        self.claimed_by = []  # (case id, event id) that took the message deliver() last claimed
         self._warned_missing_copies = set()
         self._warned_capacities = set()
         self._collected = dict()  # (case id, event id) -> [messages claimed so far, messages needed]
@@ -202,7 +203,7 @@ class SimBPMEnv:
             _, p_case, _, element_id = heappop(self._held)
             for point in self._publish_points.get(element_id, []):
                 for index in range(1, self._count(point, p_case) + 1):
-                    self.outbox.append((point.type, self._message_attributes(point, p_case, index)))
+                    self.outbox.append((point.type, self._message_attributes(point, p_case, index), p_case, element_id))
 
     def _count(self, point, p_case):
         """How many messages point publishes for a case passing it now: 1 without count, else its fixed count
@@ -229,8 +230,10 @@ class SimBPMEnv:
     def deliver(self, message_type, attributes, source, now):
         """Offers one message: 'claimed' if it resumed a waiting case (the one waiting longest, ties
         by case id) or, failing that, started a new case at the start event; 'discarded' if it can
-        never match; 'pending' otherwise."""
+        never match; 'pending' otherwise. After a claim, claimed_by lists who took it: the new case and
+        the start event, or each waiting case it resumed and the catch event it waited at."""
         self._ensure_arrivals_generated()
+        self.claimed_by = []
         values = dict(attributes, source=source)
         # the oldest matching waiting case claims the message; its consume entry's capacity says how
         # many waiting cases at the same entry claim it, oldest first, without waiting to fill up
@@ -251,13 +254,15 @@ class SimBPMEnv:
         if takers:
             for parked_event in takers:
                 self._claim(parked_event, claiming, values, now)
+            self.claimed_by = [(parked_event.p_case, parked_event.task_id) for parked_event in takers]
             return "claimed"
         points = [point for points in self._consume_points.values() for point in points if point.type == message_type]
         # a start event's condition looks only at the message, so it decides now: a new case, or never
         starting = next((point for point in points
                          if point.starts_case and self._condition_holds(point.condition, values, None)), None)
         if starting is not None:
-            self.create_case(now, lambda case_values: self._apply_copy(starting, values, case_values))
+            p_case = self.create_case(now, lambda case_values: self._apply_copy(starting, values, case_values))
+            self.claimed_by = [(p_case, starting.event_id)]
             return "claimed"
         if any(self._could_match(point.condition, values) for point in points if not point.starts_case):
             return "pending"

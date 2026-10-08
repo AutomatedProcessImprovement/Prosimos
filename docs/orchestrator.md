@@ -104,13 +104,29 @@ gives it as plain lists and dicts with times as ISO strings, which is what `--re
 | `stalled`          | (process, `StalledCase`) for every case still waiting for a message at the end                        |
 | `engine_warnings`  | (process, warning) for the warnings raised inside each engine                                         |
 | `discarded_counts` | discards per (message type, process)                                                                  |
+| `message_records`  | per message, in publishing order: who published it and who took it (see below)                        |
 
 A `StalledCase` has `case_id` (e.g. `Sales-1`), `event_id` (the catch event it waits at, or the
 event-based gateway for a case waiting in a race, reported once with the types of all its message
 branches), `message_types` (the types it waits for: any one of them resumes it), `waiting_since`, and
 `collected` of `needed` (how many messages it had collected there of the ones it needed; more than one
 with `collect`, see [messaging.md](messaging.md)). The "discarded by every recipient" warning appears even when the discard
-is expected, for example a shipment for an order that was cancelled.
+is expected, for example a shipment for an order that was canceled.
+
+**Message records.** Each engine keeps its own records of which of its cases and elements published
+and took each message, and hands them over in `finish()`, at the end of the run; the orchestrator joins
+them on the message id only then. Nothing it decides during the run uses them, so engines stay black
+boxes. A `MessageRecord` has the message's `message_id` and `type`, its `publisher`, and its
+`claimers`, each a `CaseElement` (`process`, `case_id`, `element_id`):
+
+- **publisher**: the case and the throw or end event that published it;
+- **claimers**: at a start event, the case the message started; at a catch event or race branch, the
+  waiting case and that catch event; with `capacity`, every case the message resumed; with `collect`,
+  the collecting case, once for each message it claimed. A message that was discarded or never claimed
+  has no claimers.
+
+An engine that keeps no records, such as a scripted test engine, leaves `publisher` empty for its
+messages and appears in no `claimers`.
 
 ## Message routing
 
@@ -186,9 +202,14 @@ It is the same per-message acknowledgement that message brokers such as RabbitMQ
 requeue).
 
 **`finish()`**: called once on every engine after the loop stops, i.e. when no engine has a next
-event. It returns an `EngineReport` with the engine's stalled cases and the warnings it raised during
-the run (including while it was built). The orchestrator adds both to the run report, tagged with
-the process name.
+event. It returns an `EngineReport` with the engine's stalled cases, the warnings it raised during the
+run (including while it was built), and its message records (`published` and `claimed`, each a list of
+(message id, case id, element id)). The orchestrator adds the stalled cases and warnings to the run
+report, tagged with the process name, and joins the records into `message_records`.
+
+A Prosimos engine learns each message's id without any change to the interface: the orchestrator
+stamps the id on the very `Message` objects `step()` returned, and `deliver()` receives the stamped
+copy.
 
 A Prosimos engine collects its own warnings: Prosimos writes warnings to one list shared by all
 engines (`warning_logger`), so `ProsimosEngine` hands Prosimos its own list for the duration of each

@@ -5,9 +5,9 @@ import itertools
 import json
 import random
 from abc import ABC, abstractmethod
-from collections import Counter
+from collections import Counter, defaultdict
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -150,12 +150,54 @@ class StalledCase:
     needed: int = 1  # ...of the ones it needed (more than 1 with collect)
 
 
+@dataclass(frozen=True)
+class PublishRecord:
+    """An engine's record that one of its cases published a message, at one of its elements."""
+
+    message_id: str
+    case_id: str
+    element_id: str
+
+
+@dataclass(frozen=True)
+class ClaimRecord:
+    """An engine's record that one of its cases took a message, at one of its elements."""
+
+    message_id: str
+    case_id: str
+    element_id: str
+
+
 @dataclass
 class EngineReport:
     """What one engine has to report when the run is over."""
 
     stalled: List[StalledCase] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)  # raised inside this engine during the run
+    # which of its cases and elements published and took each message, kept by the engine during the run
+    published: List[PublishRecord] = field(default_factory=list)
+    claimed: List[ClaimRecord] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class CaseElement:
+    """One element of one case of one process."""
+
+    process: str
+    case_id: str
+    element_id: str
+
+
+@dataclass
+class MessageRecord:
+    """Who published a message and who took it, joined from the engines' records after the run. No
+    claimers for a message that was discarded or never claimed; several with capacity; no publisher
+    if the publishing engine keeps no records."""
+
+    message_id: str
+    type: str
+    publisher: Optional[CaseElement]
+    claimers: List[CaseElement] = field(default_factory=list)
 
 
 class SimulationEngine(ABC):
@@ -193,8 +235,9 @@ class SimulationEngine(ABC):
 
     @abstractmethod
     def finish(self) -> EngineReport:
-        """Called once, after the loop stops: the cases still waiting for a message and the warnings
-        this engine raised. A lifecycle call, not a messaging one: nothing is published or delivered."""
+        """Called once, after the loop stops: the cases still waiting for a message, the warnings this
+        engine raised, and its records of which cases and elements published and took each message. A
+        lifecycle call, not a messaging one: nothing is published or delivered."""
 
 
 class ProsimosEngine(SimulationEngine):
@@ -215,6 +258,8 @@ class ProsimosEngine(SimulationEngine):
 
     def __init__(self, spec: ProcessSpec, start_datetime: datetime, log_writer=None, seed: Optional[int] = None):
         self._warnings: List[str] = []
+        self._published: List[Tuple[Message, str, str]] = []  # (message as returned by step(), case id, element id)
+        self._claimed: List[ClaimRecord] = []
         self._python_state, self._numpy_state = _engine_random_states(seed, spec.name)
         with self._own_globals():
             sim_setup = SimDiffSetup(spec.bpmn_path, spec.json_path, False, spec.total_cases, start_datetime)
@@ -249,20 +294,30 @@ class ProsimosEngine(SimulationEngine):
             # the engine buffers its log rows; hand them over now so nobody outside the engine
             # has to reach into it to flush them at the end
             self._env.log_writer.force_write()
-            released = [Message(message_type, attributes) for message_type, attributes in self._env.outbox]
+            released = []
+            for message_type, attributes, p_case, element_id in self._env.outbox:
+                message = Message(message_type, attributes)
+                # the orchestrator stamps the id on this same object, so it can be read at the end
+                self._published.append((message, self._env.case_id(p_case), element_id))
+                released.append(message)
             self._env.outbox.clear()
             return released
 
     def deliver(self, message: Message, now: datetime) -> Verdict:
         with self._own_globals():
-            return Verdict(self._env.deliver(message.type, message.attributes, message.source, now))
+            verdict = Verdict(self._env.deliver(message.type, message.attributes, message.source, now))
+            if verdict is Verdict.CLAIMED:
+                self._claimed.extend(ClaimRecord(message.id, self._env.case_id(p_case), element_id)
+                                     for p_case, element_id in self._env.claimed_by)
+            return verdict
 
     def finish(self) -> EngineReport:
         with self._own_globals():
             stalled = [StalledCase(self._env.case_id(parked_event.p_case), place, message_types,
                                    parked_event.enabled_datetime, *self._env.collected(parked_event))
                        for parked_event, place, message_types in self._env.stalled_waits()]
-        return EngineReport(stalled, list(self._warnings))
+        published = [PublishRecord(message.id, case_id, element_id) for message, case_id, element_id in self._published]
+        return EngineReport(stalled, list(self._warnings), published, list(self._claimed))
 
 
 def _engine_random_states(seed, process_name):
@@ -352,6 +407,7 @@ class RunReport:
     warnings: List[str] = field(default_factory=list)  # the orchestrator's own, about routing
     stalled: List[Tuple[str, StalledCase]] = field(default_factory=list)  # (process, case) from finish()
     engine_warnings: List[Tuple[str, str]] = field(default_factory=list)  # (process, warning) from finish()
+    message_records: List[MessageRecord] = field(default_factory=list)  # per message, joined after finish()
 
     @property
     def discarded_counts(self) -> Dict[Tuple[str, str], int]:
@@ -383,6 +439,10 @@ class RunReport:
                         for process, case in self.stalled],
             "warnings": list(self.warnings),
             "engine_warnings": [{"process": process, "warning": warning} for process, warning in self.engine_warnings],
+            "message_records": [{"message": record.message_id, "type": record.type,
+                                 "publisher": asdict(record.publisher) if record.publisher else None,
+                                 "claimers": [asdict(claimer) for claimer in record.claimers]}
+                                for record in self.message_records],
         }
 
 
@@ -481,12 +541,20 @@ def run_engines(
                     resolve(pooled)
 
     report.unclaimed = [(pooled.group, pooled.message) for pooled in pool]
+    # the engines' records are only joined here, once the run is over: nothing during the run uses them
+    publishers, claimers = {}, defaultdict(list)
     for name in names:
         engine_report = engines[name].finish()
         if not isinstance(engine_report, EngineReport):
             raise TypeError(f"{name}.finish() must return an EngineReport, got {engine_report!r}")
         report.stalled.extend((name, case) for case in engine_report.stalled)
         report.engine_warnings.extend((name, warning) for warning in engine_report.warnings)
+        for record in engine_report.published:
+            publishers[record.message_id] = CaseElement(name, record.case_id, record.element_id)
+        for record in engine_report.claimed:
+            claimers[record.message_id].append(CaseElement(name, record.case_id, record.element_id))
+    report.message_records = [MessageRecord(message.id, message.type, publishers.get(message.id), claimers[message.id])
+                              for message in report.published]
     return report
 
 
