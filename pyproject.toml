@@ -25,11 +25,12 @@ pix-framework = "^0.15.0"
 pylint = "^4.0.6"
 log-distance-measures = "^2.2.0"
 
-[tool.poetry.dev-dependencies]
-pytest = "^9.0.1"
-
 [tool.poetry.scripts]
 prosimos = "cli.diff_res_bpsim:cli"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^9.0.1"
+pm4py = "^2.7.23.8"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
