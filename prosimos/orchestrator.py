@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import numpy as np
 import pytz
 
+from prosimos.ocel_writer import write_ocel
 from prosimos.simulation_engine import SimBPMEnv
 from prosimos.simulation_properties_parser import parse_datetime
 from prosimos.simulation_setup import SimDiffSetup
@@ -28,6 +29,13 @@ class ProcessSpec:
     bpmn_path: str
     json_path: str
     total_cases: Optional[int] = None  # None for a process started by messages
+    # the OCEL object type of its cases: "" (the default) means the process name; None writes no objects
+    # and no events for this process in the OCEL output
+    object_type: Optional[str] = ""
+
+    @property
+    def ocel_object_type(self) -> Optional[str]:
+        return self.name if self.object_type == "" else self.object_type
 
 
 @dataclass
@@ -103,7 +111,8 @@ class SimulationConfig:
              "consumer_groups": {"Sales": ["Sales"], ...}}
         BPMN and JSON paths are relative to the configuration file's folder. seed and
         consumer_groups are optional; a start time without a time zone is taken as UTC. A process
-        started by messages has no total_cases.
+        started by messages has no total_cases. A process's optional object_type names the OCEL object
+        type of its cases (by default its name); null writes no objects and no events for it.
         """
         path = Path(path)
         with open(path) as f:
@@ -120,7 +129,8 @@ class SimulationConfig:
             if missing:
                 raise ValueError(f"{path}: process {entry.get('name', '?')} is missing {missing}")
             processes.append(ProcessSpec(
-                entry["name"], str(folder / entry["bpmn_path"]), str(folder / entry["json_path"]), entry.get("total_cases")
+                entry["name"], str(folder / entry["bpmn_path"]), str(folder / entry["json_path"]), entry.get("total_cases"),
+                entry.get("object_type", "")
             ))
 
         start = parse_datetime(data["start_time"], True)
@@ -169,6 +179,15 @@ class ClaimRecord:
 
 
 @dataclass
+class CaseObject:
+    """One case of an engine, as an object of the OCEL output: its id and its case attributes over time,
+    as (attribute, value, time): the values it had when it was created, then every later change."""
+
+    case_id: str
+    attributes: List[Tuple[str, Any, datetime]] = field(default_factory=list)
+
+
+@dataclass
 class EngineReport:
     """What one engine has to report when the run is over."""
 
@@ -177,6 +196,7 @@ class EngineReport:
     # which of its cases and elements published and took each message, kept by the engine during the run
     published: List[PublishRecord] = field(default_factory=list)
     claimed: List[ClaimRecord] = field(default_factory=list)
+    objects: List[CaseObject] = field(default_factory=list)  # every case it created
 
 
 @dataclass(frozen=True)
@@ -316,8 +336,10 @@ class ProsimosEngine(SimulationEngine):
             stalled = [StalledCase(self._env.case_id(parked_event.p_case), place, message_types,
                                    parked_event.enabled_datetime, *self._env.collected(parked_event))
                        for parked_event, place, message_types in self._env.stalled_waits()]
+            objects = [CaseObject(self._env.case_id(p_case), history)
+                       for p_case, history in sorted(self._env.case_attribute_history().items())]
         published = [PublishRecord(message.id, case_id, element_id) for message, case_id, element_id in self._published]
-        return EngineReport(stalled, list(self._warnings), published, list(self._claimed))
+        return EngineReport(stalled, list(self._warnings), published, list(self._claimed), objects)
 
 
 def _engine_random_states(seed, process_name):
@@ -346,6 +368,11 @@ class _MergedLog:
 
     def _register(self, process_name, header):
         self._process_columns[process_name] = list(header)
+
+    @property
+    def rows(self):
+        """(process, {column: value}) for every row handed over, in the order they came."""
+        return list(self._rows)
 
     def _add(self, process_name, rows):
         process_columns = self._process_columns[process_name]
@@ -408,6 +435,8 @@ class RunReport:
     stalled: List[Tuple[str, StalledCase]] = field(default_factory=list)  # (process, case) from finish()
     engine_warnings: List[Tuple[str, str]] = field(default_factory=list)  # (process, warning) from finish()
     message_records: List[MessageRecord] = field(default_factory=list)  # per message, joined after finish()
+    # (process, object) for every case, from finish(); written to the OCEL output, not to to_dict()
+    objects: List[Tuple[str, CaseObject]] = field(default_factory=list)
 
     @property
     def discarded_counts(self) -> Dict[Tuple[str, str], int]:
@@ -549,6 +578,7 @@ def run_engines(
             raise TypeError(f"{name}.finish() must return an EngineReport, got {engine_report!r}")
         report.stalled.extend((name, case) for case in engine_report.stalled)
         report.engine_warnings.extend((name, warning) for warning in engine_report.warnings)
+        report.objects.extend((name, case_object) for case_object in engine_report.objects)
         for record in engine_report.published:
             publishers[record.message_id] = CaseElement(name, record.case_id, record.element_id)
         for record in engine_report.claimed:
@@ -559,13 +589,16 @@ def run_engines(
 
 
 def run_orchestrator(config: SimulationConfig, log_out_path: Optional[str] = None,
-                     extra_engines: Optional[Dict[str, SimulationEngine]] = None) -> RunReport:
+                     extra_engines: Optional[Dict[str, SimulationEngine]] = None,
+                     ocel_out_path: Optional[str] = None) -> RunReport:
     """
     Simulate the configured processes side by side on one shared clock (see run_engines),
     stepping the engine whose next_event_time() is earliest, ties broken by process name, so runs
     given the same seed are repeatable; without a seed each run draws different random values.
     When log_out_path is given, every process's events are written to that one CSV, sorted
-    by start time, with the process name as the first column.
+    by start time, with the process name as the first column. When ocel_out_path is given, the run
+    is also written as an OCEL 2.0 JSON file: one object per case, typed by its process's object_type,
+    and one event per task (see prosimos/ocel_writer.py).
     extra_engines are ready-made engines, keyed by process name, that run alongside the ones built
     from config.processes; their names must be exactly config.extra_processes. They get no log
     writer, so the merged log holds only the configured processes.
@@ -575,7 +608,7 @@ def run_orchestrator(config: SimulationConfig, log_out_path: Optional[str] = Non
         raise ValueError(f"extra_engines must be exactly the configuration's extra_processes "
                          f"{sorted(config.extra_processes)}, got {sorted(extra_engines)}")
 
-    merged_log = _MergedLog() if log_out_path is not None else None
+    merged_log = _MergedLog() if log_out_path is not None or ocel_out_path is not None else None
 
     # every engine has its own random generators, seeded from the seed and its process name; without a
     # seed they are seeded from the global generators, so build them in name order rather than input
@@ -588,7 +621,10 @@ def run_orchestrator(config: SimulationConfig, log_out_path: Optional[str] = Non
 
     report = run_engines(engines, config.consumer_groups, config.seed)
 
-    if merged_log is not None:
+    if log_out_path is not None:
         merged_log.write(log_out_path)
+    if ocel_out_path is not None:
+        object_types = {spec.name: spec.ocel_object_type for spec in config.processes}
+        write_ocel(ocel_out_path, object_types, report.objects, merged_log.rows)
 
     return report

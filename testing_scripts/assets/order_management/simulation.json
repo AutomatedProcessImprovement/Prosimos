@@ -4,22 +4,26 @@
       "name": "Sales",
       "bpmn_path": "sales.bpmn",
       "json_path": "sales.json",
-      "total_cases": 2000
+      "total_cases": 2000,
+      "object_type": "orders"
     },
     {
       "name": "Customer",
       "bpmn_path": "customer.bpmn",
-      "json_path": "customer.json"
+      "json_path": "customer.json",
+      "object_type": null
     },
     {
       "name": "Warehouse",
       "bpmn_path": "warehouse.bpmn",
-      "json_path": "warehouse.json"
+      "json_path": "warehouse.json",
+      "object_type": "items"
     },
     {
       "name": "Packaging",
       "bpmn_path": "packaging.bpmn",
-      "json_path": "packaging.json"
+      "json_path": "packaging.json",
+      "object_type": "packages"
     }
   ],
   "seed": 1,

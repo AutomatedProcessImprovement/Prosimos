@@ -111,6 +111,12 @@ class SimBPMEnv:
             self._consume_points.setdefault(point.event_id, []).append(point)
         self._parked_events = dict()  # (case id, event id) -> the parked EnabledEvent
         self.claimed_by = []  # (case id, event id) that took the message deliver() last claimed
+        # case attributes over time: the declared ones and those copied from messages, as each case was
+        # created, and every later copy at a catch event
+        self._case_attribute_names = ({attribute.name for attribute in sim_setup.case_attributes.attributes}
+                                      | {target for point in sim_setup.messaging.consume for target, _ in point.copy})
+        self._case_created = dict()  # case id -> (when it was created, its case attribute values then)
+        self._copied_later = []  # (case id, attribute, value, when copied)
         self._warned_missing_copies = set()
         self._warned_capacities = set()
         self._collected = dict()  # (case id, event id) -> [messages claimed so far, messages needed]
@@ -273,6 +279,8 @@ class SimBPMEnv:
         has collected all the messages it needs, it is resumed at now."""
         key = (parked_event.p_case, parked_event.task_id)
         self._apply_copy(point, values, self.sim_setup.bpmn_graph.all_attributes[parked_event.p_case])
+        self._copied_later.extend((parked_event.p_case, target, values[source], now)
+                                  for target, source in point.copy if source in values)
         self._collected[key][0] += 1
         if self._collected[key][0] >= self._collected[key][1]:
             self._resume(parked_event, now)
@@ -393,6 +401,15 @@ class SimBPMEnv:
                         p_state.state_mask &= ~graph.arcs_bitset[flow]
             self._parked_events.pop((race.p_case, branch), None)
             self._collected.pop((race.p_case, branch), None)
+
+    def case_attribute_history(self):
+        """Case id -> its case attributes over time, as (attribute, value, time): every value the case had
+        when it was created, then every value a message copied into it later, in the order they came."""
+        history = {p_case: [(name, value, createdAt) for name, value in values.items()]
+                   for p_case, (createdAt, values) in self._case_created.items()}
+        for p_case, name, value, copiedAt in self._copied_later:
+            history[p_case].append((name, value, copiedAt))
+        return history
 
     def stalled_at(self, parked_event):
         """Where a parked case is reported stalled: the race gateway if it waits in a race, else its event."""
@@ -556,6 +573,9 @@ class SimBPMEnv:
         self._log_passed_throw_events(p_case, p_state, visited_at)
         self.all_process_states[p_case] = p_state
         self.log_info.trace_list.append(Trace(p_case, enabled_datetime))
+        case_values = sim_setup.bpmn_graph.all_attributes.get(p_case, {})
+        self._case_created[p_case] = (enabled_datetime, {name: value for name, value in case_values.items()
+                                                         if name in self._case_attribute_names})
         for task in enabled_tasks:
             task_id = task.task_id
             self.events_queue.append_event(

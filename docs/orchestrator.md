@@ -35,8 +35,9 @@ Run it from the command line:
 poetry run prosimos start-orchestration --config config.json --log_out_path merged_log.csv --report_out_path report.json
 ```
 
-`--log_out_path` (the merged event log) and `--report_out_path` (the run report as JSON) are optional,
-and `--seed` overrides the configuration's seed. The command prints a short summary, e.g.
+`--log_out_path` (the merged event log), `--report_out_path` (the run report as JSON) and
+`--ocel_out_path` (the run as an OCEL 2.0 JSON file, see "Output") are optional, and `--seed` overrides
+the configuration's seed. The command prints a short summary, e.g.
 
 ```
 Messages: 37 published, 54 claims, 9 discards, 0 unclaimed
@@ -64,12 +65,12 @@ Extra engines (see "Configuration") can only be passed from Python.
 `run_orchestrator` takes a `SimulationConfig`, built in code or loaded with
 `SimulationConfig.from_json(path)`:
 
-| Field             | Meaning                                                                                                                                                                                                                                                                 |
-|-------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `processes`       | one entry per process: a unique `name`, `bpmn_path`, `json_path`, and `total_cases` <br/>unless the process is started by messages ([messaging.md](messaging.md))                                                                                                       |
-| `start_time`      | the simulation's start, shared by all processes; a time without a time zone is taken as UTC                                                                                                                                                                             |
-| `seed`            | optional; the same seed gives the same run. Each Prosimos engine gets its own random generators, seeded from the seed and its process name, so adding or changing one process doesn't change the others' draws. Without a seed, every run draws different random values |
-| `consumer_groups` | optional; group name → processes in it. Without it, every process is its own group (see "Message routing")                                                                                                                                                              |
+| Field             | Meaning                                                                                                                                                                                                                                                                                                        |
+|-------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `processes`       | one entry per process: a unique `name`, `bpmn_path`, `json_path`, and `total_cases` <br/>unless the process is started by messages ([messaging.md](messaging.md)); optionally `object_type`, the OCEL object type of its cases (by default the process name; `null` leaves the process out of the OCEL output) |
+| `start_time`      | the simulation's start, shared by all processes; a time without a time zone is taken as UTC                                                                                                                                                                                                                    |
+| `seed`            | optional; the same seed gives the same run. Each Prosimos engine gets its own random generators, seeded from the seed and its process name, so adding or changing one process doesn't change the others' draws. Without a seed, every run draws different random values                                        |
+| `consumer_groups` | optional; group name → processes in it. Without it, every process is its own group (see "Message routing")                                                                                                                                                                                                     |
 
 File paths are relative to the configuration file's folder. A configuration is rejected if process
 names repeat, a process is in no group or in more than one, or a group names a process that doesn't
@@ -88,6 +89,24 @@ sorted by start time. The first column is the process name; the other columns ar
 processes' log columns (`case_id`, `activity`, `enable_time`, `start_time`, `end_time`, `resource`,
 plus attribute and batch columns where a model has them). A process leaves blank the columns it
 doesn't produce. Extra engines get no log writer, so their events aren't in the merged log.
+
+**OCEL 2.0 output.** With `ocel_out_path` (`--ocel_out_path` on the command line), the run is also
+written as an OCEL 2.0 JSON file, the format of the OCEL 2.0 sample logs, readable with
+`pm4py.read_ocel2_json`:
+
+- **Objects:** one per case, with the case id as object id (e.g. `Sales-7`) and its process's
+  `object_type` as type. Its attributes are its case attributes, the declared ones and those copied from
+  messages: the values it had when it was created, at that time, and every value copied into it later at
+  a catch event, at the time of the claim.
+- **Events:** one per task, i.e. per row of the merged log, with the activity as event type, the task's
+  completion as time, `resource` as attribute, and a link to its case's object (qualified by the
+  object type). Event ids (`e1`, `e2`, ...) follow time order.
+- `objectTypes` and `eventTypes` list each type with its attributes; an attribute's type is inferred
+  from its values.
+- A process with `"object_type": null` writes no objects and no events. Extra engines write neither.
+
+A case that has no task in the log yet, e.g. a package still collecting when the run ends, is an object
+without events; `pm4py.read_ocel2_json` leaves such objects out.
 
 **Run report.** `run_orchestrator` (and `run_engines`) return a `RunReport`; `RunReport.to_dict()`
 gives it as plain lists and dicts with times as ISO strings, which is what `--report_out_path` saves:

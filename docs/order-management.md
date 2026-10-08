@@ -125,11 +125,13 @@ Place order, pay order and payment reminder have no employee in the log; here th
 
 ```
 poetry run prosimos start-orchestration --config testing_scripts/assets/order_management/simulation.json \
-    --log_out_path order_management_log.csv
+    --log_out_path order_management_log.csv --ocel_out_path order_management_log.json
 poetry run python testing_scripts/order_management_compare.py <path to order-management.json> order_management_log.csv
 ```
 
-The full 2,000-order run takes about 25 seconds (Apple M4 Pro). The OCEL file isn't part of the repository;
+The configuration names the object types: `orders` (Sales), `items` (Warehouse) and `packages`
+(Packaging); Customer has `"object_type": null`, so the OCEL file has no objects or events for it. The full
+2,000-order run takes about 25 seconds (Apple M4 Pro). The OCEL file isn't part of the repository;
 the comparison script reads it from the given path.
 
 The merged log doesn't link a package to its items, so the script reconstructs them: a customer has at most

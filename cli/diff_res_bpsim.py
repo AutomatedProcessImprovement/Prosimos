@@ -58,16 +58,18 @@ def start_simulation(ctx, bpmn_path, json_path, total_cases, stat_out_path=None,
               help='Path to the CSV file to produce with the merged event log of all processes. Optional.')
 @click.option('--report_out_path', required=False,
               help='Path to the JSON file to produce with the full run report. Optional.')
+@click.option('--ocel_out_path', required=False,
+              help='Path to the OCEL 2.0 JSON file to produce: one object per case, one event per task. Optional.')
 @click.option('--seed', required=False, type=click.INT, default=None,
               help="Seed for the random number generators; overrides the configuration's seed. Without "
                    "either, every run draws different random values.")
-def start_orchestration(config_path, log_out_path=None, report_out_path=None, seed=None):
+def start_orchestration(config_path, log_out_path=None, report_out_path=None, ocel_out_path=None, seed=None):
     """Simulate several processes side by side, exchanging messages."""
     config = SimulationConfig.from_json(config_path)
     if seed is not None:
         config = dataclasses.replace(config, seed=seed)
 
-    report = run_orchestrator(config, log_out_path)
+    report = run_orchestrator(config, log_out_path, ocel_out_path=ocel_out_path)
 
     click.echo(run_summary(report))
     if report_out_path is not None:
