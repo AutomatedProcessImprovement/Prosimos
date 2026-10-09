@@ -17,6 +17,7 @@ import numpy as np
 import pytz
 
 from prosimos.control_flow_manager import BPMN
+from prosimos.messaging_parser import ConsumePoint, PublishPoint
 from prosimos.ocel_writer import OcelProcess, write_ocel
 from prosimos.simulation_engine import SimBPMEnv
 from prosimos.simulation_properties_parser import parse_datetime
@@ -183,6 +184,7 @@ class PublishRecord:
     element_id: str
     qualifier: str = ""
     task_rows: Tuple[int, ...] = ()
+    o2o: Optional[str] = None  # qualifier of the OCEL link from its case's object to the other end's, if any
 
 
 @dataclass(frozen=True)
@@ -197,6 +199,7 @@ class ClaimRecord:
     element_id: str
     qualifier: str = ""
     task_rows: Tuple[int, ...] = ()
+    o2o: Optional[str] = None  # qualifier of the OCEL link from its case's object to the other end's, if any
 
 
 @dataclass
@@ -231,6 +234,7 @@ class CaseElement:
     element_id: str
     qualifier: str = ""
     task_rows: Tuple[int, ...] = ()
+    o2o: Optional[str] = None  # qualifier of the OCEL link from its case's object to the other end's, if any
 
 
 @dataclass
@@ -304,10 +308,11 @@ class ProsimosEngine(SimulationEngine):
     def __init__(self, spec: ProcessSpec, start_datetime: datetime, log_writer=None, seed: Optional[int] = None):
         self._spec = spec
         self._warnings: List[str] = []
-        # (message as returned by step(), case id, element id, link qualifier, when); the orchestrator stamps
+        # (message as returned by step(), case id, element id, publish entry, when); the orchestrator stamps
         # the id on the message, which is read at the end
-        self._published: List[Tuple[Message, int, str, str, datetime]] = []
-        self._claimed: List[Tuple[str, int, str, str, datetime]] = []  # (message id, case id, element id, qualifier, when)
+        self._published: List[Tuple[Message, int, str, PublishPoint, datetime]] = []
+        # (message id, case id, element id, consume entry, when)
+        self._claimed: List[Tuple[str, int, str, ConsumePoint, datetime]] = []
         self._python_state, self._numpy_state = _engine_random_states(seed, spec.name)
         with self._own_globals():
             sim_setup = SimDiffSetup(spec.bpmn_path, spec.json_path, False, spec.total_cases, start_datetime)
@@ -350,10 +355,10 @@ class ProsimosEngine(SimulationEngine):
             # has to reach into it to flush them at the end
             self._env.log_writer.force_write()
             released = []
-            for message_type, attributes, p_case, element_id, qualifier in self._env.outbox:
+            for message_type, attributes, p_case, element_id, point in self._env.outbox:
                 message = Message(message_type, attributes)
                 # the orchestrator stamps the id on this same object, so it can be read at the end
-                self._published.append((message, p_case, element_id, qualifier, now))
+                self._published.append((message, p_case, element_id, point, now))
                 released.append(message)
             self._env.outbox.clear()
             return released
@@ -362,8 +367,8 @@ class ProsimosEngine(SimulationEngine):
         with self._own_globals():
             verdict = Verdict(self._env.deliver(message.type, message.attributes, message.source, now))
             if verdict is Verdict.CLAIMED:
-                self._claimed.extend((message.id, p_case, element_id, qualifier, now)
-                                     for p_case, element_id, qualifier in self._env.claimed_by)
+                self._claimed.extend((message.id, p_case, element_id, point, now)
+                                     for p_case, element_id, point in self._env.claimed_by)
             return verdict
 
     def finish(self) -> EngineReport:
@@ -430,12 +435,12 @@ class ProsimosEngine(SimulationEngine):
                 warning_logger.add_warning(f"{reason}; the OCEL links of its messages there are dropped")
             return tuple(found)
 
-        published = [PublishRecord(message.id, self._env.case_id(p_case), element_id, qualifier,
-                                   task_rows(p_case, element_id, when, forward=False))
-                     for message, p_case, element_id, qualifier, when in self._published]
-        claimed = [ClaimRecord(message_id, self._env.case_id(p_case), element_id, qualifier,
-                               task_rows(p_case, element_id, when, forward=True))
-                   for message_id, p_case, element_id, qualifier, when in self._claimed]
+        published = [PublishRecord(message.id, self._env.case_id(p_case), element_id, point.link_qualifier,
+                                   task_rows(p_case, element_id, when, forward=False), point.o2o)
+                     for message, p_case, element_id, point, when in self._published]
+        claimed = [ClaimRecord(message_id, self._env.case_id(p_case), element_id, point.link_qualifier,
+                               task_rows(p_case, element_id, when, forward=True), point.o2o)
+                   for message_id, p_case, element_id, point, when in self._claimed]
         return published, claimed
 
 
@@ -685,10 +690,10 @@ def run_engines(
         report.logged_elements[name] = engine_report.logged_elements
         for record in engine_report.published:
             publishers[record.message_id] = CaseElement(name, record.case_id, record.element_id, record.qualifier,
-                                                        record.task_rows)
+                                                        record.task_rows, record.o2o)
         for record in engine_report.claimed:
             claimers[record.message_id].append(CaseElement(name, record.case_id, record.element_id, record.qualifier,
-                                                           record.task_rows))
+                                                           record.task_rows, record.o2o))
     report.message_records = [MessageRecord(message.id, message.type, publishers.get(message.id), claimers[message.id])
                               for message in report.published]
     return report
@@ -705,7 +710,8 @@ def run_orchestrator(config: SimulationConfig, log_out_path: Optional[str] = Non
     by start time, with the process name as the first column. When ocel_out_path is given, the run
     is also written as an OCEL 2.0 JSON file: one object per case, typed by its process's object_type,
     and one event per task, linked to its case's object and to the objects on the other end of its
-    messages (see prosimos/ocel_writer.py).
+    messages; objects are linked to each other where a message entry has an o2o key (see
+    prosimos/ocel_writer.py).
     extra_engines are ready-made engines, keyed by process name, that run alongside the ones built
     from config.processes; their names must be exactly config.extra_processes. They get no log
     writer, so the merged log holds only the configured processes.
@@ -734,7 +740,7 @@ def run_orchestrator(config: SimulationConfig, log_out_path: Optional[str] = Non
         processes = {spec.name: OcelProcess(spec.ocel_object_type, spec.qualifier, dict(spec.qualifier_by_activity),
                                             spec.carry_links) for spec in config.processes}
         write_ocel(ocel_out_path, processes, report.objects, merged_log.rows, report.logged_elements,
-                   _message_links(report.message_records, processes))
+                   _message_links(report.message_records, processes), _object_links(report.message_records, processes))
 
     return report
 
@@ -757,4 +763,25 @@ def _message_links(records: List[MessageRecord], processes: Dict[str, OcelProces
                 links[(publisher.process, row)].append((claimer.case_id, publisher.qualifier))
             for row in claimer.task_rows if has_object(publisher) else ():
                 links[(claimer.process, row)].append((publisher.case_id, claimer.qualifier))
+    return dict(links)
+
+
+def _object_links(records: List[MessageRecord], processes: Dict[str, OcelProcess]):
+    """Object id -> [(object id, qualifier)]: the OCEL links between objects that the messages' o2o keys give.
+    A publish entry's o2o links the publisher's object to the object of every case that claimed the
+    message, a consume entry's links the claimer's object to the publisher's. A link is written once, however
+    many messages give it; ends whose process writes no objects link nothing."""
+    def has_object(element):
+        return element.process in processes and processes[element.process].object_type is not None
+
+    links = defaultdict(list)
+
+    def link(source, target, qualifier):
+        if qualifier and has_object(source) and has_object(target) and (target.case_id, qualifier) not in links[source.case_id]:
+            links[source.case_id].append((target.case_id, qualifier))
+
+    for record in records:
+        for claimer in record.claimers if record.publisher is not None else ():
+            link(record.publisher, claimer, record.publisher.o2o)
+            link(claimer, record.publisher, claimer.o2o)
     return dict(links)

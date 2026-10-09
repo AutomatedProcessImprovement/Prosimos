@@ -294,7 +294,8 @@
           "index",
           "customer"
         ],
-        "qualifier": "item"
+        "qualifier": "item",
+        "o2o": "comprises"
       },
       {
         "event_id": "Throw_OrderConfirmed",

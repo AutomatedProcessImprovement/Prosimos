@@ -236,7 +236,8 @@
         "copy": {
           "customer": "customer"
         },
-        "qualifier": "item"
+        "qualifier": "item",
+        "o2o": "contains"
       },
       {
         "event_id": "Catch_More_Items",
@@ -253,7 +254,8 @@
         "collect": {
           "case_attribute": "more_items"
         },
-        "qualifier": "item"
+        "qualifier": "item",
+        "o2o": "contains"
       }
     ]
   }

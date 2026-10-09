@@ -99,7 +99,7 @@ class SimBPMEnv:
         self.sim_setup.bpmn_graph.watched_elements = set(self._publish_points)
         self._held = []
         self._pass_order = itertools.count()
-        self.outbox = []  # (message type, attributes, case id, element id, link qualifier) released by step()
+        self.outbox = []  # (message type, attributes, case id, element id, publish entry) released by step()
         self.logged_rows = []  # (case id, element id, enabled, completed) per row of the log, in order
         self._tasks_next_to = dict()  # (element id, forward) -> the tasks next to it, see tasks_next_to()
         self._warned_missing_values = set()
@@ -112,7 +112,7 @@ class SimBPMEnv:
         for point in sim_setup.messaging.consume:
             self._consume_points.setdefault(point.event_id, []).append(point)
         self._parked_events = dict()  # (case id, event id) -> the parked EnabledEvent
-        self.claimed_by = []  # (case id, event id, link qualifier) that took the message deliver() last claimed
+        self.claimed_by = []  # (case id, event id, consume entry) that took the message deliver() last claimed
         # case attributes over time: the declared ones and those copied from messages, as each case was
         # created, and every later copy at a catch event
         self._case_attribute_names = ({attribute.name for attribute in sim_setup.case_attributes.attributes}
@@ -212,7 +212,7 @@ class SimBPMEnv:
             for point in self._publish_points.get(element_id, []):
                 for index in range(1, self._count(point, p_case) + 1):
                     self.outbox.append((point.type, self._message_attributes(point, p_case, index), p_case, element_id,
-                                        point.link_qualifier))
+                                        point))
 
     def _count(self, point, p_case):
         """How many messages point publishes for a case passing it now: 1 without count, else its fixed count
@@ -263,7 +263,7 @@ class SimBPMEnv:
         if takers:
             for parked_event in takers:
                 self._claim(parked_event, claiming, values, now)
-            self.claimed_by = [(parked_event.p_case, parked_event.task_id, claiming.link_qualifier)
+            self.claimed_by = [(parked_event.p_case, parked_event.task_id, claiming)
                                for parked_event in takers]
             return "claimed"
         points = [point for points in self._consume_points.values() for point in points if point.type == message_type]
@@ -272,7 +272,7 @@ class SimBPMEnv:
                          if point.starts_case and self._condition_holds(point.condition, values, None)), None)
         if starting is not None:
             p_case = self.create_case(now, lambda case_values: self._apply_copy(starting, values, case_values))
-            self.claimed_by = [(p_case, starting.event_id, starting.link_qualifier)]
+            self.claimed_by = [(p_case, starting.event_id, starting)]
             return "claimed"
         if any(self._could_match(point.condition, values) for point in points if not point.starts_case):
             return "pending"

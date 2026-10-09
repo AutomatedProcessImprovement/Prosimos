@@ -142,6 +142,10 @@ linked to many objects"), as the Order Management log links them:
 | send package                                | its package (`shipped package`) and, with `carry_links`, its items                 |
 | failed delivery, package delivered          | its package (`package`) and, with `carry_links`, its items                         |
 
+Objects are linked to each other too: each order **comprises** its items (`"o2o": "comprises"` on Sales's
+ItemOrdered entry) and each package **contains** its items (`"o2o": "contains"` on both of Packaging's
+ItemPicked entries: the start event takes a package's first item, the catch event the rest).
+
 Sales and Packaging have `carry_links`; Warehouse doesn't, so a reorder is linked only to its item. A
 package still collecting when the run ends never reaches create package, so the links of the items it took
 are dropped, with a warning. The full

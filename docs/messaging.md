@@ -130,6 +130,14 @@ a `consume` entry, the links from the next task after the event to the case that
 type. With `"qualifier": "item"` on the entry above, place order is linked to each new item as `item`.
 It must be a non-empty string.
 
+**o2o** (optional, on any entry) links the objects of the cases on the two ends of each message
+directly, as OCEL's object-to-object links, qualified by its value: on a `publish` entry, from the
+publishing case's object to the object of every case that took the message; on a `consume` entry,
+from the taking case's object to the publisher's. Without it, no such link is written. With
+`"o2o": "comprises"` on the entry above, each order comprises the items it started; with
+`"o2o": "contains"` on Packaging's `ItemPicked` entries, each package contains the items whose messages it
+took. A link is written once, however many messages give it. It must be a non-empty string.
+
 One event may appear in several entries: under `publish`, passing it publishes one message per
 entry (or `count` messages); under `consume`, a case waiting there accepts any of the entries' types. To wait for all of
 them, use one catch event per message.
@@ -199,7 +207,7 @@ The section is checked when the model is loaded. An invalid section stops loadin
   batch: start on 1 order, then `"collect": {"value": 4}`). The rest is a fixed number, or a case
   attribute holding the remaining count, since a count can't do arithmetic.
 - `collect` and `capacity` aren't on the same entry (see "Many messages for many cases").
-- `qualifier`, where given, is a non-empty string.
+- `qualifier` and `o2o`, where given, are non-empty strings.
 - A process started by messages (a `consume` entry on its start event) has exactly one start event,
   and the start event's condition uses only fixed values and `source`, not `case_attribute`: there
   is no case yet to compare with.

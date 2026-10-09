@@ -97,7 +97,9 @@ written as an OCEL 2.0 JSON file, the format of the OCEL 2.0 sample logs, readab
 - **Objects:** one per case, with the case id as object id (e.g. `Sales-7`) and its process's
   `object_type` as type. Its attributes are its case attributes, the declared ones and those copied from
   messages: the values it had when it was created, at that time, and every value copied into it later at
-  a catch event, at the time of the claim.
+  a catch event, at the time of the claim. Its relationships are its links to other objects, from the
+  `o2o` keys of message entries ([messaging.md](messaging.md)): e.g. an order comprises each item its
+  ItemOrdered messages started. Without `o2o` keys, objects have no relationships.
 - **Events:** one per task, i.e. per row of the merged log, with the activity as event type, the task's
   completion as time, `resource` as attribute, a link to its case's object, and links to the objects
   on the other end of its messages (see below). Event ids (`e1`, `e2`, ...) follow time order.
@@ -194,8 +196,8 @@ and took each message, and hands them over in `finish()`, at the end of the run;
 them on the message id only then. Nothing it decides during the run uses them, so engines stay black
 boxes. A `MessageRecord` has the message's `message_id` and `type`, its `publisher`, and its
 `claimers`, each a `CaseElement` (`process`, `case_id`, `element_id`, and for the OCEL links its
-end's `qualifier` and `task_rows`, the rows of its process's log the links go to, empty if there is
-no such task):
+end's `qualifier`, `task_rows`, the rows of its process's log the links go to, empty if there is
+no such task, and `o2o`, its entry's object link, if any):
 
 - **publisher**: the case and the throw or end event that published it;
 - **claimers**: at a start event, the case the message started; at a catch event or race branch, the
@@ -282,7 +284,7 @@ requeue).
 **`finish()`**: called once on every engine after the loop stops, i.e. when no engine has a next
 event. It returns an `EngineReport` with the engine's stalled cases, the warnings it raised during the
 run (including while it was built), its message records (`published` and `claimed`, each a list of
-(message id, case id, element id, qualifier, task rows)), its cases as objects, and the element id of
+(message id, case id, element id, qualifier, task rows, o2o)), its cases as objects, and the element id of
 each row of its log (`logged_elements`). The orchestrator adds the stalled cases and warnings to the run
 report, tagged with the process name, joins the records into `message_records`, and uses the objects
 and rows for the OCEL output.

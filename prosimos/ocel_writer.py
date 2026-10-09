@@ -1,7 +1,7 @@
 """
 Writes a multi-process run as an OCEL 2.0 JSON file (docs/orchestrator.md): one object per case, typed by its
 process's object type, and one event per task, linked to its case's object and to the objects on the other end
-of its messages.
+of its messages, and objects to each other where a message entry asks for it (o2o).
 """
 import json
 from dataclasses import dataclass, field
@@ -23,7 +23,7 @@ class OcelProcess:
     carry_links: bool = False  # later events of a case also link the objects its messages linked
 
 
-def write_ocel(path, processes, objects, rows, logged_elements=None, message_links=None):
+def write_ocel(path, processes, objects, rows, logged_elements=None, message_links=None, object_links=None):
     """
     processes: process -> OcelProcess, or its object type (None to leave the process out);
     objects: (process, case object with case_id and attributes as (attribute, value, time)) for every case;
@@ -31,11 +31,12 @@ def write_ocel(path, processes, objects, rows, logged_elements=None, message_lin
     order it logged them;
     logged_elements: process -> the element id of each of its rows, in order (for qualifier_by_activity);
     message_links: (process, row of that process) -> [(object id, qualifier)], the links the event of that
-    row gets through its messages.
+    row gets through its messages;
+    object_links: object id -> [(object id, qualifier)], its links to other objects.
     """
     processes = {name: process if isinstance(process, OcelProcess) else OcelProcess(process)
                  for name, process in processes.items()}
-    logged_elements, message_links = logged_elements or {}, message_links or {}
+    logged_elements, message_links, object_links = logged_elements or {}, message_links or {}, object_links or {}
     ocel_objects, attribute_values = [], {}
     for process, case_object in objects:
         object_type = processes[process].object_type if process in processes else None
@@ -47,7 +48,8 @@ def write_ocel(path, processes, objects, rows, logged_elements=None, message_lin
             attribute_values.setdefault(object_type, {}).setdefault(attribute["name"], []).append(attribute["value"])
         attribute_values.setdefault(object_type, {})
         ocel_objects.append({"id": case_object.case_id, "type": object_type, "attributes": attributes,
-                             "relationships": []})
+                             "relationships": [{"objectId": target, "qualifier": qualifier}
+                                               for target, qualifier in object_links.get(case_object.case_id, [])]})
 
     # every row becomes an event, linked to its own case's object and to the objects its messages linked
     logged, rows_so_far = [], {}
