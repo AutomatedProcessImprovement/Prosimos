@@ -1,24 +1,44 @@
 """
 Writes a multi-process run as an OCEL 2.0 JSON file (docs/orchestrator.md): one object per case, typed by its
-process's object type, and one event per task, linked to its case's object.
+process's object type, and one event per task, linked to its case's object and to the objects on the other end
+of its messages.
 """
 import json
+from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Dict, Optional
 
 import pytz
 
 OCEL_TYPES = {bool: "boolean", int: "integer", float: "float", datetime: "time", str: "string"}
 
 
-def write_ocel(path, object_types, objects, rows):
+@dataclass
+class OcelProcess:
+    """How one process appears in the OCEL output."""
+
+    object_type: Optional[str]  # of its cases; None leaves the process out
+    qualifier: Optional[str] = None  # of each event's link to its own case's object; None means object_type
+    qualifier_by_activity: Dict[str, str] = field(default_factory=dict)  # task id -> qualifier, overriding it
+    carry_links: bool = False  # later events of a case also link the objects its messages linked
+
+
+def write_ocel(path, processes, objects, rows, logged_elements=None, message_links=None):
     """
-    object_types: process -> the object type of its cases, or None to leave the process out;
+    processes: process -> OcelProcess, or its object type (None to leave the process out);
     objects: (process, case object with case_id and attributes as (attribute, value, time)) for every case;
-    rows: (process, {column: value}) for every logged task, as in the merged CSV log.
+    rows: (process, {column: value}) for every logged task, as in the merged CSV log, each process's in the
+    order it logged them;
+    logged_elements: process -> the element id of each of its rows, in order (for qualifier_by_activity);
+    message_links: (process, row of that process) -> [(object id, qualifier)], the links the event of that
+    row gets through its messages.
     """
+    processes = {name: process if isinstance(process, OcelProcess) else OcelProcess(process)
+                 for name, process in processes.items()}
+    logged_elements, message_links = logged_elements or {}, message_links or {}
     ocel_objects, attribute_values = [], {}
     for process, case_object in objects:
-        object_type = object_types.get(process)
+        object_type = processes[process].object_type if process in processes else None
         if object_type is None:
             continue
         attributes = [{"name": name, "value": _json_value(value), "time": _time(time)}
@@ -29,18 +49,42 @@ def write_ocel(path, object_types, objects, rows):
         ocel_objects.append({"id": case_object.case_id, "type": object_type, "attributes": attributes,
                              "relationships": []})
 
+    # every row becomes an event, linked to its own case's object and to the objects its messages linked
+    logged, rows_so_far = [], {}
+    for process, row in rows:
+        number = rows_so_far[process] = rows_so_far.get(process, -1) + 1  # the row's place in its process's log
+        settings = processes.get(process)
+        if settings is None or settings.object_type is None:
+            continue
+        element_id = logged_elements[process][number] if process in logged_elements else None
+        own_qualifier = settings.qualifier_by_activity.get(element_id, settings.qualifier or settings.object_type)
+        logged.append({"time": _as_datetime(row["end_time"]), "process": process, "number": number, "row": row,
+                       "own": (f"{process}-{row['case_id']}", own_qualifier),
+                       "links": list(message_links.get((process, number), [])), "carried": []})
+
+    # with carry_links, every later event of a case also links what its earlier events linked through messages
+    linked_so_far = {}
+    for event in sorted(logged, key=lambda event: (event["time"], event["number"])):
+        if processes[event["process"]].carry_links:
+            case_links = linked_so_far.setdefault((event["process"], event["row"]["case_id"]), [])
+            event["carried"] = list(case_links)
+            case_links.extend(event["links"])
+
     # the rows come in the order events were executed; events are listed in time order, a task's
     # event at the time it was completed
-    logged = sorted(((process, row) for process, row in rows if object_types.get(process) is not None),
-                    key=lambda logged_row: (_as_datetime(logged_row[1]["end_time"]), logged_row[0]))
     events = []
-    for number, (process, row) in enumerate(logged, start=1):
+    for number, event in enumerate(sorted(logged, key=lambda event: (event["time"], event["process"])), start=1):
+        relationships = []
+        for object_id, qualifier in [event["own"], *event["links"], *event["carried"]]:
+            relationship = {"objectId": object_id, "qualifier": qualifier}
+            if relationship not in relationships:
+                relationships.append(relationship)
         events.append({
             "id": f"e{number}",
-            "type": row["activity"],
-            "time": _time(_as_datetime(row["end_time"])),
-            "attributes": [{"name": "resource", "value": row["resource"]}],
-            "relationships": [{"objectId": f"{process}-{row['case_id']}", "qualifier": object_types[process]}],
+            "type": event["row"]["activity"],
+            "time": _time(event["time"]),
+            "attributes": [{"name": "resource", "value": event["row"]["resource"]}],
+            "relationships": relationships,
         })
 
     ocel = {

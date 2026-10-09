@@ -123,6 +123,13 @@ objects. A loop publishing one message per round would put N extra events and a 
 the log, and would be discovered as a loop rather than as one event creating N objects. The fan-out
 stays on the sending side: a start event still starts exactly one case per message.
 
+**qualifier** (optional, on any entry) qualifies the OCEL links this end of the message makes: on a
+`publish` entry, the links from the last task before the event to the cases that took the messages; on
+a `consume` entry, the links from the next task after the event to the case that published the message
+([orchestrator.md](orchestrator.md), "One event linked to many objects"). By default, it is the message
+type. With `"qualifier": "item"` on the entry above, place order is linked to each new item as `item`.
+It must be a non-empty string.
+
 One event may appear in several entries: under `publish`, passing it publishes one message per
 entry (or `count` messages); under `consume`, a case waiting there accepts any of the entries' types. To wait for all of
 them, use one catch event per message.
@@ -134,12 +141,12 @@ terms. A message is accepted when all the terms of at least one alternative hold
 "the message's `attribute` `comparison` X", where X is either a fixed `value` or an attribute of the
 waiting case:
 
-| Term                                                                        | Reads as                                              |
-|-----------------------------------------------------------------------------|-------------------------------------------------------|
-| `{"attribute": "source", "comparison": "=", "value": "TartuWarehouse"}`     | the message was published by TartuWarehouse           |
-| `{"attribute": "weight", "comparison": "in", "value": [5, 10]}`              | the message's `weight` is between 5 and 10            |
+| Term                                                                        | Reads as                                                 |
+|-----------------------------------------------------------------------------|----------------------------------------------------------|
+| `{"attribute": "source", "comparison": "=", "value": "TartuWarehouse"}`     | the message was published by TartuWarehouse              |
+| `{"attribute": "weight", "comparison": "in", "value": [5, 10]}`             | the message's `weight` is between 5 and 10               |
 | `{"attribute": "order_id", "comparison": "=", "case_attribute": "case_id"}` | the message's `order_id` is this case's id (correlation) |
-| `{"attribute": "price", "comparison": "<=", "case_attribute": "budget"}`     | the message's `price` is at most this case's `budget` |
+| `{"attribute": "price", "comparison": "<=", "case_attribute": "budget"}`    | the message's `price` is at most this case's `budget`    |
 
 `attribute` is a message attribute, or `source` for the process that published the message.
 Comparisons are those of branch rules: `=`, `!=`, `<`, `<=`, `>`, `>=` and `in` (with a fixed
@@ -192,6 +199,7 @@ The section is checked when the model is loaded. An invalid section stops loadin
   batch: start on 1 order, then `"collect": {"value": 4}`). The rest is a fixed number, or a case
   attribute holding the remaining count, since a count can't do arithmetic.
 - `collect` and `capacity` aren't on the same entry (see "Many messages for many cases").
+- `qualifier`, where given, is a non-empty string.
 - A process started by messages (a `consume` entry on its start event) has exactly one start event,
   and the start event's condition uses only fixed values and `source`, not `case_attribute`: there
   is no case yet to compare with.

@@ -119,7 +119,8 @@
           "order_id",
           "item_index",
           "customer"
-        ]
+        ],
+        "qualifier": "package"
       }
     ],
     "consume": [
@@ -130,7 +131,8 @@
           "order_id": "case_id",
           "item_index": "index",
           "customer": "customer"
-        }
+        },
+        "qualifier": "order"
       }
     ]
   }

@@ -99,7 +99,9 @@ class SimBPMEnv:
         self.sim_setup.bpmn_graph.watched_elements = set(self._publish_points)
         self._held = []
         self._pass_order = itertools.count()
-        self.outbox = []  # (message type, attributes, case id, element id) released by step(), oldest first
+        self.outbox = []  # (message type, attributes, case id, element id, link qualifier) released by step()
+        self.logged_rows = []  # (case id, element id, enabled, completed) per row of the log, in order
+        self._tasks_next_to = dict()  # (element id, forward) -> the tasks next to it, see tasks_next_to()
         self._warned_missing_values = set()
         self._warned_counts = set()
 
@@ -110,7 +112,7 @@ class SimBPMEnv:
         for point in sim_setup.messaging.consume:
             self._consume_points.setdefault(point.event_id, []).append(point)
         self._parked_events = dict()  # (case id, event id) -> the parked EnabledEvent
-        self.claimed_by = []  # (case id, event id) that took the message deliver() last claimed
+        self.claimed_by = []  # (case id, event id, link qualifier) that took the message deliver() last claimed
         # case attributes over time: the declared ones and those copied from messages, as each case was
         # created, and every later copy at a catch event
         self._case_attribute_names = ({attribute.name for attribute in sim_setup.case_attributes.attributes}
@@ -209,7 +211,8 @@ class SimBPMEnv:
             _, p_case, _, element_id = heappop(self._held)
             for point in self._publish_points.get(element_id, []):
                 for index in range(1, self._count(point, p_case) + 1):
-                    self.outbox.append((point.type, self._message_attributes(point, p_case, index), p_case, element_id))
+                    self.outbox.append((point.type, self._message_attributes(point, p_case, index), p_case, element_id,
+                                        point.link_qualifier))
 
     def _count(self, point, p_case):
         """How many messages point publishes for a case passing it now: 1 without count, else its fixed count
@@ -260,7 +263,8 @@ class SimBPMEnv:
         if takers:
             for parked_event in takers:
                 self._claim(parked_event, claiming, values, now)
-            self.claimed_by = [(parked_event.p_case, parked_event.task_id) for parked_event in takers]
+            self.claimed_by = [(parked_event.p_case, parked_event.task_id, claiming.link_qualifier)
+                               for parked_event in takers]
             return "claimed"
         points = [point for points in self._consume_points.values() for point in points if point.type == message_type]
         # a start event's condition looks only at the message, so it decides now: a new case, or never
@@ -268,7 +272,7 @@ class SimBPMEnv:
                          if point.starts_case and self._condition_holds(point.condition, values, None)), None)
         if starting is not None:
             p_case = self.create_case(now, lambda case_values: self._apply_copy(starting, values, case_values))
-            self.claimed_by = [(p_case, starting.event_id)]
+            self.claimed_by = [(p_case, starting.event_id, starting.link_qualifier)]
             return "claimed"
         if any(self._could_match(point.condition, values) for point in points if not point.starts_case):
             return "pending"
@@ -401,6 +405,27 @@ class SimBPMEnv:
                         p_state.state_mask &= ~graph.arcs_bitset[flow]
             self._parked_events.pop((race.p_case, branch), None)
             self._collected.pop((race.p_case, branch), None)
+
+    def tasks_next_to(self, element_id, forward):
+        """The tasks the token reaches first after element_id (forward) or came from last before it: the flows
+        are followed through gateways and events, and stop at tasks."""
+        key = (element_id, forward)
+        if key not in self._tasks_next_to:
+            graph = self.sim_setup.bpmn_graph
+            tasks, seen, to_visit = set(), {element_id}, [element_id]
+            while to_visit:
+                element = graph.element_info[to_visit.pop()]
+                for flow in element.outgoing_flows if forward else element.incoming_flows:
+                    neighbour = graph.flow_arcs[flow][1 if forward else 0]
+                    if neighbour in seen:
+                        continue
+                    seen.add(neighbour)
+                    if graph.element_info[neighbour].type is BPMN.TASK:
+                        tasks.add(neighbour)
+                    else:
+                        to_visit.append(neighbour)
+            self._tasks_next_to[key] = tasks
+        return self._tasks_next_to[key]
 
     def case_attribute_history(self):
         """Case id -> its case attributes over time, as (attribute, value, time): every value the case had
@@ -708,7 +733,7 @@ class SimBPMEnv:
             self.release_multitasking_resource(r_id, full_evt, r_avail_at)
 
         self.update_attributes(c_event)
-        self.log_writer.add_csv_row(self.get_csv_row_data(full_evt))
+        self._log_row(full_evt)
 
         completed_at = full_evt.completed_at
         completed_datetime = full_evt.completed_datetime
@@ -800,6 +825,13 @@ class SimBPMEnv:
                 new_attributes[key] = value.get_next_value(all_attribute_values)
 
         return new_attributes
+
+    def _log_row(self, full_event):
+        """Writes one row of the log and remembers which case and element it belongs to, and when it was
+        enabled and completed: logged_rows[k] is the k-th row this engine wrote."""
+        self.log_writer.add_csv_row(self.get_csv_row_data(full_event))
+        self.logged_rows.append((full_event.p_case, full_event.task_id,
+                                 full_event.enabled_datetime, full_event.completed_datetime))
 
     def get_csv_row_data(self, full_event: TaskEvent):
         """
@@ -1033,7 +1065,7 @@ class SimBPMEnv:
 
         self.resource_queue.update_resource_availability(r_id, r_next_available)
 
-        self.log_writer.add_csv_row(self.get_csv_row_data(full_evt))
+        self._log_row(full_evt)
 
         completed_at = full_evt.completed_at
         completed_datetime = full_evt.completed_datetime
@@ -1049,7 +1081,7 @@ class SimBPMEnv:
             if self.sim_setup.bpmn_graph.element_info[e_id].type is BPMN.INTERMEDIATE_THROW_EVENT:
                 c_event = EnabledEvent(p_case, p_state, e_id, passed_at.seconds_from_start, passed_at.datetime)
                 full_evt = TaskEvent.create_event_entity(c_event, passed_at.seconds_from_start, passed_at.datetime)
-                self.log_writer.add_csv_row(self.get_csv_row_data(full_evt))
+                self._log_row(full_evt)
 
     def execute_event(self, c_event):
         # Handle event types separately (they don't need assigned resource)
@@ -1064,7 +1096,7 @@ class SimBPMEnv:
             full_evt = TaskEvent.create_event_entity(reached, ended_at, ended_datetime)
             self.log_info.add_event_info(c_event.p_case, full_evt, 0)
             if self.sim_setup.is_event_added_to_log:
-                self.log_writer.add_csv_row(self.get_csv_row_data(full_evt))
+                self._log_row(full_evt)
             return c_event.enabled_at, c_event.enabled_datetime
         event_duration_seconds = None
         event_element = self.sim_setup.bpmn_graph.element_info[c_event.task_id]
@@ -1078,7 +1110,7 @@ class SimBPMEnv:
         self.log_info.add_event_info(c_event.p_case, full_evt, 0)
 
         if self.sim_setup.is_event_added_to_log:
-            self.log_writer.add_csv_row(self.get_csv_row_data(full_evt))
+            self._log_row(full_evt)
 
         return completed_at, completed_datetime
 

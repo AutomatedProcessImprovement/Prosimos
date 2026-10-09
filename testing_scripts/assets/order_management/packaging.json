@@ -235,7 +235,8 @@
         "type": "ItemPicked",
         "copy": {
           "customer": "customer"
-        }
+        },
+        "qualifier": "item"
       },
       {
         "event_id": "Catch_More_Items",
@@ -251,7 +252,8 @@
         ],
         "collect": {
           "case_attribute": "more_items"
-        }
+        },
+        "qualifier": "item"
       }
     ]
   }

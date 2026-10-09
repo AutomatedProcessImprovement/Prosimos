@@ -37,6 +37,11 @@ class PublishPoint:
     # 'index' the message's number among the ones count publishes
     count: Optional[int] = None  # how many messages are published at once, unless read from the case
     count_attribute: Optional[str] = None  # the case attribute holding that number, if any
+    qualifier: Optional[str] = None  # of the OCEL links its messages give; None means the message type
+
+    @property
+    def link_qualifier(self):
+        return self.qualifier or self.type
 
     @property
     def counted(self):
@@ -55,6 +60,11 @@ class ConsumePoint:
     capacity_attribute: Optional[str] = None  # the message attribute holding the capacity, if any
     collect: int = 1  # how many messages a case must claim here before it continues, unless read from the case
     collect_attribute: Optional[str] = None  # the case attribute holding that number, if any
+    qualifier: Optional[str] = None  # of the OCEL links the messages it takes give; None means the message type
+
+    @property
+    def link_qualifier(self):
+        return self.qualifier or self.type
 
 
 @dataclass(frozen=True)
@@ -106,7 +116,8 @@ def parse_messages(messages_json, bpmn_path, declared_attributes) -> MessagingMo
     for where, entry in _entries(messages_json, "consume", events, CONSUMING_EVENTS):
         starts_case = events[entry["event_id"]][0] == "startEvent"
         point = ConsumePoint(entry["event_id"], entry["type"], _condition(entry, where), _copy(entry, where),
-                             starts_case, *_capacity(entry, where, starts_case), *_collect(entry, where, starts_case))
+                             starts_case, *_capacity(entry, where, starts_case), *_collect(entry, where, starts_case),
+                             _qualifier(entry, where))
         if "count" in entry:
             _fail(f"{where}: count is only for publish entries, on throw and end events: only they publish, and a "
                   f"start event starts exactly one case per message")
@@ -119,7 +130,7 @@ def parse_messages(messages_json, bpmn_path, declared_attributes) -> MessagingMo
     _check_races(consume, events, gateway_branches)
     publish = tuple(
         PublishPoint(entry["event_id"], entry["type"], _attributes(entry, where, declared_attributes),
-                     *_count(entry, where, declared_attributes))
+                     *_count(entry, where, declared_attributes), _qualifier(entry, where))
         for where, entry in _entries(messages_json, "publish", events, PUBLISHING_EVENTS)
     )
     return MessagingModel(publish, tuple(consume))
@@ -257,6 +268,15 @@ def _check_races(consume, events, gateway_branches):
             if events[point.event_id][3] == gateway_id and point.collect == 0 and point.collect_attribute is None:
                 _fail(f"{point.event_id}, after the event-based gateway {gateway_id}: a race branch with a fixed "
                       f"collect of 0 always wins its race; remove the race or the branch")
+
+
+def _qualifier(entry, where):
+    """The qualifier of the OCEL links the entry's messages give, or None for the message type."""
+    if "qualifier" not in entry:
+        return None
+    if not isinstance(entry["qualifier"], str) or not entry["qualifier"].strip():
+        _fail(f"{where}: 'qualifier' must be a non-empty string")
+    return entry["qualifier"]
 
 
 def _count(entry, where, declared):

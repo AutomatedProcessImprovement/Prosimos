@@ -16,7 +16,8 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import numpy as np
 import pytz
 
-from prosimos.ocel_writer import write_ocel
+from prosimos.control_flow_manager import BPMN
+from prosimos.ocel_writer import OcelProcess, write_ocel
 from prosimos.simulation_engine import SimBPMEnv
 from prosimos.simulation_properties_parser import parse_datetime
 from prosimos.simulation_setup import SimDiffSetup
@@ -32,6 +33,12 @@ class ProcessSpec:
     # the OCEL object type of its cases: "" (the default) means the process name; None writes no objects
     # and no events for this process in the OCEL output
     object_type: Optional[str] = ""
+    # the qualifier of each event's link to its own case's object: None means the object type; per task id,
+    # qualifier_by_activity overrides it, e.g. (("Create_Package", "creates"),)
+    qualifier: Optional[str] = None
+    qualifier_by_activity: Tuple[Tuple[str, str], ...] = ()
+    # every later event of a case also links the objects the case is linked to through its messages
+    carry_links: bool = False
 
     @property
     def ocel_object_type(self) -> Optional[str]:
@@ -112,7 +119,10 @@ class SimulationConfig:
         BPMN and JSON paths are relative to the configuration file's folder. seed and
         consumer_groups are optional; a start time without a time zone is taken as UTC. A process
         started by messages has no total_cases. A process's optional object_type names the OCEL object
-        type of its cases (by default its name); null writes no objects and no events for it.
+        type of its cases (by default its name); null writes no objects and no events for it. Its
+        optional qualifier (by default the object type) and qualifier_by_activity ({task id: qualifier})
+        qualify each event's link to its own case's object, and carry_links (false by default) makes every
+        later event of a case also link the objects the case is linked to through its messages.
         """
         path = Path(path)
         with open(path) as f:
@@ -130,7 +140,8 @@ class SimulationConfig:
                 raise ValueError(f"{path}: process {entry.get('name', '?')} is missing {missing}")
             processes.append(ProcessSpec(
                 entry["name"], str(folder / entry["bpmn_path"]), str(folder / entry["json_path"]), entry.get("total_cases"),
-                entry.get("object_type", "")
+                entry.get("object_type", ""), entry.get("qualifier"),
+                tuple(sorted(entry.get("qualifier_by_activity", {}).items())), entry.get("carry_links", False)
             ))
 
         start = parse_datetime(data["start_time"], True)
@@ -162,20 +173,28 @@ class StalledCase:
 
 @dataclass(frozen=True)
 class PublishRecord:
-    """An engine's record that one of its cases published a message, at one of its elements."""
+    """An engine's record that one of its cases published a message, at one of its elements. task_row is the
+    row of its log (0 for the first) that the message's OCEL links attach to, the last task before the
+    element, or None if there is none; qualifier qualifies those links."""
 
     message_id: str
     case_id: str
     element_id: str
+    qualifier: str = ""
+    task_row: Optional[int] = None
 
 
 @dataclass(frozen=True)
 class ClaimRecord:
-    """An engine's record that one of its cases took a message, at one of its elements."""
+    """An engine's record that one of its cases took a message, at one of its elements. task_row is the row
+    of its log that the message's OCEL links attach to, the next task after the element, or None if there
+    is none; qualifier qualifies those links."""
 
     message_id: str
     case_id: str
     element_id: str
+    qualifier: str = ""
+    task_row: Optional[int] = None
 
 
 @dataclass
@@ -197,15 +216,19 @@ class EngineReport:
     published: List[PublishRecord] = field(default_factory=list)
     claimed: List[ClaimRecord] = field(default_factory=list)
     objects: List[CaseObject] = field(default_factory=list)  # every case it created
+    logged_elements: List[str] = field(default_factory=list)  # the element id of each row of its log, in order
 
 
 @dataclass(frozen=True)
 class CaseElement:
-    """One element of one case of one process."""
+    """One element of one case of one process; for a message, also the qualifier of its OCEL links and the
+    row of the process's log they attach to (None if there is none)."""
 
     process: str
     case_id: str
     element_id: str
+    qualifier: str = ""
+    task_row: Optional[int] = None
 
 
 @dataclass
@@ -277,13 +300,22 @@ class ProsimosEngine(SimulationEngine):
     repeatable; otherwise every run differs."""
 
     def __init__(self, spec: ProcessSpec, start_datetime: datetime, log_writer=None, seed: Optional[int] = None):
+        self._spec = spec
         self._warnings: List[str] = []
-        self._published: List[Tuple[Message, str, str]] = []  # (message as returned by step(), case id, element id)
-        self._claimed: List[ClaimRecord] = []
+        # (message as returned by step(), case id, element id, link qualifier, when); the orchestrator stamps
+        # the id on the message, which is read at the end
+        self._published: List[Tuple[Message, int, str, str, datetime]] = []
+        self._claimed: List[Tuple[str, int, str, str, datetime]] = []  # (message id, case id, element id, qualifier, when)
         self._python_state, self._numpy_state = _engine_random_states(seed, spec.name)
         with self._own_globals():
             sim_setup = SimDiffSetup(spec.bpmn_path, spec.json_path, False, spec.total_cases, start_datetime)
             self._env = SimBPMEnv(sim_setup, None, log_writer, process_name=spec.name)
+        tasks = {element_id for element_id, element in sim_setup.bpmn_graph.element_info.items()
+                 if element.type is BPMN.TASK}
+        unknown = sorted(task_id for task_id, _ in spec.qualifier_by_activity if task_id not in tasks)
+        if unknown:
+            raise ValueError(f"{spec.name}: qualifier_by_activity names {', '.join(unknown)}, which "
+                             f"{'is not a task' if len(unknown) == 1 else 'are not tasks'} of its model")
 
     @contextmanager
     def _own_globals(self):
@@ -310,15 +342,16 @@ class ProsimosEngine(SimulationEngine):
 
     def step(self) -> List[Message]:
         with self._own_globals():
+            now = self._env.next_event_time()  # the time the orchestrator stamps on what this step publishes
             self._env.step()
             # the engine buffers its log rows; hand them over now so nobody outside the engine
             # has to reach into it to flush them at the end
             self._env.log_writer.force_write()
             released = []
-            for message_type, attributes, p_case, element_id in self._env.outbox:
+            for message_type, attributes, p_case, element_id, qualifier in self._env.outbox:
                 message = Message(message_type, attributes)
                 # the orchestrator stamps the id on this same object, so it can be read at the end
-                self._published.append((message, self._env.case_id(p_case), element_id))
+                self._published.append((message, p_case, element_id, qualifier, now))
                 released.append(message)
             self._env.outbox.clear()
             return released
@@ -327,8 +360,8 @@ class ProsimosEngine(SimulationEngine):
         with self._own_globals():
             verdict = Verdict(self._env.deliver(message.type, message.attributes, message.source, now))
             if verdict is Verdict.CLAIMED:
-                self._claimed.extend(ClaimRecord(message.id, self._env.case_id(p_case), element_id)
-                                     for p_case, element_id in self._env.claimed_by)
+                self._claimed.extend((message.id, p_case, element_id, qualifier, now)
+                                     for p_case, element_id, qualifier in self._env.claimed_by)
             return verdict
 
     def finish(self) -> EngineReport:
@@ -338,8 +371,52 @@ class ProsimosEngine(SimulationEngine):
                        for parked_event, place, message_types in self._env.stalled_waits()]
             objects = [CaseObject(self._env.case_id(p_case), history)
                        for p_case, history in sorted(self._env.case_attribute_history().items())]
-        published = [PublishRecord(message.id, case_id, element_id) for message, case_id, element_id in self._published]
-        return EngineReport(stalled, list(self._warnings), published, list(self._claimed), objects)
+            published, claimed = self._attached_records()
+            logged_elements = [element_id for _, element_id, _, _ in self._env.logged_rows]
+        return EngineReport(stalled, list(self._warnings), published, claimed, objects, logged_elements)
+
+    def _attached_records(self):
+        """The publish and claim records, each attached to the row of the log its OCEL links go to: for a
+        message published at a throw or end event, the last task before it in the same case; for one taken at
+        a start or catch event, the next task after it. Without such a task, the links are dropped, with one
+        warning per element. A process left out of the OCEL output attaches nothing."""
+        attach = self._spec.ocel_object_type is not None
+        rows_of_case = defaultdict(list)
+        for row, (p_case, element_id, enabled, completed) in enumerate(self._env.logged_rows):
+            rows_of_case[p_case].append((row, element_id, enabled, completed))
+        warned = set()
+
+        def task_row(p_case, element_id, time, forward):
+            if not attach:
+                return None
+            tasks = self._env.tasks_next_to(element_id, forward)
+            if forward:  # the first of them enabled when the case took the message, or later
+                rows = [(enabled, row) for row, element, enabled, _ in rows_of_case[p_case]
+                        if element in tasks and enabled >= time]
+                found = min(rows, default=None)
+            else:  # the last of them completed when the case published the message, or earlier
+                rows = [(completed, row) for row, element, _, completed in rows_of_case[p_case]
+                        if element in tasks and completed <= time]
+                found = max(rows, default=None)
+            if found is None and (element_id, forward) not in warned:
+                warned.add((element_id, forward))
+                side, case = "after" if forward else "before", self._env.case_id(p_case)
+                if not tasks:
+                    reason = f"{element_id} has no task {side} it in the model"
+                elif forward:  # e.g. the case was still waiting further on when the run ended
+                    reason = f"case {case} reached no task after {element_id} before the run ended"
+                else:
+                    reason = f"case {case} passed no task before {element_id}"
+                warning_logger.add_warning(f"{reason}; the OCEL links of its messages there are dropped")
+            return None if found is None else found[1]
+
+        published = [PublishRecord(message.id, self._env.case_id(p_case), element_id, qualifier,
+                                   task_row(p_case, element_id, when, forward=False))
+                     for message, p_case, element_id, qualifier, when in self._published]
+        claimed = [ClaimRecord(message_id, self._env.case_id(p_case), element_id, qualifier,
+                               task_row(p_case, element_id, when, forward=True))
+                   for message_id, p_case, element_id, qualifier, when in self._claimed]
+        return published, claimed
 
 
 def _engine_random_states(seed, process_name):
@@ -437,6 +514,8 @@ class RunReport:
     message_records: List[MessageRecord] = field(default_factory=list)  # per message, joined after finish()
     # (process, object) for every case, from finish(); written to the OCEL output, not to to_dict()
     objects: List[Tuple[str, CaseObject]] = field(default_factory=list)
+    # process -> the element id of each row of its log, in order, from finish(); for the OCEL output only
+    logged_elements: Dict[str, List[str]] = field(default_factory=dict)
 
     @property
     def discarded_counts(self) -> Dict[Tuple[str, str], int]:
@@ -579,10 +658,13 @@ def run_engines(
         report.stalled.extend((name, case) for case in engine_report.stalled)
         report.engine_warnings.extend((name, warning) for warning in engine_report.warnings)
         report.objects.extend((name, case_object) for case_object in engine_report.objects)
+        report.logged_elements[name] = engine_report.logged_elements
         for record in engine_report.published:
-            publishers[record.message_id] = CaseElement(name, record.case_id, record.element_id)
+            publishers[record.message_id] = CaseElement(name, record.case_id, record.element_id, record.qualifier,
+                                                        record.task_row)
         for record in engine_report.claimed:
-            claimers[record.message_id].append(CaseElement(name, record.case_id, record.element_id))
+            claimers[record.message_id].append(CaseElement(name, record.case_id, record.element_id, record.qualifier,
+                                                           record.task_row))
     report.message_records = [MessageRecord(message.id, message.type, publishers.get(message.id), claimers[message.id])
                               for message in report.published]
     return report
@@ -598,7 +680,8 @@ def run_orchestrator(config: SimulationConfig, log_out_path: Optional[str] = Non
     When log_out_path is given, every process's events are written to that one CSV, sorted
     by start time, with the process name as the first column. When ocel_out_path is given, the run
     is also written as an OCEL 2.0 JSON file: one object per case, typed by its process's object_type,
-    and one event per task (see prosimos/ocel_writer.py).
+    and one event per task, linked to its case's object and to the objects on the other end of its
+    messages (see prosimos/ocel_writer.py).
     extra_engines are ready-made engines, keyed by process name, that run alongside the ones built
     from config.processes; their names must be exactly config.extra_processes. They get no log
     writer, so the merged log holds only the configured processes.
@@ -624,7 +707,32 @@ def run_orchestrator(config: SimulationConfig, log_out_path: Optional[str] = Non
     if log_out_path is not None:
         merged_log.write(log_out_path)
     if ocel_out_path is not None:
-        object_types = {spec.name: spec.ocel_object_type for spec in config.processes}
-        write_ocel(ocel_out_path, object_types, report.objects, merged_log.rows)
+        processes = {spec.name: OcelProcess(spec.ocel_object_type, spec.qualifier, dict(spec.qualifier_by_activity),
+                                            spec.carry_links) for spec in config.processes}
+        write_ocel(ocel_out_path, processes, report.objects, merged_log.rows, report.logged_elements,
+                   _message_links(report.message_records, processes))
 
     return report
+
+
+def _message_links(records: List[MessageRecord], processes: Dict[str, OcelProcess]):
+    """(process, row of that process) -> [(object id, qualifier)]: the task a publisher's records attach to
+    links the object of every case that claimed the message, and the task a claimer's records attach to links
+    the publisher's object, each with its own end's qualifier. Ends with no task, or whose other end's process
+    writes no objects, link nothing."""
+    def has_object(element):
+        return element.process in processes and processes[element.process].object_type is not None
+
+    links = defaultdict(list)
+    for record in records:
+        if record.publisher is None:
+            continue
+        publisher = record.publisher
+        for claimer in record.claimers:
+            if publisher.task_row is not None and has_object(claimer):
+                links[(publisher.process, publisher.task_row)].append(
+                    (claimer.case_id, publisher.qualifier))
+            if claimer.task_row is not None and has_object(publisher):
+                links[(claimer.process, claimer.task_row)].append(
+                    (publisher.case_id, claimer.qualifier))
+    return dict(links)

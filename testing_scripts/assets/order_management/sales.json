@@ -293,7 +293,8 @@
           "case_id",
           "index",
           "customer"
-        ]
+        ],
+        "qualifier": "item"
       },
       {
         "event_id": "Throw_OrderConfirmed",

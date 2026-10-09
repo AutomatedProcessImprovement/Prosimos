@@ -5,7 +5,9 @@
       "bpmn_path": "sales.bpmn",
       "json_path": "sales.json",
       "total_cases": 2000,
-      "object_type": "orders"
+      "object_type": "orders",
+      "qualifier": "order",
+      "carry_links": true
     },
     {
       "name": "Customer",
@@ -17,13 +19,20 @@
       "name": "Warehouse",
       "bpmn_path": "warehouse.bpmn",
       "json_path": "warehouse.json",
-      "object_type": "items"
+      "object_type": "items",
+      "qualifier": "item"
     },
     {
       "name": "Packaging",
       "bpmn_path": "packaging.bpmn",
       "json_path": "packaging.json",
-      "object_type": "packages"
+      "object_type": "packages",
+      "qualifier": "package",
+      "qualifier_by_activity": {
+        "Create_Package": "creates",
+        "Send_Package": "shipped package"
+      },
+      "carry_links": true
     }
   ],
   "seed": 1,

@@ -41,8 +41,6 @@ the run ends.
 
 Not modeled, and where each goes:
 
-- **Links between one event and many objects** (e.g. create package with all its items, as OCEL records it):
-  future work.
 - **Package weight**: future work.
 - **The real packing rule**, the oldest waiting item and then all of that customer's waiting items
   (`"collect": "all"` with `"same"`); it would also remove the packages still collecting at the end: future
@@ -130,11 +128,27 @@ poetry run python testing_scripts/order_management_compare.py <path to order-man
 ```
 
 The configuration names the object types: `orders` (Sales), `items` (Warehouse) and `packages`
-(Packaging); Customer has `"object_type": null`, so the OCEL file has no objects or events for it. The full
+(Packaging); Customer has `"object_type": null`, so the OCEL file has no objects or events for it. Each event
+is linked to the objects on the other end of its messages ([orchestrator.md](orchestrator.md), "One event
+linked to many objects"), as the Order Management log links them:
+
+| Event                                       | Linked to                                                                          |
+|---------------------------------------------|------------------------------------------------------------------------------------|
+| place order                                 | its order (`order`) and the items its ItemOrdered messages started (`item`)        |
+| confirm order, payment reminder, pay order  | its order and, with `carry_links`, its items                                       |
+| item out of stock or pick item, first task  | its item (`item`) and its order (`order`), from the ItemOrdered that started it    |
+| pick item                                   | its item and the package that took its ItemPicked (`package`)                      |
+| create package                              | its package (`creates`) and the items it collected (`item`)                        |
+| send package                                | its package (`shipped package`) and, with `carry_links`, its items                 |
+| failed delivery, package delivered          | its package (`package`) and, with `carry_links`, its items                         |
+
+Sales and Packaging have `carry_links`; Warehouse doesn't, so a reorder is linked only to its item. A
+package still collecting when the run ends never reaches create package, so the links of the items it took
+are dropped, with a warning. The full
 2,000-order run takes about 25 seconds (Apple M4 Pro). The OCEL file isn't part of the repository;
 the comparison script reads it from the given path.
 
-The merged log doesn't link a package to its items, so the script reconstructs them: a customer has at most
+The CSV log doesn't link a package to its items, so the script reconstructs them: a customer has at most
 one open package at a time, packages get consecutive case ids as they start, and each takes its first item and
 then `more_items` more of that customer, in the order the items were picked. The tests check that this matches
 what the engine did.
@@ -177,7 +191,7 @@ Found while building the example; no feature was added for them.
 - **Resources aren't shared between processes.** Picking (Warehouse) and packing (Packaging) are done by the
   same 7 Warehousing employees in the log, but each Prosimos process has its own resource pool; they are
   split 5 / 2 here. Under discussion.
-- **The merged log doesn't link packages to their items** (links between events and many objects); the
-  comparison script reconstructs them (see above). Future work.
+- **The merged CSV log doesn't link packages to their items**; the OCEL output does, and the comparison
+  script, which reads the CSV, reconstructs them (see above).
 - **Reminders are 20 days and one microsecond apart.** A race timer's branch continues one microsecond after
   the timer's time, so that a message at exactly that time wins ([messaging.md](messaging.md)). By design.

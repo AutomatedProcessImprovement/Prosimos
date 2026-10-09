@@ -95,7 +95,10 @@ def test_a_warning_raised_inside_an_engine_appears_in_the_run_report_under_its_n
 def test_the_warnings_of_two_engines_never_mix(tmp_path):
     # Sales warns while it is loaded, Bursts while it runs (a published attribute without a value)
     sales, _ = _sales(1, json_path=_sales_with_a_duration(tmp_path))
-    bursts = ProsimosEngine(ProcessSpec("Bursts", f"{ASSETS}/bursts.bpmn", f"{ASSETS}/bursts.json", 3), START)
+    # Bursts publishes with no task before its throw events; left out of the OCEL output, it doesn't warn
+    # that their OCEL links are dropped
+    bursts = ProsimosEngine(ProcessSpec("Bursts", f"{ASSETS}/bursts.bpmn", f"{ASSETS}/bursts.json", 3,
+                                        object_type=None), START)
     warning_logger.warnings_queue[:] = ["raised outside any engine"]
 
     report = run_engines({"Sales": sales, "Bursts": bursts}, None, 1)
