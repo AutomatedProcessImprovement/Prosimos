@@ -126,6 +126,26 @@ the end event, or a case still waiting further on when the run ends, the links a
 warning per element in `engine_warnings`. Links to a process with `"object_type": null` aren't
 written; such a process looks for no tasks and warns nothing.
 
+**Gateways between the event and its tasks.** The links go to the tasks the case actually ran next to
+the event, so a gateway on the way links what it let through in that case:
+
+| Gateway                | After a claiming event (split)                                      | Before a publishing event (join)                                       |
+|------------------------|---------------------------------------------------------------------|------------------------------------------------------------------------|
+| exclusive, event-based | the one task on the branch taken (or on the winning event's branch) | the last task before the event, on the branch that came in             |
+| parallel               | every task the split enables at that moment                         | the last task of every branch, though they finished at different times |
+| inclusive              | every task on the branches taken in that case, not on every branch  | the last task of every branch taken in that case                       |
+
+A split enables all the tasks it lets through at the same moment, so after a claim these are the
+case's tasks next to the event enabled at the same, earliest time. Before a publish, they are the last
+run of each task next to the event, counting only runs completed since the case's previous publish at
+that event, so a loop doesn't bring back the tasks of an earlier round. A branch with a timer before
+its task enables it later, so that task isn't linked.
+
+This is an over-approximation: every object the message links is linked to every one of those tasks.
+When the branches handle different objects, e.g. one packs the items and the other bills the order,
+each object is still linked to all the parallel tasks. Linking each object only to the branch task that
+handles its object type is future work.
+
 Three settings shape the links:
 
 | Setting                                | Meaning                                                                                                                                                                                       |
@@ -168,7 +188,8 @@ and took each message, and hands them over in `finish()`, at the end of the run;
 them on the message id only then. Nothing it decides during the run uses them, so engines stay black
 boxes. A `MessageRecord` has the message's `message_id` and `type`, its `publisher`, and its
 `claimers`, each a `CaseElement` (`process`, `case_id`, `element_id`, and for the OCEL links its
-end's `qualifier` and `task_row`, the row of its process's log the links go to, or `None`):
+end's `qualifier` and `task_rows`, the rows of its process's log the links go to, empty if there is
+no such task):
 
 - **publisher**: the case and the throw or end event that published it;
 - **claimers**: at a start event, the case the message started; at a catch event or race branch, the
@@ -255,7 +276,7 @@ requeue).
 **`finish()`**: called once on every engine after the loop stops, i.e. when no engine has a next
 event. It returns an `EngineReport` with the engine's stalled cases, the warnings it raised during the
 run (including while it was built), its message records (`published` and `claimed`, each a list of
-(message id, case id, element id, qualifier, task row)), its cases as objects, and the element id of
+(message id, case id, element id, qualifier, task rows)), its cases as objects, and the element id of
 each row of its log (`logged_elements`). The orchestrator adds the stalled cases and warnings to the run
 report, tagged with the process name, joins the records into `message_records`, and uses the objects
 and rows for the OCEL output.
@@ -273,3 +294,7 @@ of its methods, and two engines' warnings never mix. Prosimos's end-of-run usage
 
 - **Outside the interface.** Building an engine (from a BPMN file, a JSON file, a number of cases and
   the start time) and handing it a log writer happen outside the five methods.
+- **OCEL links across parallel branches.** A message's objects are linked to every task a parallel or
+  inclusive gateway lets through next to its event, even when each branch handles only some of the
+  objects (see "Gateways between the event and its tasks"). Routing each object to the branch task that
+  handles its object type is future work.

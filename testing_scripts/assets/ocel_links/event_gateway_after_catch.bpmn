@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Event_Gateway_After_Catch" targetNamespace="http://bpmn.io/schema/bpmn">
+  <!-- prepare, wait for Go, then race Ok against one hour -->
+  <bpmn:process id="Event_Gateway_After_Catch" isExecutable="false">
+    <bpmn:startEvent id="Start" name="Start"><bpmn:outgoing>Flow_1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:task id="Prepare" name="Prepare"><bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing></bpmn:task>
+    <bpmn:intermediateCatchEvent id="Catch_Go" name="Go"><bpmn:incoming>Flow_2</bpmn:incoming><bpmn:outgoing>Flow_3</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:intermediateCatchEvent>
+    <bpmn:eventBasedGateway id="Race"><bpmn:incoming>Flow_3</bpmn:incoming><bpmn:outgoing>Flow_4</bpmn:outgoing><bpmn:outgoing>Flow_5</bpmn:outgoing></bpmn:eventBasedGateway>
+    <bpmn:intermediateCatchEvent id="Catch_Ok" name="Ok"><bpmn:incoming>Flow_4</bpmn:incoming><bpmn:outgoing>Flow_6</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="Timer_Late" name="1 hour"><bpmn:incoming>Flow_5</bpmn:incoming><bpmn:outgoing>Flow_7</bpmn:outgoing><bpmn:timerEventDefinition /></bpmn:intermediateCatchEvent>
+    <bpmn:task id="Task_Ok" name="Task Ok"><bpmn:incoming>Flow_6</bpmn:incoming><bpmn:outgoing>Flow_8</bpmn:outgoing></bpmn:task>
+    <bpmn:task id="Task_Late" name="Task Late"><bpmn:incoming>Flow_7</bpmn:incoming><bpmn:outgoing>Flow_9</bpmn:outgoing></bpmn:task>
+    <bpmn:exclusiveGateway id="Merge"><bpmn:incoming>Flow_8</bpmn:incoming><bpmn:incoming>Flow_9</bpmn:incoming><bpmn:outgoing>Flow_10</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:endEvent id="End" name="End"><bpmn:incoming>Flow_10</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Prepare" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Prepare" targetRef="Catch_Go" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Catch_Go" targetRef="Race" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Race" targetRef="Catch_Ok" />
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="Race" targetRef="Timer_Late" />
+    <bpmn:sequenceFlow id="Flow_6" sourceRef="Catch_Ok" targetRef="Task_Ok" />
+    <bpmn:sequenceFlow id="Flow_7" sourceRef="Timer_Late" targetRef="Task_Late" />
+    <bpmn:sequenceFlow id="Flow_8" sourceRef="Task_Ok" targetRef="Merge" />
+    <bpmn:sequenceFlow id="Flow_9" sourceRef="Task_Late" targetRef="Merge" />
+    <bpmn:sequenceFlow id="Flow_10" sourceRef="Merge" targetRef="End" />
+  </bpmn:process>
+</bpmn:definitions>

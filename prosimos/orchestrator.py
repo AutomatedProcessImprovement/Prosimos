@@ -173,28 +173,30 @@ class StalledCase:
 
 @dataclass(frozen=True)
 class PublishRecord:
-    """An engine's record that one of its cases published a message, at one of its elements. task_row is the
-    row of its log (0 for the first) that the message's OCEL links attach to, the last task before the
-    element, or None if there is none; qualifier qualifies those links."""
+    """An engine's record that one of its cases published a message, at one of its elements. task_rows are the
+    rows of its log (0 for the first) that the message's OCEL links attach to: the last task before the
+    element, and through a parallel or inclusive join the last task of every branch that came in; empty if
+    there is none. qualifier qualifies those links."""
 
     message_id: str
     case_id: str
     element_id: str
     qualifier: str = ""
-    task_row: Optional[int] = None
+    task_rows: Tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
 class ClaimRecord:
-    """An engine's record that one of its cases took a message, at one of its elements. task_row is the row
-    of its log that the message's OCEL links attach to, the next task after the element, or None if there
-    is none; qualifier qualifies those links."""
+    """An engine's record that one of its cases took a message, at one of its elements. task_rows are the rows
+    of its log that the message's OCEL links attach to: the next task after the element, and after a
+    parallel or inclusive split every task it enabled at that moment; empty if there is none. qualifier
+    qualifies those links."""
 
     message_id: str
     case_id: str
     element_id: str
     qualifier: str = ""
-    task_row: Optional[int] = None
+    task_rows: Tuple[int, ...] = ()
 
 
 @dataclass
@@ -222,13 +224,13 @@ class EngineReport:
 @dataclass(frozen=True)
 class CaseElement:
     """One element of one case of one process; for a message, also the qualifier of its OCEL links and the
-    row of the process's log they attach to (None if there is none)."""
+    rows of the process's log they attach to (none if there is no such task)."""
 
     process: str
     case_id: str
     element_id: str
     qualifier: str = ""
-    task_row: Optional[int] = None
+    task_rows: Tuple[int, ...] = ()
 
 
 @dataclass
@@ -376,29 +378,38 @@ class ProsimosEngine(SimulationEngine):
         return EngineReport(stalled, list(self._warnings), published, claimed, objects, logged_elements)
 
     def _attached_records(self):
-        """The publish and claim records, each attached to the row of the log its OCEL links go to: for a
-        message published at a throw or end event, the last task before it in the same case; for one taken at
-        a start or catch event, the next task after it. Without such a task, the links are dropped, with one
-        warning per element. A process left out of the OCEL output attaches nothing."""
+        """The publish and claim records, each attached to the rows of the log its OCEL links go to: for a
+        message published at a throw or end event, the last task before it in the same case, and through a
+        parallel or inclusive join the last task of every branch that came in; for one taken at a start or
+        catch event, the next task after it, and after a parallel or inclusive split every task it enabled at
+        that moment. Without such a task, the links are dropped, with one warning per element. A process left
+        out of the OCEL output attaches nothing."""
         attach = self._spec.ocel_object_type is not None
         rows_of_case = defaultdict(list)
         for row, (p_case, element_id, enabled, completed) in enumerate(self._env.logged_rows):
             rows_of_case[p_case].append((row, element_id, enabled, completed))
         warned = set()
 
-        def task_row(p_case, element_id, time, forward):
+        def task_rows(p_case, element_id, time, forward):
             if not attach:
-                return None
+                return ()
             tasks = self._env.tasks_next_to(element_id, forward)
             if forward:  # the first of them enabled when the case took the message, or later
-                rows = [(enabled, row) for row, element, enabled, _ in rows_of_case[p_case]
-                        if element in tasks and enabled >= time]
-                found = min(rows, default=None)
+                rows = sorted((enabled, row, element) for row, element, enabled, _ in rows_of_case[p_case]
+                              if element in tasks and enabled >= time)
+                # a parallel or inclusive split enables all the branches it takes at the same moment
+                found = [row for enabled, row, element in rows if enabled == rows[0][0] and tasks[element]]
+                found = found or [row for _, row, _ in rows[:1]]
             else:  # the last of them completed when the case published the message, or earlier
-                rows = [(completed, row) for row, element, _, completed in rows_of_case[p_case]
-                        if element in tasks and completed <= time]
-                found = max(rows, default=None)
-            if found is None and (element_id, forward) not in warned:
+                # ... but after its previous publish there, so a loop doesn't bring back an earlier round
+                since = max((when for _, case, element, _, when in self._published
+                             if case == p_case and element == element_id and when < time), default=None)
+                rows = sorted((completed, row, element) for row, element, _, completed in rows_of_case[p_case]
+                              if element in tasks and completed <= time and (since is None or completed > since))
+                # through a parallel or inclusive join, the last task of every branch that came in
+                last_of_task = {element: row for _, row, element in rows if tasks[element]}
+                found = sorted({*last_of_task.values(), *[row for _, row, _ in rows[-1:]]})
+            if not found and (element_id, forward) not in warned:
                 warned.add((element_id, forward))
                 side, case = "after" if forward else "before", self._env.case_id(p_case)
                 if not tasks:
@@ -408,13 +419,13 @@ class ProsimosEngine(SimulationEngine):
                 else:
                     reason = f"case {case} passed no task before {element_id}"
                 warning_logger.add_warning(f"{reason}; the OCEL links of its messages there are dropped")
-            return None if found is None else found[1]
+            return tuple(found)
 
         published = [PublishRecord(message.id, self._env.case_id(p_case), element_id, qualifier,
-                                   task_row(p_case, element_id, when, forward=False))
+                                   task_rows(p_case, element_id, when, forward=False))
                      for message, p_case, element_id, qualifier, when in self._published]
         claimed = [ClaimRecord(message_id, self._env.case_id(p_case), element_id, qualifier,
-                               task_row(p_case, element_id, when, forward=True))
+                               task_rows(p_case, element_id, when, forward=True))
                    for message_id, p_case, element_id, qualifier, when in self._claimed]
         return published, claimed
 
@@ -548,10 +559,14 @@ class RunReport:
             "warnings": list(self.warnings),
             "engine_warnings": [{"process": process, "warning": warning} for process, warning in self.engine_warnings],
             "message_records": [{"message": record.message_id, "type": record.type,
-                                 "publisher": asdict(record.publisher) if record.publisher else None,
-                                 "claimers": [asdict(claimer) for claimer in record.claimers]}
+                                 "publisher": _plain(record.publisher) if record.publisher else None,
+                                 "claimers": [_plain(claimer) for claimer in record.claimers]}
                                 for record in self.message_records],
         }
+
+
+def _plain(element: CaseElement) -> Dict[str, Any]:
+    return {**asdict(element), "task_rows": list(element.task_rows)}
 
 
 @dataclass(eq=False)
@@ -661,10 +676,10 @@ def run_engines(
         report.logged_elements[name] = engine_report.logged_elements
         for record in engine_report.published:
             publishers[record.message_id] = CaseElement(name, record.case_id, record.element_id, record.qualifier,
-                                                        record.task_row)
+                                                        record.task_rows)
         for record in engine_report.claimed:
             claimers[record.message_id].append(CaseElement(name, record.case_id, record.element_id, record.qualifier,
-                                                           record.task_row))
+                                                           record.task_rows))
     report.message_records = [MessageRecord(message.id, message.type, publishers.get(message.id), claimers[message.id])
                               for message in report.published]
     return report
@@ -716,8 +731,8 @@ def run_orchestrator(config: SimulationConfig, log_out_path: Optional[str] = Non
 
 
 def _message_links(records: List[MessageRecord], processes: Dict[str, OcelProcess]):
-    """(process, row of that process) -> [(object id, qualifier)]: the task a publisher's records attach to
-    links the object of every case that claimed the message, and the task a claimer's records attach to links
+    """(process, row of that process) -> [(object id, qualifier)]: the tasks a publisher's records attach to
+    link the object of every case that claimed the message, and the tasks a claimer's records attach to link
     the publisher's object, each with its own end's qualifier. Ends with no task, or whose other end's process
     writes no objects, link nothing."""
     def has_object(element):
@@ -729,10 +744,8 @@ def _message_links(records: List[MessageRecord], processes: Dict[str, OcelProces
             continue
         publisher = record.publisher
         for claimer in record.claimers:
-            if publisher.task_row is not None and has_object(claimer):
-                links[(publisher.process, publisher.task_row)].append(
-                    (claimer.case_id, publisher.qualifier))
-            if claimer.task_row is not None and has_object(publisher):
-                links[(claimer.process, claimer.task_row)].append(
-                    (publisher.case_id, claimer.qualifier))
+            for row in publisher.task_rows if has_object(claimer) else ():
+                links[(publisher.process, row)].append((claimer.case_id, publisher.qualifier))
+            for row in claimer.task_rows if has_object(publisher) else ():
+                links[(claimer.process, row)].append((publisher.case_id, claimer.qualifier))
     return dict(links)

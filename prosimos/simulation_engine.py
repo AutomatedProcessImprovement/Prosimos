@@ -408,22 +408,27 @@ class SimBPMEnv:
 
     def tasks_next_to(self, element_id, forward):
         """The tasks the token reaches first after element_id (forward) or came from last before it: the flows
-        are followed through gateways and events, and stop at tasks."""
+        are followed through gateways and events, and stop at tasks. Task id -> whether some path to it passes
+        a parallel or inclusive gateway that joins (or splits, forward) several flows, i.e. whether it may run
+        alongside the others."""
         key = (element_id, forward)
         if key not in self._tasks_next_to:
             graph = self.sim_setup.bpmn_graph
-            tasks, seen, to_visit = set(), {element_id}, [element_id]
+            tasks, seen, to_visit = {}, {(element_id, False)}, [(element_id, False)]
             while to_visit:
-                element = graph.element_info[to_visit.pop()]
+                current, concurrent = to_visit.pop()
+                element = graph.element_info[current]
+                if element.type in (BPMN.PARALLEL_GATEWAY, BPMN.INCLUSIVE_GATEWAY) and current != element_id:
+                    concurrent = concurrent or (element.is_split() if forward else element.is_join())
                 for flow in element.outgoing_flows if forward else element.incoming_flows:
                     neighbour = graph.flow_arcs[flow][1 if forward else 0]
-                    if neighbour in seen:
+                    if (neighbour, concurrent) in seen:
                         continue
-                    seen.add(neighbour)
+                    seen.add((neighbour, concurrent))
                     if graph.element_info[neighbour].type is BPMN.TASK:
-                        tasks.add(neighbour)
+                        tasks[neighbour] = tasks.get(neighbour, False) or concurrent
                     else:
-                        to_visit.append(neighbour)
+                        to_visit.append((neighbour, concurrent))
             self._tasks_next_to[key] = tasks
         return self._tasks_next_to[key]
 

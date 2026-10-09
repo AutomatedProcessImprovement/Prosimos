@@ -5,19 +5,21 @@ case links them too.
 """
 import json
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 import pytz
 
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.ocel_writer import OcelProcess, write_ocel
-from prosimos.orchestrator import ProcessSpec, ProsimosEngine, run_engines, run_orchestrator
+from prosimos.orchestrator import (CaseElement, MessageRecord, ProcessSpec, ProsimosEngine, Verdict, _message_links,
+                                   run_engines, run_orchestrator)
 from testing_scripts.scripted_engine import ScriptedEngine
 from testing_scripts.test_item_verdicts import PICKING, PICKING_JSON, SALES, SALES_JSON, _picking_in
 from testing_scripts.test_order_management import _config, _PackageContents
 
 ASSETS = "testing_scripts/assets/messaging"
+GATEWAYS = "testing_scripts/assets/ocel_links"
 START = pytz.utc.localize(datetime(2024, 1, 1, 9))
 DROPPED = "the OCEL links of its messages there are dropped"
 
@@ -154,8 +156,8 @@ def test_a_won_race_links_its_next_task_and_a_won_timer_links_nothing(order_mana
     report, _, _ = order_management
     elements = report.logged_elements["Sales"]
 
-    attached = [claimer.task_row for record in report.message_records for claimer in record.claimers
-                if claimer.element_id == "Catch_Payment"]
+    attached = [row for record in report.message_records for claimer in record.claimers
+                if claimer.element_id == "Catch_Payment" for row in claimer.task_rows]
     assert attached
     assert {elements[row] for row in attached} == {"Pay_Order"}
     assert len(set(attached)) == len(attached)  # each payment its own order's
@@ -169,7 +171,7 @@ def test_a_process_without_objects_attaches_nothing_and_warns_nothing(order_mana
     customer = [element for record in report.message_records
                 for element in [record.publisher, *record.claimers] if element and element.process == "Customer"]
     assert customer
-    assert all(element.task_row is None for element in customer)
+    assert all(element.task_rows == () for element in customer)
     assert not any(process == "Customer" for process, _ in report.engine_warnings)
 
 
@@ -195,12 +197,9 @@ def _verdicts(picking_json=PICKING_JSON):
 
 
 def _attached(engines, element):
-    """(case id, element id) of the row a publisher or claimer is attached to, or None."""
-    if element.task_row is None:
-        return None
+    """(case id, element id) of each row a publisher or claimer is attached to."""
     env = engines[element.process]._env
-    p_case, element_id, _, _ = env.logged_rows[element.task_row]
-    return env.case_id(p_case), element_id
+    return [(env.case_id(env.logged_rows[row][0]), env.logged_rows[row][1]) for row in element.task_rows]
 
 
 def test_a_publish_attaches_to_the_last_task_before_it_and_a_message_start_to_the_next_task_after_it():
@@ -208,11 +207,11 @@ def test_a_publish_attaches_to_the_last_task_before_it_and_a_message_start_to_th
 
     for record in report.message_records:
         if record.type == "ItemOrdered":
-            assert _attached(engines, record.publisher) == ("Sales-0", "Place_Order")
+            assert _attached(engines, record.publisher) == [("Sales-0", "Place_Order")]
             [claimer] = record.claimers
-            assert _attached(engines, claimer) == (claimer.case_id, "Pick_Item")
+            assert _attached(engines, claimer) == [(claimer.case_id, "Pick_Item")]
         if record.type == "Shipped":  # the last task before it is place order, back across the race
-            assert _attached(engines, record.publisher) == ("Sales-0", "Place_Order")
+            assert _attached(engines, record.publisher) == [("Sales-0", "Place_Order")]
 
 
 def test_an_element_with_no_task_next_to_it_drops_its_links_with_one_warning():
@@ -221,7 +220,7 @@ def test_an_element_with_no_task_next_to_it_drops_its_links_with_one_warning():
 
     claimers = [claimer for record in report.message_records for claimer in record.claimers
                 if claimer.element_id in ("Catch_Items", "Catch_Shipped")]
-    assert len(claimers) == 6 and all(claimer.task_row is None for claimer in claimers)
+    assert len(claimers) == 6 and all(claimer.task_rows == () for claimer in claimers)
     assert report.engine_warnings == [
         ("Picking", f"Catch_Shipped has no task after it in the model; {DROPPED}"),
         ("Sales", f"Catch_Items has no task after it in the model; {DROPPED}")]
@@ -234,7 +233,7 @@ def test_the_winning_race_branch_attaches_to_its_own_next_task(tmp_path):
     cancelled = [record.claimers[0] for record in report.message_records if record.type == "Cancelled"]
     assert len(cancelled) == 3
     assert [_attached(engines, claimer) for claimer in cancelled] == [
-        (claimer.case_id, "Return_To_Stock") for claimer in cancelled]
+        [(claimer.case_id, "Return_To_Stock")] for claimer in cancelled]
 
 
 def test_capacity_attaches_each_resumed_case_to_its_own_next_task():
@@ -247,7 +246,7 @@ def test_capacity_attaches_each_resumed_case_to_its_own_next_task():
 
     [record] = [record for record in report.message_records if record.type == "Truck"]
     assert [_attached({"Orders": orders}, claimer) for claimer in record.claimers] == [
-        ("Orders-0", "Load"), ("Orders-1", "Load")]
+        [("Orders-0", "Load")], [("Orders-1", "Load")]]
 
 
 def _row(case, activity, end):
@@ -297,3 +296,97 @@ def test_a_message_qualifier_must_be_a_non_empty_string(tmp_path):
     with pytest.raises(InvalidSimScenarioException,
                        match=r"messages.consume\[0\]: 'qualifier' must be a non-empty string"):
         ProsimosEngine(spec, START, None, seed=1)
+
+
+def _gateway_run(model, settings=None, seed=1, **messages):
+    """One case of a gateway model: Prepare (10 minutes) from 09:00, then the model's gateways. A scripted
+    process publishes each given message type at its time after 09:00 and takes every Done."""
+    engine = ProsimosEngine(ProcessSpec("P", f"{GATEWAYS}/{model}.bpmn", f"{GATEWAYS}/{settings or model}.json", 1),
+                            START, None, seed=seed)
+    other = ScriptedEngine("S")
+    for message_type, after in messages.items():
+        other.publish_at(START + after, message_type)
+    other.consume("Done", lambda message, now: Verdict.CLAIMED)
+    report = run_engines({"P": engine, "S": other}, None, seed)
+    return report, engine
+
+
+def _rows_of(report, engine, message_type, element_id):
+    """For each message of the type, the (element id, completion) of every row its end at element_id attaches
+    to, in time order."""
+    rows = engine._env.logged_rows
+    ends = [end for record in report.message_records if record.type == message_type
+            for end in [record.publisher, *record.claimers] if end is not None and end.element_id == element_id]
+    return [sorted((rows[row][1], rows[row][3]) for row in end.task_rows) for end in ends]
+
+
+def _tasks(attached):
+    return [sorted(task for task, _ in rows) for rows in attached]
+
+
+MINUTES = timedelta(minutes=1)
+
+
+def test_after_a_parallel_split_a_claim_links_every_task_it_enables():
+    # Go at 09:30 resumes the case, whose parallel split enables A and B at once
+    report, engine = _gateway_run("and_split_after_catch", Go=30 * MINUTES)
+
+    assert _tasks(_rows_of(report, engine, "Go", "Catch_Go")) == [["Task_A", "Task_B"]]
+    assert report.engine_warnings == []
+
+
+def test_before_a_parallel_join_a_publish_links_the_last_task_of_every_branch():
+    # A ends at 09:20 and B at 09:40; the join then passes Done, which links both, not Prepare before the split
+    report, engine = _gateway_run("and_join_before_throw")
+
+    [attached] = _rows_of(report, engine, "Done", "Throw_Done")
+    assert attached == [("Task_A", START.replace(minute=20)), ("Task_B", START.replace(minute=40))]
+    [done] = [message for message in report.published if message.type == "Done"]
+    assert done.time == START.replace(minute=40)
+
+
+@pytest.mark.parametrize("settings, taken", [
+    ("or_split_after_catch_several", ["Task_A", "Task_B"]),  # A and B always, C never
+    ("or_split_after_catch_single", ["Task_B"]),  # B only
+])
+def test_after_an_inclusive_split_a_claim_links_only_the_branches_it_took(settings, taken):
+    report, engine = _gateway_run("or_split_after_catch", settings, Go=30 * MINUTES)
+
+    assert _tasks(_rows_of(report, engine, "Go", "Catch_Go")) == [taken]
+
+
+def test_before_an_inclusive_join_a_publish_links_the_last_task_of_the_branches_taken():
+    # the split takes A and B, never C
+    report, engine = _gateway_run("or_join_before_throw")
+
+    assert _tasks(_rows_of(report, engine, "Done", "Throw_Done")) == [["Task_A", "Task_B"]]
+
+
+def test_in_a_loop_a_publish_links_only_the_tasks_of_its_own_round():
+    # seed 1: three rounds, A and B, A and B, then A alone; B of round 2 is not linked to round 3's Done
+    report, engine = _gateway_run("or_join_in_a_loop")
+
+    assert _tasks(_rows_of(report, engine, "Done", "Throw_Done")) == [
+        ["Task_A", "Task_B"], ["Task_A", "Task_B"], ["Task_A"]]
+    published = [message.time for message in report.published if message.type == "Done"]
+    for rows, since, until in zip(_rows_of(report, engine, "Done", "Throw_Done"), [None] + published, published):
+        assert all((since is None or since < completed) and completed <= until for _, completed in rows)
+
+
+@pytest.mark.parametrize("messages, linked", [
+    ({"Go": 30 * MINUTES, "Ok": 40 * MINUTES}, "Task_Ok"),  # Ok wins the race
+    ({"Go": 30 * MINUTES}, "Task_Late"),  # the hour's timer wins
+])
+def test_after_an_event_based_gateway_a_claim_links_only_the_winning_branchs_task(messages, linked):
+    report, engine = _gateway_run("event_gateway_after_catch", **messages)
+
+    assert _tasks(_rows_of(report, engine, "Go", "Catch_Go")) == [[linked]]
+    assert _tasks(_rows_of(report, engine, "Ok", "Catch_Ok")) == ([[linked]] if "Ok" in messages else [])
+
+
+def test_a_message_attached_to_several_tasks_links_its_objects_from_each():
+    record = MessageRecord("m1", "Go", CaseElement("S", "S-0", "Throw_Go", "go", (4,)),
+                           [CaseElement("P", "P-0", "Catch_Go", "sender", (1, 2))])
+
+    assert _message_links([record], {"S": OcelProcess("s"), "P": OcelProcess("p")}) == {
+        ("S", 4): [("P-0", "go")], ("P", 1): [("S-0", "sender")], ("P", 2): [("S-0", "sender")]}

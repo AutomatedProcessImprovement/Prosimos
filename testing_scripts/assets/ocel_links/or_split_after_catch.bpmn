@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Or_Split_After_Catch" targetNamespace="http://bpmn.io/schema/bpmn">
+  <!-- prepare, wait for Go, then do some of A, B and C -->
+  <bpmn:process id="Or_Split_After_Catch" isExecutable="false">
+    <bpmn:startEvent id="Start" name="Start"><bpmn:outgoing>Flow_1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:task id="Prepare" name="Prepare"><bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing></bpmn:task>
+    <bpmn:intermediateCatchEvent id="Catch_Go" name="Go"><bpmn:incoming>Flow_2</bpmn:incoming><bpmn:outgoing>Flow_3</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:intermediateCatchEvent>
+    <bpmn:inclusiveGateway id="Or_Split"><bpmn:incoming>Flow_3</bpmn:incoming><bpmn:outgoing>Flow_Or_Split_A</bpmn:outgoing><bpmn:outgoing>Flow_Or_Split_B</bpmn:outgoing><bpmn:outgoing>Flow_Or_Split_C</bpmn:outgoing></bpmn:inclusiveGateway>
+    <bpmn:inclusiveGateway id="Or_Join"><bpmn:incoming>Flow_A_Or_Join</bpmn:incoming><bpmn:incoming>Flow_B_Or_Join</bpmn:incoming><bpmn:incoming>Flow_C_Or_Join</bpmn:incoming><bpmn:outgoing>Flow_4</bpmn:outgoing></bpmn:inclusiveGateway>
+    <bpmn:task id="Task_A" name="Task A"><bpmn:incoming>Flow_Or_Split_A</bpmn:incoming><bpmn:outgoing>Flow_A_Or_Join</bpmn:outgoing></bpmn:task>
+    <bpmn:task id="Task_B" name="Task B"><bpmn:incoming>Flow_Or_Split_B</bpmn:incoming><bpmn:outgoing>Flow_B_Or_Join</bpmn:outgoing></bpmn:task>
+    <bpmn:task id="Task_C" name="Task C"><bpmn:incoming>Flow_Or_Split_C</bpmn:incoming><bpmn:outgoing>Flow_C_Or_Join</bpmn:outgoing></bpmn:task>
+    <bpmn:endEvent id="End" name="End"><bpmn:incoming>Flow_4</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Prepare" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Prepare" targetRef="Catch_Go" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Catch_Go" targetRef="Or_Split" />
+    <bpmn:sequenceFlow id="Flow_Or_Split_A" sourceRef="Or_Split" targetRef="Task_A" />
+    <bpmn:sequenceFlow id="Flow_A_Or_Join" sourceRef="Task_A" targetRef="Or_Join" />
+    <bpmn:sequenceFlow id="Flow_Or_Split_B" sourceRef="Or_Split" targetRef="Task_B" />
+    <bpmn:sequenceFlow id="Flow_B_Or_Join" sourceRef="Task_B" targetRef="Or_Join" />
+    <bpmn:sequenceFlow id="Flow_Or_Split_C" sourceRef="Or_Split" targetRef="Task_C" />
+    <bpmn:sequenceFlow id="Flow_C_Or_Join" sourceRef="Task_C" targetRef="Or_Join" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Or_Join" targetRef="End" />
+  </bpmn:process>
+</bpmn:definitions>

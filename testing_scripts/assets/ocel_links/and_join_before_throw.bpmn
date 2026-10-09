@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_And_Join_Before_Throw" targetNamespace="http://bpmn.io/schema/bpmn">
+  <!-- prepare, do A (10 minutes) and B (30 minutes) in parallel, then publish Done -->
+  <bpmn:process id="And_Join_Before_Throw" isExecutable="false">
+    <bpmn:startEvent id="Start" name="Start"><bpmn:outgoing>Flow_1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:task id="Prepare" name="Prepare"><bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing></bpmn:task>
+    <bpmn:parallelGateway id="And_Split"><bpmn:incoming>Flow_2</bpmn:incoming><bpmn:outgoing>Flow_3</bpmn:outgoing><bpmn:outgoing>Flow_4</bpmn:outgoing></bpmn:parallelGateway>
+    <bpmn:task id="Task_A" name="Task A"><bpmn:incoming>Flow_3</bpmn:incoming><bpmn:outgoing>Flow_5</bpmn:outgoing></bpmn:task>
+    <bpmn:task id="Task_B" name="Task B"><bpmn:incoming>Flow_4</bpmn:incoming><bpmn:outgoing>Flow_6</bpmn:outgoing></bpmn:task>
+    <bpmn:parallelGateway id="And_Join"><bpmn:incoming>Flow_5</bpmn:incoming><bpmn:incoming>Flow_6</bpmn:incoming><bpmn:outgoing>Flow_7</bpmn:outgoing></bpmn:parallelGateway>
+    <bpmn:intermediateThrowEvent id="Throw_Done" name="Done"><bpmn:incoming>Flow_7</bpmn:incoming><bpmn:outgoing>Flow_8</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:intermediateThrowEvent>
+    <bpmn:endEvent id="End" name="End"><bpmn:incoming>Flow_8</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Prepare" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Prepare" targetRef="And_Split" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="And_Split" targetRef="Task_A" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="And_Split" targetRef="Task_B" />
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="Task_A" targetRef="And_Join" />
+    <bpmn:sequenceFlow id="Flow_6" sourceRef="Task_B" targetRef="And_Join" />
+    <bpmn:sequenceFlow id="Flow_7" sourceRef="And_Join" targetRef="Throw_Done" />
+    <bpmn:sequenceFlow id="Flow_8" sourceRef="Throw_Done" targetRef="End" />
+  </bpmn:process>
+</bpmn:definitions>
