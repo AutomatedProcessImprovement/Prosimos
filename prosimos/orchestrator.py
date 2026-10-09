@@ -189,7 +189,7 @@ class PublishRecord:
 class ClaimRecord:
     """An engine's record that one of its cases took a message, at one of its elements. task_rows are the rows
     of its log that the message's OCEL links attach to: the next task after the element, and after a
-    parallel or inclusive split every task it enabled at that moment; empty if there is none. qualifier
+    parallel or inclusive split the first run of every task on the branches taken; empty if there is none. qualifier
     qualifies those links."""
 
     message_id: str
@@ -381,8 +381,8 @@ class ProsimosEngine(SimulationEngine):
         """The publish and claim records, each attached to the rows of the log its OCEL links go to: for a
         message published at a throw or end event, the last task before it in the same case, and through a
         parallel or inclusive join the last task of every branch that came in; for one taken at a start or
-        catch event, the next task after it, and after a parallel or inclusive split every task it enabled at
-        that moment. Without such a task, the links are dropped, with one warning per element. A process left
+        catch event, the next task after it, and after a parallel or inclusive split the first run of every
+        task on the branches taken. Without such a task, the links are dropped, with one warning per element. A process left
         out of the OCEL output attaches nothing."""
         attach = self._spec.ocel_object_type is not None
         rows_of_case = defaultdict(list)
@@ -397,9 +397,18 @@ class ProsimosEngine(SimulationEngine):
             if forward:  # the first of them enabled when the case took the message, or later
                 rows = sorted((enabled, row, element) for row, element, enabled, _ in rows_of_case[p_case]
                               if element in tasks and enabled >= time)
-                # a parallel or inclusive split enables all the branches it takes at the same moment
-                found = [row for enabled, row, element in rows if enabled == rows[0][0] and tasks[element]]
-                found = found or [row for _, row, _ in rows[:1]]
+                # ... but before its next round there: a claim there after it moved on (with collect, a case
+                # claims several messages there before it moves on)
+                left = rows[0][0] if rows else None
+                until = min((when for _, case, element, _, when in self._claimed
+                             if case == p_case and element == element_id and left is not None and when > left),
+                            default=None)
+                # after a parallel or inclusive split, the first run of every task on the branches taken
+                first_of_task = {}
+                for enabled, row, element in rows:
+                    if tasks[element] and (until is None or enabled < until):
+                        first_of_task.setdefault(element, row)
+                found = sorted({*first_of_task.values(), *[row for _, row, _ in rows[:1]]})
             else:  # the last of them completed when the case published the message, or earlier
                 # ... but after its previous publish there, so a loop doesn't bring back an earlier round
                 since = max((when for _, case, element, _, when in self._published

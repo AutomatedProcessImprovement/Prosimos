@@ -132,14 +132,18 @@ the event, so a gateway on the way links what it let through in that case:
 | Gateway                | After a claiming event (split)                                      | Before a publishing event (join)                                       |
 |------------------------|---------------------------------------------------------------------|------------------------------------------------------------------------|
 | exclusive, event-based | the one task on the branch taken (or on the winning event's branch) | the last task before the event, on the branch that came in             |
-| parallel               | every task the split enables at that moment                         | the last task of every branch, though they finished at different times |
+| parallel               | every task on its branches, also one a timer on its branch delays   | the last task of every branch, though they finished at different times |
 | inclusive              | every task on the branches taken in that case, not on every branch  | the last task of every branch taken in that case                       |
 
-A split enables all the tasks it lets through at the same moment, so after a claim these are the
-case's tasks next to the event enabled at the same, earliest time. Before a publish, they are the last
-run of each task next to the event, counting only runs completed since the case's previous publish at
-that event, so a loop doesn't bring back the tasks of an earlier round. A branch with a timer before
-its task enables it later, so that task isn't linked.
+After a claim, they are the first run of each task next to the event enabled at or after the claim;
+before a publish, the last run of each task next to the event completed at or before the publish. Only
+the case's runs in the same round count: after a claim, runs enabled before its next claim at that
+event once it has moved on (with `collect`, the case claims several messages there before it moves
+on); before a publish, runs completed since its previous publish there. So in a loop, a message
+doesn't link the tasks of another round, and a branch that wasn't taken in that round links nothing.
+A loop that returns to a point after the catch event makes no new claim to separate its passes, so a
+branch taken only in a later pass is still linked; likewise, a loop that ends before the throw event
+leaves no earlier publish there, so a branch taken only in an earlier pass is still linked.
 
 This is an over-approximation: every object the message links is linked to every one of those tasks.
 When the branches handle different objects, e.g. one packs the items and the other bills the order,

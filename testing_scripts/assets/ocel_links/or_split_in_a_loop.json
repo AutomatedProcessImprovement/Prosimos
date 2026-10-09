@@ -1,0 +1,151 @@
+{
+  "resource_profiles": [
+    {
+      "id": "Staff",
+      "name": "Staff",
+      "resource_list": [
+        {
+          "id": "Worker",
+          "name": "Worker",
+          "cost_per_hour": 1,
+          "amount": 5,
+          "calendar": "Always",
+          "assigned_tasks": [
+            "Prepare",
+            "Task_A",
+            "Task_B",
+            "Task_C"
+          ]
+        }
+      ]
+    }
+  ],
+  "arrival_time_distribution": {
+    "distribution_name": "fix",
+    "distribution_params": [
+      {
+        "value": 3600
+      }
+    ]
+  },
+  "arrival_time_calendar": [
+    {
+      "from": "MONDAY",
+      "to": "SUNDAY",
+      "beginTime": "00:00:00",
+      "endTime": "23:59:59"
+    }
+  ],
+  "gateway_branching_probabilities": [
+    {
+      "gateway_id": "Or_Split",
+      "probabilities": [
+        {
+          "path_id": "Flow_Or_Split_A",
+          "value": 1
+        },
+        {
+          "path_id": "Flow_Or_Split_B",
+          "value": 0.5
+        },
+        {
+          "path_id": "Flow_Or_Split_C",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "gateway_id": "Again",
+      "probabilities": [
+        {
+          "path_id": "Flow_Again",
+          "value": 0.7
+        },
+        {
+          "path_id": "Flow_Out",
+          "value": 0.3
+        }
+      ]
+    }
+  ],
+  "task_resource_distribution": [
+    {
+      "task_id": "Prepare",
+      "resources": [
+        {
+          "resource_id": "Worker",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 600
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Task_A",
+      "resources": [
+        {
+          "resource_id": "Worker",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 600
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Task_B",
+      "resources": [
+        {
+          "resource_id": "Worker",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 1800
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Task_C",
+      "resources": [
+        {
+          "resource_id": "Worker",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 1200
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "resource_calendars": [
+    {
+      "id": "Always",
+      "name": "Always",
+      "time_periods": [
+        {
+          "from": "MONDAY",
+          "to": "SUNDAY",
+          "beginTime": "00:00:00",
+          "endTime": "23:59:59"
+        }
+      ]
+    }
+  ],
+  "messages": {
+    "consume": [
+      {
+        "event_id": "Catch_Go",
+        "type": "Go"
+      }
+    ]
+  }
+}

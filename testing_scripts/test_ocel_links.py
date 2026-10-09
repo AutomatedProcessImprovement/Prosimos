@@ -6,6 +6,7 @@ case links them too.
 import json
 from collections import defaultdict
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import pytest
 import pytz
@@ -300,12 +301,15 @@ def test_a_message_qualifier_must_be_a_non_empty_string(tmp_path):
 
 def _gateway_run(model, settings=None, seed=1, **messages):
     """One case of a gateway model: Prepare (10 minutes) from 09:00, then the model's gateways. A scripted
-    process publishes each given message type at its time after 09:00 and takes every Done."""
-    engine = ProsimosEngine(ProcessSpec("P", f"{GATEWAYS}/{model}.bpmn", f"{GATEWAYS}/{settings or model}.json", 1),
-                            START, None, seed=seed)
+    process publishes each given message type at its time (or times) after 09:00 and takes every Done.
+    settings: the settings file without .json, in the model's folder unless it is a path."""
+    settings = settings if isinstance(settings, Path) else f"{GATEWAYS}/{settings or model}"
+    engine = ProsimosEngine(ProcessSpec("P", f"{GATEWAYS}/{model}.bpmn", f"{settings}.json", 1), START, None,
+                            seed=seed)
     other = ScriptedEngine("S")
     for message_type, after in messages.items():
-        other.publish_at(START + after, message_type)
+        for each in after if isinstance(after, list) else [after]:
+            other.publish_at(START + each, message_type)
     other.consume("Done", lambda message, now: Verdict.CLAIMED)
     report = run_engines({"P": engine, "S": other}, None, seed)
     return report, engine
@@ -343,6 +347,40 @@ def test_before_a_parallel_join_a_publish_links_the_last_task_of_every_branch():
     assert attached == [("Task_A", START.replace(minute=20)), ("Task_B", START.replace(minute=40))]
     [done] = [message for message in report.published if message.type == "Done"]
     assert done.time == START.replace(minute=40)
+
+
+def test_after_a_parallel_split_a_claim_links_a_task_its_branch_enables_later():
+    # Go at 09:30: A is enabled at once, B only after its branch's 10-minute timer, at 09:40
+    report, engine = _gateway_run("and_split_with_timer_after_catch", Go=30 * MINUTES)
+
+    [claimer] = [claimer for record in report.message_records for claimer in record.claimers]
+    rows = engine._env.logged_rows
+    assert sorted((rows[row][1], rows[row][2]) for row in claimer.task_rows) == [
+        ("Task_A", START.replace(minute=30)), ("Task_B", START.replace(minute=40))]
+
+
+def test_messages_collected_before_a_parallel_split_each_link_every_task_it_enables(tmp_path):
+    # the case collects two Go, at 09:20 and 09:30, before it moves on to the split
+    with open(f"{GATEWAYS}/and_split_after_catch.json") as file:
+        settings = json.load(file)
+    settings["messages"]["consume"][0]["collect"] = {"value": 2}
+    (tmp_path / "collect_2.json").write_text(json.dumps(settings))
+
+    report, engine = _gateway_run("and_split_after_catch", tmp_path / "collect_2", Go=[20 * MINUTES, 30 * MINUTES])
+
+    assert _tasks(_rows_of(report, engine, "Go", "Catch_Go")) == [["Task_A", "Task_B"], ["Task_A", "Task_B"]]
+
+
+def test_in_a_loop_a_claim_links_only_the_tasks_of_its_own_round():
+    # seed 4: a Go every hour from 09:30 starts a round; round 1 does A alone, rounds 2 and 3 do A and B. The
+    # first B after round 1's Go is round 2's, which is not linked to it
+    report, engine = _gateway_run("or_split_in_a_loop", seed=4, Go=[(30 + 60 * hour) * MINUTES for hour in range(5)])
+
+    attached = _rows_of(report, engine, "Go", "Catch_Go")
+    assert _tasks(attached) == [["Task_A"], ["Task_A", "Task_B"], ["Task_A", "Task_B"]]
+    claimed = sorted(time for message_id, process, time in report.claims if process == "P")
+    for rows, since, until in zip(attached, claimed, claimed[1:] + [None]):
+        assert all(since <= completed and (until is None or completed <= until) for _, completed in rows)
 
 
 @pytest.mark.parametrize("settings, taken", [
