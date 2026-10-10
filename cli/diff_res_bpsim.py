@@ -34,7 +34,7 @@ def cli():
 @click.option('--starting_at', required=False,
               help='Date-time of the first process case in the simulation.'
                    'If this parameter is not provided, the current date-time is assigned.')
-@click.option('--is_event_added_to_log', required=False,
+@click.option('--is_event_added_to_log', required=False, type=click.BOOL, default=False,
               help='Boolean showing whether event should be added to the resulted simulation log.'
                    'If this parameter is not provided, False is considered as the parameter value.')
 @click.option('--seed', required=False, type=click.INT, default=None,

@@ -36,3 +36,16 @@ def test_start_simulation(assets_path, tmp_path):
 
     with output_path.open('r') as f:
         assert len(f.readlines()) > 1, 'Output log must have more than 1 line'
+
+
+@pytest.mark.parametrize("given, expected", [(["False"], False), (["True"], True), ([], False)])
+def test_is_event_added_to_log_is_read_as_a_boolean(monkeypatch, given, expected):
+    # without a type, "False" arrived as the string "False", which is truthy
+    calls = []
+    monkeypatch.setattr("cli.diff_res_bpsim.run_simulation", lambda *args: calls.append(args))
+
+    result = CliRunner().invoke(cli, ['start-simulation', '--bpmn_path', 'model.bpmn', '--json_path', 'model.json',
+                                      '--total_cases', '1'] + (['--is_event_added_to_log'] + given if given else []))
+
+    assert result.exit_code == 0, result.output
+    assert calls[0][-1] is expected
