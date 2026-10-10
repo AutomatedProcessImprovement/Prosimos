@@ -15,7 +15,6 @@ from prosimos.simulation_setup import SimDiffSetup
 
 from test_discovery import assets_path
 
-@pytest.mark.skip(reason="EXPONNORM distribution is temporarily not supported by pix-framework")
 def test_not_enabled_event_empty_tasks(assets_path):
     """
     Input: e_id - event which is not enabled
@@ -26,25 +25,9 @@ def test_not_enabled_event_empty_tasks(assets_path):
     bpmn_path = assets_path / "test_and_or.bpmn"
     json_path = assets_path / "test_or_xor_follow.json"
 
-    (
-        _,
-        _,
-        element_probability,
-        task_resource,
-        _,
-        event_distribution,
-        batch_processing,
-        _,
-        _,
-    ) = parse_json_sim_parameters(json_path)
-
-    bpmn_graph = parse_simulation_model(bpmn_path)
-    bpmn_graph.set_additional_fields_from_json(
-        element_probability, task_resource, event_distribution, batch_processing
-    )
-
     sim_setup = SimDiffSetup(bpmn_path, json_path, False, 1,
                              pytz.utc.localize(datetime.datetime.now()))
+    bpmn_graph = sim_setup.bpmn_graph
     p_case = 0
     p_state = sim_setup.initial_state()
 
@@ -68,7 +51,6 @@ def test_not_enabled_event_empty_tasks(assets_path):
     expected_flows_with_token = ["Flow_0mcgg0k", "Flow_0urvgxh"]
     verify_flow_tokens(all_tokens, expected_flows_with_token)
 
-@pytest.mark.skip(reason="EXPONNORM distribution is temporarily not supported by pix-framework")
 def test_enabled_first_task_enables_next_one(assets_path):
     """
     Input: activated activity 'Task 1 B', another token before 'Task 1 A'.
@@ -85,25 +67,9 @@ def test_enabled_first_task_enables_next_one(assets_path):
     bpmn_path = assets_path / "test_and_or.bpmn"
     json_path = assets_path / "test_or_xor_follow.json"
 
-    (
-        _,
-        _,
-        element_probability,
-        task_resource,
-        _,
-        event_distribution,
-        batch_processing,
-        _,
-        _,
-    ) = parse_json_sim_parameters(json_path)
-
-    bpmn_graph = parse_simulation_model(bpmn_path)
-    bpmn_graph.set_additional_fields_from_json(
-        element_probability, task_resource, event_distribution, batch_processing
-    )
-
     sim_setup = SimDiffSetup(bpmn_path, json_path, False, 1,
                              pytz.utc.localize(datetime.datetime.now()))
+    bpmn_graph = sim_setup.bpmn_graph
     p_case = 0
     p_state = sim_setup.initial_state()
 
@@ -136,7 +102,6 @@ def test_enabled_first_task_enables_next_one(assets_path):
     expected_flows_with_token = ["Flow_1sl476n", "Flow_0vgoazd"]
     verify_flow_tokens(all_tokens, expected_flows_with_token)
 
-@pytest.mark.skip(reason="EXPONNORM distribution is temporarily not supported by pix-framework")
 def test_enabled_first_task_token_wait_at_the_or_join(assets_path):
     """
     Input: activated activity 'Task 1 B', another token before 'Task 1 A'.
@@ -152,25 +117,9 @@ def test_enabled_first_task_token_wait_at_the_or_join(assets_path):
     bpmn_path = assets_path / "test_and_or.bpmn"
     json_path = assets_path / "test_or_not_xor_follow.json"
 
-    (
-        _,
-        _,
-        element_probability,
-        task_resource,
-        _,
-        event_distribution,
-        batch_processing,
-        _,
-        _,
-    ) = parse_json_sim_parameters(json_path)
-
-    bpmn_graph = parse_simulation_model(bpmn_path)
-    bpmn_graph.set_additional_fields_from_json(
-        element_probability, task_resource, event_distribution, batch_processing
-    )
-
     sim_setup = SimDiffSetup(bpmn_path, json_path, False, 1,
                              pytz.utc.localize(datetime.datetime.now()))
+    bpmn_graph = sim_setup.bpmn_graph
     p_case = 0
     p_state = sim_setup.initial_state()
 
@@ -318,6 +267,7 @@ def test_update_state_event_gateway_event_happened(
 
     sim_setup = SimDiffSetup(bpmn_path, json_path, False, 1,
                              pytz.utc.localize(datetime.datetime.now()))
+    bpmn_graph = sim_setup.bpmn_graph
     p_case = 0
     p_state = sim_setup.initial_state()
 
@@ -398,6 +348,7 @@ def test_update_state_terminate_event(assets_path):
 
     sim_setup = SimDiffSetup(bpmn_path, json_path, False, 1,
                              pytz.utc.localize(datetime.datetime.now()))
+    bpmn_graph = sim_setup.bpmn_graph
     p_case = 0
     p_state = sim_setup.initial_state()
 

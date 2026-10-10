@@ -1,15 +1,11 @@
 import datetime
 
-import pytest
 import pytz
-from prosimos.simulation_properties_parser import (parse_json_sim_parameters,
-                                                   parse_simulation_model)
 from prosimos.simulation_setup import SimDiffSetup
 
 from test_discovery import assets_path
 
 
-@pytest.mark.skip(reason="EXPONNORM distribution is temporarily not supported by pix-framework")
 def test_or_gateway_one_token_before_or_true(assets_path):
     """
     OR gateway has two incoming flows
@@ -24,25 +20,9 @@ def test_or_gateway_one_token_before_or_true(assets_path):
     bpmn_path = assets_path / "test_and_or.bpmn"
     json_path = assets_path / "test_or_xor_follow.json"
 
-    (
-        _,
-        _,
-        element_probability,
-        task_resource,
-        _,
-        event_distribution,
-        batch_processing,
-        _,
-        _,
-    ) = parse_json_sim_parameters(json_path)
-
-    bpmn_graph = parse_simulation_model(bpmn_path)
-    bpmn_graph.set_additional_fields_from_json(
-        element_probability, task_resource, event_distribution, batch_processing
-    )
-
     sim_setup = SimDiffSetup(bpmn_path, json_path, False, 1,
                              pytz.utc.localize(datetime.datetime.now()))
+    bpmn_graph = sim_setup.bpmn_graph
     p_state = sim_setup.initial_state()
 
     # Task 1 A -> join inclusive (OR) gateway
@@ -58,7 +38,6 @@ def test_or_gateway_one_token_before_or_true(assets_path):
     # ====== ASSERT ======
     assert result == True
 
-@pytest.mark.skip(reason="EXPONNORM distribution is temporarily not supported by pix-framework")
 def test_or_gateway_both_tokens_before_or_true(assets_path):
     """
     OR gateway has two incoming flows.
@@ -70,25 +49,9 @@ def test_or_gateway_both_tokens_before_or_true(assets_path):
     bpmn_path = assets_path / "test_and_or.bpmn"
     json_path = assets_path / "test_or_xor_follow.json"
 
-    (
-        _,
-        _,
-        element_probability,
-        task_resource,
-        _,
-        event_distribution,
-        batch_processing,
-        _,
-        _,
-    ) = parse_json_sim_parameters(json_path)
-
-    bpmn_graph = parse_simulation_model(bpmn_path)
-    bpmn_graph.set_additional_fields_from_json(
-        element_probability, task_resource, event_distribution, batch_processing
-    )
-
     sim_setup = SimDiffSetup(bpmn_path, json_path, False, 1,
                              pytz.utc.localize(datetime.datetime.now()))
+    bpmn_graph = sim_setup.bpmn_graph
     p_state = sim_setup.initial_state()
 
     # Task 1 A -> join inclusive (OR) gateway
@@ -105,7 +68,6 @@ def test_or_gateway_both_tokens_before_or_true(assets_path):
     # ====== ASSERT ======
     assert result == True
 
-@pytest.mark.skip(reason="EXPONNORM distribution is temporarily not supported by pix-framework")
 def test_or_gateway_one_token_before_xor_false(assets_path):
     """
     OR gateway has two incoming flows
@@ -120,25 +82,9 @@ def test_or_gateway_one_token_before_xor_false(assets_path):
     bpmn_path = assets_path / "test_and_or.bpmn"
     json_path = assets_path / "test_or_xor_follow.json"
 
-    (
-        _,
-        _,
-        element_probability,
-        task_resource,
-        _,
-        event_distribution,
-        batch_processing,
-        _,
-        _,
-    ) = parse_json_sim_parameters(json_path)
-
-    bpmn_graph = parse_simulation_model(bpmn_path)
-    bpmn_graph.set_additional_fields_from_json(
-        element_probability, task_resource, event_distribution, batch_processing
-    )
-
     sim_setup = SimDiffSetup(bpmn_path, json_path, False, 1,
                              pytz.utc.localize(datetime.datetime.now()))
+    bpmn_graph = sim_setup.bpmn_graph
     p_state = sim_setup.initial_state()
 
     # Task 1 A -> join inclusive (OR) gateway

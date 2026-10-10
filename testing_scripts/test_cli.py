@@ -9,27 +9,16 @@ from cli.diff_res_bpsim import cli
 
 
 @pytest.fixture
-def assets_path(request) -> Path:
-    entry_path: Path
+def assets_path() -> Path:
     if os.path.basename(os.getcwd()) == 'testing_scripts':
-        entry_path = Path('assets')
-    else:
-        entry_path = Path('testing_scripts/assets')
+        return Path('assets')
+    return Path('testing_scripts/assets')
 
-    def teardown():
-        output_path = entry_path / 'PurchasingExample.csv'
-        if output_path.exists():
-            os.remove(output_path)
-    request.addfinalizer(teardown)
-
-    return entry_path
-
-@pytest.mark.skip(reason="verify the types of parameters of cli tool")
-def test_start_simulation(assets_path):
+def test_start_simulation(assets_path, tmp_path):
     runner = CliRunner()
-    model_path = assets_path / 'PurchasingExampleQBP.bpmn'
-    json_path = assets_path / 'PurchasingExampleQBP.json'
-    output_path = assets_path / 'PurchasingExample.csv'
+    model_path = assets_path / 'LoanApp_sequential_9-5.bpmn'
+    json_path = assets_path / 'LoanApp_arrival_fix_10.json'
+    output_path = tmp_path / 'LoanApp_cli_log.csv'
     
     result = runner.invoke(cli, [
         'start-simulation',
