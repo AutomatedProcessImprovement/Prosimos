@@ -36,7 +36,8 @@ def test_orders_items_and_packages_are_objects_one_per_case(order_management):
     cases_in_log = log.groupby("process")["case_id"].nunique()
     still_collecting = sum(process == "Packaging" for process, _ in report.stalled)  # no rows in the log yet
     assert objects == Counter({"orders": cases_in_log["Sales"], "items": cases_in_log["Warehouse"],
-                               "packages": cases_in_log["Packaging"] + still_collecting})
+                               "packages": cases_in_log["Packaging"] + still_collecting,
+                               "customers": 15})  # the catalogue's
     assert not any(obj["id"].startswith("Customer-") for obj in ocel["objects"])  # object_type: null
 
 
@@ -60,6 +61,7 @@ def test_object_and_event_types_are_listed_with_their_attributes(order_managemen
                   {"name": "order_id", "type": "string"}],
         "orders": [{"name": "customer", "type": "string"}, {"name": "items", "type": "integer"}],
         "packages": [{"name": "customer", "type": "string"}, {"name": "more_items", "type": "integer"}],
+        "customers": [{"name": "segment", "type": "string"}],
     }
     assert {t["name"] for t in ocel["eventTypes"]} == {
         "place order", "confirm order", "payment reminder", "pay order", "item out of stock", "reorder item",
@@ -74,7 +76,7 @@ def test_pm4py_reads_the_file(order_management):
     ocel = pm4py.read_ocel2_json(str(path))
 
     assert len(ocel.events) == len(log)
-    assert set(ocel.objects["ocel:type"]) == {"orders", "items", "packages"}
+    assert set(ocel.objects["ocel:type"]) == {"orders", "items", "packages", "customers"}
 
 
 def test_the_object_type_defaults_to_the_process_name_and_null_leaves_the_process_out(tmp_path):

@@ -85,7 +85,7 @@ flowchart LR
 | object type **orders**         | Sales     | one case per order        | arrivals on a weekday calendar; case attributes `customer` and `items`                               |
 | object type **items**          | Warehouse | one case per item         | a message start event on `ItemOrdered`, published once per item with `count`; `index` → `item_index` |
 | object type **packages**       | Packaging | one case per package      | a message start event on an `ItemPicked` no open package takes; `collect` of `more_items`            |
-| object type **customers**      | all       | case attribute `customer` | drawn on the order, copied to items and packages; the condition of the package's catch event         |
+| object type **customers**      | all       | case attribute `customer` | 15 in the catalogue; drawn on the order, copied to items and packages; the package's condition       |
 | object type **products**       | -         | -                         | not modeled: no metric uses them                                                                     |
 | object type **employees**      | all       | resources                 | Sales (5), Warehousing (7, split 5 / 2 between Warehouse and Packaging), Shipment (6)                |
 | activity **place order**       | Sales     | task `Place_Order`        | done by the `Shop` resource; `ItemOrdered` is published right after it                               |
@@ -132,19 +132,25 @@ The configuration names the object types: `orders` (Sales), `items` (Warehouse) 
 is linked to the objects on the other end of its messages ([orchestrator.md](orchestrator.md), "One event
 linked to many objects"), as the Order Management log links them:
 
-| Event                                       | Linked to                                                                          |
-|---------------------------------------------|------------------------------------------------------------------------------------|
-| place order                                 | its order (`order`) and the items its ItemOrdered messages started (`item`)        |
-| confirm order, payment reminder, pay order  | its order and, with `carry_links`, its items                                       |
-| item out of stock or pick item, first task  | its item (`item`) and its order (`order`), from the ItemOrdered that started it    |
-| pick item                                   | its item and the package that took its ItemPicked (`package`)                      |
-| create package                              | its package (`creates`) and the items it collected (`item`)                        |
-| send package                                | its package (`shipped package`) and, with `carry_links`, its items                 |
-| failed delivery, package delivered          | its package (`package`) and, with `carry_links`, its items                         |
+| Event                                      | Linked to                                                                                              |
+|--------------------------------------------|--------------------------------------------------------------------------------------------------------|
+| place order                                | its order (`order`), the items its ItemOrdered messages started (`item`) and its customer (`customer`) |
+| confirm order                              | its order, its customer and, with `carry_links`, its items                                             |
+| payment reminder, pay order                | its order and, with `carry_links`, its items                                                           |
+| item out of stock or pick item, first task | its item (`item`) and its order (`order`), from the ItemOrdered that started it                        |
+| pick item                                  | its item and the package that took its ItemPicked (`package`)                                          |
+| create package                             | its package (`creates`) and the items it collected (`item`)                                            |
+| send package                               | its package (`shipped package`) and, with `carry_links`, its items                                     |
+| failed delivery, package delivered         | its package (`package`) and, with `carry_links`, its items                                             |
 
 Objects are linked to each other too: each order **comprises** its items (`"o2o": "comprises"` on Sales's
 ItemOrdered entry) and each package **contains** its items (`"o2o": "contains"` on both of Packaging's
 ItemPicked entries: the start event takes a package's first item, the catch event the rest).
+
+Customers have no events of their own, so they come from the configuration's catalogue: 15 customers, c1 to
+c15, each with a `segment` ([orchestrator.md](orchestrator.md), "Objects without events: the catalogue"). A
+reference on Sales's `customer` attribute links each customer to the orders it **places** (`"reverse": true`,
+from the customer to the order), and place order and confirm order to their customer; pay order isn't linked.
 
 Sales and Packaging have `carry_links`; Warehouse doesn't, so a reorder is linked only to its item. A
 package still collecting when the run ends never reaches create package, so the links of the items it took

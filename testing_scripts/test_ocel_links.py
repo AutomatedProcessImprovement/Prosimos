@@ -86,7 +86,7 @@ def test_every_place_order_is_linked_to_exactly_its_orders_items(order_managemen
         order, qualifier = _owner(event)
         assert qualifier == "order"
         assert _linked(event, "item") == items_of_order[order]
-        assert len(event["relationships"]) == 1 + len(items_of_order[order])  # nothing else
+        assert len(event["relationships"]) == 1 + len(items_of_order[order]) + 1  # and its customer, nothing else
     assert sum(len(items) for items in items_of_order.values()) > 300  # with this seed, orders have items
 
 

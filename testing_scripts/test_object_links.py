@@ -115,7 +115,7 @@ def test_pm4py_reads_the_object_links(order_management):
     read = pm4py.read_ocel2_json(str(path))
 
     assert len(read.o2o) == sum(len(obj["relationships"]) for obj in ocel["objects"])
-    assert set(read.o2o["ocel:qualifier"]) == {"comprises", "contains"}
+    assert set(read.o2o["ocel:qualifier"]) == {"comprises", "contains", "places"}  # places: the catalogue's customers
 
 
 def test_an_o2o_key_must_be_a_non_empty_string(tmp_path):

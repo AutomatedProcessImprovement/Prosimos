@@ -71,10 +71,13 @@ Extra engines (see "Configuration") can only be passed from Python.
 | `start_time`      | the simulation's start, shared by all processes; a time without a time zone is taken as UTC                                                                                                                                                                                                                                                                                                                  |
 | `seed`            | optional; the same seed gives the same run. Each Prosimos engine gets its own random generators, seeded from the seed and its process name, so adding or changing one process doesn't change the others' draws. Without a seed, every run draws different random values                                                                                                                                      |
 | `consumer_groups` | optional; group name → processes in it. Without it, every process is its own group (see "Message routing")                                                                                                                                                                                                                                                                                                   |
+| `catalogue`       | optional; catalogue name → objects with no events of their own, each an `id` and optional `attributes` (see "Objects without events: the catalogue")                                                                                                                                                                                                                                                         |
+| `references`      | optional; which case attributes hold the ids of catalogue objects, and which OCEL links to write for them (same section)                                                                                                                                                                                                                                                                                     |
 
 File paths are relative to the configuration file's folder. A configuration is rejected if process
-names repeat, a process is in no group or in more than one, or a group names a process that doesn't
-exist.
+names repeat, a process is in no group or in more than one, a group names a process that doesn't
+exist, catalogue ids repeat or look like case ids, a catalogue is named like a process's object type, or a
+reference names a catalogue, process or task (in `link_events`) that doesn't exist.
 
 **Extra engines.** Engines that aren't built from a BPMN and JSON file, such as the scripted engines
 in the tests, can run alongside the configured ones. List their names in the configuration's
@@ -99,10 +102,11 @@ written as an OCEL 2.0 JSON file, the format of the OCEL 2.0 sample logs, readab
   messages: the values it had when it was created, at that time, and every value copied into it later at
   a catch event, at the time of the claim. Its relationships are its links to other objects, from the
   `o2o` keys of message entries ([messaging.md](messaging.md)): e.g. an order comprises each item its
-  ItemOrdered messages started. Without `o2o` keys, objects have no relationships.
+  ItemOrdered messages started. Without `o2o` keys, objects have no relationships. The catalogue's
+  objects are written too (see "Objects without events: the catalogue").
 - **Events:** one per task, i.e. per row of the merged log, with the activity as event type, the task's
   completion as time, `resource` as attribute, a link to its case's object, and links to the objects
-  on the other end of its messages (see below). Event ids (`e1`, `e2`, ...) follow time order.
+  on the other end of its messages (see below) and to the catalogue objects its references name. Event ids (`e1`, `e2`, ...) follow time order.
 - `objectTypes` and `eventTypes` list each type with its attributes; an attribute's type is inferred
   from its values.
 - A process with `"object_type": null` writes no objects and no events. Extra engines write neither.
@@ -111,6 +115,42 @@ A case that has no task in the log yet, e.g. a package still collecting when the
 of its own, but it can still be linked from other events through its messages: the still-collecting
 package is linked from the pick item events of the items it took (see below). `pm4py.read_ocel2_json`
 keeps such an object, and leaves out only an object that no event refers to.
+
+**Objects without events: the catalogue.** Some objects never have events of their own: customers,
+products, suppliers. Events and other objects only refer to them, through a case attribute such as
+`customer = "c7"`. The configuration's `catalogue` declares them, and a `reference` says that a case
+attribute's value *is* the id of such an object, and which links to write:
+
+```json
+"catalogue": {
+  "customers": [{"id": "c1", "attributes": {"segment": "retail"}}, ...],
+  "products":  [{"id": "p1", "attributes": {"weight": 0.4, "price": 12}}, ...]
+},
+"references": [
+  {"process": "Sales", "case_attribute": "customer", "catalogue": "customers",
+   "o2o": "places", "reverse": true, "link_events": ["place order", "confirm order"]}
+]
+```
+
+- Every catalogue object is written, with the catalogue name as type and its attributes at the start of the
+  run, whether a case refers to it.
+- With `o2o`, the object of every case of the process is linked to the catalogue object of each value its
+  attribute took, with `o2o` as qualifier; `"reverse": true` turns the link around, from the catalogue object
+  to the case's object (above: customer c1 places order `Sales-13`).
+- The case's events named in `link_events` (task names, as in the log, or task ids) are linked to the
+  catalogue object of the value the attribute had when the event completed, with the attribute's name as
+  qualifier (above: place order and confirm order link `customer`, pay order doesn't). Without the key every
+  event of the case is linked; with an empty list, none.
+- The attribute gets its value as any case attribute does: drawn by `case_attributes`, or copied from a
+  message. The reference only reads it; letting a reference assign the value is future work.
+- Catalogue ids must be unique across all catalogues and must not look like case ids (`<process
+  name>-<number>`, e.g. `Sales-1`), and a catalogue can't be named like a process's object type: both would
+  mix catalogue objects with case objects. Each `link_events` entry must name a task of the reference's
+  process, so a typo is a load error rather than no links.
+- A value that is not an id of its catalogue (compared as text) gets no link, with one warning per attribute
+  and value in the run report's `warnings`. A process with `"object_type": null` links nothing.
+
+The engines don't change: the links are joined from the case objects and log rows after the run.
 
 **One event linked to many objects.** Messages only pass at events, which aren't in the log, so a
 message's links go to the task next to its event in the same case, on the token's path, and link the

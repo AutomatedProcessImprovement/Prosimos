@@ -4,6 +4,7 @@ import hashlib
 import itertools
 import json
 import random
+import re
 from abc import ABC, abstractmethod
 from collections import Counter, defaultdict
 from contextlib import contextmanager
@@ -20,7 +21,7 @@ from prosimos.control_flow_manager import BPMN
 from prosimos.messaging_parser import ConsumePoint, PublishPoint
 from prosimos.ocel_writer import OcelProcess, write_ocel
 from prosimos.simulation_engine import SimBPMEnv
-from prosimos.simulation_properties_parser import parse_datetime
+from prosimos.simulation_properties_parser import parse_datetime, parse_simulation_model
 from prosimos.simulation_setup import SimDiffSetup
 from prosimos.warning_logger import warning_logger
 
@@ -46,6 +47,28 @@ class ProcessSpec:
         return self.name if self.object_type == "" else self.object_type
 
 
+@dataclass(frozen=True)
+class CatalogueObject:
+    """An object with no events of its own (a customer, a product), declared in the configuration's catalogue."""
+
+    id: str
+    attributes: Tuple[Tuple[str, Any], ...] = ()
+
+
+@dataclass(frozen=True)
+class Reference:
+    """Says that a case attribute's value of one process is the id of an object of a catalogue, and which OCEL
+    links to write for it: from the case's object to it with o2o as qualifier (reverse turns it around), and
+    from the case's events named in link_events (task names or ids; None for every event, () for none)."""
+
+    process: str
+    case_attribute: str
+    catalogue: str
+    o2o: Optional[str] = None
+    reverse: bool = False
+    link_events: Optional[Tuple[str, ...]] = None
+
+
 @dataclass
 class Message:
     """One object passed between processes. The publishing process sets type and attributes;
@@ -56,6 +79,43 @@ class Message:
     id: Optional[str] = None
     source: Optional[str] = None
     time: Optional[datetime] = None
+
+
+def _checked_catalogue(processes, names, catalogue, references):
+    """Ids unique across the whole catalogue and unlike case ids (<process name>-<number>), since both are OCEL
+    object ids; catalogue names unlike the processes' object types; and references only naming known
+    catalogues, processes and, in link_events, tasks of their process (by name or id)."""
+    problems = []
+    ids = [obj.id for objects in catalogue.values() for obj in objects]
+    repeated = sorted({object_id for object_id in ids if ids.count(object_id) > 1})
+    if repeated:
+        problems.append(f"catalogue ids are repeated: {repeated}")
+    like_case_ids = sorted({object_id for object_id in ids for name in names
+                            if re.fullmatch(rf"{re.escape(name)}-\d+", object_id)})
+    if like_case_ids:
+        problems.append(f"catalogue ids look like case ids (<process name>-<number>): {like_case_ids}")
+    object_types = {spec.ocel_object_type: spec.name for spec in processes if spec.ocel_object_type is not None}
+    for name in catalogue:
+        if name in object_types:
+            problems.append(f"catalogue {name!r} is the object type of process {object_types[name]}")
+    specs = {spec.name: spec for spec in processes}
+    tasks_of = {}
+    for number, reference in enumerate(references):
+        if reference.catalogue not in catalogue:
+            problems.append(f"references[{number}] names unknown catalogue {reference.catalogue!r}")
+        if reference.process not in names:
+            problems.append(f"references[{number}] names unknown process {reference.process!r}")
+        elif reference.link_events and reference.process in specs:  # extra engines have no BPMN to check
+            if reference.process not in tasks_of:
+                graph = parse_simulation_model(specs[reference.process].bpmn_path)
+                tasks_of[reference.process] = {key for info in graph.element_info.values() if info.type == BPMN.TASK
+                                               for key in (info.id, info.name)}
+            unknown = [task for task in reference.link_events if task not in tasks_of[reference.process]]
+            if unknown:
+                problems.append(f"references[{number}] link_events names {unknown}, which are no tasks of "
+                                f"process {reference.process}")
+    if problems:
+        raise ValueError("Invalid catalogue: " + "; ".join(problems))
 
 
 def _checked_consumer_groups(names, consumer_groups):
@@ -91,7 +151,11 @@ class SimulationConfig:
     processes in it; without consumer_groups, every process is its own group. Every process must
     be in exactly one group, and groups may only name known processes. extra_processes names the
     processes that run_orchestrator receives as ready-made engines instead of building them from a
-    ProcessSpec (e.g. scripted test engines), so that groups can name them too.
+    ProcessSpec (e.g. scripted test engines), so that groups can name them too. catalogue maps a name
+    (the OCEL object type) to the objects with no events of their own, and references say which case
+    attributes hold their ids; ids must be unique across the catalogue and unlike case ids (<process
+    name>-<number>), catalogue names unlike the processes' object types, and references may only name known
+    catalogues, processes and, in link_events, tasks of their process.
     """
 
     processes: List[ProcessSpec]
@@ -99,15 +163,19 @@ class SimulationConfig:
     seed: Optional[int] = None
     consumer_groups: Optional[Dict[str, List[str]]] = None
     extra_processes: Tuple[str, ...] = ()
+    catalogue: Dict[str, List[CatalogueObject]] = field(default_factory=dict)
+    references: Tuple[Reference, ...] = ()
 
     def __post_init__(self):
         object.__setattr__(self, "extra_processes", tuple(self.extra_processes))
+        object.__setattr__(self, "references", tuple(self.references))
         names = [spec.name for spec in self.processes] + list(self.extra_processes)
         duplicates = sorted({name for name in names if names.count(name) > 1})
         if duplicates:
             raise ValueError(f"Process names must be unique, repeated: {duplicates}")
 
         object.__setattr__(self, "consumer_groups", _checked_consumer_groups(names, self.consumer_groups))
+        _checked_catalogue(self.processes, names, self.catalogue, self.references)
 
     @classmethod
     def from_json(cls, path) -> "SimulationConfig":
@@ -124,6 +192,9 @@ class SimulationConfig:
         optional qualifier (by default the object type) and qualifier_by_activity ({task id: qualifier})
         qualify each event's link to its own case's object, and carry_links (false by default) makes every
         later event of a case also link the objects the case is linked to through its messages.
+        The optional catalogue ({name: [{"id": ..., "attributes": {...}}]}) declares objects with no events
+        of their own, and references ([{"process", "case_attribute", "catalogue", "o2o", "reverse",
+        "link_events"}], the last three optional) say which case attributes hold their ids.
         """
         path = Path(path)
         with open(path) as f:
@@ -149,7 +220,26 @@ class SimulationConfig:
         if start.tzinfo is None:
             start = pytz.utc.localize(start)
 
-        return cls(processes, start, data.get("seed"), data.get("consumer_groups"))
+        catalogue = {name: [_catalogue_object(path, name, number, entry) for number, entry in enumerate(entries)]
+                     for name, entries in data.get("catalogue", {}).items()}
+        references = [_reference(path, number, entry) for number, entry in enumerate(data.get("references", []))]
+
+        return cls(processes, start, data.get("seed"), data.get("consumer_groups"), (), catalogue, references)
+
+
+def _catalogue_object(path, name, number, entry):
+    if not isinstance(entry.get("id"), str) or not entry["id"]:
+        raise ValueError(f"{path}: catalogue.{name}[{number}]: 'id' must be a non-empty string")
+    return CatalogueObject(entry["id"], tuple(entry.get("attributes", {}).items()))
+
+
+def _reference(path, number, entry):
+    missing = [key for key in ("process", "case_attribute", "catalogue") if key not in entry]
+    if missing:
+        raise ValueError(f"{path}: references[{number}] is missing {missing}")
+    link_events = entry.get("link_events")
+    return Reference(entry["process"], entry["case_attribute"], entry["catalogue"], entry.get("o2o"),
+                     entry.get("reverse", False), None if link_events is None else tuple(link_events))
 
 
 class Verdict(Enum):
@@ -533,7 +623,7 @@ class RunReport:
     claims: List[Tuple[str, str, datetime]] = field(default_factory=list)  # (message id, process, time)
     discards: List[Tuple[str, str, datetime]] = field(default_factory=list)  # (message id, process, time)
     unclaimed: List[Tuple[str, Message]] = field(default_factory=list)  # (group, message) left in the pool
-    warnings: List[str] = field(default_factory=list)  # the orchestrator's own, about routing
+    warnings: List[str] = field(default_factory=list)  # the orchestrator's own: routing, and catalogue values
     stalled: List[Tuple[str, StalledCase]] = field(default_factory=list)  # (process, case) from finish()
     engine_warnings: List[Tuple[str, str]] = field(default_factory=list)  # (process, warning) from finish()
     message_records: List[MessageRecord] = field(default_factory=list)  # per message, joined after finish()
@@ -710,7 +800,8 @@ def run_orchestrator(config: SimulationConfig, log_out_path: Optional[str] = Non
     by start time, with the process name as the first column. When ocel_out_path is given, the run
     is also written as an OCEL 2.0 JSON file: one object per case, typed by its process's object_type,
     and one event per task, linked to its case's object and to the objects on the other end of its
-    messages; objects are linked to each other where a message entry has an o2o key (see
+    messages; objects are linked to each other where a message entry has an o2o key, and the catalogue's
+    objects are written and linked where references say a case attribute holds their ids (see
     prosimos/ocel_writer.py).
     extra_engines are ready-made engines, keyed by process name, that run alongside the ones built
     from config.processes; their names must be exactly config.extra_processes. They get no log
@@ -739,8 +830,14 @@ def run_orchestrator(config: SimulationConfig, log_out_path: Optional[str] = Non
     if ocel_out_path is not None:
         processes = {spec.name: OcelProcess(spec.ocel_object_type, spec.qualifier, dict(spec.qualifier_by_activity),
                                             spec.carry_links) for spec in config.processes}
+        static_objects, reference_object_links, reference_event_links = _reference_links(
+            config, processes, report.objects, merged_log.rows, report.logged_elements, report.warnings.append)
+        object_links = _object_links(report.message_records, processes)
+        for object_id, links in reference_object_links.items():
+            object_links.setdefault(object_id, []).extend(links)
         write_ocel(ocel_out_path, processes, report.objects, merged_log.rows, report.logged_elements,
-                   _message_links(report.message_records, processes), _object_links(report.message_records, processes))
+                   _message_links(report.message_records, processes), object_links, static_objects,
+                   reference_event_links)
 
     return report
 
@@ -785,3 +882,68 @@ def _object_links(records: List[MessageRecord], processes: Dict[str, OcelProcess
             link(record.publisher, claimer, record.publisher.o2o)
             link(claimer, record.publisher, claimer.o2o)
     return dict(links)
+
+
+def _reference_links(config: SimulationConfig, processes: Dict[str, OcelProcess], objects, rows, logged_elements,
+                     warn):
+    """
+    The catalogue's objects, as (catalogue name, id, [(attribute, value, start of the run)]), and the links its
+    references give, joined with the case objects and log rows after the run:
+    - object id -> [(object id, qualifier)]: a reference with o2o links the object of every case of its process
+      to the catalogue object of each value its attribute took (reverse: from the catalogue object);
+    - (process, row of that process) -> [(object id, qualifier)]: each event of those cases named in
+      link_events (every event without the key) links the catalogue object of the value the attribute had when
+      the event completed, with the attribute's name as qualifier.
+    A value that is not in its catalogue gets no link, and a warning, once per attribute and value. Processes
+    that write no objects link nothing.
+    """
+    static_objects = [(name, obj.id, [(attribute, value, config.start_datetime) for attribute, value in obj.attributes])
+                      for name, catalogue_objects in config.catalogue.items() for obj in catalogue_objects]
+    ids_of = {name: {obj.id for obj in catalogue_objects} for name, catalogue_objects in config.catalogue.items()}
+    history = {case_object.case_id: case_object.attributes for _, case_object in objects}
+    object_links, event_links, warned = defaultdict(list), defaultdict(list), set()
+
+    def in_catalogue(reference, value):
+        if str(value) in ids_of[reference.catalogue]:
+            return True
+        if (reference.case_attribute, value) not in warned:
+            warned.add((reference.case_attribute, value))
+            warn(f"case attribute {reference.case_attribute} has the value {value!r}, which is not in catalogue "
+                 f"{reference.catalogue}; no OCEL link is written for it")
+        return False
+
+    def values(object_id, attribute, until=None):
+        """The values the case's attribute took, in order, or only the one it had at until."""
+        taken = [value for name, value, time in history.get(object_id, [])
+                 if name == attribute and value is not None and (until is None or time <= until)]
+        return taken[-1:] if until is not None else list(dict.fromkeys(taken))
+
+    def link(source, target, qualifier):
+        if (target, qualifier) not in object_links[source]:
+            object_links[source].append((target, qualifier))
+
+    for reference in config.references:
+        if reference.process not in processes or processes[reference.process].object_type is None:
+            continue
+        if reference.o2o:
+            for process, case_object in objects:
+                if process != reference.process:
+                    continue
+                for value in values(case_object.case_id, reference.case_attribute):
+                    if in_catalogue(reference, value):
+                        ends = (str(value), case_object.case_id) if reference.reverse else (case_object.case_id, str(value))
+                        link(*ends, reference.o2o)
+        rows_so_far = defaultdict(lambda: -1)
+        for process, row in rows:
+            rows_so_far[process] += 1
+            number = rows_so_far[process]  # the row's place in its process's log
+            if process != reference.process:
+                continue
+            element_ids = logged_elements.get(process, [])
+            element_id = element_ids[number] if number < len(element_ids) else None
+            if reference.link_events is not None and not {row["activity"], element_id} & set(reference.link_events):
+                continue
+            for value in values(f"{process}-{row['case_id']}", reference.case_attribute, _as_datetime(row["end_time"])):
+                if in_catalogue(reference, value):
+                    event_links[(process, number)].append((str(value), reference.case_attribute))
+    return static_objects, dict(object_links), dict(event_links)
