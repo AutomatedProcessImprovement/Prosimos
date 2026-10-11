@@ -83,10 +83,12 @@ class MessagingModel:
         return any(point.starts_case for point in self.consume)
 
 
-def parse_messages_file(json_path, bpmn_path) -> MessagingModel:
+def parse_messages_file(json_path, bpmn_path, also_declared=()) -> MessagingModel:
+    """also_declared: names of case attributes given from outside the JSON settings (e.g. picked by the
+    orchestrator's references), which messages may use too."""
     with open(json_path) as json_file:
         settings = json.load(json_file)
-    return parse_messages(settings.get("messages"), bpmn_path, declared_attributes(settings))
+    return parse_messages(settings.get("messages"), bpmn_path, declared_attributes(settings) | set(also_declared))
 
 
 def declared_attributes(settings):

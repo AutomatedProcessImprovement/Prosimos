@@ -15,7 +15,7 @@ repeats, and `collect` read from a case attribute.
 
 ```
 Sales (order)        arrivals: weekdays 6:00-22:00, about one every 4.3 h, 2,000 orders
-                     case attributes: customer (c1..c15), items (1..16, as in the log)
+                     case attributes: customer (picked from c1..c15), items (1..16, as in the log)
                      place order -> (throw ItemOrdered x items: case_id, index, customer)
                      -> confirm order (Sales) -> (throw OrderConfirmed: case_id)
                      -> race: catch Payment (order_id = case_id) -> pay order -> end
@@ -31,7 +31,7 @@ Packaging (package)  start ItemPicked (copy customer); case attribute more_items
                      -> XOR: 22% failed delivery -> back to the XOR | 78% package delivered -> end
 ```
 
-The customer is drawn on the order and travels with the messages: order → `ItemOrdered` → item →
+The customer is picked for the order and travels with the messages: order → `ItemOrdered` → item →
 `ItemPicked` → package. A package starts on an `ItemPicked` that no open package takes, then collects
 `more_items` more items of the same customer; waiting cases are offered messages before start events, so a
 customer has at most one open package. In the log, a package takes the oldest waiting item and then all of
@@ -82,10 +82,10 @@ flowchart LR
 
 | In the log                     | Process   | BPMN element              | Feature                                                                                              |
 |--------------------------------|-----------|---------------------------|------------------------------------------------------------------------------------------------------|
-| object type **orders**         | Sales     | one case per order        | arrivals on a weekday calendar; case attributes `customer` and `items`                               |
+| object type **orders**         | Sales     | one case per order        | arrivals on a weekday calendar; case attribute `items`; `customer` picked from the catalogue         |
 | object type **items**          | Warehouse | one case per item         | a message start event on `ItemOrdered`, published once per item with `count`; `index` → `item_index` |
 | object type **packages**       | Packaging | one case per package      | a message start event on an `ItemPicked` no open package takes; `collect` of `more_items`            |
-| object type **customers**      | all       | case attribute `customer` | 15 in the catalogue; drawn on the order, copied to items and packages; the package's condition       |
+| object type **customers**      | all       | case attribute `customer` | 15 in the catalogue; picked for the order, copied to items and packages; the package's condition     |
 | object type **products**       | -         | -                         | not modeled: no metric uses them                                                                     |
 | object type **employees**      | all       | resources                 | Sales (5), Warehousing (7, split 5 / 2 between Warehouse and Packaging), Shipment (6)                |
 | activity **place order**       | Sales     | task `Place_Order`        | done by the `Shop` resource; `ItemOrdered` is published right after it                               |
@@ -106,7 +106,7 @@ flowchart LR
 | Parameter           | Real log                                                                   | In the model                                                               |
 |---------------------|----------------------------------------------------------------------------|----------------------------------------------------------------------------|
 | Orders              | 2,000; one every 4.26 h on average; 95% on weekdays, mostly 6-22           | exponential gaps of 2.3 h mean within a weekday 6:00-22:00 calendar        |
-| Customers           | 15, 103-152 orders each                                                    | `customer`: uniform over c1..c15                                           |
+| Customers           | 15, 103-152 orders each                                                    | `customer`: picked uniformly from the catalogue's c1..c15                  |
 | Items per order     | 1-16 (1: 159, 2: 360, 3: 489, 4: 367, 5: 275, 6: 164, 7: 100, 8+: 86)      | `items`: these frequencies, 8+ as in the log                               |
 | Out of stock        | 1,544 of 7,659 items (20%)                                                 | XOR 20 / 80                                                                |
 | Confirm to pay      | median 7 days, quartiles 2.34 / 17.86, max 91; 23.5% after 20 days         | Customer timer: log-normal with that median and quartiles, at most 91 days |
@@ -149,8 +149,10 @@ ItemPicked entries: the start event takes a package's first item, the catch even
 
 Customers have no events of their own, so they come from the configuration's catalogue: 15 customers, c1 to
 c15, each with a `segment` ([orchestrator.md](orchestrator.md), "Objects without events: the catalogue"). A
-reference on Sales's `customer` attribute links each customer to the orders it **places** (`"reverse": true`,
-from the customer to the order), and place order and confirm order to their customer; pay order isn't linked.
+reference on Sales's `customer` attribute picks it when an order is created (`"pick": "uniform"`; `sales.json`
+doesn't draw it), links each customer to the orders it **places** (`"reverse": true`, from the customer to the
+order), and links place order and confirm order to their customer; pay order isn't linked. Since `ItemOrdered`
+carries the picked `customer`, `sales.json` only runs inside this configuration, not on its own.
 
 Sales and Packaging have `carry_links`; Warehouse doesn't, so a reorder is linked only to its item. A
 package still collecting when the run ends never reaches create package, so the links of the items it took
@@ -170,27 +172,27 @@ what the engine did.
 | Metric                                        |                       Real log |                      Simulated |
 |-----------------------------------------------|-------------------------------:|-------------------------------:|
 | orders                                        |                          2,000 |                          2,000 |
-| items                                         |                          7,659 |                          7,744 |
-| packages (still collecting at the end)        |                          1,128 |                     1,103 (14) |
-| items per order: mean / median / max          |                  3.83 / 3 / 16 |                  3.87 / 4 / 13 |
-| items per order: 1 / 2 / 3 / 4                |      8.0 / 18.0 / 24.4 / 18.4% |      8.4 / 16.7 / 23.3 / 19.2% |
-| items per order: 5 / 6 / 7 / 8+               |        13.8 / 8.2 / 5.0 / 4.3% |        14.2 / 8.6 / 5.0 / 4.6% |
+| items                                         |                          7,659 |                          7,735 |
+| packages (still collecting at the end)        |                          1,128 |                     1,102 (13) |
+| items per order: mean / median / max          |                  3.83 / 3 / 16 |                  3.87 / 3 / 16 |
+| items per order: 1 / 2 / 3 / 4                |      8.0 / 18.0 / 24.4 / 18.4% |      8.1 / 17.4 / 24.9 / 17.8% |
+| items per order: 5 / 6 / 7 / 8+               |        13.8 / 8.2 / 5.0 / 4.3% |        13.8 / 7.8 / 5.5 / 5.0% |
 | reminders per order: mean / max               |                       0.28 / 4 |                       0.32 / 4 |
 | reminders per order: 0 / 1 / 2 / 3 / 4+       | 77.8 / 17.2 / 3.9 / 0.9 / 0.1% | 80.0 / 12.4 / 4.2 / 2.4 / 0.9% |
 | orders paid after 20 days                     |                          23.5% |                          20.2% |
-| items out of stock                            |                          20.2% |                          19.6% |
+| items out of stock                            |                          20.2% |                          19.7% |
 | items per package: mean / median / max        |                  6.79 / 6 / 20 |                  6.97 / 6 / 20 |
 | customers per package                         |                       always 1 |                       always 1 |
-| failed deliveries per package: mean / max     |                       0.28 / 7 |                       0.27 / 6 |
-| failed deliveries per package: 0 / 1 / 2 / 3+ |       81.0 / 13.2 / 4.0 / 1.8% |       79.1 / 16.3 / 3.9 / 0.7% |
-| items picked before their order is confirmed  |                          25.4% |                          59.5% |
-| orders paid after their first delivery        |                          67.3% |                          72.9% |
+| failed deliveries per package: mean / max     |                       0.28 / 7 |                       0.27 / 4 |
+| failed deliveries per package: 0 / 1 / 2 / 3+ |       81.0 / 13.2 / 4.0 / 1.8% |       78.1 / 17.7 / 3.4 / 0.7% |
+| items picked before their order is confirmed  |                          25.4% |                          60.7% |
+| orders paid after their first delivery        |                          67.3% |                          71.5% |
 
 The counts and shares that come from the model's structure and parameters (items per order, out of stock,
 items and customers per package, failed deliveries) match closely. The fitted confirm-to-pay distribution pays a
 little earlier than the log, but has a longer tail, so more orders get 3 or 4 reminders. The largest difference
 is in timing: in the log, items wait about two days before they are picked (place→pick 52 h), which the model
-doesn't reproduce (about 12 h), so far more items are picked before their order is confirmed.
+doesn't reproduce (about 11 h), so far more items are picked before their order is confirmed.
 
 ## Gaps found
 

@@ -98,7 +98,7 @@ def _links(references, objects, rows, processes=None, catalogue=None):
                               references=references)
     warnings = []
     static_objects, object_links, event_links = _reference_links(
-        config, processes or {"P": OcelProcess("p")}, objects, rows, {"P": ["Place_Order", "Confirm_Order"]},
+        config, config.catalogue, processes or {"P": OcelProcess("p")}, objects, rows, {"P": ["Place_Order", "Confirm_Order"]},
         warnings.append)
     return static_objects, object_links, event_links, warnings
 

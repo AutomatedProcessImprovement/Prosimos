@@ -58,6 +58,7 @@
   },
   "references": [
     {"process": "Sales", "case_attribute": "customer", "catalogue": "customers",
-     "o2o": "places", "reverse": true, "link_events": ["place order", "confirm order"]}
+     "o2o": "places", "reverse": true, "link_events": ["place order", "confirm order"],
+     "pick": "uniform"}
   ]
 }

@@ -12,11 +12,12 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
 import pytz
 
+from prosimos.case_attributes import CaseAttribute
 from prosimos.control_flow_manager import BPMN
 from prosimos.messaging_parser import ConsumePoint, PublishPoint
 from prosimos.ocel_writer import OcelProcess, write_ocel
@@ -56,10 +57,23 @@ class CatalogueObject:
 
 
 @dataclass(frozen=True)
+class CataloguePool:
+    """A generated catalogue, for sets too large to list: count objects with ids <catalogue name>-1 to
+    <catalogue name>-<count>, each with attributes drawn once at the start of the run, given in the format
+    of case_attributes (discrete or continuous)."""
+
+    count: int
+    attributes: Tuple[Dict[str, Any], ...] = ()
+
+
+@dataclass(frozen=True)
 class Reference:
     """Says that a case attribute's value of one process is the id of an object of a catalogue, and which OCEL
     links to write for it: from the case's object to it with o2o as qualifier (reverse turns it around), and
-    from the case's events named in link_events (task names or ids; None for every event, () for none)."""
+    from the case's events named in link_events (task names or ids; None for every event, () for none).
+    With pick, the reference also assigns the value, when the case is created: "uniform" (every object
+    equally likely) or, for a listed catalogue, weights as ((id, weight), ...) (ids left out are never picked).
+    Without it, the value comes from case_attributes or a message."""
 
     process: str
     case_attribute: str
@@ -67,6 +81,13 @@ class Reference:
     o2o: Optional[str] = None
     reverse: bool = False
     link_events: Optional[Tuple[str, ...]] = None
+    pick: Union[None, str, Tuple[Tuple[str, float], ...]] = None
+
+
+def _catalogue_ids(name, entry) -> List[str]:
+    if isinstance(entry, CataloguePool):
+        return [f"{name}-{number}" for number in range(1, entry.count + 1)] if isinstance(entry.count, int) else []
+    return [obj.id for obj in entry]
 
 
 @dataclass
@@ -83,10 +104,23 @@ class Message:
 
 def _checked_catalogue(processes, names, catalogue, references):
     """Ids unique across the whole catalogue and unlike case ids (<process name>-<number>), since both are OCEL
-    object ids; catalogue names unlike the processes' object types; and references only naming known
-    catalogues, processes and, in link_events, tasks of their process (by name or id)."""
+    object ids; catalogue names unlike the processes' object types; pools with a count of at least 1 and
+    attributes in the format of case_attributes; and references only naming known catalogues, processes and,
+    in link_events, tasks of their process (by name or id). A pick is "uniform" or weights on known ids of a
+    listed catalogue, for a process built from a ProcessSpec whose case_attributes don't have the attribute,
+    and at most one per process and attribute."""
     problems = []
-    ids = [obj.id for objects in catalogue.values() for obj in objects]
+    for name, entry in catalogue.items():
+        if not isinstance(entry, CataloguePool):
+            continue
+        if not isinstance(entry.count, int) or isinstance(entry.count, bool) or entry.count < 1:
+            problems.append(f"catalogue {name!r}: count must be a whole number of at least 1, got {entry.count!r}")
+        for number, attribute in enumerate(entry.attributes):
+            try:
+                CaseAttribute(attribute["name"], attribute["type"], attribute["values"])
+            except Exception as error:  # Prosimos's own messages for case_attributes
+                problems.append(f"catalogue {name!r}: attributes[{number}]: {type(error).__name__}: {error}")
+    ids = [object_id for name, entry in catalogue.items() for object_id in _catalogue_ids(name, entry)]
     repeated = sorted({object_id for object_id in ids if ids.count(object_id) > 1})
     if repeated:
         problems.append(f"catalogue ids are repeated: {repeated}")
@@ -114,8 +148,38 @@ def _checked_catalogue(processes, names, catalogue, references):
             if unknown:
                 problems.append(f"references[{number}] link_events names {unknown}, which are no tasks of "
                                 f"process {reference.process}")
+        if reference.pick is not None:
+            problems.extend(f"references[{number}] {problem}"
+                            for problem in _pick_problems(reference, catalogue.get(reference.catalogue), specs))
+    picked = [(reference.process, reference.case_attribute) for reference in references if reference.pick is not None]
+    for process, attribute in sorted({pair for pair in picked if picked.count(pair) > 1}):
+        problems.append(f"more than one reference picks {attribute} of process {process}")
     if problems:
         raise ValueError("Invalid catalogue: " + "; ".join(problems))
+
+
+def _pick_problems(reference, entry, specs):
+    if reference.pick != "uniform":
+        if not isinstance(reference.pick, tuple):
+            return ['pick must be "uniform" or {"weights": {id: weight, ...}}']
+        if isinstance(entry, CataloguePool):
+            return [f"has weights on pool {reference.catalogue!r}; a pool can only be picked from uniformly"]
+        if entry is not None:
+            unknown = [object_id for object_id, _ in reference.pick if object_id not in {obj.id for obj in entry}]
+            if unknown:
+                return [f"weights name {unknown}, which are no ids of catalogue {reference.catalogue!r}"]
+        weights = [weight for _, weight in reference.pick]
+        if not all(isinstance(weight, (int, float)) and not isinstance(weight, bool) and weight >= 0
+                   for weight in weights) or sum(weights) <= 0:
+            return [f"weights must be numbers of at least 0, not all 0, got {dict(reference.pick)}"]
+    if reference.process not in specs:
+        return [f"picks for {reference.process}, an engine not built from a ProcessSpec, which can't take a pick"]
+    with open(specs[reference.process].json_path) as file:
+        declared = {attribute.get("name") for attribute in json.load(file).get("case_attributes", [])}
+    if reference.case_attribute in declared:
+        return [f"picks {reference.case_attribute}, which process {reference.process} also draws in its "
+                f"case_attributes"]
+    return []
 
 
 def _checked_consumer_groups(names, consumer_groups):
@@ -153,9 +217,8 @@ class SimulationConfig:
     processes that run_orchestrator receives as ready-made engines instead of building them from a
     ProcessSpec (e.g. scripted test engines), so that groups can name them too. catalogue maps a name
     (the OCEL object type) to the objects with no events of their own, and references say which case
-    attributes hold their ids; ids must be unique across the catalogue and unlike case ids (<process
-    name>-<number>), catalogue names unlike the processes' object types, and references may only name known
-    catalogues, processes and, in link_events, tasks of their process.
+    attributes hold their ids, and may pick them (see _checked_catalogue for what is rejected). A catalogue is
+    a list of CatalogueObject or a CataloguePool.
     """
 
     processes: List[ProcessSpec]
@@ -163,7 +226,7 @@ class SimulationConfig:
     seed: Optional[int] = None
     consumer_groups: Optional[Dict[str, List[str]]] = None
     extra_processes: Tuple[str, ...] = ()
-    catalogue: Dict[str, List[CatalogueObject]] = field(default_factory=dict)
+    catalogue: Dict[str, Union[List[CatalogueObject], CataloguePool]] = field(default_factory=dict)
     references: Tuple[Reference, ...] = ()
 
     def __post_init__(self):
@@ -192,9 +255,10 @@ class SimulationConfig:
         optional qualifier (by default the object type) and qualifier_by_activity ({task id: qualifier})
         qualify each event's link to its own case's object, and carry_links (false by default) makes every
         later event of a case also link the objects the case is linked to through its messages.
-        The optional catalogue ({name: [{"id": ..., "attributes": {...}}]}) declares objects with no events
-        of their own, and references ([{"process", "case_attribute", "catalogue", "o2o", "reverse",
-        "link_events"}], the last three optional) say which case attributes hold their ids.
+        The optional catalogue ({name: [{"id": ..., "attributes": {...}}]}, or {name: {"count": ...,
+        "attributes": [as in case_attributes]}} for a generated pool) declares objects with no events of their
+        own, and references ([{"process", "case_attribute", "catalogue", "o2o", "reverse", "link_events",
+        "pick"}], the last four optional) say which case attributes hold their ids, and may pick them.
         """
         path = Path(path)
         with open(path) as f:
@@ -220,11 +284,16 @@ class SimulationConfig:
         if start.tzinfo is None:
             start = pytz.utc.localize(start)
 
-        catalogue = {name: [_catalogue_object(path, name, number, entry) for number, entry in enumerate(entries)]
-                     for name, entries in data.get("catalogue", {}).items()}
+        catalogue = {name: _catalogue(path, name, entries) for name, entries in data.get("catalogue", {}).items()}
         references = [_reference(path, number, entry) for number, entry in enumerate(data.get("references", []))]
 
         return cls(processes, start, data.get("seed"), data.get("consumer_groups"), (), catalogue, references)
+
+
+def _catalogue(path, name, entries):
+    if isinstance(entries, dict):
+        return CataloguePool(entries.get("count"), tuple(entries.get("attributes", [])))
+    return [_catalogue_object(path, name, number, entry) for number, entry in enumerate(entries)]
 
 
 def _catalogue_object(path, name, number, entry):
@@ -237,9 +306,11 @@ def _reference(path, number, entry):
     missing = [key for key in ("process", "case_attribute", "catalogue") if key not in entry]
     if missing:
         raise ValueError(f"{path}: references[{number}] is missing {missing}")
-    link_events = entry.get("link_events")
+    link_events, pick = entry.get("link_events"), entry.get("pick")
+    if isinstance(pick, dict) and list(pick) == ["weights"] and isinstance(pick["weights"], dict):
+        pick = tuple(pick["weights"].items())  # anything else but "uniform" is rejected when the configuration is checked
     return Reference(entry["process"], entry["case_attribute"], entry["catalogue"], entry.get("o2o"),
-                     entry.get("reverse", False), None if link_events is None else tuple(link_events))
+                     entry.get("reverse", False), None if link_events is None else tuple(link_events), pick)
 
 
 class Verdict(Enum):
@@ -395,7 +466,8 @@ class ProsimosEngine(SimulationEngine):
     global generators: if the caller seeded those first (random.seed, np.random.seed), the run is
     repeatable; otherwise every run differs."""
 
-    def __init__(self, spec: ProcessSpec, start_datetime: datetime, log_writer=None, seed: Optional[int] = None):
+    def __init__(self, spec: ProcessSpec, start_datetime: datetime, log_writer=None, seed: Optional[int] = None,
+                 picks: Tuple["_Pick", ...] = ()):
         self._spec = spec
         self._warnings: List[str] = []
         # (message as returned by step(), case id, element id, publish entry, when); the orchestrator stamps
@@ -405,7 +477,9 @@ class ProsimosEngine(SimulationEngine):
         self._claimed: List[Tuple[str, int, str, ConsumePoint, datetime]] = []
         self._python_state, self._numpy_state = _engine_random_states(seed, spec.name)
         with self._own_globals():
-            sim_setup = SimDiffSetup(spec.bpmn_path, spec.json_path, False, spec.total_cases, start_datetime)
+            # picked attributes join the declared ones: every case gets one when it is created, the log has a
+            # column for it, and messages may carry it
+            sim_setup = SimDiffSetup(spec.bpmn_path, spec.json_path, False, spec.total_cases, start_datetime, picks)
             self._env = SimBPMEnv(sim_setup, None, log_writer, process_name=spec.name)
         tasks = {element_id for element_id, element in sim_setup.bpmn_graph.element_info.items()
                  if element.type is BPMN.TASK}
@@ -532,6 +606,61 @@ class ProsimosEngine(SimulationEngine):
                                task_rows(p_case, element_id, when, forward=True), point.o2o)
                    for message_id, p_case, element_id, point, when in self._claimed]
         return published, claimed
+
+
+class _Pick:
+    """A case attribute that a reference picks (pick) from its catalogue's ids. It has what the engine uses of
+    Prosimos's CaseAttribute, name and get_next_value(), so it is drawn with the case's other attributes, when
+    the case is created; its generator is its own, seeded from the seed, the process and the attribute, so it
+    doesn't change the engine's other draws."""
+
+    def __init__(self, name: str, ids: List[str], weights: Optional[List[float]], seed: Optional[int], process: str):
+        self.name, self._ids, self._weights = name, ids, weights
+        self._generator = random.Random()
+        self._generator.setstate(_engine_random_states(seed, f"pick/{process}/{name}")[0])
+
+    def get_next_value(self):
+        return self._generator.choices(self._ids, self._weights)[0]
+
+
+def _picks(config: "SimulationConfig", catalogue: Dict[str, List[CatalogueObject]]) -> Dict[str, List[_Pick]]:
+    """Process name -> the attributes its references pick."""
+    picks = defaultdict(list)
+    for reference in config.references:
+        if reference.pick is not None:
+            ids = [obj.id for obj in catalogue[reference.catalogue]]
+            weights = None if reference.pick == "uniform" else [dict(reference.pick).get(object_id, 0) for object_id in ids]
+            picks[reference.process].append(_Pick(reference.case_attribute, ids, weights, config.seed, reference.process))
+    return picks
+
+
+def _drawn_catalogue(config: "SimulationConfig") -> Dict[str, List[CatalogueObject]]:
+    """Catalogue name -> its objects: a listed catalogue's as given, a pool's with their attributes drawn once,
+    object after object, by Prosimos's case attribute code, from generators seeded from the seed and the
+    catalogue's name."""
+    catalogue = {}
+    for name, entry in config.catalogue.items():
+        if not isinstance(entry, CataloguePool):
+            catalogue[name] = list(entry)
+            continue
+        attributes = [CaseAttribute(attribute["name"], attribute["type"], attribute["values"])
+                      for attribute in entry.attributes]
+        python_state, numpy_state = _engine_random_states(config.seed, f"catalogue/{name}")
+        shared_python, shared_numpy = random.getstate(), np.random.get_state()
+        random.setstate(python_state)
+        np.random.set_state(numpy_state)
+        try:
+            catalogue[name] = [CatalogueObject(object_id, tuple((attribute.name, _plain_value(attribute.get_next_value()))
+                                                                for attribute in attributes))
+                               for object_id in _catalogue_ids(name, entry)]
+        finally:
+            random.setstate(shared_python)
+            np.random.set_state(shared_numpy)
+    return catalogue
+
+
+def _plain_value(value):
+    return value.item() if hasattr(value, "item") else value  # a NumPy number, from a continuous attribute
 
 
 def _engine_random_states(seed, process_name):
@@ -817,10 +946,13 @@ def run_orchestrator(config: SimulationConfig, log_out_path: Optional[str] = Non
     # every engine has its own random generators, seeded from the seed and its process name; without a
     # seed they are seeded from the global generators, so build them in name order rather than input
     # order to keep the result independent of how the list was written
+    catalogue = _drawn_catalogue(config)
+    picks = _picks(config, catalogue)
     engines: Dict[str, SimulationEngine] = {}
     for spec in sorted(config.processes, key=lambda p: p.name):
         log_writer = merged_log.writer_for(spec.name) if merged_log is not None else None
-        engines[spec.name] = ProsimosEngine(spec, config.start_datetime, log_writer, config.seed)
+        engines[spec.name] = ProsimosEngine(spec, config.start_datetime, log_writer, config.seed,
+                                            tuple(picks.get(spec.name, ())))
     engines.update(extra_engines)
 
     report = run_engines(engines, config.consumer_groups, config.seed)
@@ -831,7 +963,8 @@ def run_orchestrator(config: SimulationConfig, log_out_path: Optional[str] = Non
         processes = {spec.name: OcelProcess(spec.ocel_object_type, spec.qualifier, dict(spec.qualifier_by_activity),
                                             spec.carry_links) for spec in config.processes}
         static_objects, reference_object_links, reference_event_links = _reference_links(
-            config, processes, report.objects, merged_log.rows, report.logged_elements, report.warnings.append)
+            config, catalogue, processes, report.objects, merged_log.rows, report.logged_elements,
+            report.warnings.append)
         object_links = _object_links(report.message_records, processes)
         for object_id, links in reference_object_links.items():
             object_links.setdefault(object_id, []).extend(links)
@@ -884,11 +1017,13 @@ def _object_links(records: List[MessageRecord], processes: Dict[str, OcelProcess
     return dict(links)
 
 
-def _reference_links(config: SimulationConfig, processes: Dict[str, OcelProcess], objects, rows, logged_elements,
-                     warn):
+def _reference_links(config: SimulationConfig, catalogue: Dict[str, List[CatalogueObject]],
+                     processes: Dict[str, OcelProcess], objects, rows, logged_elements, warn):
     """
-    The catalogue's objects, as (catalogue name, id, [(attribute, value, start of the run)]), and the links its
-    references give, joined with the case objects and log rows after the run:
+    The catalogue's objects (catalogue: as _drawn_catalogue gives them), as (catalogue name, id, [(attribute,
+    value, start of the run)]): every object of a listed catalogue, and the objects of a pool that some case's
+    referenced attribute names; and the links its references give, joined with the case objects and log rows
+    after the run:
     - object id -> [(object id, qualifier)]: a reference with o2o links the object of every case of its process
       to the catalogue object of each value its attribute took (reverse: from the catalogue object);
     - (process, row of that process) -> [(object id, qualifier)]: each event of those cases named in
@@ -897,11 +1032,9 @@ def _reference_links(config: SimulationConfig, processes: Dict[str, OcelProcess]
     A value that is not in its catalogue gets no link, and a warning, once per attribute and value. Processes
     that write no objects link nothing.
     """
-    static_objects = [(name, obj.id, [(attribute, value, config.start_datetime) for attribute, value in obj.attributes])
-                      for name, catalogue_objects in config.catalogue.items() for obj in catalogue_objects]
-    ids_of = {name: {obj.id for obj in catalogue_objects} for name, catalogue_objects in config.catalogue.items()}
+    ids_of = {name: {obj.id for obj in catalogue_objects} for name, catalogue_objects in catalogue.items()}
     history = {case_object.case_id: case_object.attributes for _, case_object in objects}
-    object_links, event_links, warned = defaultdict(list), defaultdict(list), set()
+    object_links, event_links, warned, referred = defaultdict(list), defaultdict(list), set(), set()
 
     def in_catalogue(reference, value):
         if str(value) in ids_of[reference.catalogue]:
@@ -923,16 +1056,18 @@ def _reference_links(config: SimulationConfig, processes: Dict[str, OcelProcess]
             object_links[source].append((target, qualifier))
 
     for reference in config.references:
-        if reference.process not in processes or processes[reference.process].object_type is None:
-            continue
-        if reference.o2o:
-            for process, case_object in objects:
-                if process != reference.process:
-                    continue
-                for value in values(case_object.case_id, reference.case_attribute):
-                    if in_catalogue(reference, value):
+        has_objects = reference.process in processes and processes[reference.process].object_type is not None
+        for process, case_object in objects:
+            if process != reference.process:
+                continue
+            for value in values(case_object.case_id, reference.case_attribute):
+                if in_catalogue(reference, value):
+                    referred.add((reference.catalogue, str(value)))
+                    if has_objects and reference.o2o:
                         ends = (str(value), case_object.case_id) if reference.reverse else (case_object.case_id, str(value))
                         link(*ends, reference.o2o)
+        if not has_objects:
+            continue
         rows_so_far = defaultdict(lambda: -1)
         for process, row in rows:
             rows_so_far[process] += 1
@@ -946,4 +1081,8 @@ def _reference_links(config: SimulationConfig, processes: Dict[str, OcelProcess]
             for value in values(f"{process}-{row['case_id']}", reference.case_attribute, _as_datetime(row["end_time"])):
                 if in_catalogue(reference, value):
                     event_links[(process, number)].append((str(value), reference.case_attribute))
+
+    static_objects = [(name, obj.id, [(attribute, value, config.start_datetime) for attribute, value in obj.attributes])
+                      for name, catalogue_objects in catalogue.items() for obj in catalogue_objects
+                      if not isinstance(config.catalogue[name], CataloguePool) or (name, obj.id) in referred]
     return static_objects, dict(object_links), dict(event_links)

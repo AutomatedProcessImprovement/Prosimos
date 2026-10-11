@@ -15,7 +15,10 @@ from prosimos.simulation_properties_parser import parse_json_sim_parameters, par
 
 
 class SimDiffSetup:
-    def __init__(self, bpmn_path, json_path, is_event_added_to_log, total_cases, start_datetime):
+    def __init__(self, bpmn_path, json_path, is_event_added_to_log, total_cases, start_datetime,
+                 extra_case_attributes=()):
+        """extra_case_attributes: case attributes given from outside the JSON settings, drawn with the declared
+        ones when a case is created (anything with a name and get_next_value(), like CaseAttribute)."""
         self.process_name = ntpath.basename(bpmn_path).split(".")[0]
 
         (
@@ -36,9 +39,10 @@ class SimDiffSetup:
         ) = parse_json_sim_parameters(json_path)
         self.gateway_conditions = add_default_flows(self.gateway_conditions, bpmn_path)
         self.case_attributes = self.all_attributes.case_attributes
+        self.case_attributes.attributes.extend(extra_case_attributes)
 
         self.bpmn_graph = parse_simulation_model(bpmn_path)
-        self.messaging = parse_messages_file(json_path, bpmn_path)
+        self.messaging = parse_messages_file(json_path, bpmn_path, [attribute.name for attribute in extra_case_attributes])
         for event_id in sorted({point.event_id for point in self.messaging.consume}):
             if event_id in self.event_distibution:
                 warning_logger.add_warning(f"duration of {event_id} is ignored: it waits for a message")
