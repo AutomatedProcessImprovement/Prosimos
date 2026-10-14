@@ -1,5 +1,5 @@
 """
-Picking (docs/orchestrator.md, "Picking the object" and "Generated pools"): with pick, a reference chooses the
+Picking (docs/catalogue.md, "Pick" and "Pool"): with pick, a reference chooses the
 catalogue object of each case when the case is created, "uniform" or by weights; a catalogue can also be a pool,
 its objects generated with attributes drawn at the start, of which only the referred ones are written.
 """

@@ -71,13 +71,12 @@ Extra engines (see "Configuration") can only be passed from Python.
 | `start_time`      | the simulation's start, shared by all processes; a time without a time zone is taken as UTC                                                                                                                                                                                                                                                                                                                  |
 | `seed`            | optional; the same seed gives the same run. Each Prosimos engine gets its own random generators, seeded from the seed and its process name, so adding or changing one process doesn't change the others' draws. Without a seed, every run draws different random values                                                                                                                                      |
 | `consumer_groups` | optional; group name → processes in it. Without it, every process is its own group (see "Message routing")                                                                                                                                                                                                                                                                                                   |
-| `catalogue`       | optional; catalogue name → objects with no events of their own: a list, each an `id` and optional `attributes`, a generated pool, or a growing catalogue (see "Objects without events: the catalogue")                                                                                                                                                                                                       |
-| `references`      | optional; which case attributes hold the ids of catalogue objects, which OCEL links to write for them, and whether they pick them (same section)                                                                                                                                                                                                                                                             |
+| `catalogue`       | optional; catalogue name → objects with no events of their own: a list, each an `id` and optional `attributes`, a generated pool, or a growing catalogue (see [catalogue.md](catalogue.md))                                                                                                                                                                                                                  |
+| `references`      | optional; which case attributes hold the ids of catalogue objects, which OCEL links to write for them, and whether they pick them (same page)                                                                                                                                                                                                                                                                |
 
 File paths are relative to the configuration file's folder. A configuration is rejected if process
 names repeat, a process is in no group or in more than one, a group names a process that doesn't
-exist, catalogue ids repeat or look like case ids, a catalogue is named like a process's object type, or a
-reference names a catalogue, process or task (in `link_events`) that doesn't exist.
+exist, or the catalogue and references break one of the rules listed in [catalogue.md](catalogue.md).
 
 **Extra engines.** Engines that aren't built from a BPMN and JSON file, such as the scripted engines
 in the tests, can run alongside the configured ones. List their names in the configuration's
@@ -103,7 +102,7 @@ written as an OCEL 2.0 JSON file, the format of the OCEL 2.0 sample logs, readab
   a catch event, at the time of the claim. Its relationships are its links to other objects, from the
   `o2o` keys of message entries ([messaging.md](messaging.md)): e.g. an order comprises each item its
   ItemOrdered messages started. Without `o2o` keys, objects have no relationships. The catalogue's
-  objects are written too (see "Objects without events: the catalogue").
+  objects are written too (see [catalogue.md](catalogue.md)).
 - **Events:** one per task, i.e. per row of the merged log, with the activity as event type, the task's
   completion as time, `resource` as attribute, a link to its case's object, and links to the objects
   on the other end of its messages (see below) and to the catalogue objects its references name. Event ids (`e1`, `e2`, ...) follow time order.
@@ -117,111 +116,12 @@ package is linked from the pick item events of the items it took (see below). `p
 keeps such an object, and leaves out only an object that no event refers to.
 
 **Objects without events: the catalogue.** Some objects never have events of their own: customers,
-products, suppliers. Events and other objects only refer to them, through a case attribute such as
-`customer = "c7"`. The configuration's `catalogue` declares them, and a `reference` says that a case
-attribute's value *is* the id of such an object, and which links to write:
-
-```json
-"catalogue": {
-  "customers": [{"id": "c1", "attributes": {"segment": "retail"}}, ...],
-  "products":  [{"id": "p1", "attributes": {"weight": 0.4, "price": 12}}, ...]
-},
-"references": [
-  {"process": "Sales", "case_attribute": "customer", "catalogue": "customers",
-   "o2o": "places", "reverse": true, "link_events": ["place order", "confirm order"]}
-]
-```
-
-- Every object of a listed catalogue is written, with the catalogue name as type and its attributes at the
-  start of the run, whether a case refers to it.
-- With `o2o`, the object of every case of the process is linked to the catalogue object of each value its
-  attribute took, with `o2o` as qualifier; `"reverse": true` turns the link around, from the catalogue object
-  to the case's object (above: customer c1 places order `Sales-13`).
-- The case's events named in `link_events` (task names, as in the log, or task ids) are linked to the
-  catalogue object of the value the attribute had when the event completed, with the attribute's name as
-  qualifier (above: place order and confirm order link `customer`, pay order doesn't). Without the key every
-  event of the case is linked; with an empty list, none.
-- Without `pick`, the attribute gets its value as any case attribute does: drawn by `case_attributes`, or
-  copied from a message, and the reference only reads it. With `pick`, see below.
-- Catalogue ids must be unique across all catalogues and must not look like case ids (`<process
-  name>-<number>`, e.g. `Sales-1`), and a catalogue can't be named like a process's object type: both would
-  mix catalogue objects with case objects. Each `link_events` entry must name a task of the reference's
-  process, so a typo is a load error rather than no links.
-- A value that is not an id of its catalogue (compared as text) gets no link, with one warning per attribute
-  and value in the run report's `warnings`. A process with `"object_type": null` links nothing.
-
-**Picking the object.** With `pick`, the reference itself chooses the catalogue object when a case is
-created, instead of `case_attributes`:
-
-```
-"pick": "uniform"                                  # every object equally likely
-"pick": {"weights": {"c1": 3, "c2": 1, "c3": 1}}   # c1 three times as likely (listed catalogue only)
-```
-
-With 3 customers and 6 orders, `"uniform"` gives e.g. c2, c1, c2, c3, c1, c2, and the weights above e.g.
-c1, c1, c3, c1, c2, c1. Ids left out of `weights` are never picked. The picked value is a normal case
-attribute from then on: it is in the log's columns, and messages and `copy` carry it as any other. The
-attribute must not also be in the process's `case_attributes`, nor be copied into from a message by the
-process itself. The picks come from a generator of their own,
-seeded from the seed, the process and the attribute, so the same seed gives the same picks, and picking
-doesn't change the process's other draws.
-
-**Generated pools.** For a large set nobody wants to type out, a catalogue can instead be a pool: a `count`
-and `attributes` in exactly the format of `case_attributes` (discrete or continuous), drawn by Prosimos's
-case attribute code:
-
-```json
-"customers": {"count": 1500,
-  "attributes": [
-    {"name": "segment", "type": "discrete",
-     "values": [{"key": "retail", "value": 0.8}, {"key": "business", "value": 0.2}]},
-    {"name": "credit_limit", "type": "continuous",
-     "values": {"distribution_name": "norm",
-                "distribution_params": [{"value": 5000}, {"value": 1000}, {"value": 1000}, {"value": 9000}]}}]}
-```
-
-Its ids are `customers-1` to `customers-1500`. Each object's attributes are drawn once, at the start of the
-run, from a generator seeded from the seed and the catalogue's name, so the same seed gives the same pool.
-Only the pool's objects that some case refers to are written to the OCEL file. A pool can only be picked
-from uniformly.
-
-**Growing catalogues.** For populations that aren't fixed, such as every order from a new customer, or a shop
-with first-time and returning customers, a catalogue can have only `attributes` (same format as
-`case_attributes`), no list and no count. It starts empty and grows during the run, as the cases of one
-reference create its objects:
-
-```
-"customers": {"attributes": [ ... ]}
-"pick": "new"                   # every case creates its own object (1 case <-> 1 object)
-"pick": {"new_share": 0.3}      # 30% of cases create a new object, the rest reuse one created so far
-```
-
-With 6 orders, `"new"` gives `customers-1` to `customers-6`; `new_share` 0.3 gives e.g. customers-1 (new),
-customers-1, customers-1, customers-2 (new), customers-1, customers-2. The first case always creates one, and
-reuse picks uniformly among those created so far, so the earliest objects end up with the most cases. Ids
-are numbered in creation order: planned cases are created in case order when the engine is built,
-message-started ones when their message arrives. Each new object's attributes are drawn by Prosimos's case
-attribute code, from a generator seeded from the seed and the catalogue's name, object after object in
-creation order, so the same seed gives the same objects. Since nothing else draws from that generator, the
-orchestrator draws them once the run is over, which gives the same values as drawing each when it is
-created. The objects are written to the OCEL file with their attributes timed when the first case took
-their id.
-
-A reference without `pick` may refer to objects created by another process's `new`. In Order Management with
-growing customers, a reference on the Warehouse's `customer`, which `ItemOrdered` copies from the order, links
-each item to its order's new customer.
-
-A configuration is rejected for `weights` naming unknown ids, `weights` on a pool, a pool `count` below 1, pool
-or growing catalogue attributes Prosimos can't parse as case attributes, a `pick` on an attribute that is also
-in the process's `case_attributes` or that one of its consume entries copies into (the copied value would
-replace the picked one), a `pick` on an extra engine, and two references picking the same attribute of a
-process. For growing catalogues: `"new"` or `new_share` on a listed catalogue or a pool, any other pick on a
-growing catalogue, a `new_share` that isn't above 0 and at most 1, a growing catalogue that not exactly one
-reference creates from, one named like a process, and other catalogue ids that look like the ones it creates
-(`<catalogue name>-<number>`).
-
-Engines stay black boxes: a pick is handed to an engine when it is built, as one more case attribute, and
-the links are joined from the case objects and log rows after the run.
+products, suppliers. The configuration's `catalogue` declares them (a list, a generated pool, or a growing
+catalogue), and each `reference` says that a case attribute's value is the id of one, which OCEL links to
+write for it (`o2o`, `reverse`, `link_events`), and, with `pick`, chooses the value when a case is created.
+The catalogue's objects are written with the catalogue name as type. All keys, with examples, the Order
+Management configuration as a worked example, and every error and warning are in
+[catalogue.md](catalogue.md).
 
 **One event linked to many objects.** Messages only pass at events, which aren't in the log, so a
 message's links go to the task next to its event in the same case, on the token's path, and link the
@@ -417,6 +317,4 @@ of its methods, and two engines' warnings never mix. Prosimos's end-of-run usage
   inclusive gateway lets through next to its event, even when each branch handles only some of the
   objects (see "Gateways between the event and its tasks"). Routing each object to the branch task that
   handles its object type is future work.
-- **One creator per growing catalogue.** Only one reference creates a growing catalogue's objects. Two
-  processes creating, and reusing, objects of the same catalogue (e.g. customers who first place an order
-  or first return one) is future work.
+- **Catalogue.** See [catalogue.md](catalogue.md) for its limitations.

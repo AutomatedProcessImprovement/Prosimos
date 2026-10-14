@@ -1,5 +1,5 @@
 """
-Growing catalogues (docs/orchestrator.md, "Growing catalogues"): a catalogue with only attributes starts empty,
+Growing catalogues (docs/catalogue.md, "Growing"): a catalogue with only attributes starts empty,
 and a reference that picks "new" creates an object for every case, or with new_share for that share of them,
 the rest reusing one created so far.
 """

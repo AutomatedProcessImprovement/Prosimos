@@ -77,7 +77,8 @@ can be copied too. A copied name counts as declared, so the process can publish 
   `"copy": {"tracking_no": "tracking_no"}` can then publish `OrderClosed{case_id, tracking_no}`.
 
 Copied values are ordinary case attribute values from then on: later gateways, conditions,
-published messages and the log see them. Every copy target gets a column in the event log, even when
+published messages and the log see them. To make a copied value such as a customer id an OCEL object,
+see [catalogue.md](catalogue.md). Every copy target gets a column in the event log, even when
 it isn't a declared attribute (like the warehouse's `order_id`); the cell stays empty until a value
 is copied. A message without one of the listed attributes
 leaves that case attribute unchanged, with one warning per event and attribute.

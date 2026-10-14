@@ -1,7 +1,7 @@
 """
-The catalogue of objects with no events of their own, and the references that link to it (docs/orchestrator.md,
-"Objects without events: the catalogue"): a reference says a case attribute's value is the id of a catalogue
-object, and the OCEL output links the case's object and the events named in link_events to it.
+The catalogue of objects with no events of their own, and the references that link to it (docs/catalogue.md):
+a reference says a case attribute's value is the id of a catalogue object, and the OCEL output links the case's
+object and the events named in link_events to it.
 """
 import json
 from datetime import datetime, timedelta

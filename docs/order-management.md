@@ -148,7 +148,7 @@ ItemOrdered entry) and each package **contains** its items (`"o2o": "contains"` 
 ItemPicked entries: the start event takes a package's first item, the catch event the rest).
 
 Customers have no events of their own, so they come from the configuration's catalogue: 15 customers, c1 to
-c15, each with a `segment` ([orchestrator.md](orchestrator.md), "Objects without events: the catalogue"). A
+c15, each with a `segment` ([catalogue.md](catalogue.md) uses this configuration as its worked example). A
 reference on Sales's `customer` attribute picks it when an order is created (`"pick": "uniform"`; `sales.json`
 doesn't draw it), links each customer to the orders it **places** (`"reverse": true`, from the customer to the
 order), and links place order and confirm order to their customer; pay order isn't linked. Since `ItemOrdered`
