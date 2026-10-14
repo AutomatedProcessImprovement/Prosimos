@@ -67,13 +67,31 @@ class CataloguePool:
 
 
 @dataclass(frozen=True)
+class GrowingCatalogue:
+    """A catalogue with no list and no count, for populations that aren't fixed: it starts empty, and a reference
+    that picks "new" or new_share creates its objects as cases are created, with ids <catalogue name>-1,
+    <catalogue name>-2, ... in creation order, each with attributes in the format of case_attributes."""
+
+    attributes: Tuple[Dict[str, Any], ...] = ()
+
+
+@dataclass(frozen=True)
+class NewShare:
+    """A pick on a growing catalogue: share of the cases create a new object, the rest reuse one created so far,
+    uniformly; the first case always creates one."""
+
+    share: float
+
+
+@dataclass(frozen=True)
 class Reference:
     """Says that a case attribute's value of one process is the id of an object of a catalogue, and which OCEL
     links to write for it: from the case's object to it with o2o as qualifier (reverse turns it around), and
     from the case's events named in link_events (task names or ids; None for every event, () for none).
     With pick, the reference also assigns the value, when the case is created: "uniform" (every object
-    equally likely) or, for a listed catalogue, weights as ((id, weight), ...) (ids left out are never picked).
-    Without it, the value comes from case_attributes or a message."""
+    equally likely) or, for a listed catalogue, weights as ((id, weight), ...) (ids left out are never picked);
+    for a growing catalogue, "new" (every case creates its own object) or NewShare. Without it, the value comes
+    from case_attributes or a message."""
 
     process: str
     case_attribute: str
@@ -81,10 +99,17 @@ class Reference:
     o2o: Optional[str] = None
     reverse: bool = False
     link_events: Optional[Tuple[str, ...]] = None
-    pick: Union[None, str, Tuple[Tuple[str, float], ...]] = None
+    pick: Union[None, str, Tuple[Tuple[str, float], ...], NewShare] = None
+
+    @property
+    def creates(self) -> bool:
+        return self.pick == "new" or isinstance(self.pick, NewShare)
 
 
 def _catalogue_ids(name, entry) -> List[str]:
+    """The ids known when the run starts: none yet for a growing catalogue."""
+    if isinstance(entry, GrowingCatalogue):
+        return []
     if isinstance(entry, CataloguePool):
         return [f"{name}-{number}" for number in range(1, entry.count + 1)] if isinstance(entry.count, int) else []
     return [obj.id for obj in entry]
@@ -107,13 +132,16 @@ def _checked_catalogue(processes, names, catalogue, references):
     object ids; catalogue names unlike the processes' object types; pools with a count of at least 1 and
     attributes in the format of case_attributes; and references only naming known catalogues, processes and,
     in link_events, tasks of their process (by name or id). A pick is "uniform" or weights on known ids of a
-    listed catalogue, for a process built from a ProcessSpec whose case_attributes don't have the attribute,
-    and at most one per process and attribute."""
+    listed catalogue, "uniform" on a pool, or "new" or new_share on a growing catalogue, for a process built
+    from a ProcessSpec whose case_attributes don't have the attribute and whose consume entries don't copy into
+    it, and at most one per process and attribute. A growing catalogue's objects are created by exactly one reference, and no other id looks like
+    them (<catalogue name>-<number>)."""
     problems = []
     for name, entry in catalogue.items():
-        if not isinstance(entry, CataloguePool):
+        if not isinstance(entry, (CataloguePool, GrowingCatalogue)):
             continue
-        if not isinstance(entry.count, int) or isinstance(entry.count, bool) or entry.count < 1:
+        if isinstance(entry, CataloguePool) and (not isinstance(entry.count, int) or isinstance(entry.count, bool)
+                                                 or entry.count < 1):
             problems.append(f"catalogue {name!r}: count must be a whole number of at least 1, got {entry.count!r}")
         for number, attribute in enumerate(entry.attributes):
             try:
@@ -128,6 +156,18 @@ def _checked_catalogue(processes, names, catalogue, references):
                             if re.fullmatch(rf"{re.escape(name)}-\d+", object_id)})
     if like_case_ids:
         problems.append(f"catalogue ids look like case ids (<process name>-<number>): {like_case_ids}")
+    growing = [name for name, entry in catalogue.items() if isinstance(entry, GrowingCatalogue)]
+    for name in growing:
+        if name in names:
+            problems.append(f"growing catalogue {name!r} is named like a process; its ids would look like case ids")
+        like_created = sorted({object_id for object_id in ids if re.fullmatch(rf"{re.escape(name)}-\d+", object_id)})
+        if like_created:
+            problems.append(f"catalogue ids look like the ids growing catalogue {name!r} creates "
+                            f"({name}-<number>): {like_created}")
+        creators = [reference for reference in references if reference.catalogue == name and reference.creates]
+        if len(creators) != 1:
+            problems.append(f"growing catalogue {name!r} needs exactly one reference that creates its objects "
+                            f'("new" or new_share), got {len(creators)}')
     object_types = {spec.ocel_object_type: spec.name for spec in processes if spec.ocel_object_type is not None}
     for name in catalogue:
         if name in object_types:
@@ -159,9 +199,17 @@ def _checked_catalogue(processes, names, catalogue, references):
 
 
 def _pick_problems(reference, entry, specs):
-    if reference.pick != "uniform":
+    if isinstance(entry, GrowingCatalogue) and not reference.creates:
+        return [f'picks from growing catalogue {reference.catalogue!r}, which only takes "new" or {{"new_share": ...}}']
+    if reference.creates:
+        if entry is not None and not isinstance(entry, GrowingCatalogue):
+            return [f'picks "new" or new_share from catalogue {reference.catalogue!r}, which is no growing catalogue']
+        share = reference.pick.share if isinstance(reference.pick, NewShare) else 1
+        if not isinstance(share, (int, float)) or isinstance(share, bool) or not 0 < share <= 1:
+            return [f"new_share must be a number above 0 and at most 1, got {share!r}"]
+    elif reference.pick != "uniform":
         if not isinstance(reference.pick, tuple):
-            return ['pick must be "uniform" or {"weights": {id: weight, ...}}']
+            return ['pick must be "uniform", {"weights": {id: weight, ...}}, "new" or {"new_share": share}']
         if isinstance(entry, CataloguePool):
             return [f"has weights on pool {reference.catalogue!r}; a pool can only be picked from uniformly"]
         if entry is not None:
@@ -175,10 +223,19 @@ def _pick_problems(reference, entry, specs):
     if reference.process not in specs:
         return [f"picks for {reference.process}, an engine not built from a ProcessSpec, which can't take a pick"]
     with open(specs[reference.process].json_path) as file:
-        declared = {attribute.get("name") for attribute in json.load(file).get("case_attributes", [])}
+        settings = json.load(file)
+    declared = {attribute.get("name") for attribute in settings.get("case_attributes", [])}
     if reference.case_attribute in declared:
         return [f"picks {reference.case_attribute}, which process {reference.process} also draws in its "
                 f"case_attributes"]
+    # a copied value would replace the picked one: with "new", the replaced object is never written
+    messages = settings.get("messages")
+    consume = messages.get("consume", []) if isinstance(messages, dict) else []
+    copied_at = [entry.get("event_id") for entry in consume if isinstance(entry, dict)
+                 and isinstance(entry.get("copy"), dict) and reference.case_attribute in entry["copy"]]
+    if copied_at:
+        return [f"picks {reference.case_attribute}, which process {reference.process} also copies from a message "
+                f"(consume entries at {copied_at})"]
     return []
 
 
@@ -218,7 +275,7 @@ class SimulationConfig:
     ProcessSpec (e.g. scripted test engines), so that groups can name them too. catalogue maps a name
     (the OCEL object type) to the objects with no events of their own, and references say which case
     attributes hold their ids, and may pick them (see _checked_catalogue for what is rejected). A catalogue is
-    a list of CatalogueObject or a CataloguePool.
+    a list of CatalogueObject, a CataloguePool or a GrowingCatalogue.
     """
 
     processes: List[ProcessSpec]
@@ -226,7 +283,7 @@ class SimulationConfig:
     seed: Optional[int] = None
     consumer_groups: Optional[Dict[str, List[str]]] = None
     extra_processes: Tuple[str, ...] = ()
-    catalogue: Dict[str, Union[List[CatalogueObject], CataloguePool]] = field(default_factory=dict)
+    catalogue: Dict[str, Union[List[CatalogueObject], CataloguePool, GrowingCatalogue]] = field(default_factory=dict)
     references: Tuple[Reference, ...] = ()
 
     def __post_init__(self):
@@ -255,9 +312,9 @@ class SimulationConfig:
         optional qualifier (by default the object type) and qualifier_by_activity ({task id: qualifier})
         qualify each event's link to its own case's object, and carry_links (false by default) makes every
         later event of a case also link the objects the case is linked to through its messages.
-        The optional catalogue ({name: [{"id": ..., "attributes": {...}}]}, or {name: {"count": ...,
-        "attributes": [as in case_attributes]}} for a generated pool) declares objects with no events of their
-        own, and references ([{"process", "case_attribute", "catalogue", "o2o", "reverse", "link_events",
+        The optional catalogue ({name: [{"id": ..., "attributes": {...}}]}, {name: {"count": ...,
+        "attributes": [as in case_attributes]}} for a generated pool, or {name: {"attributes": [...]}} for a
+        growing one) declares objects with no events of their own, and references ([{"process", "case_attribute", "catalogue", "o2o", "reverse", "link_events",
         "pick"}], the last four optional) say which case attributes hold their ids, and may pick them.
         """
         path = Path(path)
@@ -291,6 +348,8 @@ class SimulationConfig:
 
 
 def _catalogue(path, name, entries):
+    if isinstance(entries, dict) and "count" not in entries:
+        return GrowingCatalogue(tuple(entries.get("attributes", [])))
     if isinstance(entries, dict):
         return CataloguePool(entries.get("count"), tuple(entries.get("attributes", [])))
     return [_catalogue_object(path, name, number, entry) for number, entry in enumerate(entries)]
@@ -307,8 +366,11 @@ def _reference(path, number, entry):
     if missing:
         raise ValueError(f"{path}: references[{number}] is missing {missing}")
     link_events, pick = entry.get("link_events"), entry.get("pick")
+    # anything else but "uniform" and "new" is rejected when the configuration is checked
     if isinstance(pick, dict) and list(pick) == ["weights"] and isinstance(pick["weights"], dict):
-        pick = tuple(pick["weights"].items())  # anything else but "uniform" is rejected when the configuration is checked
+        pick = tuple(pick["weights"].items())
+    elif isinstance(pick, dict) and list(pick) == ["new_share"]:
+        pick = NewShare(pick["new_share"])
     return Reference(entry["process"], entry["case_attribute"], entry["catalogue"], entry.get("o2o"),
                      entry.get("reverse", False), None if link_events is None else tuple(link_events), pick)
 
@@ -623,11 +685,33 @@ class _Pick:
         return self._generator.choices(self._ids, self._weights)[0]
 
 
+class _NewPick:
+    """A case attribute that a reference picks from a growing catalogue: a new id, <catalogue name>-<number> in
+    creation order, for every case ("new") or for share of them, the rest reusing one created so far, uniformly.
+    Like _Pick, it is drawn with the case's other attributes, from a generator of its own."""
+
+    def __init__(self, name: str, catalogue: str, share: float, seed: Optional[int], process: str):
+        self.name, self.catalogue, self._share = name, catalogue, share
+        self.created = 0
+        self._generator = random.Random()
+        self._generator.setstate(_engine_random_states(seed, f"pick/{process}/{name}")[0])
+
+    def get_next_value(self):
+        if self.created == 0 or self._share == 1 or self._generator.random() < self._share:
+            self.created += 1
+            return f"{self.catalogue}-{self.created}"
+        return f"{self.catalogue}-{self._generator.randint(1, self.created)}"
+
+
 def _picks(config: "SimulationConfig", catalogue: Dict[str, List[CatalogueObject]]) -> Dict[str, List[_Pick]]:
     """Process name -> the attributes its references pick."""
     picks = defaultdict(list)
     for reference in config.references:
-        if reference.pick is not None:
+        if reference.creates:
+            share = reference.pick.share if isinstance(reference.pick, NewShare) else 1
+            picks[reference.process].append(_NewPick(reference.case_attribute, reference.catalogue, share, config.seed,
+                                                     reference.process))
+        elif reference.pick is not None:
             ids = [obj.id for obj in catalogue[reference.catalogue]]
             weights = None if reference.pick == "uniform" else [dict(reference.pick).get(object_id, 0) for object_id in ids]
             picks[reference.process].append(_Pick(reference.case_attribute, ids, weights, config.seed, reference.process))
@@ -635,28 +719,41 @@ def _picks(config: "SimulationConfig", catalogue: Dict[str, List[CatalogueObject
 
 
 def _drawn_catalogue(config: "SimulationConfig") -> Dict[str, List[CatalogueObject]]:
-    """Catalogue name -> its objects: a listed catalogue's as given, a pool's with their attributes drawn once,
-    object after object, by Prosimos's case attribute code, from generators seeded from the seed and the
-    catalogue's name."""
-    catalogue = {}
-    for name, entry in config.catalogue.items():
-        if not isinstance(entry, CataloguePool):
-            catalogue[name] = list(entry)
-            continue
-        attributes = [CaseAttribute(attribute["name"], attribute["type"], attribute["values"])
-                      for attribute in entry.attributes]
-        python_state, numpy_state = _engine_random_states(config.seed, f"catalogue/{name}")
-        shared_python, shared_numpy = random.getstate(), np.random.get_state()
-        random.setstate(python_state)
-        np.random.set_state(numpy_state)
-        try:
-            catalogue[name] = [CatalogueObject(object_id, tuple((attribute.name, _plain_value(attribute.get_next_value()))
-                                                                for attribute in attributes))
-                               for object_id in _catalogue_ids(name, entry)]
-        finally:
-            random.setstate(shared_python)
-            np.random.set_state(shared_numpy)
-    return catalogue
+    """Catalogue name -> its objects when the run starts: a listed catalogue's as given, a pool's with their
+    attributes drawn (see _drawn_objects), none yet for a growing catalogue."""
+    return {name: list(entry) if isinstance(entry, list) else _drawn_objects(config.seed, name, entry.attributes,
+                                                                            _catalogue_ids(name, entry))
+            for name, entry in config.catalogue.items()}
+
+
+def _grown_catalogue(config: "SimulationConfig", catalogue: Dict[str, List[CatalogueObject]],
+                     picks: Dict[str, List[_Pick]]) -> Dict[str, List[CatalogueObject]]:
+    """The catalogue after the run: each growing catalogue with the objects its pick created, <name>-1 to
+    <name>-<created>, their attributes drawn in creation order (see _drawn_objects). Drawing them now rather
+    than when each was created gives the same values, since nothing else draws from their generators."""
+    grown = dict(catalogue)
+    for pick in itertools.chain.from_iterable(picks.values()):
+        if isinstance(pick, _NewPick):
+            grown[pick.catalogue] = _drawn_objects(config.seed, pick.catalogue, config.catalogue[pick.catalogue].attributes,
+                                                   [f"{pick.catalogue}-{number}" for number in range(1, pick.created + 1)])
+    return grown
+
+
+def _drawn_objects(seed, name, attribute_specs, ids) -> List[CatalogueObject]:
+    """The objects with these ids, their attributes drawn object after object by Prosimos's case attribute code,
+    from generators seeded from the seed and the catalogue's name."""
+    attributes = [CaseAttribute(attribute["name"], attribute["type"], attribute["values"]) for attribute in attribute_specs]
+    python_state, numpy_state = _engine_random_states(seed, f"catalogue/{name}")
+    shared_python, shared_numpy = random.getstate(), np.random.get_state()
+    random.setstate(python_state)
+    np.random.set_state(numpy_state)
+    try:
+        return [CatalogueObject(object_id, tuple((attribute.name, _plain_value(attribute.get_next_value()))
+                                                 for attribute in attributes))
+                for object_id in ids]
+    finally:
+        random.setstate(shared_python)
+        np.random.set_state(shared_numpy)
 
 
 def _plain_value(value):
@@ -956,6 +1053,7 @@ def run_orchestrator(config: SimulationConfig, log_out_path: Optional[str] = Non
     engines.update(extra_engines)
 
     report = run_engines(engines, config.consumer_groups, config.seed)
+    catalogue = _grown_catalogue(config, catalogue, picks)
 
     if log_out_path is not None:
         merged_log.write(log_out_path)
@@ -1020,9 +1118,10 @@ def _object_links(records: List[MessageRecord], processes: Dict[str, OcelProcess
 def _reference_links(config: SimulationConfig, catalogue: Dict[str, List[CatalogueObject]],
                      processes: Dict[str, OcelProcess], objects, rows, logged_elements, warn):
     """
-    The catalogue's objects (catalogue: as _drawn_catalogue gives them), as (catalogue name, id, [(attribute,
-    value, start of the run)]): every object of a listed catalogue, and the objects of a pool that some case's
-    referenced attribute names; and the links its references give, joined with the case objects and log rows
+    The catalogue's objects (catalogue: as _grown_catalogue gives them), as (catalogue name, id, [(attribute,
+    value, time)]): every object of a listed catalogue, and the objects of a pool or a growing catalogue that some
+    case's referenced attribute names; their attributes are timed at the start of the run, a growing catalogue's
+    when the first case took its id; and the links its references give, joined with the case objects and log rows
     after the run:
     - object id -> [(object id, qualifier)]: a reference with o2o links the object of every case of its process
       to the catalogue object of each value its attribute took (reverse: from the catalogue object);
@@ -1035,6 +1134,7 @@ def _reference_links(config: SimulationConfig, catalogue: Dict[str, List[Catalog
     ids_of = {name: {obj.id for obj in catalogue_objects} for name, catalogue_objects in catalogue.items()}
     history = {case_object.case_id: case_object.attributes for _, case_object in objects}
     object_links, event_links, warned, referred = defaultdict(list), defaultdict(list), set(), set()
+    first_taken = {}  # (catalogue name, id) -> when the first case took it
 
     def in_catalogue(reference, value):
         if str(value) in ids_of[reference.catalogue]:
@@ -1063,6 +1163,10 @@ def _reference_links(config: SimulationConfig, catalogue: Dict[str, List[Catalog
             for value in values(case_object.case_id, reference.case_attribute):
                 if in_catalogue(reference, value):
                     referred.add((reference.catalogue, str(value)))
+                    taken = min(time for name, taken_value, time in history[case_object.case_id]
+                                if name == reference.case_attribute and taken_value == value)
+                    key = (reference.catalogue, str(value))
+                    first_taken[key] = min(taken, first_taken.get(key, taken))
                     if has_objects and reference.o2o:
                         ends = (str(value), case_object.case_id) if reference.reverse else (case_object.case_id, str(value))
                         link(*ends, reference.o2o)
@@ -1082,7 +1186,11 @@ def _reference_links(config: SimulationConfig, catalogue: Dict[str, List[Catalog
                 if in_catalogue(reference, value):
                     event_links[(process, number)].append((str(value), reference.case_attribute))
 
-    static_objects = [(name, obj.id, [(attribute, value, config.start_datetime) for attribute, value in obj.attributes])
+    def time_of(name, object_id):
+        growing = isinstance(config.catalogue[name], GrowingCatalogue)
+        return first_taken[(name, object_id)] if growing else config.start_datetime
+
+    static_objects = [(name, obj.id, [(attribute, value, time_of(name, obj.id)) for attribute, value in obj.attributes])
                       for name, catalogue_objects in catalogue.items() for obj in catalogue_objects
-                      if not isinstance(config.catalogue[name], CataloguePool) or (name, obj.id) in referred]
+                      if isinstance(config.catalogue[name], list) or (name, obj.id) in referred]
     return static_objects, dict(object_links), dict(event_links)

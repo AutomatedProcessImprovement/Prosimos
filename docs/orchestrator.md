@@ -71,7 +71,7 @@ Extra engines (see "Configuration") can only be passed from Python.
 | `start_time`      | the simulation's start, shared by all processes; a time without a time zone is taken as UTC                                                                                                                                                                                                                                                                                                                  |
 | `seed`            | optional; the same seed gives the same run. Each Prosimos engine gets its own random generators, seeded from the seed and its process name, so adding or changing one process doesn't change the others' draws. Without a seed, every run draws different random values                                                                                                                                      |
 | `consumer_groups` | optional; group name → processes in it. Without it, every process is its own group (see "Message routing")                                                                                                                                                                                                                                                                                                   |
-| `catalogue`       | optional; catalogue name → objects with no events of their own: a list, each an `id` and optional `attributes`, or a generated pool (see "Objects without events: the catalogue")                                                                                                                                                                                                                            |
+| `catalogue`       | optional; catalogue name → objects with no events of their own: a list, each an `id` and optional `attributes`, a generated pool, or a growing catalogue (see "Objects without events: the catalogue")                                                                                                                                                                                                       |
 | `references`      | optional; which case attributes hold the ids of catalogue objects, which OCEL links to write for them, and whether they pick them (same section)                                                                                                                                                                                                                                                             |
 
 File paths are relative to the configuration file's folder. A configuration is rejected if process
@@ -161,7 +161,8 @@ created, instead of `case_attributes`:
 With 3 customers and 6 orders, `"uniform"` gives e.g. c2, c1, c2, c3, c1, c2, and the weights above e.g.
 c1, c1, c3, c1, c2, c1. Ids left out of `weights` are never picked. The picked value is a normal case
 attribute from then on: it is in the log's columns, and messages and `copy` carry it as any other. The
-attribute must not also be in the process's `case_attributes`. The picks come from a generator of their own,
+attribute must not also be in the process's `case_attributes`, nor be copied into from a message by the
+process itself. The picks come from a generator of their own,
 seeded from the seed, the process and the attribute, so the same seed gives the same picks, and picking
 doesn't change the process's other draws.
 
@@ -184,9 +185,40 @@ run, from a generator seeded from the seed and the catalogue's name, so the same
 Only the pool's objects that some case refers to are written to the OCEL file. A pool can only be picked
 from uniformly.
 
+**Growing catalogues.** For populations that aren't fixed, such as every order from a new customer, or a shop
+with first-time and returning customers, a catalogue can have only `attributes` (same format as
+`case_attributes`), no list and no count. It starts empty and grows during the run, as the cases of one
+reference create its objects:
+
+```
+"customers": {"attributes": [ ... ]}
+"pick": "new"                   # every case creates its own object (1 case <-> 1 object)
+"pick": {"new_share": 0.3}      # 30% of cases create a new object, the rest reuse one created so far
+```
+
+With 6 orders, `"new"` gives `customers-1` to `customers-6`; `new_share` 0.3 gives e.g. customers-1 (new),
+customers-1, customers-1, customers-2 (new), customers-1, customers-2. The first case always creates one, and
+reuse picks uniformly among those created so far, so the earliest objects end up with the most cases. Ids
+are numbered in creation order: planned cases are created in case order when the engine is built,
+message-started ones when their message arrives. Each new object's attributes are drawn by Prosimos's case
+attribute code, from a generator seeded from the seed and the catalogue's name, object after object in
+creation order, so the same seed gives the same objects. Since nothing else draws from that generator, the
+orchestrator draws them once the run is over, which gives the same values as drawing each when it is
+created. The objects are written to the OCEL file with their attributes timed when the first case took
+their id.
+
+A reference without `pick` may refer to objects created by another process's `new`. In Order Management with
+growing customers, a reference on the Warehouse's `customer`, which `ItemOrdered` copies from the order, links
+each item to its order's new customer.
+
 A configuration is rejected for `weights` naming unknown ids, `weights` on a pool, a pool `count` below 1, pool
-attributes Prosimos can't parse as case attributes, a `pick` on an attribute that is also in the process's
-`case_attributes` or on an extra engine, and two references picking the same attribute of a process.
+or growing catalogue attributes Prosimos can't parse as case attributes, a `pick` on an attribute that is also
+in the process's `case_attributes` or that one of its consume entries copies into (the copied value would
+replace the picked one), a `pick` on an extra engine, and two references picking the same attribute of a
+process. For growing catalogues: `"new"` or `new_share` on a listed catalogue or a pool, any other pick on a
+growing catalogue, a `new_share` that isn't above 0 and at most 1, a growing catalogue that not exactly one
+reference creates from, one named like a process, and other catalogue ids that look like the ones it creates
+(`<catalogue name>-<number>`).
 
 Engines stay black boxes: a pick is handed to an engine when it is built, as one more case attribute, and
 the links are joined from the case objects and log rows after the run.
@@ -385,3 +417,6 @@ of its methods, and two engines' warnings never mix. Prosimos's end-of-run usage
   inclusive gateway lets through next to its event, even when each branch handles only some of the
   objects (see "Gateways between the event and its tasks"). Routing each object to the branch task that
   handles its object type is future work.
+- **One creator per growing catalogue.** Only one reference creates a growing catalogue's objects. Two
+  processes creating, and reusing, objects of the same catalogue (e.g. customers who first place an order
+  or first return one) is future work.

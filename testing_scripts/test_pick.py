@@ -213,10 +213,19 @@ def test_picking_an_attribute_also_in_case_attributes_is_rejected(tmp_path):
         SimulationConfig.from_json(path)
 
 
-def test_a_pick_other_than_uniform_or_weights_is_rejected(tmp_path):
+def test_picking_an_attribute_the_process_copies_from_a_message_is_rejected(tmp_path):
+    # the Warehouse copies customer from ItemOrdered; a pick would be replaced by the copied value
+    path = _config_with(tmp_path, references=[{**PICKING, "process": "Warehouse", "pick": "uniform"}])
+
+    with pytest.raises(ValueError, match=r"references\[0\] picks customer, which process Warehouse also copies from a "
+                                         r"message \(consume entries at \['Start_Item'\]\)"):
+        SimulationConfig.from_json(path)
+
+
+def test_an_unknown_pick_is_rejected(tmp_path):
     path = _config_with(tmp_path, references=[{**PICKING, "pick": "random"}])
 
-    with pytest.raises(ValueError, match=r'references\[0\] pick must be "uniform" or \{"weights"'):
+    with pytest.raises(ValueError, match=r'references\[0\] pick must be "uniform", \{"weights"'):
         SimulationConfig.from_json(path)
 
 
