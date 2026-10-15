@@ -63,6 +63,9 @@ class ConsumePoint:
     collect_attribute: Optional[str] = None  # the case attribute holding that number, if any
     qualifier: Optional[str] = None  # of the OCEL links the messages it takes give; None means the message type
     o2o: Optional[str] = None  # OCEL object link from the claiming case's object to the publisher's; None: none
+    # (case attribute, message attribute): the message attribute's value is added to a list in the case, which
+    # starts empty
+    append: Tuple[Tuple[str, str], ...] = ()
 
     @property
     def link_qualifier(self):
@@ -88,7 +91,8 @@ def parse_messages_file(json_path, bpmn_path, also_declared=()) -> MessagingMode
     orchestrator's references), which messages may use too."""
     with open(json_path) as json_file:
         settings = json.load(json_file)
-    return parse_messages(settings.get("messages"), bpmn_path, declared_attributes(settings) | set(also_declared))
+    return parse_messages(settings.get("messages"), bpmn_path, declared_attributes(settings) | set(also_declared),
+                          {attribute["name"] for attribute in settings.get("case_attributes", [])})
 
 
 def declared_attributes(settings):
@@ -97,17 +101,18 @@ def declared_attributes(settings):
              for attribute in settings.get(section, [])}
     names.update(attribute["name"] for event in settings.get("event_attributes", [])
                  for attribute in event["attributes"])
-    # attributes a consume entry copies from a message into the case can be published too
+    # attributes a consume entry copies or appends from a message into the case can be published too
     messages = settings.get("messages")
     consume = messages.get("consume", []) if isinstance(messages, dict) else []
-    names.update(target for entry in consume if isinstance(entry, dict) and isinstance(entry.get("copy"), dict)
-                 for target in entry["copy"] if isinstance(target, str))
+    names.update(target for entry in consume if isinstance(entry, dict) for key in ("copy", "append")
+                 if isinstance(entry.get(key), dict) for target in entry[key] if isinstance(target, str))
     return names
 
 
-def parse_messages(messages_json, bpmn_path, declared_attributes) -> MessagingModel:
-    """Validates the 'messages' section against the BPMN model and the declared attribute names.
-    None (no section) gives an empty model, so processes without messages behave as before."""
+def parse_messages(messages_json, bpmn_path, declared_attributes, case_attributes=()) -> MessagingModel:
+    """Validates the 'messages' section against the BPMN model and the declared attribute names; case_attributes
+    are the names drawn by the process's case_attributes, which append can't add to. None (no section) gives an
+    empty model, so processes without messages behave as before."""
     if messages_json is None:
         return MessagingModel()
     if not isinstance(messages_json, dict) or set(messages_json) - {"publish", "consume"}:
@@ -121,7 +126,8 @@ def parse_messages(messages_json, bpmn_path, declared_attributes) -> MessagingMo
         starts_case = events[entry["event_id"]][0] == "startEvent"
         point = ConsumePoint(entry["event_id"], entry["type"], _condition(entry, where), _copy(entry, where),
                              starts_case, *_capacity(entry, where, starts_case), *_collect(entry, where, starts_case),
-                             _name(entry, "qualifier", where), _name(entry, "o2o", where))
+                             _name(entry, "qualifier", where), _name(entry, "o2o", where),
+                             _append(entry, where, case_attributes))
         if "count" in entry:
             _fail(f"{where}: count is only for publish entries, on throw and end events: only they publish, and a "
                   f"start event starts exactly one case per message")
@@ -131,6 +137,7 @@ def parse_messages(messages_json, bpmn_path, declared_attributes) -> MessagingMo
         if "collect" in entry:
             collecting.append((where, point.event_id))
     _check_collect_has_its_own_event(collecting, consume)
+    _check_appended_only(consume)
     _check_races(consume, events, gateway_branches)
     publish = tuple(
         PublishPoint(entry["event_id"], entry["type"], _attributes(entry, where, declared_attributes),
@@ -218,14 +225,41 @@ def is_whole_number_of_at_least_one(value):
     return is_whole_number(value, minimum=1)
 
 
-def _copy(entry, where):
-    copy = entry.get("copy", {})
+def _copy(entry, where, key="copy"):
+    copy = entry.get(key, {})
     if not isinstance(copy, dict) or not all(isinstance(target, str) and target and isinstance(source, str) and source
                                              for target, source in copy.items()):
-        _fail(f"{where}: 'copy' must map case attribute names to message attribute names")
+        _fail(f"{where}: '{key}' must map case attribute names to message attribute names")
     if "case_id" in copy:
-        _fail(f"{where}: 'copy' can't set case_id, which is reserved for the case's own identifier")
+        _fail(f"{where}: '{key}' can't set case_id, which is reserved for the case's own identifier")
     return tuple(copy.items())
+
+
+def _append(entry, where, case_attributes):
+    append = _copy(entry, where, "append")
+    both = [target for target, _ in append if target in entry.get("copy", {})]
+    if both:
+        _fail(f"{where}: {', '.join(map(repr, both))} is in both copy and append: a case attribute is either "
+              f"overwritten by each message or a list that each message adds to")
+    drawn = [target for target, _ in append if target in case_attributes]
+    if drawn:
+        _fail(f"{where}: append adds to {', '.join(map(repr, drawn))}, which case_attributes declares: an appended "
+              f"attribute is a list that starts empty, not a drawn value")
+    return append
+
+
+def _check_appended_only(consume):
+    """An attribute some entry appends to is a list, so no other entry may overwrite it with copy."""
+    copied_at = {}
+    for index, point in enumerate(consume):
+        for target, _ in point.copy:
+            copied_at.setdefault(target, index)
+    for index, point in enumerate(consume):
+        for target, _ in point.append:
+            if target in copied_at:
+                _fail(f"messages.consume[{index}]: append adds to {target!r}, which messages.consume"
+                      f"[{copied_at[target]}] copies into: an appended attribute is a list, which copy would "
+                      f"overwrite")
 
 
 def _entries(messages_json, section, events, allowed_kinds):

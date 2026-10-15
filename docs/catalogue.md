@@ -127,8 +127,8 @@ this way:
 
 The picked value is a normal case attribute from then on: it is a column of the log, and messages and
 `copy` carry it like any other. The attribute must therefore not be in the process's `case_attributes`, and
-none of the process's own consume entries may copy into it, since the copied value would replace the
-picked one. A process JSON whose messages publish a picked attribute only runs inside its configuration:
+none of the process's own consume entries may copy or append into it, since the copied value would replace
+the picked one. A process JSON whose messages publish a picked attribute only runs inside its configuration:
 run on its own, the attribute isn't declared (Order Management's `sales.json` is an example).
 
 **Without `pick`, the reference interprets a value that is already there**: drawn by the process's
@@ -363,6 +363,7 @@ The messages, by the key they are about:
 | `pick`                       | `references[0] pick must be "uniform", {"weights": {id: weight, ...}}, "new" or {"new_share": share}`                                                           |
 | `pick`                       | `references[0] picks customer, which process Sales also draws in its case_attributes`                                                                           |
 | `pick`                       | `references[0] picks customer, which process Warehouse also copies from a message (consume entries at ['Start_Item'])`                                          |
+| `pick`                       | `references[0] picks item_ids, which process Packaging also appends to from a message (consume entries at ['Start_Package', 'Catch_More_Items'])`               |
 | `pick`                       | `references[0] picks for Scripted, an engine not built from a ProcessSpec, which can't take a pick` (extra engines, see [orchestrator.md](orchestrator.md))     |
 | `pick`                       | `more than one reference picks customer of process Sales`                                                                                                       |
 | `weights`                    | `references[0] weights name ['c99'], which are no ids of catalogue 'customers'`                                                                                 |

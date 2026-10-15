@@ -236,6 +236,9 @@
         "copy": {
           "customer": "customer"
         },
+        "append": {
+          "item_ids": "case_id"
+        },
         "qualifier": "item",
         "o2o": "contains"
       },
@@ -253,6 +256,9 @@
         ],
         "collect": {
           "case_attribute": "more_items"
+        },
+        "append": {
+          "item_ids": "case_id"
         },
         "qualifier": "item",
         "o2o": "contains"

@@ -83,6 +83,33 @@ it isn't a declared attribute (like the warehouse's `order_id`); the cell stays 
 is copied. A message without one of the listed attributes
 leaves that case attribute unchanged, with one warning per event and attribute.
 
+**append** (optional, on any `consume` entry) keeps every value instead of the last one. With `collect`,
+`copy` overwrites: a package that collected items 12, 17 and 23 only remembers 23. `append` maps case
+attributes to message attributes like `copy`, but adds the message attribute's value of every claimed
+message to a list in the case. In Order Management, each item sends its own id (`case_id` is reserved: the
+publishing case's own id), and the package keeps them all:
+
+```
+warehouse.json:  "publish": [{"event_id": "Throw_ItemPicked", "type": "ItemPicked",
+                              "attributes": ["order_id", "item_index", "customer", "case_id"]}]
+packaging.json:  "consume": [{"event_id": "Start_Package", "type": "ItemPicked", ..., "append": {"item_ids": "case_id"}},
+                             {"event_id": "Catch_More_Items", ..., "append": {"item_ids": "case_id"}}]
+```
+
+After the collect, `item_ids = ["Warehouse-12", "Warehouse-17", "Warehouse-23"]`, in claim order.
+
+- Each message carries one value; the list exists only inside the receiving case.
+- The list starts empty when the case is created, and grows by one value per claimed message, at a start
+  event (the message that starts the case) and at a catch event alike. A message without the attribute adds
+  nothing, with one warning per event and attribute.
+- The list is an ordinary case attribute value: messages can publish it, and the log has a column for it,
+  holding the list as JSON text, e.g. `["Warehouse-12", "Warehouse-17"]` (`[]` before the first claim). In the
+  OCEL output it is an object attribute, also as JSON text since OCEL attribute values are single values,
+  with one value per change.
+- An appended attribute can't also be in the entry's `copy`, in another entry's `copy` (which would
+  overwrite the list), or in the process's `case_attributes` (whose value is drawn, not a list that starts
+  empty).
+
 **capacity** (optional, on a catch event's entry) says how many waiting cases one message resumes:
 a fixed `{"value": 2}`, or `{"attribute": "capacity"}` to read it from the message. Without it, a
 message resumes one case. For example, orders waiting at the dock and a truck taking up to its
@@ -196,6 +223,7 @@ The section is checked when the model is loaded. An invalid section stops loadin
   event-based gateways"), every branch is a message catch event or a timer, and no branch has a fixed
   `collect` of 0.
 - `copy` maps case attribute names to message attribute names, and doesn't set `case_id`.
+- `append` does the same; its attributes are in no entry's `copy` and not in `case_attributes`.
 - `capacity` is either `{"value": <whole number of at least 1>}` or `{"attribute": <name>}`, and only
   on a catch event: a start message starts exactly one case.
 - `collect` is either `{"value": <whole number of at least 0>}` or `{"case_attribute": <name>}`.

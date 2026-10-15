@@ -24,9 +24,9 @@ Customer             start OrderConfirmed (copy order_id) -> timer (confirm-to-p
                      -> message end Payment{order_id}
 Warehouse (item)     start ItemOrdered (copy order_id, item_index from index, customer)
                      -> XOR: 20% item out of stock -> reorder item | 80% straight on
-                     -> pick item (Warehousing) -> message end ItemPicked{order_id, item_index, customer}
-Packaging (package)  start ItemPicked (copy customer); case attribute more_items (0..19)
-                     -> catch ItemPicked, customer = case.customer, collect more_items
+                     -> pick item (Warehousing) -> message end ItemPicked{order_id, item_index, customer, case_id}
+Packaging (package)  start ItemPicked (copy customer, append case_id to item_ids); case attribute more_items (0..19)
+                     -> catch ItemPicked, customer = case.customer, collect more_items, append case_id to item_ids
                      -> create package (Warehousing) -> send package (Shipment)
                      -> XOR: 22% failed delivery -> back to the XOR | 78% package delivered -> end
 ```
@@ -71,12 +71,12 @@ flowchart LR
 
 ## Messages
 
-| Process       | Publishes                                                                             | Consumes                                                                                                                                                      |
-|---------------|---------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Sales**     | `ItemOrdered{case_id, index, customer}`, `count` = `items`; `OrderConfirmed{case_id}` | `Payment` where `order_id == case_id`, in a race against the 20-day reminder timer                                                                            |
-| **Customer**  | `Payment{order_id}`, at its message end event                                         | `OrderConfirmed` at its start event; copies `order_id` from `case_id`                                                                                         |
-| **Warehouse** | `ItemPicked{order_id, item_index, customer}`, at its message end event                | `ItemOrdered` at its start event; copies `order_id` from `case_id`, `item_index` from `index`, `customer` from `customer`                                     |
-| **Packaging** | nothing                                                                               | `ItemPicked` at its start event, copying `customer`; and at "more items picked" where `customer == case.customer`, collecting `more_items` (a case attribute) |
+| Process       | Publishes                                                                             | Consumes                                                                                                                                                                                           |
+|---------------|---------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Sales**     | `ItemOrdered{case_id, index, customer}`, `count` = `items`; `OrderConfirmed{case_id}` | `Payment` where `order_id == case_id`, in a race against the 20-day reminder timer                                                                                                                 |
+| **Customer**  | `Payment{order_id}`, at its message end event                                         | `OrderConfirmed` at its start event; copies `order_id` from `case_id`                                                                                                                              |
+| **Warehouse** | `ItemPicked{order_id, item_index, customer, case_id}`, at its message end event       | `ItemOrdered` at its start event; copies `order_id` from `case_id`, `item_index` from `index`, `customer` from `customer`                                                                          |
+| **Packaging** | nothing                                                                               | `ItemPicked` at its start event, copying `customer`; and at "more items picked" where `customer == case.customer`, collecting `more_items` (a case attribute); both append `case_id` to `item_ids` |
 
 ## How the log maps to the model
 

@@ -113,6 +113,8 @@ def write_ocel(path, processes, objects, rows, logged_elements=None, message_lin
 def _json_value(value):
     if hasattr(value, "item"):  # a NumPy number, e.g. a drawn continuous case attribute
         value = value.item()
+    if isinstance(value, list):  # an appended attribute: OCEL attribute values are single values, so JSON text
+        return json.dumps([_json_value(element) for element in value])
     return _time(value) if isinstance(value, datetime) else value
 
 

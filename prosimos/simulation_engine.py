@@ -1,6 +1,7 @@
 import csv
 import datetime
 import itertools
+import json
 import os
 from heapq import heappop, heappush
 import numpy as np
@@ -54,9 +55,12 @@ class SimBPMEnv:
         self.sim_resources = dict()
         self.stat_fwriter = stat_fwriter
         self.additional_columns = self.sim_setup.all_attributes.get_all_columns_generated()
-        # attributes copied from messages get a column too; it stays empty until a value is copied
+        # attributes copied or appended from messages get a column too; it stays empty until a value is copied, and
+        # an appended list starts empty
+        self._appended = sorted({target for point in self.sim_setup.messaging.consume for target, _ in point.append})
         self.additional_columns.extend(sorted({target for point in self.sim_setup.messaging.consume
-                                               for target, _ in point.copy} - set(self.additional_columns)))
+                                               for target, _ in point.copy} | set(self._appended)
+                                              - set(self.additional_columns)))
         if self.sim_setup.batch_processing not in [None, {}]:
             self.additional_columns.append("batch_id")
         self.log_writer = FileManager(10000, log_fwriter, self.additional_columns)
@@ -116,10 +120,12 @@ class SimBPMEnv:
         # case attributes over time: the declared ones and those copied from messages, as each case was
         # created, and every later copy at a catch event
         self._case_attribute_names = ({attribute.name for attribute in sim_setup.case_attributes.attributes}
-                                      | {target for point in sim_setup.messaging.consume for target, _ in point.copy})
+                                      | {target for point in sim_setup.messaging.consume for target, _ in point.copy}
+                                      | set(self._appended))
         self._case_created = dict()  # case id -> (when it was created, its case attribute values then)
         self._copied_later = []  # (case id, attribute, value, when copied)
         self._warned_missing_copies = set()
+        self._warned_missing_appends = set()
         self._warned_capacities = set()
         self._collected = dict()  # (case id, event id) -> [messages claimed so far, messages needed]
         self._warned_collects = set()
@@ -271,7 +277,11 @@ class SimBPMEnv:
         starting = next((point for point in points
                          if point.starts_case and self._condition_holds(point.condition, values, None)), None)
         if starting is not None:
-            p_case = self.create_case(now, lambda case_values: self._apply_copy(starting, values, case_values))
+            def start_values(case_values):
+                self._apply_copy(starting, values, case_values)
+                self._apply_append(starting, values, case_values)
+
+            p_case = self.create_case(now, start_values)
             self.claimed_by = [(p_case, starting.event_id, starting)]
             return "claimed"
         if any(self._could_match(point.condition, values) for point in points if not point.starts_case):
@@ -282,9 +292,13 @@ class SimBPMEnv:
         """A waiting case claims one message: the values listed in point.copy are copied into it, and once it
         has collected all the messages it needs, it is resumed at now."""
         key = (parked_event.p_case, parked_event.task_id)
-        self._apply_copy(point, values, self.sim_setup.bpmn_graph.all_attributes[parked_event.p_case])
+        case_values = self.sim_setup.bpmn_graph.all_attributes[parked_event.p_case]
+        self._apply_copy(point, values, case_values)
+        self._apply_append(point, values, case_values)
         self._copied_later.extend((parked_event.p_case, target, values[source], now)
                                   for target, source in point.copy if source in values)
+        self._copied_later.extend((parked_event.p_case, target, case_values[target], now)
+                                  for target, source in point.append if source in values)
         self._collected[key][0] += 1
         if self._collected[key][0] >= self._collected[key][1]:
             self._resume(parked_event, now)
@@ -484,6 +498,7 @@ class SimBPMEnv:
         set_values(case_values), if given, changes the drawn values before the case starts."""
         p_case = len(self.log_info.trace_list)
         case_values = self.sim_setup.case_attributes.get_values_calculated()
+        case_values.update((target, []) for target in self._appended)
         if set_values is not None:
             set_values(case_values)
         self.case_prioritisation.all_case_attributes[p_case] = case_values
@@ -504,6 +519,19 @@ class SimBPMEnv:
                 warning_logger.add_warning(
                     f"{point.type} message accepted at {point.event_id} has no {source_name} to copy into "
                     f"{target}; {target} is left unchanged")
+
+    def _apply_append(self, point, values, case_values):
+        """Adds the message attributes listed in point.append to the lists in the case's values, as new lists, so
+        the values recorded earlier keep their contents. A message without one of them adds nothing, with one
+        warning per event and attribute."""
+        for target, source_name in point.append:
+            if source_name in values:
+                case_values[target] = [*case_values.get(target, []), values[source_name]]
+            elif (point.event_id, source_name) not in self._warned_missing_appends:
+                self._warned_missing_appends.add((point.event_id, source_name))
+                warning_logger.add_warning(
+                    f"{point.type} message accepted at {point.event_id} has no {source_name} to append to "
+                    f"{target}; nothing is added to {target}")
 
     def parked_events(self):
         """The queued catch events (EnabledEvents) at which cases are parked, waiting for a message: one
@@ -603,6 +631,10 @@ class SimBPMEnv:
         self._log_passed_throw_events(p_case, p_state, visited_at)
         self.all_process_states[p_case] = p_state
         self.log_info.trace_list.append(Trace(p_case, enabled_datetime))
+        if self._appended:  # a planned case's lists start empty too
+            sim_setup.bpmn_graph.all_attributes.setdefault(p_case, {})
+            for target in self._appended:
+                sim_setup.bpmn_graph.all_attributes[p_case].setdefault(target, [])
         case_values = sim_setup.bpmn_graph.all_attributes.get(p_case, {})
         self._case_created[p_case] = (enabled_datetime, {name: value for name, value in case_values.items()
                                                          if name in self._case_attribute_names})
@@ -864,7 +896,7 @@ class SimBPMEnv:
         all_attrs = self.sim_setup.bpmn_graph.get_all_attributes(full_event.p_case)
 
         # values = ["" if all_attrs.get(col) is None else all_attrs.get(col) for col in self.additional_columns]
-        values = ["" if all_attrs.get(col) is None else all_attrs.get(col) for col in self.additional_columns if col != "batch_id"]
+        values = ["" if all_attrs.get(col) is None else _logged(all_attrs.get(col)) for col in self.additional_columns if col != "batch_id"]
         if self.log_writer.has_batch:
             values.append(str(full_event.batch_id))
         return [*row_basic_info, *values]
@@ -1289,3 +1321,8 @@ def verify_miliseconds(array):
 def _get_string_from_datetime(datetime):
     datetime_without_colon = datetime.strftime("%Y-%m-%d %H:%M:%S.%f%z")
     return "{0}:{1}".format(datetime_without_colon[:-2], datetime_without_colon[-2:])
+
+
+def _logged(value):
+    """A list (an appended attribute) as JSON text, e.g. ["Warehouse-12", "Warehouse-17"]; anything else as it is."""
+    return json.dumps(value) if isinstance(value, list) else value

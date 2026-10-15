@@ -60,7 +60,8 @@ def test_object_and_event_types_are_listed_with_their_attributes(order_managemen
         "items": [{"name": "customer", "type": "string"}, {"name": "item_index", "type": "integer"},
                   {"name": "order_id", "type": "string"}],
         "orders": [{"name": "customer", "type": "string"}, {"name": "items", "type": "integer"}],
-        "packages": [{"name": "customer", "type": "string"}, {"name": "more_items", "type": "integer"}],
+        "packages": [{"name": "customer", "type": "string"}, {"name": "item_ids", "type": "string"},
+                     {"name": "more_items", "type": "integer"}],
         "customers": [{"name": "segment", "type": "string"}],
     }
     assert {t["name"] for t in ocel["eventTypes"]} == {

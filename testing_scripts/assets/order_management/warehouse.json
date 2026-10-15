@@ -118,7 +118,8 @@
         "attributes": [
           "order_id",
           "item_index",
-          "customer"
+          "customer",
+          "case_id"
         ],
         "qualifier": "package"
       }
