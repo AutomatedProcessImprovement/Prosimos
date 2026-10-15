@@ -1,0 +1,26 @@
+{
+  "resource_profiles": [
+    {"id": "Staff", "name": "Staff", "resource_list": [
+      {"id": "Picker", "name": "Picker", "cost_per_hour": 1, "amount": 5, "calendar": "Always", "assigned_tasks": ["Pick", "Ship"]}
+    ]}
+  ],
+  "arrival_time_distribution": {"distribution_name": "fix", "distribution_params": [{"value": 600}]},
+  "arrival_time_calendar": [{"from": "MONDAY", "to": "SUNDAY", "beginTime": "00:00:00", "endTime": "23:59:59"}],
+  "gateway_branching_probabilities": [],
+  "task_resource_distribution": [
+    {"task_id": "Pick", "resources": [{"resource_id": "Picker", "distribution_name": "fix", "distribution_params": [{"value": 300}]}]},
+    {"task_id": "Ship", "resources": [{"resource_id": "Picker", "distribution_name": "fix", "distribution_params": [{"value": 300}]}]}
+  ],
+  "resource_calendars": [
+    {"id": "Always", "name": "Always", "time_periods": [{"from": "MONDAY", "to": "SUNDAY", "beginTime": "00:00:00", "endTime": "23:59:59"}]}
+  ],
+  "messages": {
+    "publish": [
+      {"event_id": "Throw_Picked", "type": "ItemPicked", "attributes": ["case_id"]}
+    ],
+    "consume": [
+      {"event_id": "Catch_Packed", "type": "Packed",
+       "condition": [[{"attribute": "item_id", "comparison": "=", "case_attribute": "case_id"}]]}
+    ]
+  }
+}

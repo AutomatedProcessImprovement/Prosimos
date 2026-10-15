@@ -108,6 +108,7 @@ class SimBPMEnv:
         self._tasks_next_to = dict()  # (element id, forward) -> the tasks next to it, see tasks_next_to()
         self._warned_missing_values = set()
         self._warned_counts = set()
+        self._warned_count_lists = set()
 
         # Waiting. A case reaching a catch event listed under 'consume' doesn't get a delay: when
         # the queued catch event is executed (at the time the case really reaches it), the case is parked
@@ -223,9 +224,12 @@ class SimBPMEnv:
     def _count(self, point, p_case):
         """How many messages point publishes for a case passing it now: 1 without count, else its fixed count
         or the case attribute holding it, read now; one that isn't a whole number of at least 0 counts as 1,
-        with one warning per event and attribute."""
+        with one warning per event and attribute. Over a list, one per entry; a missing or empty list publishes
+        none, with one warning per event."""
         if not point.counted:
             return 1
+        if point.count_list is not None:
+            return len(self._count_list(point, p_case))
         if point.count_attribute is None:
             return point.count
         count = self.sim_setup.bpmn_graph.get_all_attributes(p_case).get(point.count_attribute)
@@ -237,6 +241,18 @@ class SimBPMEnv:
                 f"case {p_case} passes {point.event_id} with no valid {point.count_attribute} (got {count!r}); "
                 f"it publishes one {point.type} message")
         return 1
+
+    def _count_list(self, point, p_case):
+        entries = self.sim_setup.bpmn_graph.get_all_attributes(p_case).get(point.count_list)
+        if isinstance(entries, (list, tuple)) and entries:
+            return entries
+        if point.event_id not in self._warned_count_lists:
+            self._warned_count_lists.add(point.event_id)
+            kind = "an empty" if isinstance(entries, (list, tuple)) else "no"
+            warning_logger.add_warning(
+                f"case {p_case} passes {point.event_id} with {kind} list {point.count_list} (got {entries!r}); "
+                f"it publishes no {point.type} message")
+        return ()
 
     def case_id(self, p_case):
         """How a case is named in messages, both when publishing and in conditions: e.g. Sales-7."""
@@ -617,6 +633,8 @@ class SimBPMEnv:
                     warning_logger.add_warning(
                         f"Attribute {name} has no value when case {p_case} passes {point.event_id}; "
                         f"its {point.type} message carries None")
+        if point.count_list is not None:  # only called for an index within the list
+            attributes[point.count_as] = values[point.count_list][index - 1]
         return attributes
 
     def _update_initial_event_info(self, sim_setup, p_case, arrival_time):

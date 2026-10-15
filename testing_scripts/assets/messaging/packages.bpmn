@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Packages" targetNamespace="http://bpmn.io/schema/bpmn">
+  <!-- a package: started by an ItemPicked, it collects 2 more, is packed, and tells each of its items -->
+  <bpmn:process id="Packages" isExecutable="false">
+    <bpmn:startEvent id="Start_Package" name="First item picked"><bpmn:outgoing>Flow_1</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:startEvent>
+    <bpmn:intermediateCatchEvent id="Catch_More_Items" name="More items picked"><bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:intermediateCatchEvent>
+    <bpmn:task id="Pack" name="Pack"><bpmn:incoming>Flow_2</bpmn:incoming><bpmn:outgoing>Flow_3</bpmn:outgoing></bpmn:task>
+    <bpmn:intermediateThrowEvent id="Throw_Packed" name="Packed"><bpmn:incoming>Flow_3</bpmn:incoming><bpmn:outgoing>Flow_4</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:intermediateThrowEvent>
+    <bpmn:endEvent id="End" name="Package done"><bpmn:incoming>Flow_4</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_Package" targetRef="Catch_More_Items" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Catch_More_Items" targetRef="Pack" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Pack" targetRef="Throw_Packed" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Throw_Packed" targetRef="End" />
+  </bpmn:process>
+</bpmn:definitions>

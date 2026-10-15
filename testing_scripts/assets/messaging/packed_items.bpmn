@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Items" targetNamespace="http://bpmn.io/schema/bpmn">
+  <!-- items that, once picked, announce themselves with an ItemPicked and wait for the Packed addressed to them -->
+  <bpmn:process id="Items" isExecutable="false">
+    <bpmn:startEvent id="Start" name="Item ordered"><bpmn:outgoing>Flow_1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:task id="Pick" name="Pick"><bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing></bpmn:task>
+    <bpmn:intermediateThrowEvent id="Throw_Picked" name="Item picked"><bpmn:incoming>Flow_2</bpmn:incoming><bpmn:outgoing>Flow_3</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:intermediateThrowEvent>
+    <bpmn:intermediateCatchEvent id="Catch_Packed" name="Item packed"><bpmn:incoming>Flow_3</bpmn:incoming><bpmn:outgoing>Flow_4</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:intermediateCatchEvent>
+    <bpmn:task id="Ship" name="Ship"><bpmn:incoming>Flow_4</bpmn:incoming><bpmn:outgoing>Flow_5</bpmn:outgoing></bpmn:task>
+    <bpmn:endEvent id="End" name="Item shipped"><bpmn:incoming>Flow_5</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Pick" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Pick" targetRef="Throw_Picked" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Throw_Picked" targetRef="Catch_Packed" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Catch_Packed" targetRef="Ship" />
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="Ship" targetRef="End" />
+  </bpmn:process>
+</bpmn:definitions>

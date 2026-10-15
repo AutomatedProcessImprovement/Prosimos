@@ -151,6 +151,26 @@ objects. A loop publishing one message per round would put N extra events and a 
 the log, and would be discovered as a loop rather than as one event creating N objects. The fan-out
 stays on the sending side: a start event still starts exactly one case per message.
 
+The third form, `{"list": <case attribute>, "as": <attribute name>}`, is the mirror of `append`: it
+publishes one message per entry of a list in the publishing case, each carrying its own entry under the
+name `as`. The list is one that `append` filled, or one copied from a message that carried a list. For
+example, a package telling each of its items that it was packed, while each item waits for its own:
+
+```
+packages.json:      "publish": [{"event_id": "Throw_Packed", "type": "Packed",
+                                 "count": {"list": "item_ids", "as": "item_id"}, "attributes": ["case_id", "index"]}]
+packed_items.json:  "consume": [{"event_id": "Catch_Packed", "type": "Packed",
+                                 "condition": [[{"attribute": "item_id", "comparison": "=", "case_attribute": "case_id"}]]}]
+```
+
+With `item_ids = ["Items-0", "Items-1", "Items-2"]`, the package publishes 3 messages:
+`Packed{case_id: Packages-0, index: 1, item_id: Items-0}`, then `index: 2, item_id: Items-1` and
+`index: 3, item_id: Items-2`, in the order of the list. Each item takes the one with its own id.
+
+- `as` is added to every message; it isn't listed in `attributes`, and can't be `case_id` or `index`.
+- `index` is the entry's position, 1..N, as with the other forms; list it in `attributes` to send it.
+- A missing or empty list publishes nothing, with one warning per event.
+
 **qualifier** (optional, on any entry) qualifies the OCEL links this end of the message makes: on a
 `publish` entry, the links from the last task before the event to the cases that took the messages; on
 a `consume` entry, the links from the next task after the event to the case that published the message
@@ -210,10 +230,11 @@ The section is checked when the model is loaded. An invalid section stops loadin
 - A `consume` event is an intermediate message catch event or a message start event.
 - `type` is a non-empty string.
 - `attributes` is a list of names, each `case_id`, `index` (only with `count`) or a declared case,
-  global or event attribute.
-- `count` is either `{"value": <whole number of at least 0>}` or `{"case_attribute": <declared
-  attribute>}`, and only on a `publish` entry: only throw and end events publish, and a start event
-  starts exactly one case per message.
+  global or event attribute, and not count's `as`.
+- `count` is either `{"value": <whole number of at least 0>}`, `{"case_attribute": <declared
+  attribute>}` or `{"list": <declared attribute>, "as": <name other than case_id and index>}`, and only
+  on a `publish` entry: only throw and end events publish, and a start event starts exactly one case
+  per message.
 - A message end event under `publish`, or a catch event under `consume`, has exactly one incoming
   arrow; otherwise: "draw an explicit gateway before <event id>". In BPMN, several arrows into one
   element mean "fire once per arriving token", but Prosimos joins several arrows into an end event
@@ -257,7 +278,9 @@ event and attribute in the engine's warnings.
 
 An entry with `count` reads the number at that time too, and publishes that many messages at once, in
 order of `index` 1..N. A count of 0 publishes nothing; a value that isn't a whole number of at least 0
-(or no value) publishes one message, with one warning per event and attribute.
+(or no value) publishes one message, with one warning per event and attribute. Over a list, it publishes
+one message per entry, in the order of the list; a missing or empty list publishes nothing, with one
+warning per event.
 
 Publishing doesn't change the simulation itself: the log is the same with or without the `publish`
 entries.

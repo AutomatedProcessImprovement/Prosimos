@@ -37,6 +37,8 @@ class PublishPoint:
     # 'index' the message's number among the ones count publishes
     count: Optional[int] = None  # how many messages are published at once, unless read from the case
     count_attribute: Optional[str] = None  # the case attribute holding that number, if any
+    count_list: Optional[str] = None  # the case attribute holding a list: one message per entry, if any
+    count_as: Optional[str] = None  # the attribute under which each of those messages carries its entry
     qualifier: Optional[str] = None  # of the OCEL links its messages give; None means the message type
     o2o: Optional[str] = None  # OCEL object link from the publishing case's object to each claimer's; None: none
 
@@ -47,7 +49,7 @@ class PublishPoint:
     @property
     def counted(self):
         """Whether the entry has a count (else it publishes one message, without an index)."""
-        return self.count is not None or self.count_attribute is not None
+        return self.count is not None or self.count_attribute is not None or self.count_list is not None
 
 
 @dataclass(frozen=True)
@@ -320,21 +322,41 @@ def _name(entry, key, where):
 
 
 def _count(entry, where, declared):
-    """(fixed number of messages, case attribute holding it): {"value": 3} or {"case_attribute": "items"};
-    (None, None) without count."""
+    """(fixed number of messages, case attribute holding it, case attribute holding a list, the name each
+    message carries its entry under): {"value": 3}, {"case_attribute": "items"} or
+    {"list": "item_ids", "as": "item_id"}; all None without count."""
     if "count" not in entry:
-        return None, None
+        return None, None, None, None
     count = entry["count"]
+    if isinstance(count, dict) and "list" in count:
+        return (None, None) + _count_over_list(count, where, declared)
     if not isinstance(count, dict) or len(count) != 1 or not set(count) <= {"value", "case_attribute"}:
-        _fail(f"{where}: 'count' must be either {{\"value\": <number>}} or {{\"case_attribute\": <case attribute>}}")
+        _fail(f"{where}: 'count' must be either {{\"value\": <number>}}, {{\"case_attribute\": <case attribute>}} or "
+              f"{{\"list\": <case attribute>, \"as\": <attribute name>}}")
     if "case_attribute" in count:
         if not isinstance(count["case_attribute"], str) or count["case_attribute"] not in declared:
             _fail(f"{where}: 'count' case_attribute {count['case_attribute']!r} is not a declared case, global or "
                   f"event attribute")
-        return None, count["case_attribute"]
+        return None, count["case_attribute"], None, None
     if not is_whole_number(count["value"], minimum=0):
         _fail(f"{where}: 'count' value must be a whole number of at least 0, got {count['value']!r}")
-    return int(count["value"]), None
+    return int(count["value"]), None, None, None
+
+
+def _count_over_list(count, where, declared):
+    if not set(count) <= {"list", "as"}:
+        _fail(f"{where}: 'count' over a list has only 'list' and 'as', got {', '.join(map(repr, sorted(count)))}")
+    if not isinstance(count["list"], str) or count["list"] not in declared:
+        _fail(f"{where}: 'count' list {count['list']!r} is not a declared case, global or event attribute")
+    if "as" not in count:
+        _fail(f"{where}: 'count' over a list needs 'as', the attribute name under which each message carries its "
+              f"entry")
+    if not isinstance(count["as"], str) or not count["as"].strip():
+        _fail(f"{where}: 'count' as must be a non-empty string")
+    if count["as"] in ("case_id", "index"):
+        _fail(f"{where}: 'count' as can't be {count['as']}, which is reserved: case_id is the publishing case's "
+              f"identifier and index the message's number")
+    return count["list"], count["as"]
 
 
 def _attributes(entry, where, declared):
@@ -344,6 +366,11 @@ def _attributes(entry, where, declared):
     if "index" in attributes and "count" not in entry:
         _fail(f"{where}: 'index' is the message's number among the ones count publishes, so it needs a 'count' "
               f"on the same entry")
+    count = entry.get("count")
+    # (a reserved as is reported by _count)
+    if isinstance(count, dict) and count.get("as") in attributes and count["as"] not in ("case_id", "index"):
+        _fail(f"{where}: {count['as']!r} is both in 'attributes' and count's 'as': each message carries its own "
+              f"entry of {count.get('list')} under that name, so it can't also carry the case's attribute")
     unknown = [name for name in attributes if name not in ("case_id", "index") and name not in declared]
     if unknown:
         _fail(f"{where}: {', '.join(map(repr, unknown))} not declared as a case, global or event attribute")
