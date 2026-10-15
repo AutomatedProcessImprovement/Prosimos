@@ -225,6 +225,9 @@ The section is checked when the model is loaded. An invalid section stops loadin
 `Invalid 'messages' section: messages.consume[0]: event_id 'Timer_Cancel' is an intermediateCatchEvent, expected an intermediate message catch event`.
 
 - The section holds only `publish` and `consume`, each a list.
+- No key is unknown: in the section, its entries, their `count`, `collect` and `capacity`, and condition
+  terms. A misspelled key would otherwise be ignored and change the run without any message:
+  `messages.consume[0]: unknown key 'colect'; allowed: append, capacity, collect, condition, copy, event_id, o2o, qualifier, type`.
 - Every `event_id` exists in the BPMN model.
 - A `publish` event is an intermediate message throw event or a message end event.
 - A `consume` event is an intermediate message catch event or a message start event.

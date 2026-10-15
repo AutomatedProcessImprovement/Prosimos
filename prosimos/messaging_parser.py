@@ -17,6 +17,8 @@ PUBLISHING_EVENTS = {"intermediateThrowEvent": "an intermediate message throw ev
 CONSUMING_EVENTS = {"intermediateCatchEvent": "an intermediate message catch event", "startEvent": "a message start event"}
 COMPARISONS = ("=", "!=", "<", "<=", ">", ">=", "in")  # the ones branch rules understand
 TERM_KEYS = {"attribute", "comparison", "value", "case_attribute"}
+PUBLISH_KEYS = {"event_id", "type", "attributes", "count", "qualifier", "o2o"}
+CONSUME_KEYS = {"event_id", "type", "condition", "copy", "append", "capacity", "collect", "qualifier", "o2o"}
 
 
 @dataclass(frozen=True)
@@ -117,14 +119,16 @@ def parse_messages(messages_json, bpmn_path, declared_attributes, case_attribute
     empty model, so processes without messages behave as before."""
     if messages_json is None:
         return MessagingModel()
-    if not isinstance(messages_json, dict) or set(messages_json) - {"publish", "consume"}:
+    if not isinstance(messages_json, dict):
         _fail("'messages' must be an object with only 'publish' and/or 'consume'")
+    _check_keys("messages", messages_json, {"publish", "consume"})
 
     events, gateway_branches = _bpmn_events(bpmn_path)
     # consume first, so that a malformed copy (whose targets publish entries may use) is reported
     # as such rather than as an undeclared published attribute
     consume, collecting = [], []
-    for where, entry in _entries(messages_json, "consume", events, CONSUMING_EVENTS):
+    # count gets its own reason below
+    for where, entry in _entries(messages_json, "consume", CONSUME_KEYS, events, CONSUMING_EVENTS, ("count",)):
         starts_case = events[entry["event_id"]][0] == "startEvent"
         point = ConsumePoint(entry["event_id"], entry["type"], _condition(entry, where), _copy(entry, where),
                              starts_case, *_capacity(entry, where, starts_case), *_collect(entry, where, starts_case),
@@ -145,7 +149,7 @@ def parse_messages(messages_json, bpmn_path, declared_attributes, case_attribute
         PublishPoint(entry["event_id"], entry["type"], _attributes(entry, where, declared_attributes),
                      *_count(entry, where, declared_attributes), _name(entry, "qualifier", where),
                      _name(entry, "o2o", where))
-        for where, entry in _entries(messages_json, "publish", events, PUBLISHING_EVENTS)
+        for where, entry in _entries(messages_json, "publish", PUBLISH_KEYS, events, PUBLISHING_EVENTS)
     )
     return MessagingModel(publish, tuple(consume))
 
@@ -170,6 +174,8 @@ def _capacity(entry, where, starts_case):
     if starts_case:
         _fail(f"{where}: a start event takes no capacity: a start message starts exactly one case")
     capacity = entry["capacity"]
+    if isinstance(capacity, dict):
+        _check_keys(f"{where}.capacity", capacity, {"value", "attribute"})
     if not isinstance(capacity, dict) or len(capacity) != 1 or not set(capacity) <= {"value", "attribute"}:
         _fail(f"{where}: 'capacity' must be either {{\"value\": <number>}} or {{\"attribute\": <message attribute>}}")
     if "attribute" in capacity:
@@ -196,6 +202,8 @@ def _collect(entry, where, starts_case):
               f"the messages, then publishes one message per target (e.g. a truck collects packages, then sends "
               f"one Shipment per package)")
     collect = entry["collect"]
+    if isinstance(collect, dict):
+        _check_keys(f"{where}.collect", collect, {"value", "case_attribute"})
     if not isinstance(collect, dict) or len(collect) != 1 or not set(collect) <= {"value", "case_attribute"}:
         _fail(f"{where}: 'collect' must be either {{\"value\": <number>}} or {{\"case_attribute\": <case attribute>}}")
     if "case_attribute" in collect:
@@ -264,7 +272,9 @@ def _check_appended_only(consume):
                       f"overwrite")
 
 
-def _entries(messages_json, section, events, allowed_kinds):
+def _entries(messages_json, section, allowed_keys, events, allowed_kinds, own_reasons=()):
+    """Each entry of the section, with where it is; own_reasons are keys the caller rejects with a reason of their
+    own rather than as unknown."""
     entries = messages_json.get(section, [])
     if not isinstance(entries, list):
         _fail(f"messages.{section} must be a list")
@@ -272,6 +282,7 @@ def _entries(messages_json, section, events, allowed_kinds):
         where = f"messages.{section}[{index}]"
         if not isinstance(entry, dict):
             _fail(f"{where} must be an object")
+        _check_keys(where, {key: value for key, value in entry.items() if key not in own_reasons}, allowed_keys)
         _check_event(where, entry.get("event_id"), events, allowed_kinds)
         if not isinstance(entry.get("type"), str) or not entry["type"].strip():
             _fail(f"{where}: 'type' must be a non-empty string")
@@ -328,6 +339,8 @@ def _count(entry, where, declared):
     if "count" not in entry:
         return None, None, None, None
     count = entry["count"]
+    if isinstance(count, dict):
+        _check_keys(f"{where}.count", count, {"value", "case_attribute", "list", "as"})
     if isinstance(count, dict) and "list" in count:
         return (None, None) + _count_over_list(count, where, declared)
     if not isinstance(count, dict) or len(count) != 1 or not set(count) <= {"value", "case_attribute"}:
@@ -395,8 +408,7 @@ def _condition(entry, where):
 def _term(term, where):
     if not isinstance(term, dict):
         _fail(f"{where} must be an object")
-    if set(term) - TERM_KEYS:
-        _fail(f"{where} has unknown keys {sorted(set(term) - TERM_KEYS)}")
+    _check_keys(where, term, TERM_KEYS)
     if not isinstance(term.get("attribute"), str) or not term["attribute"]:
         _fail(f"{where}: 'attribute' must be a message attribute name or 'source'")
     if term.get("comparison") not in COMPARISONS:
@@ -434,6 +446,22 @@ def _bpmn_events(bpmn_path):
             target_id = flow.get("targetRef")
             gateway_branches[flow.get("sourceRef")].append((target_id, events[target_id][0], definitions[target_id]))
     return events, gateway_branches
+
+
+def unknown_keys(where, mapping, allowed):
+    """The load error for the keys of mapping that aren't allowed, naming them, where they are and the allowed
+    keys; None if there are none. Ignored, a misspelled key would change the run without any message."""
+    unknown = [key for key in mapping if key not in allowed]
+    if not unknown:
+        return None
+    return (f"{where}: unknown key{'s' if len(unknown) > 1 else ''} {', '.join(map(repr, unknown))}; "
+            f"allowed: {', '.join(sorted(allowed))}")
+
+
+def _check_keys(where, mapping, allowed):
+    problem = unknown_keys(where, mapping, allowed)
+    if problem:
+        _fail(problem)
 
 
 def _fail(reason):

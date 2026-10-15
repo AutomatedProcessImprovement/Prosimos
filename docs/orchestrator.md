@@ -77,6 +77,10 @@ Extra engines (see "Configuration") can only be passed from Python.
 File paths are relative to the configuration file's folder. A configuration is rejected if process
 names repeat, a process is in no group or in more than one, a group names a process that doesn't
 exist, or the catalogue and references break one of the rules listed in [catalogue.md](catalogue.md).
+It is also rejected for a key it doesn't know, at the top level, in a process entry, a catalogue (a listed
+object, a pool or a growing catalogue), a reference or its `pick`, since a misspelled key would otherwise
+be ignored and change the run without any message:
+`references[0]: unknown key 'link_event'; allowed: case_attribute, catalogue, link_events, o2o, pick, process, reverse`.
 
 **Extra engines.** Engines that aren't built from a BPMN and JSON file, such as the scripted engines
 in the tests, can run alongside the configured ones. List their names in the configuration's

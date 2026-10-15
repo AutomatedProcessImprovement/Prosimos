@@ -89,7 +89,8 @@ def test_no_section_gives_an_empty_model(bpmn):
 
 
 def test_section_must_only_have_publish_and_consume(bpmn):
-    assert "only 'publish' and/or 'consume'" in rejected({"publish": [], "subscribe": []}, bpmn)
+    assert "messages: unknown key 'subscribe'; allowed: consume, publish" in rejected(
+        {"publish": [], "subscribe": []}, bpmn)
 
 
 def test_event_id_must_exist_in_the_bpmn(bpmn):
@@ -170,7 +171,7 @@ def test_condition_must_be_a_list_of_alternatives_of_terms(bpmn, condition):
     ({"attribute": "order_id", "comparison": "=", "value": 1, "case_attribute": "case_id"},
      "give exactly one of 'value' and 'case_attribute'"),
     ({"attribute": "weight", "comparison": "in", "case_attribute": "max_weight"}, "'in' needs a fixed 'value' [low, high]"),
-    ({"attribute": "order_id", "comparison": "=", "value": 1, "attr": "x"}, "unknown keys ['attr']"),
+    ({"attribute": "order_id", "comparison": "=", "value": 1, "attr": "x"}, "unknown key 'attr'; allowed: attribute, case_attribute, comparison, value"),
 ])
 def test_condition_terms_use_the_branch_rule_format(bpmn, term, reason):
     assert reason in rejected(consume(condition=[[term]]), bpmn)

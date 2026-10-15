@@ -19,7 +19,7 @@ import pytz
 
 from prosimos.case_attributes import CaseAttribute
 from prosimos.control_flow_manager import BPMN
-from prosimos.messaging_parser import ConsumePoint, PublishPoint
+from prosimos.messaging_parser import ConsumePoint, PublishPoint, unknown_keys
 from prosimos.ocel_writer import OcelProcess, write_ocel
 from prosimos.simulation_engine import SimBPMEnv
 from prosimos.simulation_properties_parser import parse_datetime, parse_simulation_model
@@ -106,6 +106,12 @@ class Reference:
         return self.pick == "new" or isinstance(self.pick, NewShare)
 
 
+CONFIG_KEYS = {"processes", "start_time", "seed", "consumer_groups", "catalogue", "references"}
+PROCESS_KEYS = {"name", "bpmn_path", "json_path", "total_cases", "object_type", "qualifier", "qualifier_by_activity",
+                "carry_links"}
+REFERENCE_KEYS = {"process", "case_attribute", "catalogue", "o2o", "reverse", "link_events", "pick"}
+
+
 def _catalogue_ids(name, entry) -> List[str]:
     """The ids known when the run starts: none yet for a growing catalogue."""
     if isinstance(entry, GrowingCatalogue):
@@ -149,18 +155,19 @@ def _checked_catalogue(processes, names, catalogue, references):
             except Exception as error:  # Prosimos's own messages for case_attributes
                 problems.append(f"catalogue {name!r}: attributes[{number}]: {type(error).__name__}: {error}")
     ids = [object_id for name, entry in catalogue.items() for object_id in _catalogue_ids(name, entry)]
-    repeated = sorted({object_id for object_id in ids if ids.count(object_id) > 1})
+    repeated = sorted(object_id for object_id, times in Counter(ids).items() if times > 1)
     if repeated:
         problems.append(f"catalogue ids are repeated: {repeated}")
-    like_case_ids = sorted({object_id for object_id in ids for name in names
-                            if re.fullmatch(rf"{re.escape(name)}-\d+", object_id)})
+    case_id = re.compile("|".join(rf"{re.escape(name)}-\d+" for name in names))
+    like_case_ids = sorted({object_id for object_id in ids if names and case_id.fullmatch(object_id)})
     if like_case_ids:
         problems.append(f"catalogue ids look like case ids (<process name>-<number>): {like_case_ids}")
     growing = [name for name, entry in catalogue.items() if isinstance(entry, GrowingCatalogue)]
     for name in growing:
         if name in names:
             problems.append(f"growing catalogue {name!r} is named like a process; its ids would look like case ids")
-        like_created = sorted({object_id for object_id in ids if re.fullmatch(rf"{re.escape(name)}-\d+", object_id)})
+        created_id = re.compile(rf"{re.escape(name)}-\d+")
+        like_created = sorted({object_id for object_id in ids if created_id.fullmatch(object_id)})
         if like_created:
             problems.append(f"catalogue ids look like the ids growing catalogue {name!r} creates "
                             f"({name}-<number>): {like_created}")
@@ -323,13 +330,15 @@ class SimulationConfig:
         with open(path) as f:
             data = json.load(f)
 
+        _check_keys(path, "top level", data, CONFIG_KEYS)
         missing = [key for key in ("processes", "start_time") if key not in data]
         if missing:
             raise ValueError(f"{path}: missing {missing}")
 
         folder = path.parent
         processes = []
-        for entry in data["processes"]:
+        for number, entry in enumerate(data["processes"]):
+            _check_keys(path, f"processes[{number}]", entry, PROCESS_KEYS)
             missing = [key for key in ("name", "bpmn_path", "json_path") if key not in entry]
             if missing:
                 raise ValueError(f"{path}: process {entry.get('name', '?')} is missing {missing}")
@@ -350,6 +359,8 @@ class SimulationConfig:
 
 
 def _catalogue(path, name, entries):
+    if isinstance(entries, dict):  # a pool, or growing without count
+        _check_keys(path, f"catalogue.{name}", entries, {"count", "attributes"})
     if isinstance(entries, dict) and "count" not in entries:
         return GrowingCatalogue(tuple(entries.get("attributes", [])))
     if isinstance(entries, dict):
@@ -358,16 +369,20 @@ def _catalogue(path, name, entries):
 
 
 def _catalogue_object(path, name, number, entry):
+    _check_keys(path, f"catalogue.{name}[{number}]", entry, {"id", "attributes"})
     if not isinstance(entry.get("id"), str) or not entry["id"]:
         raise ValueError(f"{path}: catalogue.{name}[{number}]: 'id' must be a non-empty string")
     return CatalogueObject(entry["id"], tuple(entry.get("attributes", {}).items()))
 
 
 def _reference(path, number, entry):
+    _check_keys(path, f"references[{number}]", entry, REFERENCE_KEYS)
     missing = [key for key in ("process", "case_attribute", "catalogue") if key not in entry]
     if missing:
         raise ValueError(f"{path}: references[{number}] is missing {missing}")
     link_events, pick = entry.get("link_events"), entry.get("pick")
+    if isinstance(pick, dict):
+        _check_keys(path, f"references[{number}].pick", pick, {"weights", "new_share"})
     # anything else but "uniform" and "new" is rejected when the configuration is checked
     if isinstance(pick, dict) and list(pick) == ["weights"] and isinstance(pick["weights"], dict):
         pick = tuple(pick["weights"].items())
@@ -375,6 +390,12 @@ def _reference(path, number, entry):
         pick = NewShare(pick["new_share"])
     return Reference(entry["process"], entry["case_attribute"], entry["catalogue"], entry.get("o2o"),
                      entry.get("reverse", False), None if link_events is None else tuple(link_events), pick)
+
+
+def _check_keys(path, where, mapping, allowed):
+    problem = unknown_keys(where, mapping, allowed)
+    if problem:
+        raise ValueError(f"{path}: {problem}")
 
 
 class Verdict(Enum):
