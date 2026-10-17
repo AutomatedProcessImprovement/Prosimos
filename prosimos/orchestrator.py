@@ -940,7 +940,7 @@ def run_engines(
     The orchestrator loop of the Orchestrator Protocol, over already-built engines keyed by
     process name. After each step, every published message is stamped (id, source, time), one
     copy per subscribed group goes into the pool, and the new copies plus the pooled copies of the
-    stepping engine's group are offered to their group's members in random order until one
+    stepping engine's group are offered, oldest first, to their group's members in random order until one
     claims them. A copy is removed when claimed, or when every member subscribed to its type has
     discarded it; nobody is offered a copy they already discarded. Member order comes from the
     orchestrator's own generator, never the global random module the engines use.
@@ -993,8 +993,10 @@ def run_engines(
                 new_copies.append(pooled)
                 report.copies.append((message.id, group))
 
+        # oldest first: the pool keeps copies in the order they were published, the new ones last
         own_group = group_of[name]
-        to_offer = new_copies + [c for c in pool if c.group == own_group and c not in new_copies]
+        new_ids = {id(pooled) for pooled in new_copies}
+        to_offer = [pooled for pooled in pool if id(pooled) in new_ids or pooled.group == own_group]
         for pooled in to_offer:
             message = pooled.message
             recipients = [m for m in consumer_groups[pooled.group] if message.type in subscriptions[m]]

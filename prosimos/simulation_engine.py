@@ -135,7 +135,10 @@ class SimBPMEnv:
         self._warned_missing_aggregates = set()
         self._warned_not_numbers = set()
         self._warned_capacities = set()
-        self._collected = dict()  # (case id, event id) -> [messages claimed so far, messages needed]
+        self._collected = dict()  # (case id, event id) -> [messages claimed so far, min, max]
+        # (case id, event id) -> when it got min: resumed then, but still taking messages offered at that instant, up
+        # to max, until the orchestrator's offers for that step are done
+        self._closing = dict()
         self._warned_collects = set()
 
         # Races. At an event-based gateway with a branch that waits for a message, every branch is armed:
@@ -186,6 +189,7 @@ class SimBPMEnv:
     def next_event_time(self):
         """Datetime of what this engine does next (the next event, or held effects that are due
         earlier), or None if it has nothing left to do."""
+        self._close_collections()
         self._ensure_arrivals_generated()
         self._hold_passed_elements()
         next_event = self.events_queue.peek()
@@ -199,6 +203,7 @@ class SimBPMEnv:
         event, do all those due at that time (in order of time, case id, then order passed) and
         return None; they happened before anything that comes after them. Otherwise, execute exactly
         one event and return it. Returns None if there was nothing left to do."""
+        self._close_collections()
         self._ensure_arrivals_generated()
         self._hold_passed_elements()
         next_event = self.events_queue.peek()
@@ -271,6 +276,7 @@ class SimBPMEnv:
         never match; 'pending' otherwise. After a claim, claimed_by lists who took it: the new case and
         the start event, or each waiting case it resumed and the catch event it waited at."""
         self._ensure_arrivals_generated()
+        self._close_collections(before=now)
         self.claimed_by = []
         values = dict(attributes, source=source)
         # the oldest matching waiting case claims the message; its consume entry's capacity says how
@@ -326,20 +332,42 @@ class SimBPMEnv:
                                   for target, source in point.append if source in values)
         self._copied_later.extend((parked_event.p_case, target, case_values[target], now) for target in aggregated)
         self._collected[key][0] += 1
-        if self._collected[key][0] >= self._collected[key][1]:
-            self._resume(parked_event, now)
+        claimed, low, high = self._collected[key]
+        if key in self._closing:
+            if claimed >= high:
+                self._close(key)
+        elif claimed >= low:
+            self._resume(parked_event, now, keep_open=claimed < high)
 
-    def _resume(self, parked_event, now):
+    def _resume(self, parked_event, now, keep_open=False):
         """Resumes a waiting case at now: its catch event is queued again, and completes at once. If the
-        case was waiting in a race, its branch wins and the others are canceled."""
+        case was waiting in a race, its branch wins and the others are canceled. With keep_open, the case got its
+        min but not its max: it keeps taking messages offered at now until the orchestrator's offers for that
+        step are done (see _close_collections)."""
         if parked_event.race is not None:
             self._win_race(parked_event.race, parked_event.task_id, parked_event.p_state)
-        del self._parked_events[(parked_event.p_case, parked_event.task_id)]
-        del self._collected[(parked_event.p_case, parked_event.task_id)]
+        key = (parked_event.p_case, parked_event.task_id)
+        if keep_open:
+            self._closing[key] = now
+        else:
+            del self._parked_events[key]
+            del self._collected[key]
         resumed = EnabledEvent(parked_event.p_case, parked_event.p_state, parked_event.task_id, self.simulation_at_from_datetime(now), now,
                                is_inter_event=True)
         resumed.parked_event = parked_event
         self.events_queue.append_event(resumed)
+
+    def _close(self, key):
+        del self._parked_events[key], self._collected[key], self._closing[key]
+
+    def _close_collections(self, before=None):
+        """Closes the collections still open since their case got its min (all, or those opened before the time
+        before). The orchestrator offers a step's messages one after another and then asks every engine what it
+        does next, so the next call to next_event_time() or step() means the offers of that step are done; a
+        message offered at a later time means so too."""
+        for key, opened in list(self._closing.items()):
+            if before is None or opened < before:
+                self._close(key)
 
     def _first_listed_branch(self, race, message_type, values):
         """The parked branch of race, and its consume entry, that takes a message accepted by more than one
@@ -490,6 +518,7 @@ class SimBPMEnv:
         (the parked event, the place, the message types accepted there), the one waiting longest first.
         A case waiting in a race is reported once, at the gateway, with the types of all its message
         branches."""
+        self._close_collections()
         waits = dict()  # (case id, place) -> (parked event, place, message types)
         for parked_event in self.parked_events():
             place = self.stalled_at(parked_event)
@@ -514,9 +543,33 @@ class SimBPMEnv:
                 f"(got {needed!r}); it collects one message")
         return 1
 
+    def _most(self, p_case, event_id, needed):
+        """How many messages a case arriving at a catch event may claim there in all, at least needed (its min):
+        the entry's fixed max, no limit (math.inf), or the case attribute holding it, read now; without a max, the
+        min. One that isn't a whole number of at least needed counts as needed, with one warning per event and
+        attribute."""
+        point = self._consume_points[event_id][0]
+        if point.collect_max is None and point.collect_max_attribute is None:
+            return needed
+        if point.collect_max_attribute is None:
+            most, name = point.collect_max, "max"
+        else:
+            most = self.sim_setup.bpmn_graph.get_all_attributes(p_case).get(point.collect_max_attribute)
+            name = point.collect_max_attribute
+        if isinstance(most, float) and most == math.inf:
+            return most
+        if is_whole_number(most, minimum=needed):
+            return int(most)
+        if (point.event_id, name) not in self._warned_collects:
+            self._warned_collects.add((point.event_id, name))
+            warning_logger.add_warning(
+                f"case {p_case} reaches {point.event_id} with no valid {name} (got {most!r}, min {needed}); it "
+                f"collects no more than {needed}")
+        return needed
+
     def collected(self, parked_event):
-        """(messages claimed so far, messages needed) by a case parked at its catch event."""
-        return tuple(self._collected[(parked_event.p_case, parked_event.task_id)])
+        """(messages claimed so far, messages needed: min) by a case parked at its catch event."""
+        return tuple(self._collected[(parked_event.p_case, parked_event.task_id)][:2])
 
     def create_case(self, now, set_values=None):
         """Starts a new case at now, as a planned arrival would (case attributes drawn as usual), and
@@ -601,6 +654,7 @@ class SimBPMEnv:
             if not any(parked_event.p_state.has_token(flow) for flow in self.sim_setup.bpmn_graph.element_info[parked_event.task_id].incoming_flows):
                 del self._parked_events[key]  # the case moved on without it (e.g. a terminate end event)
                 del self._collected[key]
+                self._closing.pop(key, None)
         return [self._parked_events[key] for key in sorted(self._parked_events, key=lambda key: (self._parked_events[key].enabled_datetime, key))]
 
     def waiting_for(self, event_id):
@@ -757,9 +811,12 @@ class SimBPMEnv:
                 return
             if c_event.task_id in self._consume_points and c_event.parked_event is None:
                 needed = self._needed(c_event.p_case, c_event.task_id)
-                if needed > 0:
+                most = self._most(c_event.p_case, c_event.task_id, needed)
+                if most > 0:
                     self._parked_events[(c_event.p_case, c_event.task_id)] = c_event
-                    self._collected[(c_event.p_case, c_event.task_id)] = [0, needed]
+                    self._collected[(c_event.p_case, c_event.task_id)] = [0, needed, most]
+                    if needed == 0:  # it goes on now, taking up to max of the messages offered at this instant
+                        self._resume(c_event, c_event.enabled_datetime, keep_open=True)
                     return
                 c_event.complete_at_once = True  # nothing to collect: the case passes straight on
                 if c_event.race is not None:

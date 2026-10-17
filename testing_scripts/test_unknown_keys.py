@@ -108,7 +108,7 @@ def test_a_count_object(bpmn):
 
 def test_a_collect_object(bpmn):
     _messages_rejected(consume(collect={"vale": 3}), bpmn,
-                       r"messages.consume\[0\].collect: unknown key 'vale'; allowed: case_attribute, value$")
+                       r"messages.consume\[0\].collect: unknown key 'vale'; allowed: case_attribute, max, min, value$")
 
 
 def test_a_capacity_object(bpmn):

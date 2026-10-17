@@ -236,9 +236,9 @@ it with an `id` (`m1`, `m2`, ...), its `source` process and the `time` of the st
   member subscribed to it.
 - **Pool.** Copies wait in a pool until a member claims them, or until every member subscribed to
   the type has discarded them. A message type nobody subscribes to gets no copy and a warning.
-- **Offers.** After each step, the orchestrator offers the new copies, then the pooled copies of the
-  stepping engine's group, to the group's members, in random order, at the step's time, until one
-  claims it. A member is offered copies only of the types it subscribes to, and never a copy it
+- **Offers.** After each step, the orchestrator offers the new copies and the pooled copies of the
+  stepping engine's group, oldest first, to the group's members, in random order, at the step's time,
+  until one claims it. A member is offered copies only of the types it subscribes to, and never a copy it
   discarded before. An engine is offered new copies even when it has no next event of its own.
 - **Randomness.** The member order comes from the orchestrator's own random generator, seeded from
   the simulation seed, so choosing a member never changes the engines' own random draws.

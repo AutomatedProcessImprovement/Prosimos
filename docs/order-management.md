@@ -44,8 +44,8 @@ Not modeled, and where each goes:
 - **Package weight**, the sum of its items' weights with `aggregate` ([messaging.md](messaging.md)); items
   have no weight yet: future work.
 - **The real packing rule**, the oldest waiting item and then all of that customer's waiting items
-  (`"collect": "all"` with `"same"`); it would also remove the packages still collecting at the end: future
-  work.
+  (`"collect": "all"` with `"same"`, which isn't available yet); it would also remove the packages still
+  collecting at the end: future work.
 - **Confirmation by the customer's primary sales rep** (88% of confirmations in the log; any Sales employee
   confirms here): under discussion.
 - **The forwarder of a package** (the shipper sends it here): under discussion.

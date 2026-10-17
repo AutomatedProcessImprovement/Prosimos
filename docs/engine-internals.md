@@ -133,9 +133,15 @@ the gateway. The branches of one case share a `Race` (`SimBPMEnv._races`, keyed 
   first in the JSON takes it (`_consume_order`, the entries' positions), with one warning per gateway
   if there are several. Without this, the parked events' order (by time, then case and event id) would
   decide, since a case's branches are all parked at the same time.
-- With `collect`, a claim at a race branch wins the race only once the case has collected all it needs
+- With `collect`, a claim at a race branch wins the race only once the case has collected its min
   (`_claim` resumes it then); until then the race stays open and a timer can still win, which drops the
   branch's count (`_collected`) with its waiting record.
+- A case that got its min but not its max is resumed then (its catch event is queued at that time), but
+  stays parked, in `_closing`, and keeps claiming the messages offered at that instant, up to max. The
+  engine can't see when the orchestrator's offers for a step are done, but the orchestrator asks every
+  engine for `next_event_time()` right after them, and an engine steps only after that: both, and a
+  `deliver` at a later time, close the open collections (`_close_collections`). The resumed catch event
+  is therefore never executed while its case still collects.
 - A message branch with nothing to collect wins at once. Which one, if several, is decided when the
   case's first branch comes off the queue and starts the race (`_branch_with_nothing_to_collect`, stored
   as `Race.wins_at_once`): the one whose `consume` entry comes first, with one warning per gateway. The

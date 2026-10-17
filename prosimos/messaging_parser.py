@@ -4,6 +4,7 @@ model says where a process publishes, waits or is started (message events); this
 it publishes or accepts. Parsing and validation only; the engine acts on the result.
 """
 import json
+import math
 import xml.etree.ElementTree as ET
 from collections import Counter
 from dataclasses import dataclass
@@ -65,7 +66,7 @@ class ConsumePoint:
     starts_case: bool = False  # at the start event: an accepted message starts a new case
     capacity: int = 1  # how many waiting cases one message resumes, unless read from the message
     capacity_attribute: Optional[str] = None  # the message attribute holding the capacity, if any
-    collect: int = 1  # how many messages a case must claim here before it continues, unless read from the case
+    collect: int = 1  # min: how many messages a case must claim here before it continues, unless read from the case
     collect_attribute: Optional[str] = None  # the case attribute holding that number, if any
     qualifier: Optional[str] = None  # of the OCEL links the messages it takes give; None means the message type
     o2o: Optional[str] = None  # OCEL object link from the claiming case's object to the publisher's; None: none
@@ -75,6 +76,11 @@ class ConsumePoint:
     # (case attribute, function, message attribute): the function over the message attribute's values of every
     # message claimed, at this entry and any other aggregating into the same case attribute
     aggregate: Tuple[Tuple[str, str, str], ...] = ()
+    # max: how many messages a case may claim here in all; once it has min, it also takes every other matching
+    # message offered at that instant, up to max. None means the same as min, math.inf no limit; unless read from
+    # the case attribute collect_max_attribute
+    collect_max: Optional[float] = None
+    collect_max_attribute: Optional[str] = None
 
     @property
     def link_qualifier(self):
@@ -135,10 +141,12 @@ def parse_messages(messages_json, bpmn_path, declared_attributes, case_attribute
     # count gets its own reason below
     for where, entry in _entries(messages_json, "consume", CONSUME_KEYS, events, CONSUMING_EVENTS, ("count",)):
         starts_case = events[entry["event_id"]][0] == "startEvent"
+        low, low_attribute, high, high_attribute = _collect(entry, where, starts_case)
         point = ConsumePoint(entry["event_id"], entry["type"], _condition(entry, where), _copy(entry, where),
-                             starts_case, *_capacity(entry, where, starts_case), *_collect(entry, where, starts_case),
+                             starts_case, *_capacity(entry, where, starts_case), low, low_attribute,
                              _name(entry, "qualifier", where), _name(entry, "o2o", where),
-                             _append(entry, where, case_attributes), _aggregate(entry, where, case_attributes))
+                             _append(entry, where, case_attributes), _aggregate(entry, where, case_attributes),
+                             high, high_attribute)
         if "count" in entry:
             _fail(f"{where}: count is only for publish entries, on throw and end events: only they publish, and a "
                   f"start event starts exactly one case per message")
@@ -194,9 +202,12 @@ def _capacity(entry, where, starts_case):
 
 
 def _collect(entry, where, starts_case):
-    """(fixed number to collect, case attribute holding it): {"value": 3} or {"case_attribute": "items"}."""
+    """(min, case attribute holding it, max, case attribute holding it), each bound fixed or read from the case:
+    {"min": 2, "max": 5}, {"min": {"case_attribute": "items"}}, 3 or {"value": 3} for (3, 3), {"case_attribute":
+    "items"} for both from items, "all" for (1, no limit), 0 for (0, 0). A max of None means the same as min, and
+    math.inf no limit."""
     if "collect" not in entry:
-        return 1, None
+        return 1, None, None, None
     if starts_case:
         _fail(f"{where}: a start event can't collect: it turns one message into a new case, and before that case "
               f"exists nothing holds the earlier messages or tells which ones belong together. Start on the first "
@@ -208,17 +219,49 @@ def _collect(entry, where, starts_case):
               f"the messages, then publishes one message per target (e.g. a truck collects packages, then sends "
               f"one Shipment per package)")
     collect = entry["collect"]
+    if collect == "all":
+        return 1, None, math.inf, None
+    if isinstance(collect, dict) and "min" in collect:
+        _check_keys(f"{where}.collect", collect, {"min", "max"})
+        low, low_attribute = _bound(collect, "min", where)
+        high, high_attribute = _bound(collect, "max", where) if "max" in collect else (math.inf, None)
+        if high_attribute is None and low_attribute is None and low > high:
+            _fail(f"{where}: 'collect' min {low} is above max {high}")
+        if high == 0 and low_attribute is not None:
+            _fail(f"{where}: 'collect' max is 0 but min is read from {low_attribute}: a case waiting for a message "
+                  f"couldn't take any")
+        return low, low_attribute, high, high_attribute
     if isinstance(collect, dict):
-        _check_keys(f"{where}.collect", collect, {"value", "case_attribute"})
-    if not isinstance(collect, dict) or len(collect) != 1 or not set(collect) <= {"value", "case_attribute"}:
-        _fail(f"{where}: 'collect' must be either {{\"value\": <number>}} or {{\"case_attribute\": <case attribute>}}")
+        _check_keys(f"{where}.collect", collect, {"value", "case_attribute", "min", "max"})
+    if not isinstance(collect, dict) or len(collect) != 1:
+        if is_whole_number(collect, minimum=0):
+            return int(collect), None, None, None
+        _fail(f"{where}: 'collect' must be either a whole number of at least 0, \"all\", {{\"min\": <bound>, \"max\": "
+              f"<bound>}} with each bound a number or {{\"case_attribute\": <case attribute>}}, {{\"value\": <number>}} or "
+              f"{{\"case_attribute\": <case attribute>}}")
     if "case_attribute" in collect:
         if not isinstance(collect["case_attribute"], str) or not collect["case_attribute"]:
             _fail(f"{where}: 'collect' case_attribute must be a case attribute name")
-        return 1, collect["case_attribute"]
+        return 1, collect["case_attribute"], None, None
+    if "max" in collect:
+        _fail(f"{where}: 'collect' max needs a min, e.g. {{\"min\": 1, \"max\": {collect['max']!r}}}")
     if not is_whole_number(collect["value"], minimum=0):
         _fail(f"{where}: 'collect' value must be a whole number of at least 0, got {collect['value']!r}")
-    return int(collect["value"]), None
+    return int(collect["value"]), None, None, None
+
+
+def _bound(collect, name, where):
+    """(fixed number, case attribute holding it) of collect's bound name (min or max): 2 or
+    {"case_attribute": "items"}."""
+    bound = collect[name]
+    if isinstance(bound, dict):
+        _check_keys(f"{where}.collect.{name}", bound, {"case_attribute"})
+        if isinstance(bound.get("case_attribute"), str) and bound["case_attribute"]:
+            return 1, bound["case_attribute"]
+    elif is_whole_number(bound, minimum=0):
+        return int(bound), None
+    _fail(f"{where}: 'collect' {name} must be a whole number of at least 0 or {{\"case_attribute\": <case "
+          f"attribute>}}, got {bound!r}")
 
 
 def _check_collect_has_its_own_event(collecting, consume):

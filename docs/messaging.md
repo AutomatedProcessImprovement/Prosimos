@@ -148,10 +148,22 @@ capacity of them:
  "copy": {"truck_id": "case_id"}}
 ```
 
-**collect** (optional, on a catch event's entry) says how many matching messages a case must claim
-there before it continues: a fixed `{"value": 3}`, or `{"case_attribute": "items"}` to read it from the
-case when it reaches the event. Without it, one message is enough. For example, an order waiting until
-an `ItemReady` has come for each of its items:
+**collect** (optional, on a catch event's entry) says how many matching messages a case claims there
+before it continues, as a min and a max: the case waits until it has claimed min messages; at that moment
+it also takes every other matching message offered then, up to max, and continues. It never waits to fill
+up to max; to wait for more but leave after a while, race the catch event with a timer (see "Races at
+event-based gateways"). Without `collect`, one message is enough.
+
+```
+"collect": {"min": 2, "max": 5}                   each bound a number, or {"case_attribute": ...} read from the case
+"collect": {"min": {"case_attribute": "items"}}   without max: no limit
+"collect": 3                                      (3, 3); also {"value": 3}
+"collect": {"case_attribute": "items"}            (items, items)
+"collect": "all"                                  (1, no limit): the next message, and every other one offered then
+"collect": 0                                      (0, 0): passes straight on
+```
+
+For example, an order waiting until an `ItemReady` has come for each of its items:
 
 ```json
 {"event_id": "Catch_Items", "type": "ItemReady",
@@ -279,14 +291,17 @@ The section is checked when the model is loaded. An invalid section stops loadin
   `case_attributes`, and every entry aggregating into one attribute uses the same function.
 - `capacity` is either `{"value": <whole number of at least 1>}` or `{"attribute": <name>}`, and only
   on a catch event: a start message starts exactly one case.
-- `collect` is either `{"value": <whole number of at least 0>}` or `{"case_attribute": <name>}`.
+- `collect` is a whole number of at least 0, `"all"`, `{"value": <whole number of at least 0>}`,
+  `{"case_attribute": <name>}`, or `{"min": <bound>, "max": <bound>}` (max optional) with each bound a whole
+  number of at least 0 or `{"case_attribute": <name>}`. A fixed min isn't above a fixed max, and a max of 0
+  doesn't come with a min read from a case attribute.
 - `collect` is only on a catch event with exactly one `consume` entry: a case waiting there keeps one
   count, so it must be clear which messages it counts. To accept several variants of one type, use one
   entry with alternatives in its condition; to wait for several kinds, use one catch event per type.
 - `collect` isn't on a start event: a start event turns one message into a new case, and before that
   case exists nothing holds the earlier messages or tells which ones belong together. Start on the
   first message instead, then collect the rest at a catch event right after the start (e.g. a picking
-  batch: start on 1 order, then `"collect": {"value": 4}`). The rest is a fixed number, or a case
+  batch: start on 1 order, then `"collect": 4`). The rest is a fixed number, or a case
   attribute holding the remaining count, since a count can't do arithmetic.
 - `collect` and `capacity` aren't on the same entry (see "Many messages for many cases").
 - `qualifier` and `o2o`, where given, are non-empty strings.
@@ -354,14 +369,23 @@ pool, it is claimed at once and the wait lasts zero time.
 When intermediate events are logged, a catch event a case waited at appears as lasting from the
 case's arrival at the event until the message.
 
-**Collecting.** With `collect`, the number is read when the case reaches the catch event. Each matching
-message is CLAIMED and bound to the case, and `copy` is applied at every claim (a later message
-overwrites an earlier value); the case stays parked until it has the number it needs, then continues
-at the time of the last one. Messages that came earlier wait in the orchestrator's pool and are
-claimed as soon as the case parks, possibly several in one step. When several waiting cases match,
-the one waiting longest that still needs messages gets it. A number of 0 means nothing to collect:
-the case passes straight on. A case attribute that isn't a whole number of at least 0 counts as 1,
-with one warning per event and attribute.
+**Collecting.** With `collect`, min and max are read when the case reaches the catch event. Each matching
+message is CLAIMED and bound to the case, and `copy`, `append` and `aggregate` are applied at every claim (a
+later message overwrites an earlier copied value); the case stays parked until it has its min, then
+continues at the time of the message that completed it. Messages that came earlier wait in the
+orchestrator's pool and are claimed as soon as the case parks, oldest first, possibly several in one step.
+When several waiting cases match, the one waiting longest gets it.
+
+The case takes the messages above min at the same instant: after the step whose offers gave it its min,
+the orchestrator may still offer other messages of that step (several published at once, e.g. with
+`count`, or waiting in the pool), and the case takes them up to max. Its collection closes once the
+orchestrator's offers for that step are done: a message published at the same time but in a later step
+(e.g. by another process) is no longer taken. With a min of 0 and a max above 0, the case takes up to max of
+the messages waiting when it arrives and goes on at once; with (0, 0) it passes straight on.
+
+A min from a case attribute that isn't a whole number of at least 0 counts as 1; a max (fixed, or from a
+case attribute) that isn't a whole number of at least min counts as min. Each comes with one warning per
+event and attribute.
 
 Cases still waiting when the run ends are reported as stalled cases ([orchestrator.md](orchestrator.md)),
 with how many messages they had collected, e.g. `collected 2 of 3`.
@@ -441,11 +465,11 @@ Send quote --> <event-based gateway>                              <XOR> --> end
 
 - **Capacity:** a truck that picks up several waiting orders wins the race of each one it takes (their
   timers never fire); orders that didn't fit keep waiting in their own races.
-- **Collect: the complete set decides.** The race stays open until the case has claimed all the
-  messages it needs; only then does the message branch win. If a timer fires first (e.g. after 1 of 3
-  items), the timer wins.
-- A branch with `collect` of 0 has nothing to wait for, so it wins its race immediately when the case
-  reaches the gateway. A fixed `{"value": 0}` on a race branch is therefore rejected at load ("a race
+- **Collect: the complete set decides.** The race stays open until the case has claimed its min; only
+  then does the message branch win (and takes the messages above min offered at that instant, up to
+  max). If a timer fires first (e.g. after 1 of 3 items), the timer wins.
+- A branch with a min of 0 has nothing to wait for, so it wins its race immediately when the case
+  reaches the gateway. A fixed min of 0 on a race branch is therefore rejected at load ("a race
   branch with a fixed collect of 0 always wins its race; remove the race or the branch"); a `collect`
   read from a case attribute can still be 0 for some cases. If several branches have nothing to
   collect, the one whose `consume` entry comes first in the JSON wins, with one warning per gateway
