@@ -41,7 +41,8 @@ the run ends.
 
 Not modeled, and where each goes:
 
-- **Package weight**: future work.
+- **Package weight**, the sum of its items' weights with `aggregate` ([messaging.md](messaging.md)); items
+  have no weight yet: future work.
 - **The real packing rule**, the oldest waiting item and then all of that customer's waiting items
   (`"collect": "all"` with `"same"`); it would also remove the packages still collecting at the end: future
   work.

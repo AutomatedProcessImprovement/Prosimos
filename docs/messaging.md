@@ -110,6 +110,32 @@ After the collect, `item_ids = ["Warehouse-12", "Warehouse-17", "Warehouse-23"]`
   overwrite the list), or in the process's `case_attributes` (whose value is drawn, not a list that starts
   empty).
 
+**aggregate** (optional, on any `consume` entry) writes a value computed over the messages claimed into
+the case: `sum`, `count`, `min` or `max` of a message attribute. A package's weight is the sum of its
+items' weights:
+
+```
+packaging.json:  "consume": [{"event_id": "Start_Package", ..., "aggregate": {"weight": {"sum": "weight"}}},
+                             {"event_id": "Catch_More_Items", ..., "aggregate": {"weight": {"sum": "weight"}}}]
+```
+
+With items weighing 1.2, 0.8 and 2.1, the package weighs 1.2 after the first claim, then 2.0, then 4.1.
+
+- The value is updated at every claim, so it is right after the last one. Entries aggregating into the same
+  case attribute share its values, as with `append`: above, the first item, claimed at the start event,
+  counts too. Each must use the same function.
+- A sum or count starts at 0 when the case is created; a min or max has no value until the first message.
+- `count` counts the messages that have the attribute; `sum`, `min` and `max` take numbers. A message
+  without the attribute, or with a value that isn't a number (for `sum`, `min` and `max`), is skipped, with
+  one warning per event and attribute.
+- A sum is rounded once, at the end, so it doesn't depend on the order of the messages: 1.2, 0.8 and 2.1
+  add up to 4.1 in any order, where adding them one by one may give 4.1000000000000005. A sum of whole
+  numbers is a whole number.
+- The value is an ordinary case attribute value: messages can publish it, the log has a column for it, and
+  in the OCEL output it is an object attribute, with one value per change.
+- An aggregated attribute can't also be in the entry's `copy` or `append`, in another entry's `copy` or
+  `append`, or in the process's `case_attributes`.
+
 **capacity** (optional, on a catch event's entry) says how many waiting cases one message resumes:
 a fixed `{"value": 2}`, or `{"attribute": "capacity"}` to read it from the message. Without it, a
 message resumes one case. For example, orders waiting at the dock and a truck taking up to its
@@ -227,7 +253,7 @@ The section is checked when the model is loaded. An invalid section stops loadin
 - The section holds only `publish` and `consume`, each a list.
 - No key is unknown: in the section, its entries, their `count`, `collect` and `capacity`, and condition
   terms. A misspelled key would otherwise be ignored and change the run without any message:
-  `messages.consume[0]: unknown key 'colect'; allowed: append, capacity, collect, condition, copy, event_id, o2o, qualifier, type`.
+  `messages.consume[0]: unknown key 'colect'; allowed: aggregate, append, capacity, collect, condition, copy, event_id, o2o, qualifier, type`.
 - Every `event_id` exists in the BPMN model.
 - A `publish` event is an intermediate message throw event or a message end event.
 - A `consume` event is an intermediate message catch event or a message start event.
@@ -248,6 +274,9 @@ The section is checked when the model is loaded. An invalid section stops loadin
   `collect` of 0.
 - `copy` maps case attribute names to message attribute names, and doesn't set `case_id`.
 - `append` does the same; its attributes are in no entry's `copy` and not in `case_attributes`.
+- `aggregate` maps case attribute names to one function (`sum`, `count`, `min` or `max`) and a message
+  attribute, and doesn't set `case_id`; its attributes are in no entry's `copy` or `append`, not in
+  `case_attributes`, and every entry aggregating into one attribute uses the same function.
 - `capacity` is either `{"value": <whole number of at least 1>}` or `{"attribute": <name>}`, and only
   on a catch event: a start message starts exactly one case.
 - `collect` is either `{"value": <whole number of at least 0>}` or `{"case_attribute": <name>}`.

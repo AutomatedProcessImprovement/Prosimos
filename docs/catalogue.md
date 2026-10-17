@@ -127,7 +127,7 @@ this way:
 
 The picked value is a normal case attribute from then on: it is a column of the log, and messages and
 `copy` carry it like any other. The attribute must therefore not be in the process's `case_attributes`, and
-none of the process's own consume entries may copy or append into it, since the copied value would replace
+none of the process's own consume entries may copy, append or aggregate into it, since that value would replace
 the picked one. A process JSON whose messages publish a picked attribute only runs inside its configuration:
 run on its own, the attribute isn't declared (Order Management's `sales.json` is an example).
 

@@ -139,8 +139,8 @@ def _checked_catalogue(processes, names, catalogue, references):
     attributes in the format of case_attributes; and references only naming known catalogues, processes and,
     in link_events, tasks of their process (by name or id). A pick is "uniform" or weights on known ids of a
     listed catalogue, "uniform" on a pool, or "new" or new_share on a growing catalogue, for a process built
-    from a ProcessSpec whose case_attributes don't have the attribute and whose consume entries don't copy or
-    append into it, and at most one per process and attribute. A growing catalogue's objects are created by exactly one reference, and no other id looks like
+    from a ProcessSpec whose case_attributes don't have the attribute and whose consume entries don't copy,
+    append or aggregate into it, and at most one per process and attribute. A growing catalogue's objects are created by exactly one reference, and no other id looks like
     them (<catalogue name>-<number>)."""
     problems = []
     for name, entry in catalogue.items():
@@ -235,11 +235,11 @@ def _pick_problems(reference, entry, specs):
     if reference.case_attribute in declared:
         return [f"picks {reference.case_attribute}, which process {reference.process} also draws in its "
                 f"case_attributes"]
-    # a copied value would replace the picked one (with "new", the replaced object is never written), and an
-    # appended attribute is a list
+    # a copied value would replace the picked one (with "new", the replaced object is never written), an
+    # appended attribute is a list, and an aggregated one is computed over the messages claimed
     messages = settings.get("messages")
     consume = messages.get("consume", []) if isinstance(messages, dict) else []
-    for key, verb in (("copy", "copies"), ("append", "appends to")):
+    for key, verb in (("copy", "copies"), ("append", "appends to"), ("aggregate", "aggregates into")):
         found_at = [entry.get("event_id") for entry in consume if isinstance(entry, dict)
                     and isinstance(entry.get(key), dict) and reference.case_attribute in entry[key]]
         if found_at:

@@ -2,6 +2,8 @@ import csv
 import datetime
 import itertools
 import json
+import math
+import numbers
 import os
 from heapq import heappop, heappush
 import numpy as np
@@ -55,12 +57,14 @@ class SimBPMEnv:
         self.sim_resources = dict()
         self.stat_fwriter = stat_fwriter
         self.additional_columns = self.sim_setup.all_attributes.get_all_columns_generated()
-        # attributes copied or appended from messages get a column too; it stays empty until a value is copied, and
-        # an appended list starts empty
+        # attributes copied, appended or aggregated from messages get a column too; it stays empty until a value is
+        # copied, an appended list starts empty, and a sum or count starts at 0
         self._appended = sorted({target for point in self.sim_setup.messaging.consume for target, _ in point.append})
+        self._aggregated = {target: function for point in self.sim_setup.messaging.consume
+                            for target, function, _ in point.aggregate}
         self.additional_columns.extend(sorted({target for point in self.sim_setup.messaging.consume
                                                for target, _ in point.copy} | set(self._appended)
-                                              - set(self.additional_columns)))
+                                              | set(self._aggregated) - set(self.additional_columns)))
         if self.sim_setup.batch_processing not in [None, {}]:
             self.additional_columns.append("batch_id")
         self.log_writer = FileManager(10000, log_fwriter, self.additional_columns)
@@ -122,11 +126,14 @@ class SimBPMEnv:
         # created, and every later copy at a catch event
         self._case_attribute_names = ({attribute.name for attribute in sim_setup.case_attributes.attributes}
                                       | {target for point in sim_setup.messaging.consume for target, _ in point.copy}
-                                      | set(self._appended))
+                                      | set(self._appended) | set(self._aggregated))
         self._case_created = dict()  # case id -> (when it was created, its case attribute values then)
         self._copied_later = []  # (case id, attribute, value, when copied)
         self._warned_missing_copies = set()
         self._warned_missing_appends = set()
+        self._aggregated_values = dict()  # (case id, case attribute) -> the message values aggregated so far
+        self._warned_missing_aggregates = set()
+        self._warned_not_numbers = set()
         self._warned_capacities = set()
         self._collected = dict()  # (case id, event id) -> [messages claimed so far, messages needed]
         self._warned_collects = set()
@@ -293,9 +300,10 @@ class SimBPMEnv:
         starting = next((point for point in points
                          if point.starts_case and self._condition_holds(point.condition, values, None)), None)
         if starting is not None:
-            def start_values(case_values):
+            def start_values(p_case, case_values):
                 self._apply_copy(starting, values, case_values)
                 self._apply_append(starting, values, case_values)
+                self._apply_aggregate(starting, values, p_case, case_values)
 
             p_case = self.create_case(now, start_values)
             self.claimed_by = [(p_case, starting.event_id, starting)]
@@ -311,10 +319,12 @@ class SimBPMEnv:
         case_values = self.sim_setup.bpmn_graph.all_attributes[parked_event.p_case]
         self._apply_copy(point, values, case_values)
         self._apply_append(point, values, case_values)
+        aggregated = self._apply_aggregate(point, values, parked_event.p_case, case_values)
         self._copied_later.extend((parked_event.p_case, target, values[source], now)
                                   for target, source in point.copy if source in values)
         self._copied_later.extend((parked_event.p_case, target, case_values[target], now)
                                   for target, source in point.append if source in values)
+        self._copied_later.extend((parked_event.p_case, target, case_values[target], now) for target in aggregated)
         self._collected[key][0] += 1
         if self._collected[key][0] >= self._collected[key][1]:
             self._resume(parked_event, now)
@@ -511,18 +521,53 @@ class SimBPMEnv:
     def create_case(self, now, set_values=None):
         """Starts a new case at now, as a planned arrival would (case attributes drawn as usual), and
         returns its id: the next consecutive one, since the log's trace list is indexed by case id.
-        set_values(case_values), if given, changes the drawn values before the case starts."""
+        set_values(p_case, case_values), if given, changes the drawn values before the case starts."""
         p_case = len(self.log_info.trace_list)
         case_values = self.sim_setup.case_attributes.get_values_calculated()
-        case_values.update((target, []) for target in self._appended)
+        case_values.update(self._starting_values())
         if set_values is not None:
-            set_values(case_values)
+            set_values(p_case, case_values)
         self.case_prioritisation.all_case_attributes[p_case] = case_values
         self.case_prioritisation.all_case_priorities[p_case] = \
             self.sim_setup.prioritisation_rules.get_priority(case_values)
         self.sim_setup.bpmn_graph.all_attributes[p_case] = case_values
         self._update_initial_event_info(self.sim_setup, p_case, self.simulation_at_from_datetime(now))
         return p_case
+
+    def _starting_values(self):
+        """What a case's appended and aggregated attributes start with: an empty list, and 0 for a sum or count (a
+        min or max has no value until the first message)."""
+        values = {target: [] for target in self._appended}
+        values.update((target, 0) for target, function in self._aggregated.items() if function in ("sum", "count"))
+        return values
+
+    def _apply_aggregate(self, point, values, p_case, case_values):
+        """Adds the message attributes listed in point.aggregate to the values aggregated so far for the case, and
+        writes each function over them into the case's values; the case attributes it wrote. A message without one
+        of them, or for sum, min and max with one that isn't a number, is skipped, with one warning per event and
+        attribute."""
+        written = []
+        for target, function, source_name in point.aggregate:
+            if source_name not in values:
+                if (point.event_id, source_name) not in self._warned_missing_aggregates:
+                    self._warned_missing_aggregates.add((point.event_id, source_name))
+                    warning_logger.add_warning(
+                        f"{point.type} message accepted at {point.event_id} has no {source_name} to aggregate into "
+                        f"{target}; {target} is left unchanged")
+                continue
+            value = values[source_name]
+            if function != "count" and not _is_number(value):
+                if (point.event_id, source_name) not in self._warned_not_numbers:
+                    self._warned_not_numbers.add((point.event_id, source_name))
+                    warning_logger.add_warning(
+                        f"{point.type} message accepted at {point.event_id} has {source_name} {value!r}, which isn't "
+                        f"a number to {function} into {target}; {target} is left unchanged")
+                continue
+            aggregated = self._aggregated_values.setdefault((p_case, target), [])
+            aggregated.append(value)
+            case_values[target] = _aggregated(function, aggregated)
+            written.append(target)
+        return written
 
     def _apply_copy(self, point, values, case_values):
         """Writes the message attributes listed in point.copy into the case's values. A message without
@@ -649,10 +694,10 @@ class SimBPMEnv:
         self._log_passed_throw_events(p_case, p_state, visited_at)
         self.all_process_states[p_case] = p_state
         self.log_info.trace_list.append(Trace(p_case, enabled_datetime))
-        if self._appended:  # a planned case's lists start empty too
-            sim_setup.bpmn_graph.all_attributes.setdefault(p_case, {})
-            for target in self._appended:
-                sim_setup.bpmn_graph.all_attributes[p_case].setdefault(target, [])
+        if self._appended or self._aggregated:  # a planned case's lists start empty too, and its sums and counts at 0
+            case_values = sim_setup.bpmn_graph.all_attributes.setdefault(p_case, {})
+            for target, value in self._starting_values().items():
+                case_values.setdefault(target, value)
         case_values = sim_setup.bpmn_graph.all_attributes.get(p_case, {})
         self._case_created[p_case] = (enabled_datetime, {name: value for name, value in case_values.items()
                                                          if name in self._case_attribute_names})
@@ -1339,6 +1384,21 @@ def verify_miliseconds(array):
 def _get_string_from_datetime(datetime):
     datetime_without_colon = datetime.strftime("%Y-%m-%d %H:%M:%S.%f%z")
     return "{0}:{1}".format(datetime_without_colon[:-2], datetime_without_colon[-2:])
+
+
+def _is_number(value):
+    return isinstance(value, numbers.Real) and not isinstance(value, bool)
+
+
+def _aggregated(function, values):
+    """function over values: count, sum, min or max. A sum of whole numbers is a whole number; any other is
+    rounded once, at the end (math.fsum), so it doesn't depend on the order of the messages: 1.2, 0.8 and 2.1 add
+    up to 4.1 in any order, where adding them one by one may give 4.1000000000000005."""
+    if function == "count":
+        return len(values)
+    if function == "sum":
+        return sum(values) if all(isinstance(value, numbers.Integral) for value in values) else math.fsum(values)
+    return min(values) if function == "min" else max(values)
 
 
 def _logged(value):

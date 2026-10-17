@@ -101,9 +101,9 @@ written as an OCEL 2.0 JSON file, the format of the OCEL 2.0 sample logs, readab
 `pm4py.read_ocel2_json`:
 
 - **Objects:** one per case, with the case id as object id (e.g. `Sales-7`) and its process's
-  `object_type` as type. Its attributes are its case attributes, the declared ones and those copied or
-  appended from messages: the values it had when it was created, at that time, and every value copied or
-  appended into it later at a catch event, at the time of the claim (an appended list as JSON text). Its relationships are its links to other objects, from the
+  `object_type` as type. Its attributes are its case attributes, the declared ones and those copied,
+  appended or aggregated from messages: the values it had when it was created, at that time, and every value
+  written into it later at a catch event, at the time of the claim (an appended list as JSON text). Its relationships are its links to other objects, from the
   `o2o` keys of message entries ([messaging.md](messaging.md)): e.g. an order comprises each item its
   ItemOrdered messages started. Without `o2o` keys, objects have no relationships. The catalogue's
   objects are written too (see [catalogue.md](catalogue.md)).

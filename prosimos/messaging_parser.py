@@ -18,7 +18,9 @@ CONSUMING_EVENTS = {"intermediateCatchEvent": "an intermediate message catch eve
 COMPARISONS = ("=", "!=", "<", "<=", ">", ">=", "in")  # the ones branch rules understand
 TERM_KEYS = {"attribute", "comparison", "value", "case_attribute"}
 PUBLISH_KEYS = {"event_id", "type", "attributes", "count", "qualifier", "o2o"}
-CONSUME_KEYS = {"event_id", "type", "condition", "copy", "append", "capacity", "collect", "qualifier", "o2o"}
+CONSUME_KEYS = {"event_id", "type", "condition", "copy", "append", "aggregate", "capacity", "collect", "qualifier",
+                "o2o"}
+AGGREGATE_FUNCTIONS = {"sum", "count", "min", "max"}
 
 
 @dataclass(frozen=True)
@@ -70,6 +72,9 @@ class ConsumePoint:
     # (case attribute, message attribute): the message attribute's value is added to a list in the case, which
     # starts empty
     append: Tuple[Tuple[str, str], ...] = ()
+    # (case attribute, function, message attribute): the function over the message attribute's values of every
+    # message claimed, at this entry and any other aggregating into the same case attribute
+    aggregate: Tuple[Tuple[str, str, str], ...] = ()
 
     @property
     def link_qualifier(self):
@@ -108,7 +113,7 @@ def declared_attributes(settings):
     # attributes a consume entry copies or appends from a message into the case can be published too
     messages = settings.get("messages")
     consume = messages.get("consume", []) if isinstance(messages, dict) else []
-    names.update(target for entry in consume if isinstance(entry, dict) for key in ("copy", "append")
+    names.update(target for entry in consume if isinstance(entry, dict) for key in ("copy", "append", "aggregate")
                  if isinstance(entry.get(key), dict) for target in entry[key] if isinstance(target, str))
     return names
 
@@ -133,7 +138,7 @@ def parse_messages(messages_json, bpmn_path, declared_attributes, case_attribute
         point = ConsumePoint(entry["event_id"], entry["type"], _condition(entry, where), _copy(entry, where),
                              starts_case, *_capacity(entry, where, starts_case), *_collect(entry, where, starts_case),
                              _name(entry, "qualifier", where), _name(entry, "o2o", where),
-                             _append(entry, where, case_attributes))
+                             _append(entry, where, case_attributes), _aggregate(entry, where, case_attributes))
         if "count" in entry:
             _fail(f"{where}: count is only for publish entries, on throw and end events: only they publish, and a "
                   f"start event starts exactly one case per message")
@@ -144,6 +149,7 @@ def parse_messages(messages_json, bpmn_path, declared_attributes, case_attribute
             collecting.append((where, point.event_id))
     _check_collect_has_its_own_event(collecting, consume)
     _check_appended_only(consume)
+    _check_aggregated_only(consume)
     _check_races(consume, events, gateway_branches)
     publish = tuple(
         PublishPoint(entry["event_id"], entry["type"], _attributes(entry, where, declared_attributes),
@@ -256,6 +262,56 @@ def _append(entry, where, case_attributes):
         _fail(f"{where}: append adds to {', '.join(map(repr, drawn))}, which case_attributes declares: an appended "
               f"attribute is a list that starts empty, not a drawn value")
     return append
+
+
+def _aggregate(entry, where, case_attributes):
+    aggregate = entry.get("aggregate", {})
+    if not isinstance(aggregate, dict) or not all(isinstance(target, str) and target and isinstance(spec, dict)
+                                                  for target, spec in aggregate.items()):
+        _fail(f"{where}: 'aggregate' must map case attribute names to {{<function>: <message attribute>}}")
+    if "case_id" in aggregate:
+        _fail(f"{where}: 'aggregate' can't set case_id, which is reserved for the case's own identifier")
+    result = []
+    for target, spec in aggregate.items():
+        _check_keys(f"{where}.aggregate.{target}", spec, AGGREGATE_FUNCTIONS)
+        if len(spec) != 1 or not all(isinstance(source, str) and source for source in spec.values()):
+            _fail(f"{where}: aggregate {target!r} must be one function and a message attribute, e.g. "
+                  f"{{\"sum\": \"weight\"}}")
+        (function, source), = spec.items()
+        result.append((target, function, source))
+    for key in ("copy", "append"):
+        both = [target for target, _, _ in result if isinstance(entry.get(key), dict) and target in entry[key]]
+        if both:
+            _fail(f"{where}: {', '.join(map(repr, both))} is in both {key} and aggregate: an aggregated attribute is "
+                  f"computed over the messages claimed, which {key} would overwrite")
+    drawn = [target for target, _, _ in result if target in case_attributes]
+    if drawn:
+        _fail(f"{where}: aggregate writes {', '.join(map(repr, drawn))}, which case_attributes declares: an "
+              f"aggregated attribute is computed over the messages claimed, not a drawn value")
+    return tuple(result)
+
+
+def _check_aggregated_only(consume):
+    """An attribute some entry aggregates into is computed over the messages claimed, so no other entry may copy or
+    append into it, and every entry aggregating into it uses the same function."""
+    written_at = {}
+    for index, point in enumerate(consume):
+        for key, pairs in (("copies", point.copy), ("appends to", point.append)):
+            for target, _ in pairs:
+                written_at.setdefault(target, (index, key))
+    function_at = {}
+    for index, point in enumerate(consume):
+        for target, function, _ in point.aggregate:
+            if target in written_at:
+                other, verb = written_at[target]
+                _fail(f"messages.consume[{index}]: aggregate writes {target!r}, which messages.consume[{other}] "
+                      f"{verb}: an aggregated attribute is computed over the messages claimed, which that would "
+                      f"overwrite")
+            first, first_function = function_at.setdefault(target, (index, function))
+            if function != first_function:
+                _fail(f"messages.consume[{index}]: aggregate writes {target!r} with {function}, but "
+                      f"messages.consume[{first}] with {first_function}: an attribute is one function over all the "
+                      f"messages claimed into it")
 
 
 def _check_appended_only(consume):
