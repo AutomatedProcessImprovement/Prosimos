@@ -229,17 +229,20 @@ def test_a_member_that_discarded_a_copy_is_not_offered_it_again():
 
 
 def test_pooled_copies_are_offered_oldest_first_even_when_the_stepping_engine_publishes_a_new_one():
-    # not exercised by the running example: B leaves X 1 pending, then at 10:00 publishes X 2 to its own group,
-    # so both are offered in that step: the older one first
-    publisher, b = ScriptedEngine("P"), ScriptedEngine("B")
+    # not exercised by the running example: B and C, one group, leave X 1 pending; at 10:00 B publishes X 2,
+    # which only C is offered, so both are offered to C in that step: the older one first
+    publisher, b, c = ScriptedEngine("P"), ScriptedEngine("B"), ScriptedEngine("C")
     publisher.publish_at(at("09:00"), "X", number=1)
     b.publish_at(at("10:00"), "X", number=2)
-    b.consume("X", lambda message, now: Verdict.PENDING)
+    for engine in (b, c):
+        engine.consume("X", lambda message, now: Verdict.PENDING)
 
-    run_engines({"P": publisher, "B": b}, None, FIXED_SEED)
+    run_engines({"P": publisher, "B": b, "C": c}, {"P": ["P"], "Shop": ["B", "C"]}, FIXED_SEED)
 
-    assert [(message.attributes["number"], time) for message, time in b.offered] == [
+    assert [(message.attributes["number"], time) for message, time in c.offered] == [
         (1, at("09:00")), (1, at("10:00")), (2, at("10:00"))]
+    assert [(message.attributes["number"], time) for message, time in b.offered] == [
+        (1, at("09:00")), (1, at("10:00"))]
 
 
 def test_an_engine_answering_with_something_other_than_a_verdict_is_rejected():

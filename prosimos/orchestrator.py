@@ -941,9 +941,10 @@ def run_engines(
     process name. After each step, every published message is stamped (id, source, time), one
     copy per subscribed group goes into the pool, and the new copies plus the pooled copies of the
     stepping engine's group are offered, oldest first, to their group's members in random order until one
-    claims them. A copy is removed when claimed, or when every member subscribed to its type has
-    discarded it; nobody is offered a copy they already discarded. Member order comes from the
-    orchestrator's own generator, never the global random module the engines use.
+    claims them. A message is never offered to the process that published it. A copy is removed when
+    claimed, or when every member subscribed to its type other than the publisher has discarded it; nobody
+    is offered a copy they already discarded. Member order comes from the orchestrator's own generator,
+    never the global random module the engines use.
     """
     names = sorted(engines)
     consumer_groups = _checked_consumer_groups(names, consumer_groups)
@@ -964,6 +965,9 @@ def run_engines(
     def warn(text):
         report.warnings.append(text)
 
+    def recipients_of(group, message):
+        return [m for m in consumer_groups[group] if message.type in subscriptions[m] and m != message.source]
+
     def resolve(pooled):
         pool.remove(pooled)
         copies_left[pooled.message.id] -= 1
@@ -983,9 +987,14 @@ def run_engines(
         for message in published:
             message.id, message.source, message.time = f"m{next(next_id)}", name, now
             report.published.append(message)
-            groups = routing.get(message.type, [])
+            # a message never comes back to the process that published it, so a group whose only member
+            # subscribed to the type is the publisher gets no copy
+            groups = [group for group in routing.get(message.type, []) if recipients_of(group, message)]
             if not groups:
-                warn(f"{message.type} {message.id} from {name} has no subscribers")
+                if message.type in subscriptions[name]:
+                    warn(f"{message.type} {message.id} from {name}: no subscriber other than its publisher")
+                else:
+                    warn(f"{message.type} {message.id} from {name} has no subscribers")
             copies_left[message.id] = len(groups)
             for group in groups:
                 pooled = _PooledCopy(copy.deepcopy(message), group)
@@ -999,7 +1008,7 @@ def run_engines(
         to_offer = [pooled for pooled in pool if id(pooled) in new_ids or pooled.group == own_group]
         for pooled in to_offer:
             message = pooled.message
-            recipients = [m for m in consumer_groups[pooled.group] if message.type in subscriptions[m]]
+            recipients = recipients_of(pooled.group, message)
             candidates = [m for m in recipients if m not in pooled.discarded_by]
             rng.shuffle(candidates)
             for member in candidates:

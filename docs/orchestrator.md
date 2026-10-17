@@ -185,19 +185,19 @@ its order as `order`.
 **Run report.** `run_orchestrator` (and `run_engines`) return a `RunReport`; `RunReport.to_dict()`
 gives it as plain lists and dicts with times as ISO strings, which is what `--report_out_path` saves:
 
-| Field              | Content                                                                                               |
-|--------------------|-------------------------------------------------------------------------------------------------------|
-| `executed`         | (time, process) for every step                                                                        |
-| `published`        | every message, as stamped by the orchestrator                                                         |
-| `copies`           | (message id, group) for every copy put in the pool                                                    |
-| `claims`           | (message id, process, time) for every claim                                                           |
-| `discards`         | (message id, process, time) for every discard                                                         |
-| `unclaimed`        | (group, message) for the copies still in the pool at the end                                          |
-| `warnings`         | the orchestrator's warnings: a message type nobody subscribes to; a message every recipient discarded |
-| `stalled`          | (process, `StalledCase`) for every case still waiting for a message at the end                        |
-| `engine_warnings`  | (process, warning) for the warnings raised inside each engine                                         |
-| `discarded_counts` | discards per (message type, process)                                                                  |
-| `message_records`  | per message, in publishing order: who published it and who took it (see below)                        |
+| Field              | Content                                                                                                            |
+|--------------------|--------------------------------------------------------------------------------------------------------------------|
+| `executed`         | (time, process) for every step                                                                                     |
+| `published`        | every message, as stamped by the orchestrator                                                                      |
+| `copies`           | (message id, group) for every copy put in the pool                                                                 |
+| `claims`           | (message id, process, time) for every claim                                                                        |
+| `discards`         | (message id, process, time) for every discard                                                                      |
+| `unclaimed`        | (group, message) for the copies still in the pool at the end                                                       |
+| `warnings`         | the orchestrator's warnings: a message nobody but its publisher subscribes to; a message every recipient discarded |
+| `stalled`          | (process, `StalledCase`) for every case still waiting for a message at the end                                     |
+| `engine_warnings`  | (process, warning) for the warnings raised inside each engine                                                      |
+| `discarded_counts` | discards per (message type, process)                                                                               |
+| `message_records`  | per message, in publishing order: who published it and who took it (see below)                                     |
 
 A `StalledCase` has `case_id` (e.g. `Sales-1`), `event_id` (the catch event it waits at, or the
 event-based gateway for a case waiting in a race, reported once with the types of all its message
@@ -232,10 +232,20 @@ it with an `id` (`m1`, `m2`, ...), its `source` process and the `time` of the st
   subscribe to a message type gets its own copy of each such message, and only one member of the
   group can claim it. Two warehouses in one group compete for an order; a separate Billing group
   gets its own copy.
+- **Never back to its publisher.** A message is never offered to the process that published it, i.e.
+  the process named in its `source`; the other members of its group are offered it as usual. In BPMN,
+  message flows connect different participants: a process handing things to itself, e.g. a Workshop
+  freeing parts for its later cases, needs a second process, e.g. a parts Stock. Two warehouses that
+  forward orders to each other publish and consume the same type, and each gets the other's orders.
 - **Routing table**, built once at the start: for each message type, the groups with at least one
-  member subscribed to it.
+  member subscribed to it. A message gets a copy for each of these groups with a subscribed member
+  other than its publisher, so a group whose only subscribed member is the publisher gets none.
 - **Pool.** Copies wait in a pool until a member claims them, or until every member subscribed to
-  the type has discarded them. A message type nobody subscribes to gets no copy and a warning.
+  the type, other than the publisher, has discarded them. A message that gets no copy at all comes with
+  a warning: `Newsletter m1 from P has no subscribers` when nobody subscribes to its type, and
+  `PartFreed m1 from Workshop: no subscriber other than its publisher` when only the publisher does.
+  Unclaimed copies and stalled cases at the end are the other signs of such a model; none of this is a
+  load error.
 - **Offers.** After each step, the orchestrator offers the new copies and the pooled copies of the
   stepping engine's group, oldest first, to the group's members, in random order, at the step's time,
   until one claims it. A member is offered copies only of the types it subscribes to, and never a copy it
