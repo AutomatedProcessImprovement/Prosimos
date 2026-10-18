@@ -63,13 +63,12 @@ def test_2_4_with_5_waiting_resumes_the_4_oldest(tmp_path):
     assert _truck_ids(engine, range(5)) == ["Carrier-0"] * 4 + [None]
 
 
-@pytest.mark.parametrize("capacity", [2, {"min": 1, "max": 2}])
-def test_capacity_2_behaves_exactly_like_today(tmp_path, capacity):
+def test_1_2_behaves_exactly_like_capacity_2(tmp_path):
     # one truck before any order (it takes the first to arrive), then one for 3 waiting orders (it takes 2)
     trucks = [("08:30", {}), ("12:00", {})]
 
-    report, log = _with_carrier(tmp_path, capacity, 4, trucks)
-    expected_report, expected_log = _with_carrier(tmp_path, {"value": 2}, 4, trucks)
+    report, log = _with_carrier(tmp_path, {"min": 1, "max": 2}, 4, trucks)
+    expected_report, expected_log = _with_carrier(tmp_path, 2, 4, trucks)
 
     assert report.claims == expected_report.claims
     assert log.rows == expected_log.rows

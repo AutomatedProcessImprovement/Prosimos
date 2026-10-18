@@ -47,13 +47,12 @@ def _discarded(report):
     return [item_of[message_id] for message_id, _, _ in report.discards]
 
 
-@pytest.mark.parametrize("collect", [3, {"min": 3, "max": 3}])
-def test_3_3_behaves_exactly_like_collect_value_3(tmp_path, collect):
+def test_3_3_behaves_exactly_like_collect_3(tmp_path):
     # two items before the order reaches the event, then two at 10:00 at once, then one at 12:00
     published = [("08:30", "i1"), ("08:40", "i2"), ("10:00", "i3"), ("10:00", "i4"), ("12:00", "i5")]
 
-    report, log, claimed = _run(tmp_path, collect, published)
-    expected_report, expected_log, expected_claimed = _run(tmp_path, {"value": 3}, published)
+    report, log, claimed = _run(tmp_path, {"min": 3, "max": 3}, published)
+    expected_report, expected_log, expected_claimed = _run(tmp_path, 3, published)
 
     assert claimed == expected_claimed == [("i1", "09:10"), ("i2", "09:10"), ("i3", "10:00")]
     assert log.rows == expected_log.rows
@@ -221,7 +220,7 @@ def test_an_invalid_collect_is_rejected(tmp_path, collect, reason):
 @pytest.mark.parametrize("collect", [{"min": 2, "max": 5}, "all", 3])
 def test_collect_with_capacity_is_rejected(tmp_path, collect):
     def with_capacity(settings):
-        settings["messages"]["consume"][0]["capacity"] = {"value": 2}
+        settings["messages"]["consume"][0]["capacity"] = 2
 
     with pytest.raises(InvalidSimScenarioException, match=r"collect and capacity can't be combined"):
         _orders(json_path=_settings(tmp_path, _collecting(collect, with_capacity)))

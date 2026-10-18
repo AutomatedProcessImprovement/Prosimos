@@ -88,7 +88,7 @@ def test_items_0_publishes_none(tmp_path):
 
 def test_a_fixed_count_publishes_that_many(tmp_path):
     def fixed_2(settings):
-        settings["messages"]["publish"][0]["count"] = {"value": 2}
+        settings["messages"]["publish"][0]["count"] = 2
 
     report, _, _ = _run(_settings(tmp_path, fixed_2))
 
@@ -125,7 +125,7 @@ def test_index_on_an_entry_without_count_is_rejected(tmp_path):
 ])
 def test_count_on_a_start_or_catch_event_is_rejected(tmp_path, bpmn_path, base, where):
     def counted(settings):
-        settings["messages"]["consume"][0]["count"] = {"value": 2}
+        settings["messages"]["consume"][0]["count"] = 2
 
     with pytest.raises(InvalidSimScenarioException,
                        match=r"messages.consume\[0\]: count is only for publish entries, on throw and end events: "
@@ -135,14 +135,16 @@ def test_count_on_a_start_or_catch_event_is_rejected(tmp_path, bpmn_path, base, 
 
 
 @pytest.mark.parametrize("count, message", [
-    ({"value": -1}, r"'count' value must be a whole number of at least 0, got -1"),
-    ({"value": 1.5}, r"'count' value must be a whole number of at least 0, got 1.5"),
+    (-1, r"'count' must be either a whole number of at least 0, \{\"case_attribute\": <case attribute>\} or "
+         r"\{\"list\": <case attribute>, \"as\": <attribute name>\}, got -1"),
+    (1.5, r"'count' must be either a whole number of at least 0, .*, got 1.5"),
+    ("2", r"'count' must be either a whole number of at least 0, .*, got '2'"),
+    ({}, r"'count' must be either a whole number of at least 0, .*, got \{\}"),
     ({"case_attribute": "weight"}, r"'count' case_attribute 'weight' is not a declared case, global or event attribute"),
-    ({"value": 2, "case_attribute": "items"}, r"'count' must be either"),
 ])
 def test_an_invalid_count_is_rejected(tmp_path, count, message):
     def invalid(settings):
         settings["messages"]["publish"][0]["count"] = count
 
-    with pytest.raises(InvalidSimScenarioException, match=r"messages.publish\[0\]: " + message):
+    with pytest.raises(InvalidSimScenarioException, match=r"messages.publish\[0\](: |\.)" + message):
         _load(_settings(tmp_path, invalid))

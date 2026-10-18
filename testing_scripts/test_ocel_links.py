@@ -363,7 +363,7 @@ def test_messages_collected_before_a_parallel_split_each_link_every_task_it_enab
     # the case collects two Go, at 09:20 and 09:30, before it moves on to the split
     with open(f"{GATEWAYS}/and_split_after_catch.json") as file:
         settings = json.load(file)
-    settings["messages"]["consume"][0]["collect"] = {"value": 2}
+    settings["messages"]["consume"][0]["collect"] = 2
     (tmp_path / "collect_2.json").write_text(json.dumps(settings))
 
     report, engine = _gateway_run("and_split_after_catch", tmp_path / "collect_2", Go=[20 * MINUTES, 30 * MINUTES])

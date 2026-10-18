@@ -18,7 +18,7 @@
     ],
     "consume": [
       {"event_id": "Start_Package", "type": "ItemPicked", "append": {"item_ids": "case_id"}},
-      {"event_id": "Catch_More_Items", "type": "ItemPicked", "collect": {"value": 2}, "append": {"item_ids": "case_id"}}
+      {"event_id": "Catch_More_Items", "type": "ItemPicked", "collect": 2, "append": {"item_ids": "case_id"}}
     ]
   }
 }

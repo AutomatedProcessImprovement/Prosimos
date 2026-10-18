@@ -442,7 +442,7 @@ def test_of_several_branches_with_nothing_to_collect_the_one_listed_first_wins_f
 
 def test_a_race_branch_with_a_fixed_collect_of_0_is_rejected(tmp_path):
     def fixed_0(settings):
-        settings["messages"]["consume"][1]["collect"] = {"value": 0}
+        settings["messages"]["consume"][1]["collect"] = 0
 
     with pytest.raises(InvalidSimScenarioException,
                        match="Catch_Rejected, after the event-based gateway Race: a race branch with a fixed collect "

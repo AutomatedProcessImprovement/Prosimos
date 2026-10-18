@@ -102,22 +102,21 @@ def test_a_consume_entry(bpmn):
 
 def test_a_count_object(bpmn):
     _messages_rejected(publish(count={"case_atribute": "items"}), bpmn,
-                       r"messages.publish\[0\].count: unknown key 'case_atribute'; allowed: as, case_attribute, list, "
-                       r"value$")
+                       r"messages.publish\[0\].count: unknown key 'case_atribute'; allowed: as, case_attribute, list$")
 
 
 def test_a_collect_object(bpmn):
     _messages_rejected(consume(collect={"vale": 3}), bpmn,
-                       r"messages.consume\[0\].collect: unknown key 'vale'; allowed: case_attribute, max, min, value$")
+                       r"messages.consume\[0\].collect: unknown key 'vale'; allowed: case_attribute, max, min$")
 
 
 def test_a_capacity_object(bpmn):
     _messages_rejected(consume(capacity={"atribute": "seats"}), bpmn,
-                       r"messages.consume\[0\].capacity: unknown key 'atribute'; allowed: attribute, max, min, value$")
+                       r"messages.consume\[0\].capacity: unknown key 'atribute'; allowed: attribute, max, min$")
 
 
 def test_count_on_a_consume_entry_keeps_its_own_reason(bpmn):
-    _messages_rejected(consume(count={"value": 2}), bpmn, r"count is only for publish entries")
+    _messages_rejected(consume(count=2), bpmn, r"count is only for publish entries")
 
 
 # duplicate ids

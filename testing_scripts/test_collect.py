@@ -188,10 +188,7 @@ def test_a_number_to_collect_that_isnt_a_whole_number_counts_as_1_with_one_warni
 
 
 @pytest.mark.parametrize("change, reason", [
-    (lambda entry: entry.update(collect={"value": -1}), r"'collect' value must be a whole number of at least 0, got -1"),
-    (lambda entry: entry.update(collect={"value": 1.5}), r"'collect' value must be a whole number of at least 0, got 1.5"),
-    (lambda entry: entry.update(collect={"value": 2, "case_attribute": "items"}), r"'collect' must be either"),
-    (lambda entry: entry.update(capacity={"value": 2}),
+    (lambda entry: entry.update(capacity=2),
      r"collect and capacity can't be combined on one entry.*Use two steps through an intermediate case"),
 ])
 def test_an_invalid_collect_is_rejected_when_the_model_is_loaded(tmp_path, change, reason):
@@ -227,7 +224,7 @@ def test_a_catch_event_with_several_entries_and_no_collect_still_loads(tmp_path)
 def test_a_start_event_cant_collect_and_the_error_points_to_start_then_collect(tmp_path):
     with open(f"{ASSETS}/tartu_warehouse.json") as file:
         settings = json.load(file)
-    settings["messages"]["consume"][0]["collect"] = {"value": 4}
+    settings["messages"]["consume"][0]["collect"] = 4
     path = tmp_path / "warehouse.json"
     path.write_text(json.dumps(settings))
 

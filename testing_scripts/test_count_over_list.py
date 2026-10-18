@@ -86,7 +86,7 @@ def _copying_the_list(settings):
     start, more = settings["messages"]["consume"]
     del start["append"], more["append"]
     start["copy"] = {"item_ids": "items"}
-    more["collect"] = {"value": 0}
+    more["collect"] = 0
 
 
 def test_a_list_copied_from_a_message_is_walked_too(tmp_path):
@@ -133,7 +133,7 @@ def test_as_equal_to_a_reserved_name_is_rejected(tmp_path, name):
     ({"list": "weights", "as": "item_id"}, r"'count' list 'weights' is not a declared case, global or event attribute"),
     ({"list": "item_ids", "as": ""}, r"'count' as must be a non-empty string"),
     ({"list": "item_ids", "as": 3}, r"'count' as must be a non-empty string"),
-    ({"list": "item_ids", "as": "item_id", "value": 2}, r"'count' over a list has only 'list' and 'as'"),
+    ({"list": "item_ids", "as": "item_id", "case_attribute": "items"}, r"'count' over a list has only 'list' and 'as'"),
     ({"as": "item_id"}, r"'count' must be either"),
 ])
 def test_an_invalid_count_over_a_list_is_rejected(tmp_path, count, message):

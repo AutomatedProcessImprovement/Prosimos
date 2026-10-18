@@ -153,10 +153,7 @@ def test_a_truck_for_another_dock_resumes_nobody():
 
 
 @pytest.mark.parametrize("capacity, reason", [
-    ({"value": 0}, r"'capacity' value must be a whole number of at least 1, got 0"),
-    ({"value": 1.5}, r"'capacity' value must be a whole number of at least 1, got 1.5"),
-    ({"value": "2"}, r"'capacity' value must be a whole number of at least 1, got '2'"),
-    ({"value": 2, "attribute": "capacity"}, r"'capacity' must be either"),
+    ("2", r"'capacity' must be either a whole number of at least 1"),
     ({"attribute": ""}, r"'capacity' attribute must be a message attribute name"),
 ])
 def test_an_invalid_capacity_is_rejected_when_the_model_is_loaded(tmp_path, capacity, reason):
@@ -169,7 +166,7 @@ def test_an_invalid_capacity_is_rejected_when_the_model_is_loaded(tmp_path, capa
 def test_a_start_event_takes_no_capacity(tmp_path):
     with open(f"{ASSETS}/tartu_warehouse.json") as file:
         settings = json.load(file)
-    settings["messages"]["consume"][0]["capacity"] = {"value": 2}
+    settings["messages"]["consume"][0]["capacity"] = {"attribute": "capacity"}
     path = tmp_path / "warehouse.json"
     path.write_text(json.dumps(settings))
 

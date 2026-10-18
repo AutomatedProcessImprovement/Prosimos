@@ -144,7 +144,7 @@ Without `capacity`, a message resumes one case.
 ```
 "capacity": {"min": 2, "max": 4}                   each bound a number, or {"attribute": ...} read from the message
 "capacity": {"min": 2}                             without max: no limit
-"capacity": 2                                      (1, 2); also {"value": 2}
+"capacity": 2                                      (1, 2)
 "capacity": {"attribute": "capacity"}              (1, capacity)
 ```
 
@@ -166,7 +166,7 @@ event-based gateways"). Without `collect`, one message is enough.
 ```
 "collect": {"min": 2, "max": 5}                   each bound a number, or {"case_attribute": ...} read from the case
 "collect": {"min": {"case_attribute": "items"}}   without max: no limit
-"collect": 3                                      (3, 3); also {"value": 3}
+"collect": 3                                      (3, 3)
 "collect": {"case_attribute": "items"}            (items, items)
 "collect": "all"                                  (1, no limit): the next message, and every other one offered then
 "collect": 0                                      (0, 0): passes straight on
@@ -195,7 +195,7 @@ stays for the next package. A message without one of the listed attributes doesn
 per event and attribute.
 
 **count** (optional, on a `publish` entry) publishes several messages at once, one per object: a
-fixed `{"value": 3}`, or `{"case_attribute": "items"}` to read it from the case when it passes the
+fixed number such as `3`, or `{"case_attribute": "items"}` to read it from the case when it passes the
 event. Without it, the entry publishes one message. `index` is a reserved name for the message's
 number, 1..N, and can only be listed on an entry with `count`; together with `case_id` it identifies
 the object (`Sales-7` item 2), e.g. for the receiver to copy into its new case. For example, an order
@@ -295,10 +295,9 @@ The section is checked when the model is loaded. An invalid section stops loadin
 - `type` is a non-empty string.
 - `attributes` is a list of names, each `case_id`, `index` (only with `count`) or a declared case,
   global or event attribute, and not count's `as`.
-- `count` is either `{"value": <whole number of at least 0>}`, `{"case_attribute": <declared
-  attribute>}` or `{"list": <declared attribute>, "as": <name other than case_id and index>}`, and only
-  on a `publish` entry: only throw and end events publish, and a start event starts exactly one case
-  per message.
+- `count` is either a whole number of at least 0, `{"case_attribute": <declared attribute>}` or
+  `{"list": <declared attribute>, "as": <name other than case_id and index>}`, and only on a `publish`
+  entry: only throw and end events publish, and a start event starts exactly one case per message.
 - A message end event under `publish`, or a catch event under `consume`, has exactly one incoming
   arrow; otherwise: "draw an explicit gateway before <event id>". In BPMN, several arrows into one
   element mean "fire once per arriving token", but Prosimos joins several arrows into an end event
@@ -312,14 +311,13 @@ The section is checked when the model is loaded. An invalid section stops loadin
 - `aggregate` maps case attribute names to one function (`sum`, `count`, `min` or `max`) and a message
   attribute, and doesn't set `case_id`; its attributes are in no entry's `copy` or `append`, not in
   `case_attributes`, and every entry aggregating into one attribute uses the same function.
-- `capacity` is a whole number of at least 1, `{"value": <whole number of at least 1>}`, `{"attribute":
-  <name>}`, or `{"min": <bound>, "max": <bound>}` (max optional) with each bound a whole number of at least
-  1 or `{"attribute": <name>}`; a fixed min isn't above a fixed max. It is only on a catch event: a start
-  message starts exactly one case.
-- `collect` is a whole number of at least 0, `"all"`, `{"value": <whole number of at least 0>}`,
-  `{"case_attribute": <name>}`, or `{"min": <bound>, "max": <bound>}` (max optional) with each bound a whole
-  number of at least 0 or `{"case_attribute": <name>}`. A fixed min isn't above a fixed max, and a max of 0
-  doesn't come with a min read from a case attribute.
+- `capacity` is a whole number of at least 1, `{"attribute": <name>}`, or `{"min": <bound>, "max":
+  <bound>}` (max optional) with each bound a whole number of at least 1 or `{"attribute": <name>}`; a fixed
+  min isn't above a fixed max. It is only on a catch event: a start message starts exactly one case.
+- `collect` is a whole number of at least 0, `"all"`, `{"case_attribute": <name>}`, or `{"min": <bound>,
+  "max": <bound>}` (max optional) with each bound a whole number of at least 0 or `{"case_attribute":
+  <name>}`. A fixed min isn't above a fixed max, and a max of 0 doesn't come with a min read from a case
+  attribute.
 - `collect` is only on a catch event with exactly one `consume` entry: a case waiting there keeps one
   count, so it must be clear which messages it counts. To accept several variants of one type, use one
   entry with alternatives in its condition; to wait for several kinds, use one catch event per type.

@@ -108,9 +108,7 @@
             }
           ]
         ],
-        "capacity": {
-          "value": 2
-        },
+        "capacity": 2,
         "copy": {
           "truck_id": "case_id"
         }

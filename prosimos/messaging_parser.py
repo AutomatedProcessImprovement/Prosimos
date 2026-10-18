@@ -191,7 +191,7 @@ def _check_start(where, point, events):
 
 def _capacity(entry, where, starts_case):
     """(min, message attribute holding it, max, message attribute holding it), each bound fixed or read from the
-    message: {"min": 2, "max": {"attribute": "capacity"}}, {"min": 2} for (2, no limit), 2 or {"value": 2} for (1, 2),
+    message: {"min": 2, "max": {"attribute": "capacity"}}, {"min": 2} for (2, no limit), 2 for (1, 2),
     {"attribute": "capacity"} for (1, capacity)."""
     if "capacity" not in entry:
         return 1, None, 1, None
@@ -208,20 +208,16 @@ def _capacity(entry, where, starts_case):
             _fail(f"{where}: 'capacity' min {fewest} is above max {most}")
         return fewest, fewest_attribute, most, most_attribute
     if isinstance(capacity, dict):
-        _check_keys(f"{where}.capacity", capacity, {"value", "attribute", "min", "max"})
+        _check_keys(f"{where}.capacity", capacity, {"attribute", "min", "max"})
         if set(capacity) == {"max"}:
             _fail(f"{where}: 'capacity' max needs a min, e.g. {{\"min\": 1, \"max\": {capacity['max']!r}}}")
     if not isinstance(capacity, dict) or len(capacity) != 1:
-        _fail(f"{where}: 'capacity' must be either a whole number of at least 1, {{\"min\": <bound>, \"max\": "
-              f"<bound>}} with each bound a number or {{\"attribute\": <message attribute>}}, {{\"value\": <number>}} "
-              f"or {{\"attribute\": <message attribute>}}")
-    if "attribute" in capacity:
-        if not isinstance(capacity["attribute"], str) or not capacity["attribute"]:
-            _fail(f"{where}: 'capacity' attribute must be a message attribute name")
-        return 1, None, 1, capacity["attribute"]
-    if not is_whole_number_of_at_least_one(capacity["value"]):
-        _fail(f"{where}: 'capacity' value must be a whole number of at least 1, got {capacity['value']!r}")
-    return 1, None, int(capacity["value"]), None
+        _fail(f"{where}: 'capacity' must be either a whole number of at least 1, {{\"attribute\": <message "
+              f"attribute>}} or {{\"min\": <bound>, \"max\": <bound>}} with each bound a number or {{\"attribute\": "
+              f"<message attribute>}}")
+    if not isinstance(capacity["attribute"], str) or not capacity["attribute"]:
+        _fail(f"{where}: 'capacity' attribute must be a message attribute name")
+    return 1, None, 1, capacity["attribute"]
 
 
 def _capacity_bound(capacity, name, where):
@@ -240,7 +236,7 @@ def _capacity_bound(capacity, name, where):
 
 def _collect(entry, where, starts_case):
     """(min, case attribute holding it, max, case attribute holding it), each bound fixed or read from the case:
-    {"min": 2, "max": 5}, {"min": {"case_attribute": "items"}}, 3 or {"value": 3} for (3, 3), {"case_attribute":
+    {"min": 2, "max": 5}, {"min": {"case_attribute": "items"}}, 3 for (3, 3), {"case_attribute":
     "items"} for both from items, "all" for (1, no limit), 0 for (0, 0). A max of None means the same as min, and
     math.inf no limit."""
     if "collect" not in entry:
@@ -249,7 +245,7 @@ def _collect(entry, where, starts_case):
         _fail(f"{where}: a start event can't collect: it turns one message into a new case, and before that case "
               f"exists nothing holds the earlier messages or tells which ones belong together. Start on the first "
               f"message, then collect the rest at a catch event right after the start (e.g. a picking batch: "
-              f"start on 1 order, then collect {{\"value\": 4}})")
+              f"start on 1 order, then collect 4)")
     if "capacity" in entry:
         _fail(f"{where}: collect and capacity can't be combined on one entry: that would be several messages "
               f"completing several cases at once. Use two steps through an intermediate case instead: it collects "
@@ -269,22 +265,18 @@ def _collect(entry, where, starts_case):
                   f"couldn't take any")
         return low, low_attribute, high, high_attribute
     if isinstance(collect, dict):
-        _check_keys(f"{where}.collect", collect, {"value", "case_attribute", "min", "max"})
+        _check_keys(f"{where}.collect", collect, {"case_attribute", "min", "max"})
     if not isinstance(collect, dict) or len(collect) != 1:
         if is_whole_number(collect, minimum=0):
             return int(collect), None, None, None
-        _fail(f"{where}: 'collect' must be either a whole number of at least 0, \"all\", {{\"min\": <bound>, \"max\": "
-              f"<bound>}} with each bound a number or {{\"case_attribute\": <case attribute>}}, {{\"value\": <number>}} or "
+        _fail(f"{where}: 'collect' must be either a whole number of at least 0, \"all\", {{\"case_attribute\": <case "
+              f"attribute>}} or {{\"min\": <bound>, \"max\": <bound>}} with each bound a number or "
               f"{{\"case_attribute\": <case attribute>}}")
-    if "case_attribute" in collect:
-        if not isinstance(collect["case_attribute"], str) or not collect["case_attribute"]:
-            _fail(f"{where}: 'collect' case_attribute must be a case attribute name")
-        return 1, collect["case_attribute"], None, None
     if "max" in collect:
         _fail(f"{where}: 'collect' max needs a min, e.g. {{\"min\": 1, \"max\": {collect['max']!r}}}")
-    if not is_whole_number(collect["value"], minimum=0):
-        _fail(f"{where}: 'collect' value must be a whole number of at least 0, got {collect['value']!r}")
-    return int(collect["value"]), None, None, None
+    if not isinstance(collect["case_attribute"], str) or not collect["case_attribute"]:
+        _fail(f"{where}: 'collect' case_attribute must be a case attribute name")
+    return 1, collect["case_attribute"], None, None
 
 
 def _same(entry, where):
@@ -486,26 +478,24 @@ def _name(entry, key, where):
 
 def _count(entry, where, declared):
     """(fixed number of messages, case attribute holding it, case attribute holding a list, the name each
-    message carries its entry under): {"value": 3}, {"case_attribute": "items"} or
-    {"list": "item_ids", "as": "item_id"}; all None without count."""
+    message carries its entry under): 3, {"case_attribute": "items"} or {"list": "item_ids", "as": "item_id"}; all
+    None without count."""
     if "count" not in entry:
         return None, None, None, None
     count = entry["count"]
+    if is_whole_number(count, minimum=0):
+        return int(count), None, None, None
     if isinstance(count, dict):
-        _check_keys(f"{where}.count", count, {"value", "case_attribute", "list", "as"})
+        _check_keys(f"{where}.count", count, {"case_attribute", "list", "as"})
     if isinstance(count, dict) and "list" in count:
         return (None, None) + _count_over_list(count, where, declared)
-    if not isinstance(count, dict) or len(count) != 1 or not set(count) <= {"value", "case_attribute"}:
-        _fail(f"{where}: 'count' must be either {{\"value\": <number>}}, {{\"case_attribute\": <case attribute>}} or "
-              f"{{\"list\": <case attribute>, \"as\": <attribute name>}}")
-    if "case_attribute" in count:
-        if not isinstance(count["case_attribute"], str) or count["case_attribute"] not in declared:
-            _fail(f"{where}: 'count' case_attribute {count['case_attribute']!r} is not a declared case, global or "
-                  f"event attribute")
-        return None, count["case_attribute"], None, None
-    if not is_whole_number(count["value"], minimum=0):
-        _fail(f"{where}: 'count' value must be a whole number of at least 0, got {count['value']!r}")
-    return int(count["value"]), None, None, None
+    if not isinstance(count, dict) or set(count) != {"case_attribute"}:
+        _fail(f"{where}: 'count' must be either a whole number of at least 0, {{\"case_attribute\": <case "
+              f"attribute>}} or {{\"list\": <case attribute>, \"as\": <attribute name>}}, got {count!r}")
+    if not isinstance(count["case_attribute"], str) or count["case_attribute"] not in declared:
+        _fail(f"{where}: 'count' case_attribute {count['case_attribute']!r} is not a declared case, global or "
+              f"event attribute")
+    return None, count["case_attribute"], None, None
 
 
 def _count_over_list(count, where, declared):

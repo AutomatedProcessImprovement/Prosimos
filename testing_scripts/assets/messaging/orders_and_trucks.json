@@ -18,7 +18,7 @@
     "consume": [
       {"event_id": "Catch_Truck", "type": "Truck",
        "condition": [[{"attribute": "dock", "comparison": "=", "value": "Tartu"}]],
-       "capacity": {"value": 2},
+       "capacity": 2,
        "copy": {"truck_id": "case_id"}}
     ]
   }
