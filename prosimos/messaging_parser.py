@@ -64,8 +64,9 @@ class ConsumePoint:
     condition: Optional[Tuple[Tuple[ConditionTerm, ...], ...]]  # any alternative whose terms all hold; None accepts every message
     copy: Tuple[Tuple[str, str], ...] = ()  # (case attribute, message attribute): copied into the case
     starts_case: bool = False  # at the start event: an accepted message starts a new case
-    capacity: int = 1  # how many waiting cases one message resumes, unless read from the message
-    capacity_attribute: Optional[str] = None  # the message attribute holding the capacity, if any
+    # max: how many waiting cases one message resumes at most (math.inf: no limit), unless read from the message
+    capacity: float = 1
+    capacity_attribute: Optional[str] = None  # the message attribute holding that max, if any
     collect: int = 1  # min: how many messages a case must claim here before it continues, unless read from the case
     collect_attribute: Optional[str] = None  # the case attribute holding that number, if any
     qualifier: Optional[str] = None  # of the OCEL links the messages it takes give; None means the message type
@@ -83,6 +84,10 @@ class ConsumePoint:
     collect_max_attribute: Optional[str] = None
     # message attributes the first message a case claims here sets; every later one must have the same values
     same: Tuple[str, ...] = ()
+    # min: how many cases must be waiting for one message to resume them; with fewer, it waits. Unless read from the
+    # message attribute capacity_min_attribute
+    capacity_min: int = 1
+    capacity_min_attribute: Optional[str] = None
 
     @property
     def link_qualifier(self):
@@ -144,11 +149,12 @@ def parse_messages(messages_json, bpmn_path, declared_attributes, case_attribute
     for where, entry in _entries(messages_json, "consume", CONSUME_KEYS, events, CONSUMING_EVENTS, ("count",)):
         starts_case = events[entry["event_id"]][0] == "startEvent"
         low, low_attribute, high, high_attribute = _collect(entry, where, starts_case)
+        fewest, fewest_attribute, most, most_attribute = _capacity(entry, where, starts_case)
         point = ConsumePoint(entry["event_id"], entry["type"], _condition(entry, where), _copy(entry, where),
-                             starts_case, *_capacity(entry, where, starts_case), low, low_attribute,
+                             starts_case, most, most_attribute, low, low_attribute,
                              _name(entry, "qualifier", where), _name(entry, "o2o", where),
                              _append(entry, where, case_attributes), _aggregate(entry, where, case_attributes),
-                             high, high_attribute, _same(entry, where))
+                             high, high_attribute, _same(entry, where), fewest, fewest_attribute)
         if "count" in entry:
             _fail(f"{where}: count is only for publish entries, on throw and end events: only they publish, and a "
                   f"start event starts exactly one case per message")
@@ -184,23 +190,52 @@ def _check_start(where, point, events):
 
 
 def _capacity(entry, where, starts_case):
-    """(fixed capacity, message attribute holding it): {"value": 2} or {"attribute": "capacity"}."""
+    """(min, message attribute holding it, max, message attribute holding it), each bound fixed or read from the
+    message: {"min": 2, "max": {"attribute": "capacity"}}, {"min": 2} for (2, no limit), 2 or {"value": 2} for (1, 2),
+    {"attribute": "capacity"} for (1, capacity)."""
     if "capacity" not in entry:
-        return 1, None
+        return 1, None, 1, None
     if starts_case:
         _fail(f"{where}: a start event takes no capacity: a start message starts exactly one case")
     capacity = entry["capacity"]
+    if is_whole_number_of_at_least_one(capacity):
+        return 1, None, int(capacity), None
+    if isinstance(capacity, dict) and "min" in capacity:
+        _check_keys(f"{where}.capacity", capacity, {"min", "max"})
+        fewest, fewest_attribute = _capacity_bound(capacity, "min", where)
+        most, most_attribute = _capacity_bound(capacity, "max", where) if "max" in capacity else (math.inf, None)
+        if fewest_attribute is None and most_attribute is None and fewest > most:
+            _fail(f"{where}: 'capacity' min {fewest} is above max {most}")
+        return fewest, fewest_attribute, most, most_attribute
     if isinstance(capacity, dict):
-        _check_keys(f"{where}.capacity", capacity, {"value", "attribute"})
-    if not isinstance(capacity, dict) or len(capacity) != 1 or not set(capacity) <= {"value", "attribute"}:
-        _fail(f"{where}: 'capacity' must be either {{\"value\": <number>}} or {{\"attribute\": <message attribute>}}")
+        _check_keys(f"{where}.capacity", capacity, {"value", "attribute", "min", "max"})
+        if set(capacity) == {"max"}:
+            _fail(f"{where}: 'capacity' max needs a min, e.g. {{\"min\": 1, \"max\": {capacity['max']!r}}}")
+    if not isinstance(capacity, dict) or len(capacity) != 1:
+        _fail(f"{where}: 'capacity' must be either a whole number of at least 1, {{\"min\": <bound>, \"max\": "
+              f"<bound>}} with each bound a number or {{\"attribute\": <message attribute>}}, {{\"value\": <number>}} "
+              f"or {{\"attribute\": <message attribute>}}")
     if "attribute" in capacity:
         if not isinstance(capacity["attribute"], str) or not capacity["attribute"]:
             _fail(f"{where}: 'capacity' attribute must be a message attribute name")
-        return 1, capacity["attribute"]
+        return 1, None, 1, capacity["attribute"]
     if not is_whole_number_of_at_least_one(capacity["value"]):
         _fail(f"{where}: 'capacity' value must be a whole number of at least 1, got {capacity['value']!r}")
-    return int(capacity["value"]), None
+    return 1, None, int(capacity["value"]), None
+
+
+def _capacity_bound(capacity, name, where):
+    """(fixed number, message attribute holding it) of capacity's bound name (min or max): 2 or
+    {"attribute": "capacity"}."""
+    bound = capacity[name]
+    if isinstance(bound, dict):
+        _check_keys(f"{where}.capacity.{name}", bound, {"attribute"})
+        if isinstance(bound.get("attribute"), str) and bound["attribute"]:
+            return 1, bound["attribute"]
+    elif is_whole_number_of_at_least_one(bound):
+        return int(bound), None
+    _fail(f"{where}: 'capacity' {name} must be a whole number of at least 1 or {{\"attribute\": <message "
+          f"attribute>}}, got {bound!r}")
 
 
 def _collect(entry, where, starts_case):

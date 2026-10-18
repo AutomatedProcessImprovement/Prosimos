@@ -281,9 +281,10 @@ class SimBPMEnv:
         self._close_collections(before=now)
         self.claimed_by = []
         values = dict(attributes, source=source)
-        # the oldest matching waiting case claims the message; its consume entry's capacity says how
-        # many waiting cases at the same entry claim it, oldest first, without waiting to fill up
-        claiming, takers, capacity = None, [], 1
+        # the oldest matching waiting case claims the message; its consume entry's capacity (min, max) says how
+        # many waiting cases at the same entry claim it, oldest first: with fewer than min waiting, none does yet;
+        # with min, up to max, without waiting to fill up
+        claiming, takers, fewest, capacity = None, [], 1, 1
         for parked_event in self.parked_events():
             if claiming is None:
                 claiming = next((point for point in self._consume_points[parked_event.task_id] if point.type == message_type
@@ -291,12 +292,14 @@ class SimBPMEnv:
                 if claiming is not None:
                     if parked_event.race is not None:
                         parked_event, claiming = self._first_listed_branch(parked_event.race, message_type, values)
-                    capacity = self._capacity(claiming, values)
+                    fewest, capacity = self._capacity(claiming, values)
                     takers.append(parked_event)
             elif parked_event.task_id == claiming.event_id and self._accepts(claiming, values, parked_event.p_case):
                 takers.append(parked_event)
             if takers and len(takers) == capacity:
                 break
+        if takers and len(takers) < fewest:
+            return "pending"  # offered again at this engine's next step, e.g. when another case starts waiting
         if takers:
             for parked_event in takers:
                 self._claim(parked_event, claiming, values, now)
@@ -417,19 +420,31 @@ class SimBPMEnv:
         return parked_event, point
 
     def _capacity(self, point, values):
-        """How many waiting cases this message resumes at point: its fixed capacity, or the one read from
-        the message; a missing or invalid one counts as 1, with one warning per event and attribute."""
-        if point.capacity_attribute is None:
-            return point.capacity
-        capacity = values.get(point.capacity_attribute)
-        if is_whole_number_of_at_least_one(capacity):
-            return int(capacity)
-        if (point.event_id, point.capacity_attribute) not in self._warned_capacities:
-            self._warned_capacities.add((point.event_id, point.capacity_attribute))
+        """(min, max) waiting cases this message resumes at point, each fixed or read from the message. A min read
+        from the message that is missing or not a whole number of at least 1 counts as 1; a max that is missing or
+        not a whole number of at least min counts as min. Each comes with one warning per event and attribute."""
+        fewest = point.capacity_min
+        if point.capacity_min_attribute is not None:
+            fewest = values.get(point.capacity_min_attribute)
+            if not is_whole_number_of_at_least_one(fewest):
+                self._warn_capacity(point, "min", point.capacity_min_attribute, f"(got {fewest!r}); its min counts as 1")
+                fewest = 1
+            fewest = int(fewest)
+        most = point.capacity if point.capacity_attribute is None else values.get(point.capacity_attribute)
+        if most == math.inf or is_whole_number_of_at_least_one(most) and most >= fewest:
+            return fewest, most if most == math.inf else int(most)
+        if fewest == 1:
+            self._warn_capacity(point, "max", point.capacity_attribute, f"(got {most!r}); it resumes one waiting case")
+        else:
+            self._warn_capacity(point, "max", point.capacity_attribute or "max",
+                                f"(got {most!r}, min {fewest}); it resumes no more than {fewest} waiting cases")
+        return fewest, fewest
+
+    def _warn_capacity(self, point, bound, attribute, consequence):
+        if (point.event_id, bound, attribute) not in self._warned_capacities:
+            self._warned_capacities.add((point.event_id, bound, attribute))
             warning_logger.add_warning(
-                f"{point.type} message accepted at {point.event_id} has no valid {point.capacity_attribute} "
-                f"(got {capacity!r}); it resumes one waiting case")
-        return 1
+                f"{point.type} message accepted at {point.event_id} has no valid {attribute} {consequence}")
 
     def _race_step(self, c_event):
         """A branch of a race comes off the queue. Returns True if nothing more is to be done with it now."""

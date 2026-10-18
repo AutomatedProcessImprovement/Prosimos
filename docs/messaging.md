@@ -136,15 +136,24 @@ With items weighing 1.2, 0.8 and 2.1, the package weighs 1.2 after the first cla
 - An aggregated attribute can't also be in the entry's `copy` or `append`, in another entry's `copy` or
   `append`, or in the process's `case_attributes`.
 
-**capacity** (optional, on a catch event's entry) says how many waiting cases one message resumes:
-a fixed `{"value": 2}`, or `{"attribute": "capacity"}` to read it from the message. Without it, a
-message resumes one case. For example, orders waiting at the dock and a truck taking up to its
-capacity of them:
+**capacity** (optional, on a catch event's entry) says how many waiting cases one message resumes, as a
+min and a max, the mirror of `collect`: while fewer than min cases are waiting, the message waits; with min
+waiting, it resumes them and any others waiting, up to max, oldest first. It never waits to fill up to max.
+Without `capacity`, a message resumes one case.
+
+```
+"capacity": {"min": 2, "max": 4}                   each bound a number, or {"attribute": ...} read from the message
+"capacity": {"min": 2}                             without max: no limit
+"capacity": 2                                      (1, 2); also {"value": 2}
+"capacity": {"attribute": "capacity"}              (1, capacity)
+```
+
+For example, orders waiting at the dock and a truck taking at least 2 of them, up to its capacity:
 
 ```json
 {"event_id": "Catch_Truck", "type": "Truck",
  "condition": [[{"attribute": "dock", "comparison": "=", "value": "Tartu"}]],
- "capacity": {"attribute": "capacity"},
+ "capacity": {"min": 2, "max": {"attribute": "capacity"}},
  "copy": {"truck_id": "case_id"}}
 ```
 
@@ -303,8 +312,10 @@ The section is checked when the model is loaded. An invalid section stops loadin
 - `aggregate` maps case attribute names to one function (`sum`, `count`, `min` or `max`) and a message
   attribute, and doesn't set `case_id`; its attributes are in no entry's `copy` or `append`, not in
   `case_attributes`, and every entry aggregating into one attribute uses the same function.
-- `capacity` is either `{"value": <whole number of at least 1>}` or `{"attribute": <name>}`, and only
-  on a catch event: a start message starts exactly one case.
+- `capacity` is a whole number of at least 1, `{"value": <whole number of at least 1>}`, `{"attribute":
+  <name>}`, or `{"min": <bound>, "max": <bound>}` (max optional) with each bound a whole number of at least
+  1 or `{"attribute": <name>}`; a fixed min isn't above a fixed max. It is only on a catch event: a start
+  message starts exactly one case.
 - `collect` is a whole number of at least 0, `"all"`, `{"value": <whole number of at least 0>}`,
   `{"case_attribute": <name>}`, or `{"min": <bound>, "max": <bound>}` (max optional) with each bound a whole
   number of at least 0 or `{"case_attribute": <name>}`. A fixed min isn't above a fixed max, and a max of 0
@@ -360,23 +371,27 @@ Each message delivered to the process gets one of three answers:
 
 - **`CLAIMED`**: it matches a waiting case's condition. That case continues from the catch event at
   the message's time. If several waiting cases match, the one waiting longest takes it; ties go to
-  the lower case id. With a `capacity` above 1, the message then also resumes the next matching
-  cases waiting at the same entry, longest-waiting first, up to the capacity, all at the message's
-  time, and `copy` is applied to each. It doesn't wait to fill up: a truck that finds one order
-  takes one, and a truck that finds none stays `PENDING` and takes the first order that starts
-  waiting. A capacity read from the message that is missing or not a whole number of at least 1
-  counts as 1, with one warning per event and attribute. Only if no waiting case takes it, a
-  matching start event does: it starts a new case (see "Processes started by messages").
+  the lower case id. With a `capacity` max above 1, the message then also resumes the next matching
+  cases waiting at the same entry, longest-waiting first, up to max, all at the message's time, and
+  `copy` is applied to each. It doesn't wait to fill up: with a min of 1 (`"capacity": 2`), a truck
+  that finds one order takes one, and a truck that finds none stays `PENDING` and takes the first
+  order that starts waiting. With a min of 2, a truck that finds one order stays `PENDING`; the
+  orchestrator offers it again at the process's next step, e.g. when another order starts waiting, and
+  it takes both then. A truck still waiting when the run ends is reported unclaimed. A min read from the
+  message that is missing or not a whole number of at least 1 counts as 1; a max (fixed, or read from the
+  message) that isn't a whole number of at least min counts as min. Each comes with one warning per event
+  and attribute. Only if no waiting case takes it, a matching start event does: it starts a new case (see
+  "Processes started by messages").
 - **`DISCARDED`**: no case can ever accept it: it fails every condition on the message alone (fixed
   values, `source`), or the case it names through `case_id` doesn't exist in this process or has
   already finished. A case that just hasn't started yet still counts, and so, in a process started
   by messages, does a case number beyond the cases created so far (e.g. `Warehouse-5` when there are
   5): a start message may still create it. A start event whose condition fails never accepts it
   either.
-- **`PENDING`**: otherwise, e.g. its case hasn't reached the catch event yet, or doesn't exist yet in
-  a process started by messages (if it never appears, the message ends the run unclaimed). The orchestrator offers
-  it again later. A condition on a case attribute other than `case_id` never causes a discard,
-  because the attribute can still change.
+- **`PENDING`**: otherwise, e.g. its case hasn't reached the catch event yet, fewer cases than its
+  `capacity` min are waiting, or its case doesn't exist yet in a process started by messages (if it never
+  appears, the message ends the run unclaimed). The orchestrator offers it again later. A condition on a
+  case attribute other than `case_id` never causes a discard, because the attribute can still change.
 
 A case reaches a catch event, and can claim a message, only at the time it really gets there, not
 while the task before it is still running. If its message was already waiting in the orchestrator's
@@ -481,7 +496,8 @@ Send quote --> <event-based gateway>                              <XOR> --> end
 `capacity` and `collect` work on a race's message branches as on any catch event:
 
 - **Capacity:** a truck that picks up several waiting orders wins the race of each one it takes (their
-  timers never fire); orders that didn't fit keep waiting in their own races.
+  timers never fire); orders that didn't fit keep waiting in their own races. A truck waiting for its min
+  takes no order yet, so each order's timer can still win its race.
 - **Collect: the complete set decides.** The race stays open until the case has claimed its min; only
   then does the message branch win (and takes the messages above min offered at that instant, up to
   max). If a timer fires first (e.g. after 1 of 3 items), the timer wins.

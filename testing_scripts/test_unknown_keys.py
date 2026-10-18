@@ -113,7 +113,7 @@ def test_a_collect_object(bpmn):
 
 def test_a_capacity_object(bpmn):
     _messages_rejected(consume(capacity={"atribute": "seats"}), bpmn,
-                       r"messages.consume\[0\].capacity: unknown key 'atribute'; allowed: attribute, value$")
+                       r"messages.consume\[0\].capacity: unknown key 'atribute'; allowed: attribute, max, min, value$")
 
 
 def test_count_on_a_consume_entry_keeps_its_own_reason(bpmn):
