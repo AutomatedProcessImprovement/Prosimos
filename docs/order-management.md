@@ -35,17 +35,17 @@ The customer is picked for the order and travels with the messages: order → `I
 `ItemPicked` → package. A package starts on an `ItemPicked` that no open package takes, then collects
 `more_items` more items of the same customer; waiting cases are offered messages before start events, so a
 customer has at most one open package. In the log, a package takes the oldest waiting item and then all of
-that customer's waiting items; that rule isn't available yet, so the package size is drawn instead. Sizes
-and waiting times are therefore approximate, and a customer's last package may still be collecting when
-the run ends.
+that customer's waiting items; this configuration doesn't use that rule yet, so the package size is drawn
+instead. Sizes and waiting times are therefore approximate, and a customer's last package may still be
+collecting when the run ends.
 
 Not modeled, and where each goes:
 
 - **Package weight**, the sum of its items' weights with `aggregate` ([messaging.md](messaging.md)); items
   have no weight yet: future work.
 - **The real packing rule**, the oldest waiting item and then all of that customer's waiting items
-  (`"collect": "all"` with `"same"`, which isn't available yet); it would also remove the packages still
-  collecting at the end: future work.
+  (`"collect": "all"` with `"same"`, see [messaging.md](messaging.md)); it would also remove the packages
+  still collecting at the end: future work.
 - **Confirmation by the customer's primary sales rep** (88% of confirmations in the log; any Sales employee
   confirms here): under discussion.
 - **The forwarder of a package** (the shipper sends it here): under discussion.

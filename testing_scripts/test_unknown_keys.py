@@ -97,7 +97,7 @@ def test_a_publish_entry(bpmn):
 def test_a_consume_entry(bpmn):
     _messages_rejected(consume(colect="all"), bpmn,
                        r"messages.consume\[0\]: unknown key 'colect'; allowed: aggregate, append, capacity, collect, "
-                       r"condition, copy, event_id, o2o, qualifier, type$")
+                       r"condition, copy, event_id, o2o, qualifier, same, type$")
 
 
 def test_a_count_object(bpmn):

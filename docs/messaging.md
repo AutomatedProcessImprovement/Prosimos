@@ -171,6 +171,20 @@ For example, an order waiting until an `ItemReady` has come for each of its item
  "collect": {"case_attribute": "items"}}
 ```
 
+**same** (optional, with `collect`) lists message attributes that every message a case collects there must
+share: the first message it claims (the oldest waiting, or the first to arrive) sets their values, and every
+later one must have the same. It works with any min and max. For example, a package taking the oldest
+waiting item and then all waiting items of the same customer:
+
+```json
+{"event_id": "Catch_Items", "type": "ItemPicked",
+ "collect": "all", "same": ["customer"], "copy": {"customer": "customer"}}
+```
+
+With items i1, i4 and i7 of Anna and i2 of Bob waiting, in that order, a package takes i1, i4 and i7; i2
+stays for the next package. A message without one of the listed attributes doesn't match, with one warning
+per event and attribute.
+
 **count** (optional, on a `publish` entry) publishes several messages at once, one per object: a
 fixed `{"value": 3}`, or `{"case_attribute": "items"}` to read it from the case when it passes the
 event. Without it, the entry publishes one message. `index` is a reserved name for the message's
@@ -265,7 +279,7 @@ The section is checked when the model is loaded. An invalid section stops loadin
 - The section holds only `publish` and `consume`, each a list.
 - No key is unknown: in the section, its entries, their `count`, `collect` and `capacity`, and condition
   terms. A misspelled key would otherwise be ignored and change the run without any message:
-  `messages.consume[0]: unknown key 'colect'; allowed: aggregate, append, capacity, collect, condition, copy, event_id, o2o, qualifier, type`.
+  `messages.consume[0]: unknown key 'colect'; allowed: aggregate, append, capacity, collect, condition, copy, event_id, o2o, qualifier, same, type`.
 - Every `event_id` exists in the BPMN model.
 - A `publish` event is an intermediate message throw event or a message end event.
 - A `consume` event is an intermediate message catch event or a message start event.
@@ -304,6 +318,8 @@ The section is checked when the model is loaded. An invalid section stops loadin
   batch: start on 1 order, then `"collect": 4`). The rest is a fixed number, or a case
   attribute holding the remaining count, since a count can't do arithmetic.
 - `collect` and `capacity` aren't on the same entry (see "Many messages for many cases").
+- `same` is a non-empty list of message attribute names, each listed once, on an entry with `collect`:
+  without one, a case takes a single message, so there is nothing to compare it with.
 - `qualifier` and `o2o`, where given, are non-empty strings.
 - A process started by messages (a `consume` entry on its start event) has exactly one start event,
   and the start event's condition uses only fixed values and `source`, not `case_attribute`: there
@@ -374,7 +390,8 @@ message is CLAIMED and bound to the case, and `copy`, `append` and `aggregate` a
 later message overwrites an earlier copied value); the case stays parked until it has its min, then
 continues at the time of the message that completed it. Messages that came earlier wait in the
 orchestrator's pool and are claimed as soon as the case parks, oldest first, possibly several in one step.
-When several waiting cases match, the one waiting longest gets it.
+When several waiting cases match, the one waiting longest gets it. With `same`, a message whose values
+differ from the first one's doesn't match the case, so it goes to the next waiting case it matches, or waits.
 
 The case takes the messages above min at the same instant: after the step whose offers gave it its min,
 the orchestrator may still offer other messages of that step (several published at once, e.g. with

@@ -19,8 +19,8 @@ CONSUMING_EVENTS = {"intermediateCatchEvent": "an intermediate message catch eve
 COMPARISONS = ("=", "!=", "<", "<=", ">", ">=", "in")  # the ones branch rules understand
 TERM_KEYS = {"attribute", "comparison", "value", "case_attribute"}
 PUBLISH_KEYS = {"event_id", "type", "attributes", "count", "qualifier", "o2o"}
-CONSUME_KEYS = {"event_id", "type", "condition", "copy", "append", "aggregate", "capacity", "collect", "qualifier",
-                "o2o"}
+CONSUME_KEYS = {"event_id", "type", "condition", "copy", "append", "aggregate", "capacity", "collect", "same",
+                "qualifier", "o2o"}
 AGGREGATE_FUNCTIONS = {"sum", "count", "min", "max"}
 
 
@@ -81,6 +81,8 @@ class ConsumePoint:
     # the case attribute collect_max_attribute
     collect_max: Optional[float] = None
     collect_max_attribute: Optional[str] = None
+    # message attributes the first message a case claims here sets; every later one must have the same values
+    same: Tuple[str, ...] = ()
 
     @property
     def link_qualifier(self):
@@ -146,7 +148,7 @@ def parse_messages(messages_json, bpmn_path, declared_attributes, case_attribute
                              starts_case, *_capacity(entry, where, starts_case), low, low_attribute,
                              _name(entry, "qualifier", where), _name(entry, "o2o", where),
                              _append(entry, where, case_attributes), _aggregate(entry, where, case_attributes),
-                             high, high_attribute)
+                             high, high_attribute, _same(entry, where))
         if "count" in entry:
             _fail(f"{where}: count is only for publish entries, on throw and end events: only they publish, and a "
                   f"start event starts exactly one case per message")
@@ -248,6 +250,22 @@ def _collect(entry, where, starts_case):
     if not is_whole_number(collect["value"], minimum=0):
         _fail(f"{where}: 'collect' value must be a whole number of at least 0, got {collect['value']!r}")
     return int(collect["value"]), None, None, None
+
+
+def _same(entry, where):
+    """The message attributes a collecting case's messages must all have the same values of: ["customer"]."""
+    if "same" not in entry:
+        return ()
+    same = entry["same"]
+    if not isinstance(same, list) or not same or not all(isinstance(name, str) and name for name in same):
+        _fail(f"{where}: 'same' must be a non-empty list of message attribute names, got {same!r}")
+    repeated = sorted(name for name, times in Counter(same).items() if times > 1)
+    if repeated:
+        _fail(f"{where}: 'same' lists {', '.join(repeated)} more than once")
+    if "collect" not in entry:
+        _fail(f"{where}: 'same' needs a collect: without one, a case takes a single message, so there is nothing "
+              f"to compare it with")
+    return tuple(same)
 
 
 def _bound(collect, name, where):

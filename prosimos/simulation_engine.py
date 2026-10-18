@@ -135,11 +135,13 @@ class SimBPMEnv:
         self._warned_missing_aggregates = set()
         self._warned_not_numbers = set()
         self._warned_capacities = set()
-        self._collected = dict()  # (case id, event id) -> [messages claimed so far, min, max]
+        # (case id, event id) -> [messages claimed so far, min, max, the values of 'same' the first message set]
+        self._collected = dict()
         # (case id, event id) -> when it got min: resumed then, but still taking messages offered at that instant, up
         # to max, until the orchestrator's offers for that step are done
         self._closing = dict()
         self._warned_collects = set()
+        self._warned_missing_same = set()
 
         # Races. At an event-based gateway with a branch that waits for a message, every branch is armed:
         # timers are queued for when they fire, message branches park; the first to happen wins and
@@ -285,13 +287,13 @@ class SimBPMEnv:
         for parked_event in self.parked_events():
             if claiming is None:
                 claiming = next((point for point in self._consume_points[parked_event.task_id] if point.type == message_type
-                                 and self._condition_holds(point.condition, values, parked_event.p_case)), None)
+                                 and self._accepts(point, values, parked_event.p_case)), None)
                 if claiming is not None:
                     if parked_event.race is not None:
                         parked_event, claiming = self._first_listed_branch(parked_event.race, message_type, values)
                     capacity = self._capacity(claiming, values)
                     takers.append(parked_event)
-            elif parked_event.task_id == claiming.event_id and self._condition_holds(claiming.condition, values, parked_event.p_case):
+            elif parked_event.task_id == claiming.event_id and self._accepts(claiming, values, parked_event.p_case):
                 takers.append(parked_event)
             if takers and len(takers) == capacity:
                 break
@@ -314,7 +316,8 @@ class SimBPMEnv:
             p_case = self.create_case(now, start_values)
             self.claimed_by = [(p_case, starting.event_id, starting)]
             return "claimed"
-        if any(self._could_match(point.condition, values) for point in points if not point.starts_case):
+        if any(self._could_match(point.condition, values) and self._has_same(point, values)
+               for point in points if not point.starts_case):
             return "pending"
         return "discarded"
 
@@ -332,7 +335,9 @@ class SimBPMEnv:
                                   for target, source in point.append if source in values)
         self._copied_later.extend((parked_event.p_case, target, case_values[target], now) for target in aggregated)
         self._collected[key][0] += 1
-        claimed, low, high = self._collected[key]
+        if point.same and self._collected[key][3] is None:
+            self._collected[key][3] = {name: values[name] for name in point.same}
+        claimed, low, high, _ = self._collected[key]
         if key in self._closing:
             if claimed >= high:
                 self._close(key)
@@ -369,6 +374,27 @@ class SimBPMEnv:
             if before is None or opened < before:
                 self._close(key)
 
+    def _accepts(self, point, values, p_case):
+        """Whether the case p_case, waiting at point's event, takes the message: its condition holds and, with
+        'same', the message has the values the first message the case claimed there set."""
+        if not self._condition_holds(point.condition, values, p_case) or not self._has_same(point, values):
+            return False
+        collected = self._collected.get((p_case, point.event_id))
+        first = collected[3] if collected is not None else None
+        return first is None or all(values[name] == value for name, value in first.items())
+
+    def _has_same(self, point, values):
+        """Whether the message has every attribute point.same lists; a message without one never matches there,
+        with one warning per event and attribute."""
+        missing = [name for name in point.same if name not in values]
+        for name in missing:
+            if (point.event_id, name) not in self._warned_missing_same:
+                self._warned_missing_same.add((point.event_id, name))
+                warning_logger.add_warning(
+                    f"{point.type} message offered at {point.event_id} has no {name}, which 'same' compares; it "
+                    f"doesn't match there")
+        return not missing
+
     def _first_listed_branch(self, race, message_type, values):
         """The parked branch of race, and its consume entry, that takes a message accepted by more than one
         of the race's branches: the one whose entry comes first in the JSON, with one warning per gateway."""
@@ -378,7 +404,7 @@ class SimBPMEnv:
             if parked_event is None:
                 continue  # a branch that doesn't wait for a message, e.g. a timer
             point = next((point for point in self._consume_points[branch] if point.type == message_type
-                          and self._condition_holds(point.condition, values, race.p_case)), None)
+                          and self._accepts(point, values, race.p_case)), None)
             if point is not None:
                 accepting.append((parked_event, point))
         parked_event, point = min(accepting, key=lambda accepted: self._consume_order[id(accepted[1])])
@@ -814,7 +840,7 @@ class SimBPMEnv:
                 most = self._most(c_event.p_case, c_event.task_id, needed)
                 if most > 0:
                     self._parked_events[(c_event.p_case, c_event.task_id)] = c_event
-                    self._collected[(c_event.p_case, c_event.task_id)] = [0, needed, most]
+                    self._collected[(c_event.p_case, c_event.task_id)] = [0, needed, most, None]
                     if needed == 0:  # it goes on now, taking up to max of the messages offered at this instant
                         self._resume(c_event, c_event.enabled_datetime, keep_open=True)
                     return

@@ -142,6 +142,9 @@ the gateway. The branches of one case share a `Race` (`SimBPMEnv._races`, keyed 
   engine for `next_event_time()` right after them, and an engine steps only after that: both, and a
   `deliver` at a later time, close the open collections (`_close_collections`). The resumed catch event
   is therefore never executed while its case still collects.
+- With `same`, the first claim keeps the values of the listed attributes with the case's count
+  (`_collected`), and `_accepts`, which decides everywhere whether a waiting case takes a message
+  (including `_first_listed_branch`), compares later messages with them.
 - A message branch with nothing to collect wins at once. Which one, if several, is decided when the
   case's first branch comes off the queue and starts the race (`_branch_with_nothing_to_collect`, stored
   as `Race.wins_at_once`): the one whose `consume` entry comes first, with one warning per gateway. The
