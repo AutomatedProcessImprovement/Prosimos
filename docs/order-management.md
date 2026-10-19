@@ -170,7 +170,7 @@ and price when it is created. They are the item's own attributes from then on: w
 
 Sales and Packaging have `carry_links`; Warehouse doesn't, so a reorder is linked only to its item and its
 product. A packing round that never took an item has no events and no links; its package object is in the
-file, with no items, but `pm4py.read_ocel2_json` leaves it out. The full 2,000-order run takes about 65 seconds
+file, with no items, but `pm4py.read_ocel2_json` leaves it out. The full 2,000-order run takes about 21 seconds
 (Apple M4 Pro).
 
 The comparison script reads the real log and the simulated OCEL file the same way, from their objects,
@@ -233,8 +233,5 @@ Found while building the example; no feature was added for them.
 - **A process started by arrivals has no end time.** The packing rounds are limited by their number, 1,200,
   chosen so that they last until just after the orders; how many are left waiting at the end, or how many items
   are left unpacked with fewer rounds, depends on the seed.
-- **The full run is slower with packing rounds** (about 65 seconds, from 25). While no round is waiting, the
-  waiting items are offered to Packaging again at each of its steps, and each offer checks every Packaging case
-  to tell whether one could still take the item. Future work.
 - **Reminders are 20 days and one microsecond apart.** A race timer's branch continues one microsecond after
   the timer's time, so that a message at exactly that time wins ([messaging.md](messaging.md)). By design.

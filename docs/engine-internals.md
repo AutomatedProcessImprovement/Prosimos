@@ -116,6 +116,14 @@ the case wait, and claim a message, before it has arrived.
 Before the messaging work, every catch event, whatever its kind, completed after a delay drawn from
 `event_distribution` (`execute_event`); catch events not listed under `consume` still do.
 
+**Unfinished cases.** When neither a waiting case nor a start event takes a message, `deliver` answers
+`PENDING` if a case that hasn't finished could still take it, and `DISCARDED` otherwise (`_could_match`).
+The cases that haven't finished, those still holding a token, are kept in `SimBPMEnv._unfinished` as their
+tokens move (`_tokens_moved`: when a case is created, after every event it executes, and when it wins a
+race), rather than found by going through every case at each offer. Waiting messages are offered again
+after every step of their process: in the Order Management example about 236,000 offers, and going through
+every case at each of them was the largest cost of the run.
+
 **Races.** An event-based gateway with a branch listed under `consume` is a race gateway
 (`BPMNGraph.race_gateways`, set by `SimBPMEnv`). There `update_process_state` puts a token on every
 branch instead of choosing one, so every branch's catch event is queued at the time the case reaches
@@ -217,7 +225,16 @@ caller's states and loads its own; at the end it saves its own and puts the call
 with its warning list, see [orchestrator.md](orchestrator.md)). Nothing in Prosimos or pix-framework
 changes: they keep drawing from "the global generators", which during the call are the engine's.
 So one engine's draws don't depend on which other engines run beside it, and a run leaves the
-caller's generators untouched. On a small example this cost about 36 µs per call.
+caller's generators untouched.
+
+Each swap copies both states, about 37 µs (most of it NumPy's `get_state` and `set_state`), which is
+more than many engine calls take themselves. So inside the orchestrator loop (`run_engines`), where
+nothing else draws from the global generators, an engine leaves its states there after a call
+(`_GlobalGenerators`, with `keep` set), and its next call finds them in place: they are swapped only
+when another engine is called. Before an engine that isn't a `ProsimosEngine` is called (it may draw
+from the global generators itself), and when the loop ends or fails, the caller's states are put
+back. Each engine still draws from its own states only, so the results are the same as with a swap
+at every call.
 
 An engine's states are seeded from the simulation seed and its process name, with a stable hash
 (SHA-256 of `"<seed>/<name>"`, not Python's `hash()`, which differs between runs), so two engines of

@@ -583,6 +583,42 @@ class SimulationEngine(ABC):
         lifecycle call, not a messaging one: nothing is published or delivered."""
 
 
+class _GlobalGenerators:
+    """Whose states the global Python and NumPy generators hold: the caller's (holder None) or a ProsimosEngine's.
+    Swapping them copies both states, which costs more than many engine calls themselves, so while keep is set
+    an engine leaves its states there after a call, and its next call finds them in place: they are swapped only
+    when another engine is called. Each engine still draws from its own states only, so nothing it draws
+    changes. keep is only for code that draws nothing from the global generators between engine calls, like
+    the orchestrator loop."""
+
+    def __init__(self):
+        self.holder, self.keep, self._callers = None, False, None
+
+    def take(self, engine):
+        if self.holder is engine:
+            return
+        states = random.getstate(), np.random.get_state()
+        if self.holder is None:
+            self._callers = states
+        else:
+            self.holder._python_state, self.holder._numpy_state = states
+        random.setstate(engine._python_state)
+        np.random.set_state(engine._numpy_state)
+        self.holder = engine
+
+    def give_back(self):
+        """Puts the caller's states back, keeping the holder's for its next call."""
+        if self.holder is None:
+            return
+        self.holder._python_state, self.holder._numpy_state = random.getstate(), np.random.get_state()
+        random.setstate(self._callers[0])
+        np.random.set_state(self._callers[1])
+        self.holder, self._callers = None, None
+
+
+_generators = _GlobalGenerators()
+
+
 class ProsimosEngine(SimulationEngine):
     """A Prosimos simulation (SimBPMEnv) seen through the SimulationEngine interface. It publishes
     the messages its model lists under 'publish', each at the time the case passes the event, and
@@ -592,7 +628,8 @@ class ProsimosEngine(SimulationEngine):
     Prosimos writes its warnings to one list shared by every engine (warning_logger) and draws its
     random numbers from the global Python and NumPy generators. Each method therefore hands Prosimos
     this engine's own warning list and generator states for the duration of the call, so two engines'
-    warnings never mix and one engine's draws don't depend on which other engines run beside it.
+    warnings never mix and one engine's draws don't depend on which other engines run beside it (inside
+    the orchestrator loop, the generator states stay until another engine is called: _GlobalGenerators).
 
     With a seed, the engine's generators are seeded from the seed and the process name, so engines of
     the same model under different names draw different values. Without one, they are seeded from the
@@ -623,17 +660,15 @@ class ProsimosEngine(SimulationEngine):
 
     @contextmanager
     def _own_globals(self):
-        shared_warnings, shared_python, shared_numpy = warning_logger.warnings_queue, random.getstate(), np.random.get_state()
+        shared_warnings = warning_logger.warnings_queue
         warning_logger.warnings_queue = self._warnings
-        random.setstate(self._python_state)
-        np.random.set_state(self._numpy_state)
+        _generators.take(self)
         try:
             yield
         finally:
-            self._python_state, self._numpy_state = random.getstate(), np.random.get_state()
             warning_logger.warnings_queue = shared_warnings
-            random.setstate(shared_python)
-            np.random.set_state(shared_numpy)
+            if not _generators.keep:
+                _generators.give_back()
 
     def subscriptions(self) -> List[str]:
         with self._own_globals():
@@ -1041,57 +1076,70 @@ def run_engines(
             message = pooled.message
             warn(f"{message.type} {message.id} from {message.source} was discarded by every recipient")
 
-    while True:
-        due = [(t, name) for name, engine in engines.items() if (t := engine.next_event_time()) is not None]
-        if not due:
-            break
-        now, name = min(due)
-        published = engines[name].step()
-        report.executed.append((now, name))
+    def engine(name):
+        """engines[name], with the caller's generator states back in the global generators first for an engine
+        that may draw from them itself: any but a ProsimosEngine."""
+        if not isinstance(engines[name], ProsimosEngine):
+            _generators.give_back()
+        return engines[name]
 
-        new_copies = []
-        for message in published:
-            message.id, message.source, message.time = f"m{next(next_id)}", name, now
-            report.published.append(message)
-            # a message never comes back to the process that published it, so a group whose only member
-            # subscribed to the type is the publisher gets no copy
-            groups = [group for group in routing.get(message.type, []) if recipients_of(group, message)]
-            if not groups:
-                if message.type in subscriptions[name]:
-                    warn(f"{message.type} {message.id} from {name}: no subscriber other than its publisher")
+    # nothing here draws from the global generators, so the engines may leave their states in them
+    _generators.keep = True
+    try:
+        while True:
+            due = [(t, name) for name in engines if (t := engine(name).next_event_time()) is not None]
+            if not due:
+                break
+            now, name = min(due)
+            published = engine(name).step()
+            report.executed.append((now, name))
+
+            new_copies = []
+            for message in published:
+                message.id, message.source, message.time = f"m{next(next_id)}", name, now
+                report.published.append(message)
+                # a message never comes back to the process that published it, so a group whose only member
+                # subscribed to the type is the publisher gets no copy
+                groups = [group for group in routing.get(message.type, []) if recipients_of(group, message)]
+                if not groups:
+                    if message.type in subscriptions[name]:
+                        warn(f"{message.type} {message.id} from {name}: no subscriber other than its publisher")
+                    else:
+                        warn(f"{message.type} {message.id} from {name} has no subscribers")
+                copies_left[message.id] = len(groups)
+                for group in groups:
+                    pooled = _PooledCopy(copy.deepcopy(message), group)
+                    pool.append(pooled)
+                    new_copies.append(pooled)
+                    report.copies.append((message.id, group))
+
+            # oldest first: the pool keeps copies in the order they were published, the new ones last
+            own_group = group_of[name]
+            new_ids = {id(pooled) for pooled in new_copies}
+            to_offer = [pooled for pooled in pool if id(pooled) in new_ids or pooled.group == own_group]
+            for pooled in to_offer:
+                message = pooled.message
+                recipients = recipients_of(pooled.group, message)
+                candidates = [m for m in recipients if m not in pooled.discarded_by]
+                rng.shuffle(candidates)
+                for member in candidates:
+                    verdict = engine(member).deliver(message, now)
+                    if not isinstance(verdict, Verdict):
+                        raise TypeError(f"{member}.deliver() must return a Verdict, got {verdict!r}")
+                    if verdict is Verdict.CLAIMED:
+                        report.claims.append((message.id, member, now))
+                        claimed_ids.add(message.id)
+                        resolve(pooled)
+                        break
+                    if verdict is Verdict.DISCARDED:
+                        pooled.discarded_by.add(member)
+                        report.discards.append((message.id, member, now))
                 else:
-                    warn(f"{message.type} {message.id} from {name} has no subscribers")
-            copies_left[message.id] = len(groups)
-            for group in groups:
-                pooled = _PooledCopy(copy.deepcopy(message), group)
-                pool.append(pooled)
-                new_copies.append(pooled)
-                report.copies.append((message.id, group))
-
-        # oldest first: the pool keeps copies in the order they were published, the new ones last
-        own_group = group_of[name]
-        new_ids = {id(pooled) for pooled in new_copies}
-        to_offer = [pooled for pooled in pool if id(pooled) in new_ids or pooled.group == own_group]
-        for pooled in to_offer:
-            message = pooled.message
-            recipients = recipients_of(pooled.group, message)
-            candidates = [m for m in recipients if m not in pooled.discarded_by]
-            rng.shuffle(candidates)
-            for member in candidates:
-                verdict = engines[member].deliver(message, now)
-                if not isinstance(verdict, Verdict):
-                    raise TypeError(f"{member}.deliver() must return a Verdict, got {verdict!r}")
-                if verdict is Verdict.CLAIMED:
-                    report.claims.append((message.id, member, now))
-                    claimed_ids.add(message.id)
-                    resolve(pooled)
-                    break
-                if verdict is Verdict.DISCARDED:
-                    pooled.discarded_by.add(member)
-                    report.discards.append((message.id, member, now))
-            else:
-                if all(m in pooled.discarded_by for m in recipients):
-                    resolve(pooled)
+                    if all(m in pooled.discarded_by for m in recipients):
+                        resolve(pooled)
+    finally:
+        _generators.keep = False
+        _generators.give_back()
 
     report.unclaimed = [(pooled.group, pooled.message) for pooled in pool]
     # the engines' records are only joined here, once the run is over: nothing during the run uses them

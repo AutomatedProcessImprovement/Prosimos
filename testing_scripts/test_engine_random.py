@@ -4,15 +4,18 @@ draws from its own Python and NumPy generator states, seeded from the simulation
 process name, so one process's draws don't depend on which other processes run beside it.
 """
 import csv
+import itertools
 import json
 import random
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import numpy as np
+import pytest
 import pytz
 
 from prosimos.orchestrator import ProcessSpec, SimulationConfig, run_orchestrator
-from prosimos.simulation_engine import run_simulation
+from prosimos.simulation_engine import SimBPMEnv, run_simulation
+from testing_scripts.scripted_engine import ScriptedEngine
 
 EXAMPLE = "testing_scripts/assets/running_example"
 START = pytz.utc.localize(datetime(2024, 1, 1, 9))
@@ -26,10 +29,12 @@ def _sales(name="Sales"):
 BILLING = ProcessSpec("Billing", f"{EXAMPLE}/billing.bpmn", f"{EXAMPLE}/billing.json")  # one random-length invoice per order
 
 
-def _rows(tmp_path, processes, seed=SEED, name="log"):
+def _rows(tmp_path, processes, seed=SEED, name="log", extra_engines=None):
     """The merged log of a run, without the process column, keyed by process."""
     path = tmp_path / f"{name}.csv"
-    run_orchestrator(SimulationConfig(processes, START, seed), path)
+    extra_engines = extra_engines or {}
+    run_orchestrator(SimulationConfig(processes, START, seed, extra_processes=tuple(extra_engines)), path,
+                     extra_engines=extra_engines)
     with open(path, encoding="utf-8") as file:
         rows = list(csv.DictReader(file))
     by_process = {}
@@ -49,6 +54,28 @@ def test_sales_log_is_the_same_whether_or_not_billing_runs_beside_it(tmp_path):
 
     assert len(with_billing["Billing"]) == 20  # Billing really ran, drawing an invoice time per order
     assert _sales_columns(alone["Sales"]) == _sales_columns(with_billing["Sales"])
+
+
+class _DrawingEngine(ScriptedEngine):
+    """A scripted engine that draws from the global generators whenever it is asked what it does next."""
+
+    def next_event_time(self):
+        random.random()
+        np.random.random()
+        return super().next_event_time()
+
+
+def test_sales_log_is_the_same_whether_or_not_an_engine_drawing_from_the_global_generators_runs_beside_it(tmp_path):
+    # the orchestrator leaves a ProsimosEngine's generator states in the global generators between its calls, so
+    # they must be swapped back before any other engine is called
+    drawing = _DrawingEngine("Drawing")
+    for minutes in range(0, 24 * 60, 7):
+        drawing.at(START + timedelta(minutes=minutes), lambda now: [])
+
+    alone = _rows(tmp_path, [_sales()], name="alone")
+    beside = _rows(tmp_path, [_sales()], name="beside", extra_engines={"Drawing": drawing})
+
+    assert _sales_columns(alone["Sales"]) == _sales_columns(beside["Sales"])
 
 
 def test_two_engines_of_the_same_model_under_different_names_draw_different_values(tmp_path):
@@ -72,6 +99,29 @@ def test_a_run_leaves_the_callers_random_generators_alone(tmp_path):
     before = random.getstate(), np.random.get_state()
 
     _rows(tmp_path, [_sales(), BILLING])
+
+    python_state, numpy_state = random.getstate(), np.random.get_state()
+    assert python_state == before[0]
+    assert all(np.array_equal(a, b) if isinstance(a, np.ndarray) else a == b for a, b in zip(numpy_state, before[1]))
+
+
+def test_a_run_that_fails_halfway_still_leaves_the_callers_random_generators_alone(tmp_path, monkeypatch):
+    # Prosimos fails at its 30th step, while the orchestrator has left Sales's generator states in the globals
+    steps = itertools.count(1)
+    step = SimBPMEnv.step
+
+    def failing_step(env):
+        if next(steps) == 30:
+            raise RuntimeError("Prosimos failed")
+        return step(env)
+
+    monkeypatch.setattr(SimBPMEnv, "step", failing_step)
+    random.seed(123)
+    np.random.seed(123)
+    before = random.getstate(), np.random.get_state()
+
+    with pytest.raises(RuntimeError, match="Prosimos failed"):
+        _rows(tmp_path, [_sales()])
 
     python_state, numpy_state = random.getstate(), np.random.get_state()
     assert python_state == before[0]

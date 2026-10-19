@@ -82,6 +82,9 @@ class SimBPMEnv:
         self.resource_queue = DiffResourceQueue(self.sim_setup.task_resource, r_first_available)
         self.events_queue = EventQueue()
         self.all_process_states = dict()  # store all process states with a case_id as a key
+        # the cases that still hold a token (as keys, in case id order), kept up to date as tokens move: when a
+        # case is created, executes an event or wins a race; _could_match reads it for every message offered
+        self._unfinished = dict()
 
         self.case_prioritisation = CasePrioritisation(
             self.sim_setup.total_num_cases or 0,  # None for a process started by messages: no planned cases
@@ -514,6 +517,14 @@ class SimBPMEnv:
                         p_state.state_mask &= ~graph.arcs_bitset[flow]
             self._parked_events.pop((race.p_case, branch), None)
             self._collected.pop((race.p_case, branch), None)
+        self._tokens_moved(race.p_case, p_state)
+
+    def _tokens_moved(self, p_case, p_state):
+        """Keeps _unfinished up to date after the tokens of the case p_case moved."""
+        if any(p_state.tokens.values()):
+            self._unfinished[p_case] = None
+        else:
+            self._unfinished.pop(p_case, None)
 
     def tasks_next_to(self, element_id, forward):
         """The tasks the token reaches first after element_id (forward) or came from last before it: the flows
@@ -727,7 +738,7 @@ class SimBPMEnv:
         """Whether some case that hasn't finished, or (in a process started by messages) one that doesn't
         exist yet, could still accept the message. Only terms on fixed values and on case_id are decided
         now; other case attributes can still change."""
-        unfinished = [p_case for p_case, p_state in self.all_process_states.items() if any(p_state.tokens.values())]
+        unfinished = self._unfinished
         future_cases = self.sim_setup.messaging.started_by_messages
         if condition is None:
             return bool(unfinished) or future_cases
@@ -788,6 +799,7 @@ class SimBPMEnv:
         )
         self._log_passed_throw_events(p_case, p_state, visited_at)
         self.all_process_states[p_case] = p_state
+        self._tokens_moved(p_case, p_state)
         self.log_info.trace_list.append(Trace(p_case, enabled_datetime))
         if self._appended or self._aggregated:  # a planned case's lists start empty too, and its sums and counts at 0
             case_values = sim_setup.bpmn_graph.all_attributes.setdefault(p_case, {})
@@ -832,6 +844,7 @@ class SimBPMEnv:
                     enabled_time,
                 )
                 self._log_passed_throw_events(p_case, p_state, visited_at)
+                self._tokens_moved(p_case, p_state)
 
                 for next_task in enabled_tasks:
                     self.events_queue.append_event(
@@ -875,6 +888,7 @@ class SimBPMEnv:
                 c_event.p_case, c_event.task_id, c_event.p_state, enabled_time
             )
             self._log_passed_throw_events(c_event.p_case, c_event.p_state, visited_at)
+            self._tokens_moved(c_event.p_case, c_event.p_state)
             # self.time_update_process_state += (datetime.datetime.now() - s_t).total_seconds()
 
             for next_task in enabled_tasks:

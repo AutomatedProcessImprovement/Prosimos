@@ -185,6 +185,27 @@ def test_a_message_for_a_case_that_has_not_started_yet_is_pending():
     assert engine.deliver(shipment("Sales-5"), START) is Verdict.DISCARDED
 
 
+class _NotToBeScanned(dict):
+    """A case's process states, which may be looked up one by one but not gone through."""
+
+    def _scanned(self, *args):
+        raise AssertionError("went through every case")
+
+    __iter__ = items = values = keys = _scanned
+
+
+def test_an_offer_no_waiting_case_can_take_yet_is_pending_without_going_through_the_cases(tmp_path):
+    # any shipment fits any case, as an item fits any packing round; 1,000 cases have started, none waits yet
+    def any_case(settings):
+        del settings["messages"]["consume"][0]["condition"]
+
+    engine, _ = _sales(1000, json_path=_settings(tmp_path, any_case))
+    engine.step()
+    engine._env.all_process_states = _NotToBeScanned(engine._env.all_process_states)
+
+    assert [engine.deliver(shipment(f"Sales-{n}"), START) for n in range(3)] == [Verdict.PENDING] * 3
+
+
 def test_a_case_ended_by_a_terminate_end_event_while_waiting_discards_its_message(tmp_path):
     # after Take order the case splits: one branch waits for the shipment, the other cancels the
     # order and reaches the terminate end event first, which removes every token of the case
