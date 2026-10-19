@@ -80,7 +80,7 @@ exist, or the catalogue and references break one of the rules listed in [catalog
 It is also rejected for a key it doesn't know, at the top level, in a process entry, a catalogue (a listed
 object, a pool or a growing catalogue), a reference or its `pick`, since a misspelled key would otherwise
 be ignored and change the run without any message:
-`references[0]: unknown key 'link_event'; allowed: case_attribute, catalogue, link_events, o2o, pick, process, reverse`.
+`references[0]: unknown key 'link_event'; allowed: case_attribute, catalogue, link_events, o2o, pick, process, reverse, with`.
 
 **Extra engines.** Engines that aren't built from a BPMN and JSON file, such as the scripted engines
 in the tests, can run alongside the configured ones. List their names in the configuration's

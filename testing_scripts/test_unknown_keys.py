@@ -71,7 +71,7 @@ def test_a_reference(tmp_path):
         data["references"][0]["revers"] = data["references"][0].pop("reverse")
 
     _config_rejected(tmp_path, r"references\[0\]: unknown keys 'link_event', 'revers'; allowed: case_attribute, "
-                               r"catalogue, link_events, o2o, pick, process, reverse$", misspelled)
+                               r"catalogue, link_events, o2o, pick, process, reverse, with$", misspelled)
 
 
 def test_a_pick_object(tmp_path):

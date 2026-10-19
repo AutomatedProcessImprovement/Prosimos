@@ -18,10 +18,11 @@ CUSTOMERS = GrowingCatalogue(POOL.attributes)  # segment and credit_limit
 
 def _order_management(orders, pick):
     """Order Management whose customers are a growing catalogue, with the items referring to the order's
-    customer that ItemOrdered carries."""
+    customer that ItemOrdered carries (the items still pick their products)."""
     config = _config(orders)
-    return dataclasses.replace(config, catalogue={"customers": CUSTOMERS}, references=[
-        dataclasses.replace(config.references[0], pick=pick),
+    customers, products = config.references
+    return dataclasses.replace(config, catalogue={**config.catalogue, "customers": CUSTOMERS}, references=[
+        dataclasses.replace(customers, pick=pick), products,
         Reference("Warehouse", "customer", "customers", o2o="ordered by", link_events=())])
 
 

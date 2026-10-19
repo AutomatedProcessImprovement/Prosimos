@@ -24,9 +24,10 @@ Sales (order)        arrivals: weekdays 6:00-22:00, about one every 4.3 h, 2,000
 Customer             start OrderConfirmed (copy order_id) -> timer (confirm-to-pay delay)
                      -> message end Payment{order_id}
 Warehouse (item)     start ItemOrdered (copy order_id, item_index from index, customer)
-                     case attribute: product (picked from the log's 20, as often as in the log)
+                     case attributes: product (picked from the log's 20, as often as in the log), and its
+                        weight and price
                      -> XOR: 20% item out of stock -> reorder item | 80% straight on
-                     -> pick item (Warehousing; sets weight, the product's)
+                     -> pick item (Warehousing)
                      -> message end ItemPicked{order_id, item_index, customer, case_id, weight}
 Packaging (package)  arrivals: weekdays 7:00-17:00, about one packing round every 2.6 h, 1,200 rounds
                      -> catch ItemPicked: the oldest waiting one and every other of its customer (collect "all",
@@ -85,44 +86,44 @@ flowchart LR
 
 ## How the log maps to the model
 
-| In the log                     | Process   | BPMN element               | Feature                                                                                                             |
-|--------------------------------|-----------|----------------------------|---------------------------------------------------------------------------------------------------------------------|
-| object type **orders**         | Sales     | one case per order         | arrivals on a weekday calendar; case attribute `items`; `customer` picked from the catalogue                        |
-| object type **items**          | Warehouse | one case per item          | a message start event on `ItemOrdered`, published once per item with `count`; `index` → `item_index`                |
-| object type **packages**       | Packaging | one case per packing round | arrivals in working hours; `collect` `"all"` with `same` customer; `weight` the sum of its items'                   |
-| object type **customers**      | all       | case attribute `customer`  | 15 in the catalogue; picked for the order, copied to items and packages; what a package's items share               |
-| object type **products**       | Warehouse | case attribute `product`   | the log's 20 in the catalogue, with their weight and price; picked for each item as often as in the log             |
-| object type **employees**      | all       | resources                  | Sales (5), Warehousing (7, split 5 / 2 between Warehouse and Packaging), Shipment (6)                               |
-| activity **place order**       | Sales     | task `Place_Order`         | done by the `Shop` resource; `ItemOrdered` is published right after it                                              |
-| activity **confirm order**     | Sales     | task `Confirm_Order`       | Sales; `OrderConfirmed` is published right after it                                                                 |
-| activity **payment reminder**  | Sales     | task `Payment_Reminder`    | the timer branch of the race (20 days), then back to the race                                                       |
-| activity **pay order**         | Sales     | task `Pay_Order`           | after the message branch of the race (`Payment`); done by the `Payments` resource                                   |
-| activity **item out of stock** | Warehouse | task `Item_Out_Of_Stock`   | the 20% branch of an XOR                                                                                            |
-| activity **reorder item**      | Warehouse | task `Reorder_Item`        | after item out of stock                                                                                             |
-| activity **pick item**         | Warehouse | task `Pick_Item`           | Warehousing; sets the item's `weight` from its product; `ItemPicked` is published at the message end event after it |
-| activity **create package**    | Packaging | task `Create_Package`      | after the packing round has taken its items                                                                         |
-| activity **send package**      | Packaging | task `Send_Package`        | Shipment                                                                                                            |
-| activity **failed delivery**   | Packaging | task `Failed_Delivery`     | the 22% branch of an XOR, then back to it                                                                           |
-| activity **package delivered** | Packaging | task `Package_Delivered`   | the 78% branch of that XOR                                                                                          |
-| not in the log                 | Customer  | timer `Pay_Delay`          | how long the customer takes to pay; publishes `Payment`                                                             |
+| In the log                     | Process   | BPMN element               | Feature                                                                                                          |
+|--------------------------------|-----------|----------------------------|------------------------------------------------------------------------------------------------------------------|
+| object type **orders**         | Sales     | one case per order         | arrivals on a weekday calendar; case attribute `items`; `customer` picked from the catalogue                     |
+| object type **items**          | Warehouse | one case per item          | a message start event on `ItemOrdered`, published once per item with `count`; `index` → `item_index`             |
+| object type **packages**       | Packaging | one case per packing round | arrivals in working hours; `collect` `"all"` with `same` customer; `weight` the sum of its items'                |
+| object type **customers**      | all       | case attribute `customer`  | 15 in the catalogue; picked for the order, copied to items and packages; what a package's items share            |
+| object type **products**       | Warehouse | case attribute `product`   | the log's 20 in the catalogue; one picked for each item as often as in the log, and its weight and price with it |
+| object type **employees**      | all       | resources                  | Sales (5), Warehousing (7, split 5 / 2 between Warehouse and Packaging), Shipment (6)                            |
+| activity **place order**       | Sales     | task `Place_Order`         | done by the `Shop` resource; `ItemOrdered` is published right after it                                           |
+| activity **confirm order**     | Sales     | task `Confirm_Order`       | Sales; `OrderConfirmed` is published right after it                                                              |
+| activity **payment reminder**  | Sales     | task `Payment_Reminder`    | the timer branch of the race (20 days), then back to the race                                                    |
+| activity **pay order**         | Sales     | task `Pay_Order`           | after the message branch of the race (`Payment`); done by the `Payments` resource                                |
+| activity **item out of stock** | Warehouse | task `Item_Out_Of_Stock`   | the 20% branch of an XOR                                                                                         |
+| activity **reorder item**      | Warehouse | task `Reorder_Item`        | after item out of stock                                                                                          |
+| activity **pick item**         | Warehouse | task `Pick_Item`           | Warehousing; `ItemPicked` is published at the message end event after it                                         |
+| activity **create package**    | Packaging | task `Create_Package`      | after the packing round has taken its items                                                                      |
+| activity **send package**      | Packaging | task `Send_Package`        | Shipment                                                                                                         |
+| activity **failed delivery**   | Packaging | task `Failed_Delivery`     | the 22% branch of an XOR, then back to it                                                                        |
+| activity **package delivered** | Packaging | task `Package_Delivered`   | the 78% branch of that XOR                                                                                       |
+| not in the log                 | Customer  | timer `Pay_Delay`          | how long the customer takes to pay; publishes `Payment`                                                          |
 
 ## Numbers from the log
 
-| Parameter           | Real log                                                                               | In the model                                                                         |
-|---------------------|----------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------|
-| Orders              | 2,000; one every 4.26 h on average; 95% on weekdays, mostly 6-22                       | exponential gaps of 2.3 h mean within a weekday 6:00-22:00 calendar                  |
-| Customers           | 15, 103-152 orders each                                                                | `customer`: picked uniformly from the catalogue's c1..c15                            |
-| Items per order     | 1-16 (1: 159, 2: 360, 3: 489, 4: 367, 5: 275, 6: 164, 7: 100, 8+: 86)                  | `items`: these frequencies, 8+ as in the log                                         |
-| Out of stock        | 1,544 of 7,659 items (20%)                                                             | XOR 20 / 80                                                                          |
-| Confirm to pay      | median 7 days, quartiles 2.34 / 17.86, max 91; 23.5% after 20 days                     | Customer timer: log-normal with that median and quartiles, at most 91 days           |
-| Payment reminder    | exactly 20 days after confirm or the previous reminder; 0-4 per order                  | race timer, fixed 20 days                                                            |
-| Packing rounds      | 1,128 packages; gaps between create package: median 2.6 h; mostly 7-17                 | exponential gaps of 2.6 h mean within a weekday 7:00-17:00 calendar, 1,200 rounds    |
-| Items per package   | 1-20, median 6; always one customer: the oldest waiting item and all of its customer's | the same rule: `"collect": "all"` with `"same": ["customer"]`                        |
-| Products            | 20, 343-433 items each; weight 0.166-1.48 (an item weighs what its product weighs)     | picked with these frequencies; the item's `weight` set from its product at pick item |
-| Package weight      | the sum of its items' weights                                                          | `"aggregate": {"weight": {"sum": "weight"}}`                                         |
-| Failed delivery     | 311 failures in 1,439 attempts (22%); up to 7 per package                              | XOR 22 / 78                                                                          |
-| Employees           | Sales 5, Warehousing 7, Shipment 6; weekdays 6-22                                      | the same pools on a weekday 6:00-22:00 calendar (Warehousing split 5 / 2)            |
-| Gaps (with waiting) | place→confirm 18 h, place→pick 52 h, create→send 14 h, send→delivered 14 h             | rough task durations; see the comparison                                             |
+| Parameter           | Real log                                                                               | In the model                                                                      |
+|---------------------|----------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------|
+| Orders              | 2,000; one every 4.26 h on average; 95% on weekdays, mostly 6-22                       | exponential gaps of 2.3 h mean within a weekday 6:00-22:00 calendar               |
+| Customers           | 15, 103-152 orders each                                                                | `customer`: picked uniformly from the catalogue's c1..c15                         |
+| Items per order     | 1-16 (1: 159, 2: 360, 3: 489, 4: 367, 5: 275, 6: 164, 7: 100, 8+: 86)                  | `items`: these frequencies, 8+ as in the log                                      |
+| Out of stock        | 1,544 of 7,659 items (20%)                                                             | XOR 20 / 80                                                                       |
+| Confirm to pay      | median 7 days, quartiles 2.34 / 17.86, max 91; 23.5% after 20 days                     | Customer timer: log-normal with that median and quartiles, at most 91 days        |
+| Payment reminder    | exactly 20 days after confirm or the previous reminder; 0-4 per order                  | race timer, fixed 20 days                                                         |
+| Packing rounds      | 1,128 packages; gaps between create package: median 2.6 h; mostly 7-17                 | exponential gaps of 2.6 h mean within a weekday 7:00-17:00 calendar, 1,200 rounds |
+| Items per package   | 1-20, median 6; always one customer: the oldest waiting item and all of its customer's | the same rule: `"collect": "all"` with `"same": ["customer"]`                     |
+| Products            | 20, 343-433 items each; weight 0.166-1.48 (an item weighs what its product weighs)     | picked with these frequencies; `with` gives each item its product's weight        |
+| Package weight      | the sum of its items' weights                                                          | `"aggregate": {"weight": {"sum": "weight"}}`                                      |
+| Failed delivery     | 311 failures in 1,439 attempts (22%); up to 7 per package                              | XOR 22 / 78                                                                       |
+| Employees           | Sales 5, Warehousing 7, Shipment 6; weekdays 6-22                                      | the same pools on a weekday 6:00-22:00 calendar (Warehousing split 5 / 2)         |
+| Gaps (with waiting) | place→confirm 18 h, place→pick 52 h, create→send 14 h, send→delivered 14 h             | rough task durations; see the comparison                                          |
 
 Place order, pay order and payment reminder have no employee in the log; here they are done by `Shop`
 (always available) and `Payments` (weekdays 6-22) resources.
@@ -162,8 +163,10 @@ doesn't draw it), links each customer to the orders it **places** (`"reverse": t
 order), and links place order and confirm order to their customer; pay order isn't linked. Since `ItemOrdered`
 carries the picked `customer`, `sales.json` only runs inside this configuration, not on its own. Products come
 from the catalogue too: the log's 20, each with its `weight` and first `price`. A second reference picks one for
-each item, with the number of items of each product in the log as weights, links the item to it (**is a**), and
-links every event of the item to it.
+each item, with the number of items of each product in the log as weights, links the item to it (**is a**),
+links every event of the item to it, and, with `"with": ["weight", "price"]`, gives the item its product's weight
+and price when it is created. They are the item's own attributes from then on: written on its OCEL object, and
+`weight` travels on `ItemPicked` to be summed into the package's.
 
 Sales and Packaging have `carry_links`; Warehouse doesn't, so a reorder is linked only to its item and its
 product. A packing round that never took an item has no events and no links; its package object is in the
@@ -227,12 +230,6 @@ Found while building the example; no feature was added for them.
 - **Resources aren't shared between processes.** Picking (Warehouse) and packing (Packaging) are done by the
   same 7 Warehousing employees in the log, but each Prosimos process has its own resource pool; they are
   split 5 / 2 here. Under discussion.
-- **An attribute set by a task isn't an OCEL object attribute.** An item's `weight` is set at pick item (an
-  event attribute), so it is a column of the CSV log and travels on `ItemPicked`, but an object's attributes
-  are those it had when its case was created and those copied from messages later; the items in the OCEL
-  file have no `weight`, where the log's have.
-- **A case can't read its catalogue object's attributes.** Each product's weight is in the catalogue, for the
-  OCEL output, and again in `warehouse.json`, which sets the item's `weight` from its `product` at pick item.
 - **A process started by arrivals has no end time.** The packing rounds are limited by their number, 1,200,
   chosen so that they last until just after the orders; how many are left waiting at the end, or how many items
   are left unpacked with fewer rounds, depends on the seed.

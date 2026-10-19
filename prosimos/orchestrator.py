@@ -91,7 +91,8 @@ class Reference:
     With pick, the reference also assigns the value, when the case is created: "uniform" (every object
     equally likely) or, for a listed catalogue, weights as ((id, weight), ...) (ids left out are never picked);
     for a growing catalogue, "new" (every case creates its own object) or NewShare. Without it, the value comes
-    from case_attributes or a message."""
+    from case_attributes or a message. with_attributes (JSON "with") names attributes of the picked object that
+    the case also starts with, under the same names."""
 
     process: str
     case_attribute: str
@@ -100,6 +101,7 @@ class Reference:
     reverse: bool = False
     link_events: Optional[Tuple[str, ...]] = None
     pick: Union[None, str, Tuple[Tuple[str, float], ...], NewShare] = None
+    with_attributes: Tuple[str, ...] = ()
 
     @property
     def creates(self) -> bool:
@@ -109,7 +111,7 @@ class Reference:
 CONFIG_KEYS = {"processes", "start_time", "seed", "consumer_groups", "catalogue", "references"}
 PROCESS_KEYS = {"name", "bpmn_path", "json_path", "total_cases", "object_type", "qualifier", "qualifier_by_activity",
                 "carry_links"}
-REFERENCE_KEYS = {"process", "case_attribute", "catalogue", "o2o", "reverse", "link_events", "pick"}
+REFERENCE_KEYS = {"process", "case_attribute", "catalogue", "o2o", "reverse", "link_events", "pick", "with"}
 
 
 def _catalogue_ids(name, entry) -> List[str]:
@@ -141,7 +143,8 @@ def _checked_catalogue(processes, names, catalogue, references):
     listed catalogue, "uniform" on a pool, or "new" or new_share on a growing catalogue, for a process built
     from a ProcessSpec whose case_attributes don't have the attribute and whose consume entries don't copy,
     append or aggregate into it, and at most one per process and attribute. A growing catalogue's objects are created by exactly one reference, and no other id looks like
-    them (<catalogue name>-<number>)."""
+    them (<catalogue name>-<number>). with names attributes that every object of the picked listed catalogue or
+    pool has, which the process doesn't otherwise pick, draw, copy, append or aggregate into, and not case_id."""
     problems = []
     for name, entry in catalogue.items():
         if not isinstance(entry, (CataloguePool, GrowingCatalogue)):
@@ -201,6 +204,11 @@ def _checked_catalogue(processes, names, catalogue, references):
     picked = [(reference.process, reference.case_attribute) for reference in references if reference.pick is not None]
     for process, attribute in sorted({pair for pair in picked if picked.count(pair) > 1}):
         problems.append(f"more than one reference picks {attribute} of process {process}")
+    brought = [(reference.process, name) for reference in references for name in reference.with_attributes]
+    for number, reference in enumerate(references):
+        if reference.with_attributes:
+            problems.extend(f"references[{number}] {problem}" for problem in _with_problems(
+                reference, catalogue.get(reference.catalogue), specs, set(picked), brought))
     if problems:
         raise ValueError("Invalid catalogue: " + "; ".join(problems))
 
@@ -229,23 +237,60 @@ def _pick_problems(reference, entry, specs):
             return [f"weights must be numbers of at least 0, not all 0, got {dict(reference.pick)}"]
     if reference.process not in specs:
         return [f"picks for {reference.process}, an engine not built from a ProcessSpec, which can't take a pick"]
-    with open(specs[reference.process].json_path) as file:
+    return _settings_problems("picks", reference.case_attribute, reference.process, specs)
+
+
+def _settings_problems(verb, attribute, process, specs):
+    """An attribute that the orchestrator gives a process's cases when they are created, which its JSON settings
+    also set: drawn in case_attributes, or set from a message."""
+    with open(specs[process].json_path) as file:
         settings = json.load(file)
-    declared = {attribute.get("name") for attribute in settings.get("case_attributes", [])}
-    if reference.case_attribute in declared:
-        return [f"picks {reference.case_attribute}, which process {reference.process} also draws in its "
-                f"case_attributes"]
-    # a copied value would replace the picked one (with "new", the replaced object is never written), an
+    declared = {entry.get("name") for entry in settings.get("case_attributes", [])}
+    if attribute in declared:
+        return [f"{verb} {attribute}, which process {process} also draws in its case_attributes"]
+    # a copied value would replace the given one (with "new", the replaced object is never written), an
     # appended attribute is a list, and an aggregated one is computed over the messages claimed
     messages = settings.get("messages")
     consume = messages.get("consume", []) if isinstance(messages, dict) else []
-    for key, verb in (("copy", "copies"), ("append", "appends to"), ("aggregate", "aggregates into")):
+    for key, also in (("copy", "copies"), ("append", "appends to"), ("aggregate", "aggregates into")):
         found_at = [entry.get("event_id") for entry in consume if isinstance(entry, dict)
-                    and isinstance(entry.get(key), dict) and reference.case_attribute in entry[key]]
+                    and isinstance(entry.get(key), dict) and attribute in entry[key]]
         if found_at:
-            return [f"picks {reference.case_attribute}, which process {reference.process} also {verb} from a "
-                    f"message (consume entries at {found_at})"]
+            return [f"{verb} {attribute}, which process {process} also {also} from a message (consume entries at "
+                    f"{found_at})"]
     return []
+
+
+def _with_problems(reference, entry, specs, picked, brought):
+    """picked: (process, attribute) of every pick; brought: (process, attribute) of every name in a with."""
+    names = reference.with_attributes
+    if not isinstance(names, tuple) or not all(isinstance(name, str) and name for name in names):
+        return [f"with must be a list of attribute names, got {names!r}"]
+    if reference.pick is None:
+        return ["has with but no pick; a catalogue object brings its attributes only when the reference picks it"]
+    if isinstance(entry, GrowingCatalogue):
+        return [f"has with on growing catalogue {reference.catalogue!r}, whose objects don't exist yet when a "
+                f"case is created"]
+    if entry is not None:
+        if isinstance(entry, CataloguePool):
+            missing = [name for name in names if name not in {attribute.get("name") for attribute in entry.attributes}]
+        else:
+            missing = [name for name in names if not all(name in dict(obj.attributes) for obj in entry)]
+        if missing:
+            return [f"with names {missing}, which not every object of catalogue {reference.catalogue!r} has"]
+    if reference.process not in specs:
+        return []  # rejected with the pick
+    problems = []
+    for name in names:
+        if name == "case_id":
+            problems.append("brings case_id, which is reserved for the case's own identifier")
+        elif (reference.process, name) in picked:
+            problems.append(f"brings {name}, which process {reference.process} also picks")
+        elif brought.count((reference.process, name)) > 1:
+            problems.append(f"brings {name}, which another with also brings to process {reference.process}")
+        else:
+            problems.extend(_settings_problems("brings", name, reference.process, specs))
+    return problems
 
 
 def _checked_consumer_groups(names, consumer_groups):
@@ -324,7 +369,8 @@ class SimulationConfig:
         The optional catalogue ({name: [{"id": ..., "attributes": {...}}]}, {name: {"count": ...,
         "attributes": [as in case_attributes]}} for a generated pool, or {name: {"attributes": [...]}} for a
         growing one) declares objects with no events of their own, and references ([{"process", "case_attribute", "catalogue", "o2o", "reverse", "link_events",
-        "pick"}], the last four optional) say which case attributes hold their ids, and may pick them.
+        "pick", "with"}], the last five optional) say which case attributes hold their ids, and may pick them
+        and bring their attributes into the case.
         """
         path = Path(path)
         with open(path) as f:
@@ -388,8 +434,10 @@ def _reference(path, number, entry):
         pick = tuple(pick["weights"].items())
     elif isinstance(pick, dict) and list(pick) == ["new_share"]:
         pick = NewShare(pick["new_share"])
+    with_attributes = entry.get("with", ())
     return Reference(entry["process"], entry["case_attribute"], entry["catalogue"], entry.get("o2o"),
-                     entry.get("reverse", False), None if link_events is None else tuple(link_events), pick)
+                     entry.get("reverse", False), None if link_events is None else tuple(link_events), pick,
+                     tuple(with_attributes) if isinstance(with_attributes, list) else with_attributes)
 
 
 def _check_keys(path, where, mapping, allowed):
@@ -701,11 +749,25 @@ class _Pick:
 
     def __init__(self, name: str, ids: List[str], weights: Optional[List[float]], seed: Optional[int], process: str):
         self.name, self._ids, self._weights = name, ids, weights
+        self.last = None  # the id picked for the latest case
         self._generator = random.Random()
         self._generator.setstate(_engine_random_states(seed, f"pick/{process}/{name}")[0])
 
     def get_next_value(self):
-        return self._generator.choices(self._ids, self._weights)[0]
+        self.last = self._generator.choices(self._ids, self._weights)[0]
+        return self.last
+
+
+class _Brought:
+    """An attribute of the object a _Pick has just picked, given to the case under the same name. It comes right
+    after its pick in the case's attributes, which are drawn in order, so it reads the pick's last value; it
+    draws nothing."""
+
+    def __init__(self, name: str, pick: _Pick, values: Dict[str, Any]):
+        self.name, self._pick, self._values = name, pick, values
+
+    def get_next_value(self):
+        return self._values[self._pick.last]
 
 
 class _NewPick:
@@ -737,7 +799,11 @@ def _picks(config: "SimulationConfig", catalogue: Dict[str, List[CatalogueObject
         elif reference.pick is not None:
             ids = [obj.id for obj in catalogue[reference.catalogue]]
             weights = None if reference.pick == "uniform" else [dict(reference.pick).get(object_id, 0) for object_id in ids]
-            picks[reference.process].append(_Pick(reference.case_attribute, ids, weights, config.seed, reference.process))
+            pick = _Pick(reference.case_attribute, ids, weights, config.seed, reference.process)
+            picks[reference.process].append(pick)
+            picks[reference.process].extend(
+                _Brought(name, pick, {obj.id: dict(obj.attributes)[name] for obj in catalogue[reference.catalogue]})
+                for name in reference.with_attributes)
     return picks
 
 

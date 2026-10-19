@@ -114,19 +114,29 @@ def test_every_package_holds_all_of_one_customer_s_waiting_items_oldest_first(ru
     assert taken == {message.id for message in picked}  # every item is in a package, and in one only
 
 
-def test_a_package_weighs_the_sum_of_its_items_and_an_item_what_its_product_weighs(run):
-    report, log, ocel_path = run
+def test_an_item_weighs_what_its_product_weighs_and_a_package_the_sum_of_its_items(run):
+    report, _, ocel_path = run
 
     with open(ocel_path) as file:
-        products = {obj["id"]: dict((attribute["name"], attribute["value"]) for attribute in obj["attributes"])
-                    for obj in json.load(file)["objects"] if obj["type"] == "products"}
+        objects = {obj["id"]: obj for obj in json.load(file)["objects"]}
+    attributes = lambda obj: {attribute["name"]: attribute["value"] for attribute in obj["attributes"]}
+    items = [obj for obj in objects.values() if obj["type"] == "items"]
+    for item in items:
+        [product] = [relation["objectId"] for relation in item["relationships"] if relation["qualifier"] == "is a"]
+        assert {key: attributes(item)[key] for key in ("weight", "price")} == attributes(objects[product])
+    weight = {item["id"]: attributes(item)["weight"] for item in items}
     picked = [message.attributes for message in report.published if message.type == "ItemPicked"]
-    items = _rows(log, "Warehouse", "pick item").set_index("case_id")
-    assert all(attributes["weight"] == products[items.loc[int(attributes["case_id"].split("-")[1]), "product"]]["weight"]
-               for attributes in picked)
-    weights = _rows(log, "Packaging", "create package").set_index("case_id")["weight"]
-    for package, claimed in _packages(report).items():
-        assert weights[int(package.split("-")[1])] == pytest.approx(sum(m.attributes["weight"] for m, _ in claimed))
+    assert all(message["weight"] == weight[message["case_id"]] for message in picked)  # what ItemPicked carries
+    for package, contents in package_items(report).items():
+        assert attributes(objects[package])["weight"] == pytest.approx(sum(weight[item] for item in contents))
+
+
+def test_product_weights_are_written_only_in_the_catalogue():
+    folder = Path(CONFIG).parent
+    products = [product["id"] for product in json.loads(Path(CONFIG).read_text())["catalogue"]["products"]]
+    for settings in folder.glob("*.json"):
+        if settings.name != "simulation.json":
+            assert not any(product in settings.read_text() for product in products), settings.name
 
 
 def test_the_ocel_file_links_items_to_products_and_packages_by_the_real_log_s_qualifiers(run):

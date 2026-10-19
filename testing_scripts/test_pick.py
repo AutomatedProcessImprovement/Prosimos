@@ -30,11 +30,11 @@ POOL = CataloguePool(1500, (
 THREE = [CatalogueObject("c1"), CatalogueObject("c2"), CatalogueObject("c3")]
 
 
-def _loans(cases, catalogue, pick, seed=1):
+def _loans(cases, catalogue, pick, seed=1, with_attributes=()):
     """A config of one process, Loans, whose cases pick a customer."""
     return SimulationConfig([ProcessSpec("Loans", *LOANS, cases, "loans")], START, seed, catalogue={"customers": catalogue},
                             references=[Reference("Loans", "customer", "customers", o2o="applies for", reverse=True,
-                                                  link_events=(), pick=pick)])
+                                                  link_events=(), pick=pick, with_attributes=with_attributes)])
 
 
 def _run(config, tmp_path, name="log"):
@@ -163,6 +163,53 @@ def test_picking_doesnt_change_the_processs_other_draws(tmp_path):
     assert with_pick.drop(columns="customer").equals(without)
 
 
+# with
+
+RATED = [CatalogueObject("c1", (("segment", "retail"), ("limit", 2000))),
+         CatalogueObject("c2", (("segment", "business"), ("limit", 9000.5))),
+         CatalogueObject("c3", (("segment", "retail"), ("limit", 500)))]
+
+
+def _starting_values(report, process):
+    """Case id -> its attribute values when it was created."""
+    return {case_object.case_id: {name: value for name, value, time in case_object.attributes
+                                  if time == case_object.attributes[0][2]}
+            for process_name, case_object in report.objects if process_name == process}
+
+
+def test_a_case_starts_with_the_attributes_with_names_of_the_object_it_picks(tmp_path):
+    report, log, ocel = _run(_loans(200, RATED, (("c1", 1), ("c2", 1), ("c3", 1)), with_attributes=("segment", "limit")),
+                             tmp_path)
+
+    rated = {obj.id: dict(obj.attributes) for obj in RATED}
+    values = _starting_values(report, "Loans")
+    assert {case["customer"] for case in values.values()} == {"c1", "c2", "c3"}
+    assert all(case == {"customer": case["customer"], **rated[case["customer"]]} for case in values.values())
+    # normal case values from then on: columns of the log and attributes of the case's OCEL object
+    assert all(rated[customer] == {"segment": segment, "limit": limit}
+               for customer, segment, limit in zip(log["customer"], log["segment"], log["limit"]))
+    loans = [obj for obj in ocel["objects"] if obj["type"] == "loans"]
+    assert {attribute["name"] for obj in loans for attribute in obj["attributes"]} == {"customer", "segment", "limit"}
+
+
+def test_a_pool_object_brings_the_attributes_drawn_for_it(tmp_path):
+    report, _, ocel = _run(_loans(300, POOL, "uniform", with_attributes=("credit_limit",)), tmp_path)
+
+    drawn = {obj["id"]: {attribute["name"]: attribute["value"] for attribute in obj["attributes"]}
+             for obj in ocel["objects"] if obj["type"] == "customers"}
+    values = _starting_values(report, "Loans").values()
+    assert len(values) == 300
+    assert all(case["credit_limit"] == drawn[case["customer"]]["credit_limit"] for case in values)
+
+
+def test_bringing_attributes_doesnt_change_what_is_picked_or_the_rest_of_the_log(tmp_path):
+    picks = (("c1", 1), ("c2", 1), ("c3", 1))
+    _, bringing, _ = _run(_loans(200, RATED, picks, with_attributes=("segment", "limit")), tmp_path, "with")
+    _, plain, _ = _run(_loans(200, RATED, picks), tmp_path, "without")
+
+    assert bringing.drop(columns=["segment", "limit"]).equals(plain)
+
+
 # load errors
 
 PICKING = {"process": "Sales", "case_attribute": "customer", "catalogue": "customers"}
@@ -247,3 +294,123 @@ def test_a_pick_on_an_extra_engine_is_rejected():
     with pytest.raises(ValueError, match=r"references\[0\] picks for Scripted, an engine not built from a ProcessSpec"):
         SimulationConfig([], START, extra_processes=("Scripted",), catalogue={"customers": THREE},
                          references=[Reference("Scripted", "customer", "customers", pick="uniform")])
+
+
+PRODUCTS = {"process": "Warehouse", "case_attribute": "product", "catalogue": "products", "pick": "uniform"}
+
+
+def _products_with(tmp_path, names, *other_references, attributes=None, **changes):
+    """The Order Management configuration whose only references are the Warehouse's product pick with these with
+    names and the other references; products have weight and price, and attributes if given."""
+    data = json.loads(Path(CONFIG).read_text())
+    products = data["catalogue"]["products"]
+    if attributes is not None:
+        for product in products:
+            product["attributes"].update(attributes)
+    return _config_with(tmp_path, catalogue={**data["catalogue"], "products": products},
+                        references=[{**PRODUCTS, "with": names}, *other_references], **changes)
+
+
+def test_with_without_a_pick_is_rejected(tmp_path):
+    path = _config_with(tmp_path, references=[{"process": "Warehouse", "case_attribute": "product",
+                                               "catalogue": "products", "with": ["weight"]}])
+
+    with pytest.raises(ValueError, match=r"references\[0\] has with but no pick; a catalogue object brings its "
+                                         r"attributes only when the reference picks it"):
+        SimulationConfig.from_json(path)
+
+
+def test_with_on_a_growing_catalogue_is_rejected(tmp_path):
+    path = _config_with(tmp_path, catalogue={"products": {"attributes": [
+        {"name": "weight", "type": "discrete", "values": [{"key": 1, "value": 1}]}]}},
+                        references=[{**PRODUCTS, "pick": "new", "with": ["weight"]}])
+
+    with pytest.raises(ValueError, match=r"references\[0\] has with on growing catalogue 'products', whose objects "
+                                         r"don't exist yet when a case is created"):
+        SimulationConfig.from_json(path)
+
+
+def test_with_naming_an_attribute_not_every_object_has_is_rejected(tmp_path):
+    data = json.loads(Path(CONFIG).read_text())
+    data["catalogue"]["products"][3]["attributes"]["volume"] = 2.5  # only one product has a volume
+    path = _config_with(tmp_path, catalogue=data["catalogue"], references=[{**PRODUCTS, "with": ["weight", "volume",
+                                                                                                    "colour"]}])
+
+    with pytest.raises(ValueError, match=r"references\[0\] with names \['volume', 'colour'\], which not every object "
+                                         r"of catalogue 'products' has"):
+        SimulationConfig.from_json(path)
+
+
+def test_with_naming_an_attribute_a_pool_doesnt_draw_is_rejected(tmp_path):
+    path = _config_with(tmp_path, catalogue={"products": {"count": 5, "attributes": [
+        {"name": "weight", "type": "discrete", "values": [{"key": 1, "value": 1}]}]}},
+                        references=[{**PRODUCTS, "with": ["weight", "price"]}])
+
+    with pytest.raises(ValueError, match=r"references\[0\] with names \['price'\], which not every object of "
+                                         r"catalogue 'products' has"):
+        SimulationConfig.from_json(path)
+
+
+@pytest.mark.parametrize("names", ["weight", ["weight", 3], [""]])
+def test_with_that_isnt_a_list_of_names_is_rejected(tmp_path, names):
+    path = _products_with(tmp_path, names)
+
+    with pytest.raises(ValueError, match=r"references\[0\] with must be a list of attribute names"):
+        SimulationConfig.from_json(path)
+
+
+def test_bringing_an_attribute_the_process_draws_in_its_case_attributes_is_rejected(tmp_path):
+    with open(CONFIG.replace("simulation.json", "warehouse.json")) as file:
+        warehouse = json.load(file)
+    warehouse["case_attributes"] = [{"name": "price", "type": "discrete", "values": [{"key": 1, "value": 1}]}]
+    (tmp_path / "warehouse.json").write_text(json.dumps(warehouse))
+    path = _products_with(tmp_path, ["weight", "price"])
+    data = json.loads(path.read_text())
+    next(process for process in data["processes"] if process["name"] == "Warehouse")["json_path"] = \
+        str(tmp_path / "warehouse.json")
+    path.write_text(json.dumps(data))
+
+    with pytest.raises(ValueError, match=r"references\[0\] brings price, which process Warehouse also draws in its "
+                                         r"case_attributes"):
+        SimulationConfig.from_json(path)
+
+
+def test_bringing_an_attribute_the_process_picks_is_rejected(tmp_path):
+    path = _products_with(tmp_path, ["weight", "product"], attributes={"product": "same"})
+
+    with pytest.raises(ValueError, match=r"references\[0\] brings product, which process Warehouse also picks"):
+        SimulationConfig.from_json(path)
+
+
+def test_two_withs_bringing_the_same_attribute_to_a_process_are_rejected(tmp_path):
+    gift = {"process": "Warehouse", "case_attribute": "gift", "catalogue": "products", "pick": "uniform",
+            "with": ["weight"]}
+    path = _products_with(tmp_path, ["weight"], gift)
+
+    with pytest.raises(ValueError, match=r"references\[0\] brings weight, which another with also brings to process "
+                                         r"Warehouse; references\[1\] brings weight, which another with"):
+        SimulationConfig.from_json(path)
+
+
+@pytest.mark.parametrize("process, name, verb, event", [
+    ("Warehouse", "customer", "copies", "Start_Item"),
+    ("Packaging", "item_ids", "appends to", "Catch_Items"),
+    ("Packaging", "weight", "aggregates into", "Catch_Items"),
+])
+def test_bringing_an_attribute_the_process_sets_from_a_message_is_rejected(tmp_path, process, name, verb, event):
+    path = _products_with(tmp_path, [name], attributes={name: "x"})
+    data = json.loads(path.read_text())
+    data["references"][0]["process"] = process
+    path.write_text(json.dumps(data))
+
+    with pytest.raises(ValueError, match=rf"references\[0\] brings {name}, which process {process} also {verb} from a "
+                                         rf"message \(consume entries at \['{event}'\]\)"):
+        SimulationConfig.from_json(path)
+
+
+def test_bringing_case_id_is_rejected(tmp_path):
+    path = _products_with(tmp_path, ["case_id"], attributes={"case_id": "x"})
+
+    with pytest.raises(ValueError, match=r"references\[0\] brings case_id, which is reserved for the case's own "
+                                         r"identifier"):
+        SimulationConfig.from_json(path)

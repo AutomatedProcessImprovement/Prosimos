@@ -9,7 +9,8 @@ Two parts of the configuration file (see [orchestrator.md](orchestrator.md)) do 
 
 - the **catalogue** declares the objects: who exists, and with which attributes;
 - a **reference** says that a case attribute's value *is* the id of a catalogue object, which OCEL links to
-  write for it, and, with `pick`, chooses that value when a case is created.
+  write for it, and, with `pick`, chooses that value when a case is created; with `with`, the case also starts
+  with attributes of the object it picked.
 
 A first example, with two customers and Sales choosing one for every order:
 
@@ -114,6 +115,7 @@ A reference ties one case attribute of one process to a catalogue:
 | `reverse`        | no       | `true`                             | turns the `o2o` link around: from the catalogue object to the case's object (default `false`)                   |
 | `link_events`    | no       | `["place order", "Confirm_Order"]` | which of the case's events link the catalogue object: task names or task ids; without it every event, `[]` none |
 | `pick`           | no       | `"uniform"`                        | the reference chooses the value itself (see "Pick")                                                             |
+| `with`           | no       | `["weight", "price"]`              | attributes of the picked object that the case also starts with (see "With")                                     |
 
 ### Two modes: with and without pick
 
@@ -204,6 +206,26 @@ and the attribute. The same seed therefore gives the same picks, and adding a pi
 the process's other draws. Engines stay black boxes: the orchestrator hands a pick to an engine when it
 builds it, as one more case attribute, and joins the links from the case objects and log rows after the
 run.
+
+### With
+
+```json
+{"process": "Warehouse", "case_attribute": "product", "catalogue": "products",
+ "pick": {"weights": {...}}, "with": ["weight", "price"]}
+```
+
+```
+item Warehouse-0 picks "iPad Air"  ->  product = "iPad Air", weight = 0.44, price = 476
+```
+
+`with` lists attributes of the catalogue object. When the reference picks an object, the case also gets each
+listed attribute, under the same name, as one of its starting values. From then on they are case values like
+those drawn in `case_attributes`: columns of the log, attributes of the case's OCEL object, and usable in
+conditions, `copy`, published messages and `aggregate`.
+
+`with` needs a `pick` on a list or a pool, whose objects and attributes exist when the case is created, and
+every object of the catalogue must have each listed attribute. A listed attribute draws nothing: adding
+`with` changes neither the picks nor any other draw.
 
 ## Worked example: Order Management
 
@@ -305,7 +327,8 @@ in the log. This is its full configuration,
        "iPhone X": 433, "iPhone 8": 408, "Fire Stick": 405, "iPad Air": 405, "Fire Stick 4K": 400,
        "iPad Pro": 394, "Echo Plus": 394, "Kindle Paperwhite": 393, "Echo Show 8": 383, "MacBook Pro": 382,
        "iPad mini": 382, "Echo Studio": 379, "Echo Dot": 375, "iPhone 11 Pro": 373, "MacBook Air": 369,
-       "Echo Show 5": 368, "Echo": 365, "iPad": 362, "Kindle": 346, "iPhone 11": 343}}}
+       "Echo Show 5": 368, "Echo": 365, "iPad": 362, "Kindle": 346, "iPhone 11": 343}},
+     "with": ["weight", "price"]}
   ]
 }
 ```
@@ -318,7 +341,8 @@ poetry run prosimos start-orchestration --config testing_scripts/assets/order_ma
 
 `sales.json` has no `customer` in its `case_attributes`: the reference picks it. Its `ItemOrdered` message
 then carries it to the items, and `ItemPicked` to the packages. Likewise, `warehouse.json` has no `product`:
-the second reference picks it, with the number of items of each product in the log as weights.
+the second reference picks it, with the number of items of each product in the log as weights, and brings
+the product's `weight` and `price` into the item. `ItemPicked` carries the item's `weight` to the package.
 
 **What appears in the OCEL file** (excerpts of that run, 2,000 orders):
 
@@ -357,12 +381,14 @@ the second reference picks it, with the number of items of each product in the l
   ```
 
 - **The 20 products**, type `products`, with `weight` and `price` as in the log. Each item **is a** product
-  (`"o2o": "is a"`, from the item to the product), keeps `product` as an attribute, and every one of its
-  events is linked to the product with the qualifier `product` (no `link_events`):
+  (`"o2o": "is a"`, from the item to the product), keeps `product`, `weight` and `price` as attributes, and
+  every one of its events is linked to the product with the qualifier `product` (no `link_events`):
 
   ```json
   {"id": "Warehouse-0", "type": "items",
-   "attributes": [{"name": "product", "value": "iPad Air", "time": "2023-04-03T06:01:00.000000Z"}, ...],
+   "attributes": [{"name": "product", "value": "iPad Air", "time": "2023-04-03T06:01:00.000000Z"},
+                  {"name": "weight", "value": 0.44, "time": "2023-04-03T06:01:00.000000Z"},
+                  {"name": "price", "value": 476, "time": "2023-04-03T06:01:00.000000Z"}, ...],
    "relationships": [{"objectId": "iPad Air", "qualifier": "is a"}]}
   {"id": "e15", "type": "pick item", "time": "2023-04-03T09:27:32.013771Z",
    "relationships": [{"objectId": "Warehouse-0", "qualifier": "item"}, ...,
@@ -418,6 +444,15 @@ The messages, by the key they are about:
 | `"new"`, `new_share`         | `references[0] picks "new" or new_share from catalogue 'customers', which is no growing catalogue`                                                              |
 | `"new"`, `new_share`         | `references[0] picks from growing catalogue 'customers', which only takes "new" or {"new_share": ...}`                                                          |
 | `new_share`                  | `references[0] new_share must be a number above 0 and at most 1, got 1.5`                                                                                       |
+| `with`                       | `references[0] with must be a list of attribute names, got 'weight'`                                                                                            |
+| `with`                       | `references[0] has with but no pick; a catalogue object brings its attributes only when the reference picks it`                                                 |
+| `with`                       | `references[0] has with on growing catalogue 'products', whose objects don't exist yet when a case is created`                                                  |
+| `with`                       | `references[0] with names ['volume'], which not every object of catalogue 'products' has`                                                                       |
+| `with`                       | `references[0] brings price, which process Warehouse also draws in its case_attributes`                                                                         |
+| `with`                       | `references[0] brings customer, which process Warehouse also copies from a message (consume entries at ['Start_Item'])`                                         |
+| `with`                       | `references[0] brings product, which process Warehouse also picks`                                                                                              |
+| `with`                       | `references[0] brings weight, which another with also brings to process Warehouse`                                                                              |
+| `with`                       | `references[0] brings case_id, which is reserved for the case's own identifier`                                                                                 |
 
 `link_events` is not checked for extra engines, which have no BPMN model.
 
