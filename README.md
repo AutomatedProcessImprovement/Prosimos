@@ -45,6 +45,7 @@ run from the root folder:
     poetry run prosimos start-orchestration --config <Path to the JSON configuration file listing the processes>
                                             --log_out_path <(Optional) Path to the CSV file to save the merged event-log of all processes>
                                             --report_out_path <(Optional) Path to the JSON file to save the full run report>
+                                            --ocel_out_path <(Optional) Path to the JSON file to save the run as an OCEL 2.0 event log>
                                             --seed <(Optional) Integer seed; overrides the seed in the configuration file>
 
 It prints a short summary of the run: messages published, claimed, discarded and unclaimed, the cases
@@ -66,15 +67,21 @@ lists the processes, and one command (`start-orchestration`, above) or one call 
 from prosimos.orchestrator import SimulationConfig, run_orchestrator
 
 config = SimulationConfig.from_json("config.json")
-report = run_orchestrator(config, log_out_path="merged_log.csv")
+report = run_orchestrator(config, log_out_path="merged_log.csv", ocel_out_path="ocel.json")
 ```
 
 The result is one event log of all processes and a report of every message, claim and discard,
-plus the cases still waiting for a message at the end. See:
+plus the cases still waiting for a message at the end. With an OCEL path, the run is also written as an
+object-centric event log in the OCEL 2.0 JSON format, readable with `pm4py.read_ocel2_json`: one object per
+case (an order, an item, a package), one event per task, and the links that the messages between the cases
+make, e.g. place order linked to the items it ordered, each order comprising its items. Objects without
+events of their own, such as customers and products, come from a catalogue in the configuration. See:
 
 - [docs/orchestrator.md](docs/orchestrator.md): configuration, output, how messages are routed, and
   the engine interface;
 - [docs/messaging.md](docs/messaging.md): how to model message events and the `messages` section;
+- [docs/catalogue.md](docs/catalogue.md): objects without events of their own, such as customers and
+  products, and how cases refer to them;
 - [docs/running-example.md](docs/running-example.md): a complete example with orders, warehouses and
   trucks;
 - [docs/order-management.md](docs/order-management.md): an example after the OCEL 2.0 Order Management log,

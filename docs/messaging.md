@@ -188,9 +188,9 @@ waiting item and then all waiting items of the same customer:
  "collect": "all", "same": ["customer"], "copy": {"customer": "customer"}}
 ```
 
-With items i1, i4 and i7 of Anna and i2 of Bob waiting, in that order, a package takes i1, i4 and i7; i2
-stays for the next package. A message without one of the listed attributes doesn't match, with one warning
-per event and attribute.
+With items i1, i4 and i7 of customer c3 and i2 of customer c8 waiting, in that order, a package takes i1, i4
+and i7; i2 stays for the next package. A message without one of the listed attributes doesn't match, with one
+warning per event and attribute.
 
 **count** (optional, on a `publish` entry) publishes several messages at once, one per object: a
 fixed number such as `3`, or `{"case_attribute": "items"}` to read it from the case when it passes the
@@ -242,7 +242,7 @@ directly, as OCEL's object-to-object links, qualified by its value: on a `publis
 publishing case's object to the object of every case that took the message; on a `consume` entry,
 from the taking case's object to the publisher's. Without it, no such link is written. With
 `"o2o": "comprises"` on the entry above, each order comprises the items it started; with
-`"o2o": "contains"` on Packaging's `ItemPicked` entries, each package contains the items whose messages it
+`"o2o": "contains"` on Packaging's `ItemPicked` entry, each package contains the items whose messages it
 took. A link is written once, however many messages give it. It must be a non-empty string.
 
 One event may appear in several entries: under `publish`, passing it publishes one message per
