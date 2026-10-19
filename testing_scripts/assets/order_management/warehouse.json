@@ -119,7 +119,8 @@
           "order_id",
           "item_index",
           "customer",
-          "case_id"
+          "case_id",
+          "weight"
         ],
         "qualifier": "package"
       }
@@ -136,5 +137,138 @@
         "qualifier": "order"
       }
     ]
-  }
+  },
+  "event_attributes": [
+    {
+      "event_id": "Pick_Item",
+      "attributes": [
+        {
+          "name": "weight",
+          "type": "dtree",
+          "values": [
+            [
+              [
+                "product == 'iPhone X'"
+              ],
+              "0.172"
+            ],
+            [
+              [
+                "product == 'iPhone 8'"
+              ],
+              "0.21"
+            ],
+            [
+              [
+                "product == 'Fire Stick'"
+              ],
+              "0.2"
+            ],
+            [
+              [
+                "product == 'iPad Air'"
+              ],
+              "0.44"
+            ],
+            [
+              [
+                "product == 'Fire Stick 4K'"
+              ],
+              "0.28"
+            ],
+            [
+              [
+                "product == 'iPad Pro'"
+              ],
+              "0.483"
+            ],
+            [
+              [
+                "product == 'Echo Plus'"
+              ],
+              "1.28"
+            ],
+            [
+              [
+                "product == 'Kindle Paperwhite'"
+              ],
+              "0.495"
+            ],
+            [
+              [
+                "product == 'Echo Show 8'"
+              ],
+              "0.98"
+            ],
+            [
+              [
+                "product == 'MacBook Pro'"
+              ],
+              "1.37"
+            ],
+            [
+              [
+                "product == 'iPad mini'"
+              ],
+              "0.28"
+            ],
+            [
+              [
+                "product == 'Echo Studio'"
+              ],
+              "1.48"
+            ],
+            [
+              [
+                "product == 'Echo Dot'"
+              ],
+              "0.38"
+            ],
+            [
+              [
+                "product == 'iPhone 11 Pro'"
+              ],
+              "0.188"
+            ],
+            [
+              [
+                "product == 'MacBook Air'"
+              ],
+              "1.25"
+            ],
+            [
+              [
+                "product == 'Echo Show 5'"
+              ],
+              "0.88"
+            ],
+            [
+              [
+                "product == 'Echo'"
+              ],
+              "0.78"
+            ],
+            [
+              [
+                "product == 'iPad'"
+              ],
+              "0.483"
+            ],
+            [
+              [
+                "product == 'Kindle'"
+              ],
+              "0.483"
+            ],
+            [
+              [
+                "product == 'iPhone 11'"
+              ],
+              "0.166"
+            ]
+          ]
+        }
+      ]
+    }
+  ]
 }

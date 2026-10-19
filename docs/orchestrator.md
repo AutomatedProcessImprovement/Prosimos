@@ -114,9 +114,9 @@ written as an OCEL 2.0 JSON file, the format of the OCEL 2.0 sample logs, readab
   from its values.
 - A process with `"object_type": null` writes no objects and no events. Extra engines write neither.
 
-A case that has no task in the log yet, e.g. a package still collecting when the run ends, has no events
-of its own, but it can still be linked from other events through its messages: the still-collecting
-package is linked from the pick item events of the items it took (see below). `pm4py.read_ocel2_json`
+A case that has no task in the log yet, e.g. an order still collecting its items when the run ends, has no
+events of its own, but it can still be linked from other events through its messages: the still-collecting
+order is linked from the tasks that published the items it took (see below). `pm4py.read_ocel2_json`
 keeps such an object, and leaves out only an object that no event refers to.
 
 **Objects without events: the catalogue.** Some objects never have events of their own: customers,

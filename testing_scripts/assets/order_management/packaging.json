@@ -29,6 +29,28 @@
       ]
     }
   ],
+  "arrival_time_distribution": {
+    "distribution_name": "expon",
+    "distribution_params": [
+      {
+        "value": 9360.0
+      },
+      {
+        "value": 0
+      },
+      {
+        "value": 604800
+      }
+    ]
+  },
+  "arrival_time_calendar": [
+    {
+      "from": "MONDAY",
+      "to": "FRIDAY",
+      "beginTime": "07:00:00",
+      "endTime": "17:00:00"
+    }
+  ],
   "gateway_branching_probabilities": [
     {
       "gateway_id": "Delivered",
@@ -140,125 +162,25 @@
       ]
     }
   ],
-  "case_attributes": [
-    {
-      "name": "more_items",
-      "type": "discrete",
-      "values": [
-        {
-          "key": 0,
-          "value": 0.01950354609929078
-        },
-        {
-          "key": 1,
-          "value": 0.05230496453900709
-        },
-        {
-          "key": 2,
-          "value": 0.08953900709219859
-        },
-        {
-          "key": 3,
-          "value": 0.1196808510638298
-        },
-        {
-          "key": 4,
-          "value": 0.11790780141843972
-        },
-        {
-          "key": 5,
-          "value": 0.13031914893617022
-        },
-        {
-          "key": 6,
-          "value": 0.10815602836879433
-        },
-        {
-          "key": 7,
-          "value": 0.08776595744680851
-        },
-        {
-          "key": 8,
-          "value": 0.07180851063829788
-        },
-        {
-          "key": 9,
-          "value": 0.05319148936170213
-        },
-        {
-          "key": 10,
-          "value": 0.047872340425531915
-        },
-        {
-          "key": 11,
-          "value": 0.03368794326241135
-        },
-        {
-          "key": 12,
-          "value": 0.0274822695035461
-        },
-        {
-          "key": 13,
-          "value": 0.018617021276595744
-        },
-        {
-          "key": 14,
-          "value": 0.007978723404255319
-        },
-        {
-          "key": 15,
-          "value": 0.007978723404255319
-        },
-        {
-          "key": 16,
-          "value": 0.0026595744680851063
-        },
-        {
-          "key": 17,
-          "value": 0.0008865248226950354
-        },
-        {
-          "key": 18,
-          "value": 0.0008865248226950354
-        },
-        {
-          "key": 19,
-          "value": 0.0017730496453900709
-        }
-      ]
-    }
-  ],
   "messages": {
     "consume": [
       {
-        "event_id": "Start_Package",
+        "event_id": "Catch_Items",
         "type": "ItemPicked",
+        "collect": "all",
+        "same": [
+          "customer"
+        ],
         "copy": {
           "customer": "customer"
         },
         "append": {
           "item_ids": "case_id"
         },
-        "qualifier": "item",
-        "o2o": "contains"
-      },
-      {
-        "event_id": "Catch_More_Items",
-        "type": "ItemPicked",
-        "condition": [
-          [
-            {
-              "attribute": "customer",
-              "comparison": "=",
-              "case_attribute": "customer"
-            }
-          ]
-        ],
-        "collect": {
-          "case_attribute": "more_items"
-        },
-        "append": {
-          "item_ids": "case_id"
+        "aggregate": {
+          "weight": {
+            "sum": "weight"
+          }
         },
         "qualifier": "item",
         "o2o": "contains"

@@ -17,7 +17,8 @@ from prosimos.orchestrator import (CaseElement, MessageRecord, ProcessSpec, Pros
                                    run_engines, run_orchestrator)
 from testing_scripts.scripted_engine import ScriptedEngine
 from testing_scripts.test_item_verdicts import PICKING, PICKING_JSON, SALES, SALES_JSON, _picking_in
-from testing_scripts.test_order_management import _config, _PackageContents
+from testing_scripts.test_append import _run as _run_orders
+from testing_scripts.test_order_management import _config, package_items
 
 ASSETS = "testing_scripts/assets/messaging"
 GATEWAYS = "testing_scripts/assets/ocel_links"
@@ -27,17 +28,12 @@ DROPPED = "the OCEL links of its messages there are dropped"
 
 @pytest.fixture(scope="module")
 def order_management(tmp_path_factory):
-    """A 100-order run of the Order Management example written as OCEL, and what each package took."""
-    monkeypatch = pytest.MonkeyPatch()
-    contents = _PackageContents(monkeypatch)
+    """A 100-order run of the Order Management example written as OCEL, and the items each package took."""
     path = tmp_path_factory.mktemp("ocel_links") / "log.json"
-    try:
-        report = run_orchestrator(_config(100), None, ocel_out_path=path)
-    finally:
-        monkeypatch.undo()
+    report = run_orchestrator(_config(100), None, ocel_out_path=path)
     with open(path) as file:
         ocel = json.load(file)
-    return report, ocel, contents.items
+    return report, ocel, {package: set(items) for package, items in package_items(report).items()}
 
 
 def _events(ocel, activity):
@@ -70,12 +66,6 @@ def _items_of_orders(ocel):
     return items
 
 
-def _items_of_packages(ocel, contents):
-    items = _items(ocel)
-    return {f"Packaging-{package}": {items[(order, index)] for order, index, _ in took}
-            for package, took in contents.items()}
-
-
 def test_every_place_order_is_linked_to_exactly_its_orders_items(order_management):
     _, ocel, _ = order_management
     items_of_order = _items_of_orders(ocel)
@@ -91,8 +81,7 @@ def test_every_place_order_is_linked_to_exactly_its_orders_items(order_managemen
 
 
 def test_every_create_package_is_linked_to_exactly_the_items_its_package_collected(order_management):
-    _, ocel, contents = order_management
-    items_of_package = _items_of_packages(ocel, contents)
+    _, ocel, items_of_package = order_management
 
     events = _events(ocel, "create package")
     assert events
@@ -105,16 +94,14 @@ def test_every_create_package_is_linked_to_exactly_the_items_its_package_collect
 
 
 def test_with_carry_links_the_later_events_of_a_package_link_its_items_too(order_management):
-    _, ocel, contents = order_management
-    items_of_package = _items_of_packages(ocel, contents)
+    _, ocel, items_of_package = order_management
 
-    for activity, own_qualifier in [("send package", "shipped package"), ("package delivered", "package"),
-                                    ("failed delivery", "package")]:
+    for activity in ("send package", "package delivered", "failed delivery"):
         events = _events(ocel, activity)
         assert events
         for event in events:
             package, qualifier = _owner(event)
-            assert qualifier == own_qualifier
+            assert qualifier == "shipped package"
             assert _linked(event, "item") == items_of_package[package]
 
 
@@ -129,12 +116,14 @@ def test_with_carry_links_the_later_events_of_an_order_link_its_items_too(order_
 
 
 def test_without_carry_links_an_event_links_only_what_its_own_messages_linked(order_management):
-    # Warehouse has no carry_links: a reorder takes and sends no message, so it links only its own item
+    # Warehouse has no carry_links: a reorder takes and sends no message, so it links only its own item, and the
+    # item's product, from the reference that picks it
     _, ocel, _ = order_management
 
     events = _events(ocel, "reorder item")
     assert events
-    assert all(len(event["relationships"]) == 1 and _owner(event)[1] == "item" for event in events)
+    assert all([relation["qualifier"] for relation in event["relationships"]] == ["item", "product"]
+               for event in events)
 
 
 def test_an_item_links_its_order_at_its_first_task_and_its_package_at_its_last(order_management):
@@ -176,15 +165,13 @@ def test_a_process_without_objects_attaches_nothing_and_warns_nothing(order_mana
     assert not any(process == "Customer" for process, _ in report.engine_warnings)
 
 
-def test_a_case_still_waiting_at_the_end_drops_its_links_with_a_warning(order_management):
-    report, _, _ = order_management
-    stalled = {case.case_id for process, case in report.stalled if process == "Packaging"}
+def test_a_case_still_waiting_at_the_end_drops_its_links_with_a_warning(tmp_path):
+    # order 0 waits for 3 items and gets one: its link would go to Pack, the task after Catch_Items
+    report, _, _ = _run_orders(tmp_path, [{"item_id": "i17"}])
 
-    dropped = [warning for _, warning in report.engine_warnings if DROPPED in warning]
-    assert stalled and dropped
-    for warning in dropped:  # once per element, naming the first such case
-        assert warning.split()[1] in stalled
-        assert "before the run ended" in warning
+    assert [case.case_id for _, case in report.stalled] == ["Orders-0"]
+    assert report.engine_warnings == [
+        ("Orders", f"case Orders-0 reached no task after Catch_Items before the run ended; {DROPPED}")]
 
 
 def _verdicts(picking_json=PICKING_JSON):

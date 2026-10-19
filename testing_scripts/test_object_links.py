@@ -13,8 +13,8 @@ from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.ocel_writer import OcelProcess
 from prosimos.orchestrator import CaseElement, MessageRecord, ProcessSpec, ProsimosEngine, _object_links, run_orchestrator
 from testing_scripts.test_message_records import _verdicts_run
-from testing_scripts.test_ocel_links import _items, _items_of_orders, _items_of_packages
-from testing_scripts.test_order_management import _config, _PackageContents
+from testing_scripts.test_ocel_links import _items, _items_of_orders
+from testing_scripts.test_order_management import _config, package_items
 
 ASSETS = "testing_scripts/assets/messaging"
 START = pytz.utc.localize(datetime(2024, 1, 1, 9))
@@ -22,17 +22,12 @@ START = pytz.utc.localize(datetime(2024, 1, 1, 9))
 
 @pytest.fixture(scope="module")
 def order_management(tmp_path_factory):
-    """A 100-order run of the Order Management example written as OCEL, and what each package took."""
-    monkeypatch = pytest.MonkeyPatch()
-    contents = _PackageContents(monkeypatch)
+    """A 100-order run of the Order Management example written as OCEL, and the items each package took."""
     path = tmp_path_factory.mktemp("object_links") / "log.json"
-    try:
-        run_orchestrator(_config(100), None, ocel_out_path=path)
-    finally:
-        monkeypatch.undo()
+    report = run_orchestrator(_config(100), None, ocel_out_path=path)
     with open(path) as file:
         ocel = json.load(file)
-    return ocel, contents.items, path
+    return ocel, package_items(report), path
 
 
 def _related(ocel, object_type):
@@ -54,24 +49,24 @@ def test_every_order_comprises_exactly_its_items(order_management):
 
 
 def test_every_package_contains_exactly_its_items(order_management):
-    # consume side: Packaging's ItemPicked entries, at the start event (its first item) and at the catch event
-    # (the rest), have "o2o": "contains", from the package to each item whose message it claimed
-    ocel, contents, _ = order_management
-    items_of_package = _items_of_packages(ocel, contents)
+    # consume side: Packaging's ItemPicked entry has "o2o": "contains", from the package to each item whose
+    # message it claimed; a packing round that took no item has no links
+    ocel, items_of_package, _ = order_management
 
     packages = _related(ocel, "packages")
-    assert set(packages) == set(items_of_package)
+    assert set(packages) >= set(items_of_package)
     for package, links in packages.items():
-        assert sorted(links) == sorted((item, "contains") for item in items_of_package[package])
+        assert sorted(links) == sorted((item, "contains") for item in items_of_package.get(package, []))
     assert any(len(links) > 1 for links in packages.values())
 
 
 def test_a_link_goes_only_in_its_entrys_direction_and_no_key_gives_none(order_management):
-    # items are on the other end of both links, and Warehouse's own entries have no o2o key
+    # items are on the other end of both links, and Warehouse's own entries have no o2o key: an item's only
+    # link is to its product, from the reference that picks it
     ocel, _, _ = order_management
 
     assert _items(ocel)
-    assert all(links == [] for links in _related(ocel, "items").values())
+    assert all([qualifier for _, qualifier in links] == ["is a"] for links in _related(ocel, "items").values())
 
 
 def test_a_run_without_o2o_keys_links_no_objects():
@@ -115,7 +110,8 @@ def test_pm4py_reads_the_object_links(order_management):
     read = pm4py.read_ocel2_json(str(path))
 
     assert len(read.o2o) == sum(len(obj["relationships"]) for obj in ocel["objects"])
-    assert set(read.o2o["ocel:qualifier"]) == {"comprises", "contains", "places"}  # places: the catalogue's customers
+    # places and is a: from the references to the catalogue's customers and products
+    assert set(read.o2o["ocel:qualifier"]) == {"comprises", "contains", "places", "is a"}
 
 
 def test_an_o2o_key_must_be_a_non_empty_string(tmp_path):

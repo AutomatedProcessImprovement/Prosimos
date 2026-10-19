@@ -208,7 +208,8 @@ run.
 ## Worked example: Order Management
 
 The Order Management example ([order-management.md](order-management.md)) has 15 customers, picked
-uniformly by Sales. This is its full configuration,
+uniformly by Sales, and the real log's 20 products, one picked for each item by the Warehouse, as often as
+in the log. This is its full configuration,
 `testing_scripts/assets/order_management/simulation.json`:
 
 ```json
@@ -240,11 +241,14 @@ uniformly by Sales. This is its full configuration,
       "name": "Packaging",
       "bpmn_path": "packaging.bpmn",
       "json_path": "packaging.json",
+      "total_cases": 1200,
       "object_type": "packages",
       "qualifier": "package",
       "qualifier_by_activity": {
         "Create_Package": "creates",
-        "Send_Package": "shipped package"
+        "Send_Package": "shipped package",
+        "Failed_Delivery": "shipped package",
+        "Package_Delivered": "shipped package"
       },
       "carry_links": true
     }
@@ -268,12 +272,40 @@ uniformly by Sales. This is its full configuration,
       {"id": "c13", "attributes": {"segment": "retail"}},
       {"id": "c14", "attributes": {"segment": "retail"}},
       {"id": "c15", "attributes": {"segment": "business"}}
+    ],
+    "products": [
+      {"id": "iPhone X", "attributes": {"weight": 0.172, "price": 699}},
+      {"id": "iPhone 8", "attributes": {"weight": 0.21, "price": 529}},
+      {"id": "Fire Stick", "attributes": {"weight": 0.2, "price": 39.99}},
+      {"id": "iPad Air", "attributes": {"weight": 0.44, "price": 476}},
+      {"id": "Fire Stick 4K", "attributes": {"weight": 0.28, "price": 89.99}},
+      {"id": "iPad Pro", "attributes": {"weight": 0.483, "price": 1099}},
+      {"id": "Echo Plus", "attributes": {"weight": 1.28, "price": 149.99}},
+      {"id": "Kindle Paperwhite", "attributes": {"weight": 0.495, "price": 129}},
+      {"id": "Echo Show 8", "attributes": {"weight": 0.98, "price": 129.99}},
+      {"id": "MacBook Pro", "attributes": {"weight": 1.37, "price": 2500}},
+      {"id": "iPad mini", "attributes": {"weight": 0.28, "price": 449}},
+      {"id": "Echo Studio", "attributes": {"weight": 1.48, "price": 199.99}},
+      {"id": "Echo Dot", "attributes": {"weight": 0.38, "price": 29.99}},
+      {"id": "iPhone 11 Pro", "attributes": {"weight": 0.188, "price": 1149}},
+      {"id": "MacBook Air", "attributes": {"weight": 1.25, "price": 2200}},
+      {"id": "Echo Show 5", "attributes": {"weight": 0.88, "price": 89.99}},
+      {"id": "Echo", "attributes": {"weight": 0.78, "price": 99.99}},
+      {"id": "iPad", "attributes": {"weight": 0.483, "price": 495}},
+      {"id": "Kindle", "attributes": {"weight": 0.483, "price": 79.99}},
+      {"id": "iPhone 11", "attributes": {"weight": 0.166, "price": 799}}
     ]
   },
   "references": [
     {"process": "Sales", "case_attribute": "customer", "catalogue": "customers",
      "o2o": "places", "reverse": true, "link_events": ["place order", "confirm order"],
-     "pick": "uniform"}
+     "pick": "uniform"},
+    {"process": "Warehouse", "case_attribute": "product", "catalogue": "products", "o2o": "is a",
+     "pick": {"weights": {
+       "iPhone X": 433, "iPhone 8": 408, "Fire Stick": 405, "iPad Air": 405, "Fire Stick 4K": 400,
+       "iPad Pro": 394, "Echo Plus": 394, "Kindle Paperwhite": 393, "Echo Show 8": 383, "MacBook Pro": 382,
+       "iPad mini": 382, "Echo Studio": 379, "Echo Dot": 375, "iPhone 11 Pro": 373, "MacBook Air": 369,
+       "Echo Show 5": 368, "Echo": 365, "iPad": 362, "Kindle": 346, "iPhone 11": 343}}}
   ]
 }
 ```
@@ -285,7 +317,8 @@ poetry run prosimos start-orchestration --config testing_scripts/assets/order_ma
 ```
 
 `sales.json` has no `customer` in its `case_attributes`: the reference picks it. Its `ItemOrdered` message
-then carries it to the items, and `ItemPicked` to the packages.
+then carries it to the items, and `ItemPicked` to the packages. Likewise, `warehouse.json` has no `product`:
+the second reference picks it, with the number of items of each product in the log as weights.
 
 **What appears in the OCEL file** (excerpts of that run, 2,000 orders):
 
@@ -316,16 +349,29 @@ then carries it to the items, and `ItemPicked` to the packages.
    "relationships": [{"objectId": "Sales-0", "qualifier": "order"},
                      {"objectId": "Warehouse-0", "qualifier": "item"}, ...,
                      {"objectId": "c9", "qualifier": "customer"}]}
-  {"id": "e17", "type": "confirm order", "time": "2023-04-03T09:55:27.683160Z",
+  {"id": "e16", "type": "confirm order", "time": "2023-04-03T09:55:27.683160Z",
    "relationships": [{"objectId": "Sales-0", "qualifier": "order"}, ...,
                      {"objectId": "c9", "qualifier": "customer"}]}
-  {"id": "e550", "type": "pay order", "time": "2023-04-11T20:30:28.616308Z",
+  {"id": "e523", "type": "pay order", "time": "2023-04-11T20:30:28.616308Z",
    "relationships": [{"objectId": "Sales-0", "qualifier": "order"}, ...]}
   ```
 
-Items and packages carry `customer` too, but only as an attribute: there is no reference on the Warehouse
-or Packaging. Adding the Warehouse reference shown under "Two modes" would link each item to its customer
-as well. To have every order come from a new customer instead, replace the list with
+- **The 20 products**, type `products`, with `weight` and `price` as in the log. Each item **is a** product
+  (`"o2o": "is a"`, from the item to the product), keeps `product` as an attribute, and every one of its
+  events is linked to the product with the qualifier `product` (no `link_events`):
+
+  ```json
+  {"id": "Warehouse-0", "type": "items",
+   "attributes": [{"name": "product", "value": "iPad Air", "time": "2023-04-03T06:01:00.000000Z"}, ...],
+   "relationships": [{"objectId": "iPad Air", "qualifier": "is a"}]}
+  {"id": "e15", "type": "pick item", "time": "2023-04-03T09:27:32.013771Z",
+   "relationships": [{"objectId": "Warehouse-0", "qualifier": "item"}, ...,
+                     {"objectId": "iPad Air", "qualifier": "product"}]}
+  ```
+
+Items and packages carry `customer` too, but only as an attribute: there is no customer reference on the
+Warehouse or Packaging. Adding the Warehouse reference shown under "Two modes" would link each item to its
+customer as well. To have every order come from a new customer instead, replace the list with
 `"customers": {"attributes": [...]}` and the pick with `"new"`.
 
 ## Errors and warnings
@@ -363,7 +409,7 @@ The messages, by the key they are about:
 | `pick`                       | `references[0] pick must be "uniform", {"weights": {id: weight, ...}}, "new" or {"new_share": share}`                                                           |
 | `pick`                       | `references[0] picks customer, which process Sales also draws in its case_attributes`                                                                           |
 | `pick`                       | `references[0] picks customer, which process Warehouse also copies from a message (consume entries at ['Start_Item'])`                                          |
-| `pick`                       | `references[0] picks item_ids, which process Packaging also appends to from a message (consume entries at ['Start_Package', 'Catch_More_Items'])`               |
+| `pick`                       | `references[0] picks item_ids, which process Packaging also appends to from a message (consume entries at ['Catch_Items'])`                                     |
 | `pick`                       | `references[0] picks for Scripted, an engine not built from a ProcessSpec, which can't take a pick` (extra engines, see [orchestrator.md](orchestrator.md))     |
 | `pick`                       | `more than one reference picks customer of process Sales`                                                                                                       |
 | `weights`                    | `references[0] weights name ['c99'], which are no ids of catalogue 'customers'`                                                                                 |

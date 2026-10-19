@@ -13,9 +13,8 @@ from prosimos.orchestrator import Message, ProcessSpec, ProsimosEngine, Simulati
 from testing_scripts.scripted_engine import ScriptedEngine
 from testing_scripts.test_catalogue import _config_with
 from testing_scripts.test_collect import ORDERS, START, _settings, at
-from testing_scripts.test_order_management import _config, _PackageContents
-
-OM = "testing_scripts/assets/order_management"
+from testing_scripts.test_count_over_list import PACKAGES, PACKAGES_JSON
+from testing_scripts.test_order_management import _config, package_items
 
 
 def _appending(settings):
@@ -80,45 +79,30 @@ def test_a_message_without_the_attribute_adds_nothing_and_warns_once_per_event_a
                    "to item_ids")]
 
 
-def test_a_start_event_appends_the_message_that_starts_the_case(tmp_path):
-    # an Order Management package, started by its first item, collecting 2 more of the same customer
-    with open(f"{OM}/packaging.json") as file:
-        settings = json.load(file)
-    more_items = next(attribute for attribute in settings["case_attributes"] if attribute["name"] == "more_items")
-    more_items["values"] = [{"key": 2, "value": 1}]
-    (tmp_path / "packaging.json").write_text(json.dumps(settings))
-    engine = ProsimosEngine(ProcessSpec("Packaging", f"{OM}/packaging.bpmn", str(tmp_path / "packaging.json")), START,
-                            seed=1)
+def test_a_start_event_appends_the_message_that_starts_the_case():
+    # a package, started by its first item, collecting 2 more
+    engine = ProsimosEngine(ProcessSpec("Packages", PACKAGES, PACKAGES_JSON), START, seed=1)
 
     for minutes, item in ((0, "Warehouse-5"), (20, "Warehouse-6"), (30, "Warehouse-7")):
         now = at(f"09:{minutes:02}")
         while engine.next_event_time() is not None and engine.next_event_time() <= now:
             engine.step()
-        message = Message("ItemPicked", {"order_id": "Sales-1", "item_index": minutes, "customer": "c1", "case_id": item},
-                          source="Warehouse")
-        assert engine.deliver(message, now) is Verdict.CLAIMED
+        assert engine.deliver(Message("ItemPicked", {"case_id": item}, source="Warehouse"), now) is Verdict.CLAIMED
 
-    package = next(case_object for case_object in engine.finish().objects if case_object.case_id == "Packaging-0")
+    package = next(case_object for case_object in engine.finish().objects if case_object.case_id == "Packages-0")
     assert [value for name, value, _ in package.attributes if name == "item_ids"] == [
         ["Warehouse-5"], ["Warehouse-5", "Warehouse-6"], ["Warehouse-5", "Warehouse-6", "Warehouse-7"]]
 
 
-def test_every_order_management_package_lists_the_items_it_took_in_claim_order(tmp_path):
-    monkeypatch = pytest.MonkeyPatch()
-    contents = _PackageContents(monkeypatch)
-    try:
-        report = run_orchestrator(_config(100), None)
-    finally:
-        monkeypatch.undo()
-    item_of = {(values["order_id"], values["item_index"]): case_object.case_id for name, case_object in report.objects
-               if name == "Warehouse" for values in [{attribute: value for attribute, value, _ in case_object.attributes}]}
+def test_every_order_management_package_lists_the_items_it_took_in_claim_order():
+    report = run_orchestrator(_config(100), None)
 
     packages = {case_object.case_id: [value for attribute, value, _ in case_object.attributes if attribute == "item_ids"][-1]
                 for name, case_object in report.objects if name == "Packaging"}
 
-    assert len(packages) > 30
-    for package, took in contents.items.items():
-        assert packages[f"Packaging-{package}"] == [item_of[(order_id, index)] for order_id, index, _ in took]
+    took = package_items(report)
+    assert len(took) > 30
+    assert {package: items for package, items in packages.items() if items} == took
 
 
 # load errors
@@ -143,15 +127,15 @@ def test_appending_to_an_attribute_declared_in_case_attributes_is_rejected(tmp_p
 
 
 def test_appending_to_an_attribute_another_entry_copies_into_is_rejected(tmp_path):
-    with open(f"{OM}/packaging.json") as file:
+    with open(PACKAGES_JSON) as file:
         settings = json.load(file)
-    settings["messages"]["consume"][0]["copy"]["item_ids"] = "case_id"
+    settings["messages"]["consume"][0]["copy"] = {"item_ids": "case_id"}
     del settings["messages"]["consume"][0]["append"]
-    (tmp_path / "packaging.json").write_text(json.dumps(settings))
+    (tmp_path / "packages.json").write_text(json.dumps(settings))
 
     with pytest.raises(InvalidSimScenarioException, match=r"messages.consume\[1\]: append adds to 'item_ids', which "
                                                           r"messages.consume\[0\] copies into"):
-        ProsimosEngine(ProcessSpec("Packaging", f"{OM}/packaging.bpmn", str(tmp_path / "packaging.json")), START)
+        ProsimosEngine(ProcessSpec("Packages", PACKAGES, str(tmp_path / "packages.json")), START)
 
 
 @pytest.mark.parametrize("append, message", [
@@ -175,5 +159,5 @@ def test_picking_an_attribute_the_process_appends_to_is_rejected(tmp_path):
         {"process": "Packaging", "case_attribute": "item_ids", "catalogue": "customers", "pick": "uniform"}])
 
     with pytest.raises(ValueError, match=r"references\[0\] picks item_ids, which process Packaging also appends to "
-                                         r"from a message \(consume entries at \['Start_Package', 'Catch_More_Items'\]\)"):
+                                         r"from a message \(consume entries at \['Catch_Items'\]\)"):
         SimulationConfig.from_json(path)

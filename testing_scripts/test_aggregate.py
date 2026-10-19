@@ -196,7 +196,7 @@ def test_an_aggregated_attribute_counts_as_declared_so_messages_can_publish_it()
 def test_picking_an_attribute_the_process_aggregates_into_is_rejected(tmp_path):
     with open("testing_scripts/assets/order_management/packaging.json") as file:
         settings = json.load(file)
-    settings["messages"]["consume"][1]["aggregate"] = {"segment": {"max": "customer"}}
+    settings["messages"]["consume"][0]["aggregate"] = {"segment": {"max": "customer"}}
     packaging = tmp_path / "packaging.json"
     packaging.write_text(json.dumps(settings))
     path = _config_with(tmp_path, references=[
@@ -206,5 +206,5 @@ def test_picking_an_attribute_the_process_aggregates_into_is_rejected(tmp_path):
     path.write_text(json.dumps(data))
 
     with pytest.raises(ValueError, match=r"references\[0\] picks segment, which process Packaging also aggregates "
-                                         r"into from a message \(consume entries at \['Catch_More_Items'\]\)"):
+                                         r"into from a message \(consume entries at \['Catch_Items'\]\)"):
         SimulationConfig.from_json(path)

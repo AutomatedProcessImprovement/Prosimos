@@ -6,8 +6,9 @@ and shares with the real log. Times are only roughly calibrated. The models are 
 `testing_scripts/assets/order_management/`; the tests are in `testing_scripts/test_order_management.py`.
 
 It uses most messaging features ([messaging.md](messaging.md)): one message per object with `count` and
-`index`, processes started by messages, `copy`, conditions on case attributes, a race with a timer that
-repeats, and `collect` read from a case attribute.
+`index`, processes started by messages, `copy`, `append` and `aggregate`, conditions on case attributes, a race
+with a timer that repeats, and `collect` with `same`; and the catalogue ([catalogue.md](catalogue.md)) for its
+customers and products.
 
 ## The processes
 
@@ -23,29 +24,32 @@ Sales (order)        arrivals: weekdays 6:00-22:00, about one every 4.3 h, 2,000
 Customer             start OrderConfirmed (copy order_id) -> timer (confirm-to-pay delay)
                      -> message end Payment{order_id}
 Warehouse (item)     start ItemOrdered (copy order_id, item_index from index, customer)
+                     case attribute: product (picked from the log's 20, as often as in the log)
                      -> XOR: 20% item out of stock -> reorder item | 80% straight on
-                     -> pick item (Warehousing) -> message end ItemPicked{order_id, item_index, customer, case_id}
-Packaging (package)  start ItemPicked (copy customer, append case_id to item_ids); case attribute more_items (0..19)
-                     -> catch ItemPicked, customer = case.customer, collect more_items, append case_id to item_ids
+                     -> pick item (Warehousing; sets weight, the product's)
+                     -> message end ItemPicked{order_id, item_index, customer, case_id, weight}
+Packaging (package)  arrivals: weekdays 7:00-17:00, about one packing round every 2.6 h, 1,200 rounds
+                     -> catch ItemPicked: the oldest waiting one and every other of its customer (collect "all",
+                        same customer); copy customer, append case_id to item_ids, weight = sum of their weights
                      -> create package (Warehousing) -> send package (Shipment)
                      -> XOR: 22% failed delivery -> back to the XOR | 78% package delivered -> end
 ```
 
 The customer is picked for the order and travels with the messages: order → `ItemOrdered` → item →
-`ItemPicked` → package. A package starts on an `ItemPicked` that no open package takes, then collects
-`more_items` more items of the same customer; waiting cases are offered messages before start events, so a
-customer has at most one open package. In the log, a package takes the oldest waiting item and then all of
-that customer's waiting items; this configuration doesn't use that rule yet, so the package size is drawn
-instead. Sizes and waiting times are therefore approximate, and a customer's last package may still be
-collecting when the run ends.
+`ItemPicked` → package. Packages are made as in the log: a packing round starts in working hours, takes the
+oldest waiting item and then all of that customer's waiting items, and creates the package. If no item is
+waiting, the round waits for the next one, and takes it with the others of its customer offered at that
+moment. How long an item waits for its package therefore depends on how often rounds come, not on a drawn
+package size.
+
+Rounds keep coming after the last item, and would wait forever, so their number is limited: 1,200 rounds last
+until a few days after the last order (the orders end on 2024-03-19, the last round starts on 2024-03-22).
+With seed 1, the last 6 rounds find no item left; they are still waiting when the run ends, and are reported
+in `stalled`. With fewer rounds, the last items could be left unpacked instead: 1,194 rounds are just enough for
+seed 1, packing every item and leaving no round waiting, but another seed would need a different number.
 
 Not modeled, and where each goes:
 
-- **Package weight**, the sum of its items' weights with `aggregate` ([messaging.md](messaging.md)); items
-  have no weight yet: future work.
-- **The real packing rule**, the oldest waiting item and then all of that customer's waiting items
-  (`"collect": "all"` with `"same"`, see [messaging.md](messaging.md)); it would also remove the packages
-  still collecting at the end: future work.
 - **Confirmation by the customer's primary sales rep** (88% of confirmations in the log; any Sales employee
   confirms here): under discussion.
 - **The forwarder of a package** (the shipper sends it here): under discussion.
@@ -62,60 +66,63 @@ flowchart LR
     Sales([Sales<br/>one case per order])
     Customer([Customer<br/>one case per confirmed order])
     Warehouse([Warehouse<br/>one case per item])
-    Packaging([Packaging<br/>one case per package])
+    Packaging([Packaging<br/>one case per packing round])
 
     Sales -->|"ItemOrdered<br/>(one per item: count)"| Warehouse
     Sales -->|"OrderConfirmed<br/>(starts a case)"| Customer
     Customer -->|"Payment<br/>(same order)"| Sales
-    Warehouse -->|"ItemPicked<br/>(the customer's open package, or a new one)"| Packaging
+    Warehouse -->|"ItemPicked<br/>(a packing round takes all of one customer's)"| Packaging
 ```
 
 ## Messages
 
-| Process       | Publishes                                                                             | Consumes                                                                                                                                                                                           |
-|---------------|---------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Sales**     | `ItemOrdered{case_id, index, customer}`, `count` = `items`; `OrderConfirmed{case_id}` | `Payment` where `order_id == case_id`, in a race against the 20-day reminder timer                                                                                                                 |
-| **Customer**  | `Payment{order_id}`, at its message end event                                         | `OrderConfirmed` at its start event; copies `order_id` from `case_id`                                                                                                                              |
-| **Warehouse** | `ItemPicked{order_id, item_index, customer, case_id}`, at its message end event       | `ItemOrdered` at its start event; copies `order_id` from `case_id`, `item_index` from `index`, `customer` from `customer`                                                                          |
-| **Packaging** | nothing                                                                               | `ItemPicked` at its start event, copying `customer`; and at "more items picked" where `customer == case.customer`, collecting `more_items` (a case attribute); both append `case_id` to `item_ids` |
+| Process       | Publishes                                                                               | Consumes                                                                                                                                                                 |
+|---------------|-----------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Sales**     | `ItemOrdered{case_id, index, customer}`, `count` = `items`; `OrderConfirmed{case_id}`   | `Payment` where `order_id == case_id`, in a race against the 20-day reminder timer                                                                                       |
+| **Customer**  | `Payment{order_id}`, at its message end event                                           | `OrderConfirmed` at its start event; copies `order_id` from `case_id`                                                                                                    |
+| **Warehouse** | `ItemPicked{order_id, item_index, customer, case_id, weight}`, at its message end event | `ItemOrdered` at its start event; copies `order_id` from `case_id`, `item_index` from `index`, `customer` from `customer`                                                |
+| **Packaging** | nothing                                                                                 | `ItemPicked` at "items picked": `"collect": "all"` with `"same": ["customer"]`, copying `customer`, appending `case_id` to `item_ids` and summing `weight` into `weight` |
 
 ## How the log maps to the model
 
-| In the log                     | Process   | BPMN element              | Feature                                                                                              |
-|--------------------------------|-----------|---------------------------|------------------------------------------------------------------------------------------------------|
-| object type **orders**         | Sales     | one case per order        | arrivals on a weekday calendar; case attribute `items`; `customer` picked from the catalogue         |
-| object type **items**          | Warehouse | one case per item         | a message start event on `ItemOrdered`, published once per item with `count`; `index` → `item_index` |
-| object type **packages**       | Packaging | one case per package      | a message start event on an `ItemPicked` no open package takes; `collect` of `more_items`            |
-| object type **customers**      | all       | case attribute `customer` | 15 in the catalogue; picked for the order, copied to items and packages; the package's condition     |
-| object type **products**       | -         | -                         | not modeled: no metric uses them                                                                     |
-| object type **employees**      | all       | resources                 | Sales (5), Warehousing (7, split 5 / 2 between Warehouse and Packaging), Shipment (6)                |
-| activity **place order**       | Sales     | task `Place_Order`        | done by the `Shop` resource; `ItemOrdered` is published right after it                               |
-| activity **confirm order**     | Sales     | task `Confirm_Order`      | Sales; `OrderConfirmed` is published right after it                                                  |
-| activity **payment reminder**  | Sales     | task `Payment_Reminder`   | the timer branch of the race (20 days), then back to the race                                        |
-| activity **pay order**         | Sales     | task `Pay_Order`          | after the message branch of the race (`Payment`); done by the `Payments` resource                    |
-| activity **item out of stock** | Warehouse | task `Item_Out_Of_Stock`  | the 20% branch of an XOR                                                                             |
-| activity **reorder item**      | Warehouse | task `Reorder_Item`       | after item out of stock                                                                              |
-| activity **pick item**         | Warehouse | task `Pick_Item`          | Warehousing; `ItemPicked` is published at the message end event after it                             |
-| activity **create package**    | Packaging | task `Create_Package`     | after the package has collected its items                                                            |
-| activity **send package**      | Packaging | task `Send_Package`       | Shipment                                                                                             |
-| activity **failed delivery**   | Packaging | task `Failed_Delivery`    | the 22% branch of an XOR, then back to it                                                            |
-| activity **package delivered** | Packaging | task `Package_Delivered`  | the 78% branch of that XOR                                                                           |
-| not in the log                 | Customer  | timer `Pay_Delay`         | how long the customer takes to pay; publishes `Payment`                                              |
+| In the log                     | Process   | BPMN element               | Feature                                                                                                             |
+|--------------------------------|-----------|----------------------------|---------------------------------------------------------------------------------------------------------------------|
+| object type **orders**         | Sales     | one case per order         | arrivals on a weekday calendar; case attribute `items`; `customer` picked from the catalogue                        |
+| object type **items**          | Warehouse | one case per item          | a message start event on `ItemOrdered`, published once per item with `count`; `index` → `item_index`                |
+| object type **packages**       | Packaging | one case per packing round | arrivals in working hours; `collect` `"all"` with `same` customer; `weight` the sum of its items'                   |
+| object type **customers**      | all       | case attribute `customer`  | 15 in the catalogue; picked for the order, copied to items and packages; what a package's items share               |
+| object type **products**       | Warehouse | case attribute `product`   | the log's 20 in the catalogue, with their weight and price; picked for each item as often as in the log             |
+| object type **employees**      | all       | resources                  | Sales (5), Warehousing (7, split 5 / 2 between Warehouse and Packaging), Shipment (6)                               |
+| activity **place order**       | Sales     | task `Place_Order`         | done by the `Shop` resource; `ItemOrdered` is published right after it                                              |
+| activity **confirm order**     | Sales     | task `Confirm_Order`       | Sales; `OrderConfirmed` is published right after it                                                                 |
+| activity **payment reminder**  | Sales     | task `Payment_Reminder`    | the timer branch of the race (20 days), then back to the race                                                       |
+| activity **pay order**         | Sales     | task `Pay_Order`           | after the message branch of the race (`Payment`); done by the `Payments` resource                                   |
+| activity **item out of stock** | Warehouse | task `Item_Out_Of_Stock`   | the 20% branch of an XOR                                                                                            |
+| activity **reorder item**      | Warehouse | task `Reorder_Item`        | after item out of stock                                                                                             |
+| activity **pick item**         | Warehouse | task `Pick_Item`           | Warehousing; sets the item's `weight` from its product; `ItemPicked` is published at the message end event after it |
+| activity **create package**    | Packaging | task `Create_Package`      | after the packing round has taken its items                                                                         |
+| activity **send package**      | Packaging | task `Send_Package`        | Shipment                                                                                                            |
+| activity **failed delivery**   | Packaging | task `Failed_Delivery`     | the 22% branch of an XOR, then back to it                                                                           |
+| activity **package delivered** | Packaging | task `Package_Delivered`   | the 78% branch of that XOR                                                                                          |
+| not in the log                 | Customer  | timer `Pay_Delay`          | how long the customer takes to pay; publishes `Payment`                                                             |
 
 ## Numbers from the log
 
-| Parameter           | Real log                                                                   | In the model                                                               |
-|---------------------|----------------------------------------------------------------------------|----------------------------------------------------------------------------|
-| Orders              | 2,000; one every 4.26 h on average; 95% on weekdays, mostly 6-22           | exponential gaps of 2.3 h mean within a weekday 6:00-22:00 calendar        |
-| Customers           | 15, 103-152 orders each                                                    | `customer`: picked uniformly from the catalogue's c1..c15                  |
-| Items per order     | 1-16 (1: 159, 2: 360, 3: 489, 4: 367, 5: 275, 6: 164, 7: 100, 8+: 86)      | `items`: these frequencies, 8+ as in the log                               |
-| Out of stock        | 1,544 of 7,659 items (20%)                                                 | XOR 20 / 80                                                                |
-| Confirm to pay      | median 7 days, quartiles 2.34 / 17.86, max 91; 23.5% after 20 days         | Customer timer: log-normal with that median and quartiles, at most 91 days |
-| Payment reminder    | exactly 20 days after confirm or the previous reminder; 0-4 per order      | race timer, fixed 20 days                                                  |
-| Items per package   | 1-20, median 6; always one customer                                        | `more_items` = size - 1, with the log's size frequencies                   |
-| Failed delivery     | 311 failures in 1,439 attempts (22%); up to 7 per package                  | XOR 22 / 78                                                                |
-| Employees           | Sales 5, Warehousing 7, Shipment 6; weekdays 6-22                          | the same pools on a weekday 6:00-22:00 calendar (Warehousing split 5 / 2)  |
-| Gaps (with waiting) | place→confirm 18 h, place→pick 52 h, create→send 14 h, send→delivered 14 h | rough task durations; see the comparison                                   |
+| Parameter           | Real log                                                                               | In the model                                                                         |
+|---------------------|----------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------|
+| Orders              | 2,000; one every 4.26 h on average; 95% on weekdays, mostly 6-22                       | exponential gaps of 2.3 h mean within a weekday 6:00-22:00 calendar                  |
+| Customers           | 15, 103-152 orders each                                                                | `customer`: picked uniformly from the catalogue's c1..c15                            |
+| Items per order     | 1-16 (1: 159, 2: 360, 3: 489, 4: 367, 5: 275, 6: 164, 7: 100, 8+: 86)                  | `items`: these frequencies, 8+ as in the log                                         |
+| Out of stock        | 1,544 of 7,659 items (20%)                                                             | XOR 20 / 80                                                                          |
+| Confirm to pay      | median 7 days, quartiles 2.34 / 17.86, max 91; 23.5% after 20 days                     | Customer timer: log-normal with that median and quartiles, at most 91 days           |
+| Payment reminder    | exactly 20 days after confirm or the previous reminder; 0-4 per order                  | race timer, fixed 20 days                                                            |
+| Packing rounds      | 1,128 packages; gaps between create package: median 2.6 h; mostly 7-17                 | exponential gaps of 2.6 h mean within a weekday 7:00-17:00 calendar, 1,200 rounds    |
+| Items per package   | 1-20, median 6; always one customer: the oldest waiting item and all of its customer's | the same rule: `"collect": "all"` with `"same": ["customer"]`                        |
+| Products            | 20, 343-433 items each; weight 0.166-1.48 (an item weighs what its product weighs)     | picked with these frequencies; the item's `weight` set from its product at pick item |
+| Package weight      | the sum of its items' weights                                                          | `"aggregate": {"weight": {"sum": "weight"}}`                                         |
+| Failed delivery     | 311 failures in 1,439 attempts (22%); up to 7 per package                              | XOR 22 / 78                                                                          |
+| Employees           | Sales 5, Warehousing 7, Shipment 6; weekdays 6-22                                      | the same pools on a weekday 6:00-22:00 calendar (Warehousing split 5 / 2)            |
+| Gaps (with waiting) | place→confirm 18 h, place→pick 52 h, create→send 14 h, send→delivered 14 h             | rough task durations; see the comparison                                             |
 
 Place order, pay order and payment reminder have no employee in the log; here they are done by `Shop`
 (always available) and `Payments` (weekdays 6-22) resources.
@@ -125,75 +132,91 @@ Place order, pay order and payment reminder have no employee in the log; here th
 ```
 poetry run prosimos start-orchestration --config testing_scripts/assets/order_management/simulation.json \
     --log_out_path order_management_log.csv --ocel_out_path order_management_log.json
-poetry run python testing_scripts/order_management_compare.py <path to order-management.json> order_management_log.csv
+poetry run python testing_scripts/order_management_compare.py <path to order-management.json> order_management_log.json
 ```
 
 The configuration names the object types: `orders` (Sales), `items` (Warehouse) and `packages`
-(Packaging); Customer has `"object_type": null`, so the OCEL file has no objects or events for it. Each event
+(Packaging), and the catalogue adds `customers` and `products`; Customer has `"object_type": null`, so the OCEL file has no objects or events for it. Each event
 is linked to the objects on the other end of its messages ([orchestrator.md](orchestrator.md), "One event
 linked to many objects"), as the Order Management log links them:
 
-| Event                                      | Linked to                                                                                              |
-|--------------------------------------------|--------------------------------------------------------------------------------------------------------|
-| place order                                | its order (`order`), the items its ItemOrdered messages started (`item`) and its customer (`customer`) |
-| confirm order                              | its order, its customer and, with `carry_links`, its items                                             |
-| payment reminder, pay order                | its order and, with `carry_links`, its items                                                           |
-| item out of stock or pick item, first task | its item (`item`) and its order (`order`), from the ItemOrdered that started it                        |
-| pick item                                  | its item and the package that took its ItemPicked (`package`)                                          |
-| create package                             | its package (`creates`) and the items it collected (`item`)                                            |
-| send package                               | its package (`shipped package`) and, with `carry_links`, its items                                     |
-| failed delivery, package delivered         | its package (`package`) and, with `carry_links`, its items                                             |
+| Event                                            | Linked to                                                                                              |
+|--------------------------------------------------|--------------------------------------------------------------------------------------------------------|
+| place order                                      | its order (`order`), the items its ItemOrdered messages started (`item`) and its customer (`customer`) |
+| confirm order                                    | its order, its customer and, with `carry_links`, its items                                             |
+| payment reminder, pay order                      | its order and, with `carry_links`, its items                                                           |
+| item out of stock or pick item, first task       | its item (`item`) and its order (`order`), from the ItemOrdered that started it                        |
+| pick item                                        | its item and the package that took its ItemPicked (`package`)                                          |
+| every event of an item                           | its product (`product`), from the reference that picks it                                              |
+| create package                                   | its package (`creates`) and the items it collected (`item`)                                            |
+| send package, failed delivery, package delivered | its package (`shipped package`) and, with `carry_links`, its items                                     |
 
 Objects are linked to each other too: each order **comprises** its items (`"o2o": "comprises"` on Sales's
-ItemOrdered entry) and each package **contains** its items (`"o2o": "contains"` on both of Packaging's
-ItemPicked entries: the start event takes a package's first item, the catch event the rest).
+ItemOrdered entry), each package **contains** its items (`"o2o": "contains"` on Packaging's ItemPicked entry),
+and each item **is a** product (`"o2o": "is a"` on the product reference).
 
 Customers have no events of their own, so they come from the configuration's catalogue: 15 customers, c1 to
 c15, each with a `segment` ([catalogue.md](catalogue.md) uses this configuration as its worked example). A
 reference on Sales's `customer` attribute picks it when an order is created (`"pick": "uniform"`; `sales.json`
 doesn't draw it), links each customer to the orders it **places** (`"reverse": true`, from the customer to the
 order), and links place order and confirm order to their customer; pay order isn't linked. Since `ItemOrdered`
-carries the picked `customer`, `sales.json` only runs inside this configuration, not on its own.
+carries the picked `customer`, `sales.json` only runs inside this configuration, not on its own. Products come
+from the catalogue too: the log's 20, each with its `weight` and first `price`. A second reference picks one for
+each item, with the number of items of each product in the log as weights, links the item to it (**is a**), and
+links every event of the item to it.
 
-Sales and Packaging have `carry_links`; Warehouse doesn't, so a reorder is linked only to its item. A
-package still collecting when the run ends never reaches create package, so the links of the items it took
-are dropped, with a warning. The full
-2,000-order run takes about 25 seconds (Apple M4 Pro). The OCEL file isn't part of the repository;
-the comparison script reads it from the given path.
+Sales and Packaging have `carry_links`; Warehouse doesn't, so a reorder is linked only to its item and its
+product. A packing round that never took an item has no events and no links; its package object is in the
+file, with no items, but `pm4py.read_ocel2_json` leaves it out. The full 2,000-order run takes about 65 seconds
+(Apple M4 Pro).
 
-The CSV log doesn't link a package to its items, so the script reconstructs them: a customer has at most
-one open package at a time, packages get consecutive case ids as they start, and each takes its first item and
-then `more_items` more of that customer, in the order the items were picked. The tests check that this matches
-what the engine did.
+The comparison script reads the real log and the simulated OCEL file the same way, from their objects,
+events and links. It counts object-to-object links from the files themselves, since pm4py leaves out objects
+that no event refers to.
 
 ## Comparison with the log
 
-2,000 orders, seed 1.
+2,000 orders, seed 1; real log against the simulated OCEL file, both read by the comparison script.
 
-| Metric                                        |                       Real log |                      Simulated |
-|-----------------------------------------------|-------------------------------:|-------------------------------:|
-| orders                                        |                          2,000 |                          2,000 |
-| items                                         |                          7,659 |                          7,735 |
-| packages (still collecting at the end)        |                          1,128 |                     1,102 (13) |
-| items per order: mean / median / max          |                  3.83 / 3 / 16 |                  3.87 / 3 / 16 |
-| items per order: 1 / 2 / 3 / 4                |      8.0 / 18.0 / 24.4 / 18.4% |      8.1 / 17.4 / 24.9 / 17.8% |
-| items per order: 5 / 6 / 7 / 8+               |        13.8 / 8.2 / 5.0 / 4.3% |        13.8 / 7.8 / 5.5 / 5.0% |
-| reminders per order: mean / max               |                       0.28 / 4 |                       0.32 / 4 |
-| reminders per order: 0 / 1 / 2 / 3 / 4+       | 77.8 / 17.2 / 3.9 / 0.9 / 0.1% | 80.0 / 12.4 / 4.2 / 2.4 / 0.9% |
-| orders paid after 20 days                     |                          23.5% |                          20.2% |
-| items out of stock                            |                          20.2% |                          19.7% |
-| items per package: mean / median / max        |                  6.79 / 6 / 20 |                  6.97 / 6 / 20 |
-| customers per package                         |                       always 1 |                       always 1 |
-| failed deliveries per package: mean / max     |                       0.28 / 7 |                       0.27 / 4 |
-| failed deliveries per package: 0 / 1 / 2 / 3+ |       81.0 / 13.2 / 4.0 / 1.8% |       78.1 / 17.7 / 3.4 / 0.7% |
-| items picked before their order is confirmed  |                          25.4% |                          60.7% |
-| orders paid after their first delivery        |                          67.3% |                          71.5% |
+| Metric                                                              |                       Real log |                      Simulated |
+|---------------------------------------------------------------------|-------------------------------:|-------------------------------:|
+| orders                                                              |                          2,000 |                          2,000 |
+| items                                                               |                          7,659 |                          7,735 |
+| packages (packing rounds that took no item)                         |                          1,128 |                      1,194 (6) |
+| customers / products                                                |                        15 / 20 |                        15 / 20 |
+| items per order: mean / median / max                                |                  3.83 / 3 / 16 |                  3.87 / 3 / 16 |
+| items per order: 1 / 2 / 3 / 4                                      |      8.0 / 18.0 / 24.4 / 18.4% |      8.1 / 17.4 / 24.9 / 17.8% |
+| items per order: 5 / 6 / 7 / 8+                                     |        13.8 / 8.2 / 5.0 / 4.3% |        13.8 / 7.8 / 5.5 / 5.0% |
+| reminders per order: mean / max                                     |                       0.28 / 4 |                       0.32 / 4 |
+| reminders per order: 0 / 1 / 2 / 3 / 4+                             | 77.8 / 17.2 / 3.9 / 0.9 / 0.1% | 80.0 / 12.4 / 4.2 / 2.4 / 0.9% |
+| orders paid after 20 days                                           |                          23.5% |                          20.2% |
+| items out of stock                                                  |                          20.2% |                          19.7% |
+| items per package: mean / median / max                              |                  6.79 / 6 / 20 |                6.48 / 5.5 / 30 |
+| customers per package                                               |                       always 1 |                       always 1 |
+| packages per customer: mean / median / max                          |                 75.2 / 76 / 80 |                 79.6 / 79 / 90 |
+| failed deliveries per package: mean / max                           |                       0.28 / 7 |                       0.27 / 4 |
+| failed deliveries per package: 0 / 1 / 2 / 3+                       |       81.0 / 13.2 / 4.0 / 1.8% |       79.3 / 15.6 / 4.1 / 1.0% |
+| items per event: place order / create package / send package (mean) |             3.83 / 6.79 / 6.79 |             3.87 / 6.48 / 6.48 |
+| links: customers places orders                                      |                          2,000 |                          2,000 |
+| links: orders comprises items                                       |                          7,659 |                          7,735 |
+| links: packages contains items                                      |                          7,659 |                          7,735 |
+| links: items is a products                                          |                          7,659 |                          7,735 |
+| links to employees (sales reps, packer, forwarder, shipper)         |                          3,414 |                              - |
+| pick item to create package: quartiles (h)                          |             22.0 / 46.0 / 79.6 |             20.7 / 38.5 / 68.8 |
+| pick item to create package: mean (h)                               |                           56.4 |                           45.6 |
+| items picked before their order is confirmed                        |                          25.4% |                          60.7% |
+| orders paid after their first delivery                              |                          67.3% |                          69.8% |
 
 The counts and shares that come from the model's structure and parameters (items per order, out of stock,
-items and customers per package, failed deliveries) match closely. The fitted confirm-to-pay distribution pays a
-little earlier than the log, but has a longer tail, so more orders get 3 or 4 reminders. The largest difference
-is in timing: in the log, items wait about two days before they are picked (place→pick 52 h), which the model
-doesn't reproduce (about 11 h), so far more items are picked before their order is confirmed.
+customers per package, failed deliveries, the links between objects) match closely. Packages now come from the
+log's packing rule rather than a drawn size: with rounds about as frequent as in the log, there are 6% more
+packages, slightly smaller on average (6.48 items against 6.79), but up to 30 items when a customer's items
+pile up between rounds. With more rounds, items also wait a little less for their package than in the log
+(median 38.5 h against 46 h). The fitted confirm-to-pay distribution pays a little earlier than the log, but has a longer tail, so more
+orders get 3 or 4 reminders. The largest difference is in timing: in the log, items wait about two days before
+they are picked (place→pick 52 h), which the model doesn't reproduce (about 11 h), so far more items are picked
+before their order is confirmed. The log links packages and confirmations to employees; here employees are
+resources, not objects.
 
 ## Gaps found
 
@@ -204,7 +227,17 @@ Found while building the example; no feature was added for them.
 - **Resources aren't shared between processes.** Picking (Warehouse) and packing (Packaging) are done by the
   same 7 Warehousing employees in the log, but each Prosimos process has its own resource pool; they are
   split 5 / 2 here. Under discussion.
-- **The merged CSV log doesn't link packages to their items**; the OCEL output does, and the comparison
-  script, which reads the CSV, reconstructs them (see above).
+- **An attribute set by a task isn't an OCEL object attribute.** An item's `weight` is set at pick item (an
+  event attribute), so it is a column of the CSV log and travels on `ItemPicked`, but an object's attributes
+  are those it had when its case was created and those copied from messages later; the items in the OCEL
+  file have no `weight`, where the log's have.
+- **A case can't read its catalogue object's attributes.** Each product's weight is in the catalogue, for the
+  OCEL output, and again in `warehouse.json`, which sets the item's `weight` from its `product` at pick item.
+- **A process started by arrivals has no end time.** The packing rounds are limited by their number, 1,200,
+  chosen so that they last until just after the orders; how many are left waiting at the end, or how many items
+  are left unpacked with fewer rounds, depends on the seed.
+- **The full run is slower with packing rounds** (about 65 seconds, from 25). While no round is waiting, the
+  waiting items are offered to Packaging again at each of its steps, and each offer checks every Packaging case
+  to tell whether one could still take the item. Future work.
 - **Reminders are 20 days and one microsecond apart.** A race timer's branch continues one microsecond after
   the timer's time, so that a message at exactly that time wins ([messaging.md](messaging.md)). By design.

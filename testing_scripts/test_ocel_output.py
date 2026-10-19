@@ -34,10 +34,10 @@ def test_orders_items_and_packages_are_objects_one_per_case(order_management):
 
     objects = Counter(obj["type"] for obj in ocel["objects"])
     cases_in_log = log.groupby("process")["case_id"].nunique()
-    still_collecting = sum(process == "Packaging" for process, _ in report.stalled)  # no rows in the log yet
+    never_took_an_item = sum(process == "Packaging" for process, _ in report.stalled)  # no rows in the log
     assert objects == Counter({"orders": cases_in_log["Sales"], "items": cases_in_log["Warehouse"],
-                               "packages": cases_in_log["Packaging"] + still_collecting,
-                               "customers": 15})  # the catalogue's
+                               "packages": cases_in_log["Packaging"] + never_took_an_item,
+                               "customers": 15, "products": 20})  # the catalogue's
     assert not any(obj["id"].startswith("Customer-") for obj in ocel["objects"])  # object_type: null
 
 
@@ -58,11 +58,12 @@ def test_object_and_event_types_are_listed_with_their_attributes(order_managemen
 
     assert {t["name"]: t["attributes"] for t in ocel["objectTypes"]} == {
         "items": [{"name": "customer", "type": "string"}, {"name": "item_index", "type": "integer"},
-                  {"name": "order_id", "type": "string"}],
+                  {"name": "order_id", "type": "string"}, {"name": "product", "type": "string"}],
         "orders": [{"name": "customer", "type": "string"}, {"name": "items", "type": "integer"}],
         "packages": [{"name": "customer", "type": "string"}, {"name": "item_ids", "type": "string"},
-                     {"name": "more_items", "type": "integer"}],
+                     {"name": "weight", "type": "float"}],
         "customers": [{"name": "segment", "type": "string"}],
+        "products": [{"name": "price", "type": "float"}, {"name": "weight", "type": "float"}],
     }
     assert {t["name"] for t in ocel["eventTypes"]} == {
         "place order", "confirm order", "payment reminder", "pay order", "item out of stock", "reorder item",
@@ -77,7 +78,7 @@ def test_pm4py_reads_the_file(order_management):
     ocel = pm4py.read_ocel2_json(str(path))
 
     assert len(ocel.events) == len(log)
-    assert set(ocel.objects["ocel:type"]) == {"orders", "items", "packages", "customers"}
+    assert set(ocel.objects["ocel:type"]) == {"orders", "items", "packages", "customers", "products"}
 
 
 def test_the_object_type_defaults_to_the_process_name_and_null_leaves_the_process_out(tmp_path):

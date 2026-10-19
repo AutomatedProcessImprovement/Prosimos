@@ -90,10 +90,9 @@ message to a list in the case. In Order Management, each item sends its own id (
 publishing case's own id), and the package keeps them all:
 
 ```
-warehouse.json:  "publish": [{"event_id": "Throw_ItemPicked", "type": "ItemPicked",
-                              "attributes": ["order_id", "item_index", "customer", "case_id"]}]
-packaging.json:  "consume": [{"event_id": "Start_Package", "type": "ItemPicked", ..., "append": {"item_ids": "case_id"}},
-                             {"event_id": "Catch_More_Items", ..., "append": {"item_ids": "case_id"}}]
+warehouse.json:  "publish": [{"event_id": "End_Picked", "type": "ItemPicked",
+                              "attributes": ["order_id", "item_index", "customer", "case_id", "weight"]}]
+packaging.json:  "consume": [{"event_id": "Catch_Items", "type": "ItemPicked", ..., "append": {"item_ids": "case_id"}}]
 ```
 
 After the collect, `item_ids = ["Warehouse-12", "Warehouse-17", "Warehouse-23"]`, in claim order.
@@ -115,15 +114,14 @@ the case: `sum`, `count`, `min` or `max` of a message attribute. A package's wei
 items' weights:
 
 ```
-packaging.json:  "consume": [{"event_id": "Start_Package", ..., "aggregate": {"weight": {"sum": "weight"}}},
-                             {"event_id": "Catch_More_Items", ..., "aggregate": {"weight": {"sum": "weight"}}}]
+packaging.json:  "consume": [{"event_id": "Catch_Items", ..., "aggregate": {"weight": {"sum": "weight"}}}]
 ```
 
 With items weighing 1.2, 0.8 and 2.1, the package weighs 1.2 after the first claim, then 2.0, then 4.1.
 
 - The value is updated at every claim, so it is right after the last one. Entries aggregating into the same
-  case attribute share its values, as with `append`: above, the first item, claimed at the start event,
-  counts too. Each must use the same function.
+  case attribute share its values, as with `append`: in a package started by its first item and collecting
+  the rest at a catch event, the first item counts too. Each must use the same function.
 - A sum or count starts at 0 when the case is created; a min or max has no value until the first message.
 - `count` counts the messages that have the attribute; `sum`, `min` and `max` take numbers. A message
   without the attribute, or with a value that isn't a number (for `sum`, `min` and `max`), is skipped, with
