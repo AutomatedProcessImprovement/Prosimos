@@ -16,11 +16,11 @@
   ],
   "messages": {
     "publish": [
-      {"event_id": "Throw_Picked", "type": "ItemPicked", "attributes": ["case_id"]}
+      {"event_id": "Throw_Picked", "type": "ItemPicked", "attributes": ["object_id"]}
     ],
     "consume": [
       {"event_id": "Catch_Packed", "type": "Packed",
-       "condition": [[{"attribute": "item_id", "comparison": "=", "case_attribute": "case_id"}]]}
+       "condition": [[{"attribute": "item_id", "comparison": "=", "object_attribute": "object_id"}]]}
     ]
   }
 }

@@ -16,22 +16,22 @@ customers and products.
 
 ```
 Sales (order)        arrivals: weekdays 6:00-22:00, about one every 4.3 h, 2,000 orders
-                     case attributes: customer (picked from c1..c15), items (1..16, as in the log)
-                     place order -> (throw ItemOrdered x items: case_id, index, customer)
-                     -> confirm order (Sales) -> (throw OrderConfirmed: case_id)
-                     -> race: catch Payment (order_id = case_id) -> pay order -> end
+                     object attributes: customer (picked from c1..c15), items (1..16, as in the log)
+                     place order -> (throw ItemOrdered x items: object_id, index, customer)
+                     -> confirm order (Sales) -> (throw OrderConfirmed: object_id)
+                     -> race: catch Payment (order_id = object_id) -> pay order -> end
                             | timer 20 days -> payment reminder -> back to the race
 Customer             start OrderConfirmed (copy order_id) -> timer (confirm-to-pay delay)
                      -> message end Payment{order_id}
 Warehouse (item)     start ItemOrdered (copy order_id, item_index from index, customer)
-                     case attributes: product (picked from the log's 20, as often as in the log), and its
+                     object attributes: product (picked from the log's 20, as often as in the log), and its
                         weight and price
                      -> XOR: 20% item out of stock -> reorder item | 80% straight on
                      -> pick item (Warehousing)
-                     -> message end ItemPicked{order_id, item_index, customer, case_id, weight}
+                     -> message end ItemPicked{order_id, item_index, customer, object_id, weight}
 Packaging (package)  arrivals: weekdays 7:00-17:00, about one packing round every 2.6 h, 1,200 rounds
                      -> catch ItemPicked: the oldest waiting one and every other of its customer (collect "all",
-                        same customer); copy customer, append case_id to item_ids, weight = sum of their weights
+                        same customer); copy customer, append object_id to item_ids, weight = sum of their weights
                      -> create package (Warehousing) -> send package (Shipment)
                      -> XOR: 22% failed delivery -> back to the XOR | 78% package delivered -> end
 ```
@@ -77,12 +77,12 @@ flowchart LR
 
 ## Messages
 
-| Process       | Publishes                                                                               | Consumes                                                                                                                                                                 |
-|---------------|-----------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Sales**     | `ItemOrdered{case_id, index, customer}`, `count` = `items`; `OrderConfirmed{case_id}`   | `Payment` where `order_id == case_id`, in a race against the 20-day reminder timer                                                                                       |
-| **Customer**  | `Payment{order_id}`, at its message end event                                           | `OrderConfirmed` at its start event; copies `order_id` from `case_id`                                                                                                    |
-| **Warehouse** | `ItemPicked{order_id, item_index, customer, case_id, weight}`, at its message end event | `ItemOrdered` at its start event; copies `order_id` from `case_id`, `item_index` from `index`, `customer` from `customer`                                                |
-| **Packaging** | nothing                                                                                 | `ItemPicked` at "items picked": `"collect": "all"` with `"same": ["customer"]`, copying `customer`, appending `case_id` to `item_ids` and summing `weight` into `weight` |
+| Process       | Publishes                                                                                 | Consumes                                                                                                                                                                   |
+|---------------|-------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Sales**     | `ItemOrdered{object_id, index, customer}`, `count` = `items`; `OrderConfirmed{object_id}` | `Payment` where `order_id == object_id`, in a race against the 20-day reminder timer                                                                                       |
+| **Customer**  | `Payment{order_id}`, at its message end event                                             | `OrderConfirmed` at its start event; copies `order_id` from `object_id`                                                                                                    |
+| **Warehouse** | `ItemPicked{order_id, item_index, customer, object_id, weight}`, at its message end event | `ItemOrdered` at its start event; copies `order_id` from `object_id`, `item_index` from `index`, `customer` from `customer`                                                |
+| **Packaging** | nothing                                                                                   | `ItemPicked` at "items picked": `"collect": "all"` with `"same": ["customer"]`, copying `customer`, appending `object_id` to `item_ids` and summing `weight` into `weight` |
 
 ## How the log maps to the model
 
@@ -136,8 +136,10 @@ poetry run prosimos start-orchestration --config testing_scripts/assets/order_ma
 poetry run python testing_scripts/order_management_compare.py <path to order-management.json> order_management_log.json
 ```
 
-The configuration names the object types: `orders` (Sales), `items` (Warehouse) and `packages`
-(Packaging), and the catalogue adds `customers` and `products`; Customer has `"object_type": null`, so the OCEL file has no objects or events for it. Each event
+The configuration names the object types in the singular, one kind of thing each: `order` (Sales), `item`
+(Warehouse) and `package` (Packaging), and the catalogue adds `customer` and `product`; objects are named
+`<object type>-<number>`, e.g. `order-7`. The comparison script reads them under the real log's plural names
+(`order` as `orders`). Customer has `"object_type": null`, so the OCEL file has no objects or events for it. Each event
 is linked to the objects on the other end of its messages ([orchestrator.md](orchestrator.md), "One event
 linked to many objects"), as the Order Management log links them:
 

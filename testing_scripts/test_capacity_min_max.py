@@ -9,7 +9,7 @@ import pytest
 
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.orchestrator import Verdict, run_engines
-from prosimos.simulation_setup import SimDiffSetup
+from prosimos.orchestrator import load_process
 from testing_scripts.scripted_engine import ScriptedEngine
 from testing_scripts.test_capacity import (ASSETS, ORDERS, START, _orders, _run_until_idle, _settings, _truck_ids, at,
                                            truck)
@@ -27,7 +27,7 @@ def _with_carrier(tmp_path, capacity, cases, trucks):
     orders, log = _orders(cases, json_path=_settings(tmp_path, _capacity(capacity)))
     carrier = ScriptedEngine("Carrier")
     for number, (time, attributes) in enumerate(trucks):
-        carrier.publish_at(at(time), "Truck", case_id=f"Carrier-{number}", dock="Tartu", **attributes)
+        carrier.publish_at(at(time), "Truck", object_id=f"Carrier-{number}", dock="Tartu", **attributes)
     return run_engines({"Carrier": carrier, "Orders": orders}, None, 1), log
 
 
@@ -37,7 +37,7 @@ def test_2_4_with_1_order_waiting_stays_pending_then_resumes_2_when_the_2nd_orde
 
     assert [(process, time) for _, process, time in report.claims] == [("Orders", at("09:11"))]  # one truck
     assert log.loaded() == {0: at("09:11"), 1: at("09:11")}
-    assert [case.case_id for _, case in report.stalled] == ["Orders-2"]
+    assert [case.object_id for _, case in report.stalled] == ["Orders-2"]
 
 
 def test_2_4_answers_pending_while_fewer_than_2_are_waiting(tmp_path):
@@ -80,7 +80,7 @@ def test_a_message_still_waiting_at_the_end_is_reported_unclaimed(tmp_path):
 
     assert report.claims == [] and log.loaded() == {}
     assert [(group, message.type) for group, message in report.unclaimed] == [("Orders", "Truck")]
-    assert [case.case_id for _, case in report.stalled] == ["Orders-0", "Orders-1"]
+    assert [case.object_id for _, case in report.stalled] == ["Orders-0", "Orders-1"]
 
 
 def test_a_min_without_max_resumes_every_waiting_case(tmp_path):
@@ -157,7 +157,7 @@ def test_in_a_race_a_truck_waits_for_min_orders_while_their_deadlines_run(tmp_pa
     json_path = _race_settings(tmp_path, _capacity({"min": 3, "max": 3}), base=TRUCK_RACE_JSON)
     orders, log = _race_orders(TRUCK_RACE, json_path, cases)
     carrier = ScriptedEngine("Carrier")
-    carrier.publish_at(at("08:30"), "Truck", dock="Tartu", case_id="Carrier-0")
+    carrier.publish_at(at("08:30"), "Truck", dock="Tartu", object_id="Carrier-0")
 
     report = run_engines({"Orders": orders, "Carrier": carrier}, None, 1)
 
@@ -183,7 +183,7 @@ def test_in_a_race_a_truck_waits_for_min_orders_while_their_deadlines_run(tmp_pa
 ])
 def test_an_invalid_capacity_is_rejected(tmp_path, capacity, reason):
     with pytest.raises(InvalidSimScenarioException, match=r"messages.consume\[0\](: |\.)" + reason):
-        SimDiffSetup(ORDERS, _settings(tmp_path, _capacity(capacity)), False, 1, START)
+        load_process(ORDERS, _settings(tmp_path, _capacity(capacity)), 1, START)
 
 
 @pytest.mark.parametrize("capacity", [2, {"min": 2, "max": 4}])
@@ -195,7 +195,7 @@ def test_a_start_event_takes_no_capacity(tmp_path, capacity):
     path.write_text(json.dumps(settings))
 
     with pytest.raises(InvalidSimScenarioException, match="a start event takes no capacity"):
-        SimDiffSetup(f"{ASSETS}/tartu_warehouse.bpmn", str(path), False, None, START)
+        load_process(f"{ASSETS}/tartu_warehouse.bpmn", str(path), None, START)
 
 
 @pytest.mark.parametrize("capacity", [2, {"min": 2, "max": 4}])
@@ -204,4 +204,4 @@ def test_capacity_with_collect_is_rejected(tmp_path, capacity):
         settings["messages"]["consume"][0].update(capacity=capacity, collect=2)
 
     with pytest.raises(InvalidSimScenarioException, match="collect and capacity can't be combined"):
-        SimDiffSetup(ORDERS, _settings(tmp_path, with_collect), False, 1, START)
+        load_process(ORDERS, _settings(tmp_path, with_collect), 1, START)

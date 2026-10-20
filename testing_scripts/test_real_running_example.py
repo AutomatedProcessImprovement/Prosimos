@@ -64,7 +64,7 @@ def test_parnu_orders_are_the_only_stalled_cases(run):
     report, _, city = run
 
     parnu = sorted(order for order, order_city in city.items() if order_city == "Pärnu")
-    assert [(process, case.case_id) for process, case in report.stalled] == [("Sales", order) for order in parnu]
+    assert [(process, case.object_id) for process, case in report.stalled] == [("Sales", order) for order in parnu]
     assert report.warnings == [] and report.engine_warnings == [] and report.unclaimed == []
 
 

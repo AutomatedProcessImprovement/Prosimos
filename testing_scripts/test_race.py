@@ -12,7 +12,8 @@ import pytz
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.orchestrator import Message, ProcessSpec, ProsimosEngine, StalledCase, Verdict, run_engines
 from prosimos.simulation_engine import run_simulation
-from prosimos.simulation_setup import SimDiffSetup
+from testing_scripts.orchestrator_settings import prosimos_settings
+from prosimos.orchestrator import load_process
 from testing_scripts.scripted_engine import ScriptedEngine
 
 ASSETS = "testing_scripts/assets/messaging"
@@ -173,7 +174,8 @@ def test_a_shipment_at_exactly_the_deadline_wins(tmp_path, warehouse_name):
 
 def test_the_timers_log_row_shows_its_real_time(tmp_path):
     log_path = tmp_path / "log.csv"
-    run_simulation(SALES, _settings(tmp_path, _take_order_in_10_minutes), 1, None, log_path, START.isoformat(),
+    run_simulation(SALES, prosimos_settings(_settings(tmp_path, _take_order_in_10_minutes)), 1, None, log_path,
+                   START.isoformat(),
                    is_event_added_to_log=True)
 
     with open(log_path) as file:
@@ -211,7 +213,7 @@ def test_a_branch_other_than_a_message_catch_event_or_a_timer_is_rejected(tmp_pa
     with pytest.raises(InvalidSimScenarioException,
                        match="after the event-based gateway Race, which races a branch waiting for a message, every "
                              "branch must be a message catch event or a timer, but Deadline is a signal intermediateCatchEvent"):
-        SimDiffSetup(_with_branch(tmp_path, signal), SALES_JSON, False, 1, START)
+        load_process(_with_branch(tmp_path, signal), SALES_JSON, 1, START)
 
 
 # Send quote -> event-based gateway: QuoteAccepted (Confirm order) or QuoteRejected (Archive quote); Send quote
@@ -353,7 +355,7 @@ def _message_types(report):
 def test_a_truck_of_capacity_2_wins_the_races_of_the_two_orders_it_picks_up_while_a_third_races_on():
     orders, log = _race_orders(TRUCK_RACE, TRUCK_RACE_JSON, 3)
     carrier = ScriptedEngine("Carrier")
-    carrier.publish_at(START.replace(minute=30), "Truck", dock="Tartu", case_id="Carrier-0")
+    carrier.publish_at(START.replace(minute=30), "Truck", dock="Tartu", object_id="Carrier-0")
 
     report = run_engines({"Orders": orders, "Carrier": carrier}, None, 1)
 
@@ -402,7 +404,7 @@ def test_an_order_that_gets_all_3_items_before_its_timer_takes_the_message_branc
 
 def test_an_order_with_no_items_to_collect_takes_the_message_branch_at_once(tmp_path):
     def no_items(settings):
-        settings["case_attributes"][0]["values"]["distribution_params"] = [{"value": 0}]
+        settings["object_attributes"][0]["values"]["distribution_params"] = [{"value": 0}]
 
     orders, log = _race_orders(ITEMS_RACE, _settings(tmp_path, no_items, base=ITEMS_RACE_JSON), 2)
     _run_until_idle(orders)
@@ -420,11 +422,11 @@ def test_of_several_branches_with_nothing_to_collect_the_one_listed_first_wins_f
         tmp_path, listed_first, taken, not_taken):
     def nothing_to_collect(settings):
         # read from a case attribute that is 0 for every case (a fixed 0 is rejected at load)
-        settings["case_attributes"] = [{"name": "answers_needed", "type": "continuous",
+        settings["object_attributes"] = [{"name": "answers_needed", "type": "continuous",
                                         "values": {"distribution_name": "fix", "distribution_params": [{"value": 0}]}}]
         consume = settings["messages"]["consume"]
         for entry in consume:
-            entry["collect"] = {"case_attribute": "answers_needed"}
+            entry["collect"] = {"object_attribute": "answers_needed"}
         consume.sort(key=lambda entry: entry["event_id"] != listed_first)
 
     json_path = _settings(tmp_path, nothing_to_collect, base=QUOTE_JSON)
@@ -447,4 +449,4 @@ def test_a_race_branch_with_a_fixed_collect_of_0_is_rejected(tmp_path):
     with pytest.raises(InvalidSimScenarioException,
                        match="Catch_Rejected, after the event-based gateway Race: a race branch with a fixed collect "
                              "of 0 always wins its race; remove the race or the branch"):
-        SimDiffSetup(QUOTE, _settings(tmp_path, fixed_0, base=QUOTE_JSON), False, 1, START)
+        load_process(QUOTE, _settings(tmp_path, fixed_0, base=QUOTE_JSON), 1, START)

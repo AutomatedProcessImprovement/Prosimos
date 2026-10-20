@@ -16,9 +16,10 @@ from prosimos.simulation_properties_parser import parse_json_sim_parameters, par
 
 class SimDiffSetup:
     def __init__(self, bpmn_path, json_path, is_event_added_to_log, total_cases, start_datetime,
-                 extra_case_attributes=()):
+                 extra_case_attributes=(), total_cases_name="total_cases"):
         """extra_case_attributes: case attributes given from outside the JSON settings, drawn with the declared
-        ones when a case is created (anything with a name and get_next_value(), like CaseAttribute)."""
+        ones when a case is created (anything with a name and get_next_value(), like CaseAttribute).
+        total_cases_name: what errors call the number of cases, as the caller's settings name it."""
         self.process_name = ntpath.basename(bpmn_path).split(".")[0]
 
         (
@@ -51,7 +52,7 @@ class SimDiffSetup:
                                                         self.batch_processing, self.gateway_conditions,
                                                         self.gateway_execution_limit)
 
-        self._check_arrival_schedule(total_cases)
+        self._check_arrival_schedule(total_cases, total_cases_name)
         if not self.arrival_calendar and not self.messaging.started_by_messages:
             self.arrival_calendar = self.find_arrival_calendar()
 
@@ -62,17 +63,17 @@ class SimDiffSetup:
         # absolute time need to be given the same value rather than each reading the clock
         self.set_starting_datetime(start_datetime)
 
-    def _check_arrival_schedule(self, total_cases):
+    def _check_arrival_schedule(self, total_cases, name):
         """A process is started either by its arrival schedule or by messages, never both."""
         if self.messaging.started_by_messages:
             if total_cases is not None:
                 raise InvalidSimScenarioException(
-                    f"{self.process_name} is started by messages, so it takes no total_cases (got {total_cases}): "
+                    f"{self.process_name} is started by messages, so it takes no {name} (got {total_cases}): "
                     f"its cases are created by the messages it accepts")
             return
         if total_cases is None:
             raise InvalidSimScenarioException(
-                f"{self.process_name} needs total_cases: it isn't started by messages")
+                f"{self.process_name} needs {name}: it isn't started by messages")
         if "arrivalTime" not in self.element_probability:
             raise InvalidSimScenarioException(
                 f"{self.process_name} needs an arrival_time_distribution: it isn't started by messages")

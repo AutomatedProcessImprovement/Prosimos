@@ -54,7 +54,7 @@
         "event_id": "Start_Item",
         "type": "ItemOrdered",
         "copy": {
-          "order_id": "case_id",
+          "order_id": "object_id",
           "item": "index"
         }
       }

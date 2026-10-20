@@ -14,14 +14,14 @@
   "resource_calendars": [
     {"id": "Always", "name": "Always", "time_periods": [{"from": "MONDAY", "to": "SUNDAY", "beginTime": "00:00:00", "endTime": "23:59:59"}]}
   ],
-  "case_attributes": [
+  "object_attributes": [
     {"name": "items", "type": "continuous", "values": {"distribution_name": "fix", "distribution_params": [{"value": 3}]}}
   ],
   "messages": {
     "consume": [
       {"event_id": "Catch_Items", "type": "ItemReady",
-       "condition": [[{"attribute": "order_id", "comparison": "=", "case_attribute": "case_id"}]],
-       "collect": {"case_attribute": "items"},
+       "condition": [[{"attribute": "order_id", "comparison": "=", "object_attribute": "object_id"}]],
+       "collect": {"object_attribute": "items"},
        "copy": {"last_item": "item_id"}}
     ]
   }

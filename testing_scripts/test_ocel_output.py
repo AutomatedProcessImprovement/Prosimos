@@ -35,9 +35,9 @@ def test_orders_items_and_packages_are_objects_one_per_case(order_management):
     objects = Counter(obj["type"] for obj in ocel["objects"])
     cases_in_log = log.groupby("process")["case_id"].nunique()
     never_took_an_item = sum(process == "Packaging" for process, _ in report.stalled)  # no rows in the log
-    assert objects == Counter({"orders": cases_in_log["Sales"], "items": cases_in_log["Warehouse"],
-                               "packages": cases_in_log["Packaging"] + never_took_an_item,
-                               "customers": 15, "products": 20})  # the catalogue's
+    assert objects == Counter({"order": cases_in_log["Sales"], "item": cases_in_log["Warehouse"],
+                               "package": cases_in_log["Packaging"] + never_took_an_item,
+                               "customer": 15, "product": 20})  # the catalogue's
     assert not any(obj["id"].startswith("Customer-") for obj in ocel["objects"])  # object_type: null
 
 
@@ -46,8 +46,9 @@ def test_there_is_one_event_per_task_linked_to_its_case(order_management):
 
     events = Counter((event["type"], event["time"], event["attributes"][0]["value"],
                       event["relationships"][0]["objectId"]) for event in ocel["events"])
+    object_type = {"Sales": "order", "Warehouse": "item", "Packaging": "package"}
     rows = Counter((row.activity, row.end_time.tz_convert("UTC").strftime("%Y-%m-%dT%H:%M:%S.%fZ"), row.resource,
-                    f"{row.process}-{row.case_id}") for row in log.itertuples())
+                    f"{object_type[row.process]}-{row.case_id}") for row in log.itertuples())
     assert events == rows
     assert [event["id"] for event in ocel["events"]] == [f"e{n}" for n in range(1, len(log) + 1)]
     assert [event["time"] for event in ocel["events"]] == sorted(event["time"] for event in ocel["events"])
@@ -57,14 +58,14 @@ def test_object_and_event_types_are_listed_with_their_attributes(order_managemen
     _, _, ocel, _ = order_management
 
     assert {t["name"]: t["attributes"] for t in ocel["objectTypes"]} == {
-        "items": [{"name": "customer", "type": "string"}, {"name": "item_index", "type": "integer"},
+        "item": [{"name": "customer", "type": "string"}, {"name": "item_index", "type": "integer"},
                   {"name": "order_id", "type": "string"}, {"name": "price", "type": "float"},
                   {"name": "product", "type": "string"}, {"name": "weight", "type": "float"}],
-        "orders": [{"name": "customer", "type": "string"}, {"name": "items", "type": "integer"}],
-        "packages": [{"name": "customer", "type": "string"}, {"name": "item_ids", "type": "string"},
+        "order": [{"name": "customer", "type": "string"}, {"name": "items", "type": "integer"}],
+        "package": [{"name": "customer", "type": "string"}, {"name": "item_ids", "type": "string"},
                      {"name": "weight", "type": "float"}],
-        "customers": [{"name": "segment", "type": "string"}],
-        "products": [{"name": "price", "type": "float"}, {"name": "weight", "type": "float"}],
+        "customer": [{"name": "segment", "type": "string"}],
+        "product": [{"name": "price", "type": "float"}, {"name": "weight", "type": "float"}],
     }
     assert {t["name"] for t in ocel["eventTypes"]} == {
         "place order", "confirm order", "payment reminder", "pay order", "item out of stock", "reorder item",
@@ -79,19 +80,38 @@ def test_pm4py_reads_the_file(order_management):
     ocel = pm4py.read_ocel2_json(str(path))
 
     assert len(ocel.events) == len(log)
-    assert set(ocel.objects["ocel:type"]) == {"orders", "items", "packages", "customers", "products"}
+    assert set(ocel.objects["ocel:type"]) == {"order", "item", "package", "customer", "product"}
 
 
 def test_the_object_type_defaults_to_the_process_name_and_null_leaves_the_process_out(tmp_path):
     config_path = tmp_path / "simulation.json"
     config_path.write_text(json.dumps({"start_time": "2024-01-01T09:00:00+00:00", "processes": [
-        {"name": "Sales", "bpmn_path": "s.bpmn", "json_path": "s.json", "total_cases": 1},
+        {"name": "Sales", "bpmn_path": "s.bpmn", "json_path": "s.json", "arrivals": 1},
         {"name": "Customer", "bpmn_path": "c.bpmn", "json_path": "c.json", "object_type": None},
-        {"name": "Warehouse", "bpmn_path": "w.bpmn", "json_path": "w.json", "object_type": "items"}]}))
+        {"name": "Warehouse", "bpmn_path": "w.bpmn", "json_path": "w.json", "object_type": "item"}]}))
 
     config = SimulationConfig.from_json(config_path)
 
-    assert [spec.ocel_object_type for spec in config.processes] == ["Sales", None, "items"]
+    assert [spec.ocel_object_type for spec in config.processes] == ["Sales", None, "item"]
+
+
+@pytest.mark.parametrize("object_type, object_id", [("order", "order-0"), ("", "Sales-0"), (None, "Sales-0")])
+def test_an_object_is_named_after_its_type_or_without_one_after_its_process(object_type, object_id):
+    # Sales announces each order with OrderPlaced{object_id, city}
+    sales = ProsimosEngine(ProcessSpec("Sales", "testing_scripts/assets/messaging/sales.bpmn",
+                                       "testing_scripts/assets/messaging/sales.json", 1, object_type), START, seed=1)
+    published = []
+    while sales.next_event_time() is not None:
+        published.extend(sales.step())
+
+    assert [message.attributes["object_id"] for message in published] == [object_id]
+
+
+def test_two_processes_with_the_same_object_type_are_rejected():
+    # both would name their objects order-0, order-1, ...
+    with pytest.raises(ValueError, match=r"Object types must be unique, repeated: \['order'\]"):
+        SimulationConfig([ProcessSpec("Sales", "s.bpmn", "s.json", 1, "order"),
+                          ProcessSpec("Returns", "r.bpmn", "r.json", 1, "order")], START)
 
 
 def test_a_value_copied_at_a_catch_event_is_a_later_attribute_value(tmp_path):
@@ -100,7 +120,7 @@ def test_a_value_copied_at_a_catch_event_is_a_later_attribute_value(tmp_path):
                                         "testing_scripts/assets/messaging/orders_and_trucks.json", 2), START, None,
                             seed=1)
     carrier = ScriptedEngine("Carrier")
-    carrier.publish_at(START.replace(minute=30), "Truck", dock="Tartu", case_id="Carrier-0")
+    carrier.publish_at(START.replace(minute=30), "Truck", dock="Tartu", object_id="Carrier-0")
     report = run_engines({"Orders": orders, "Carrier": carrier}, None, 1)
 
     write_ocel(tmp_path / "log.json", {"Orders": "orders"}, report.objects, [])

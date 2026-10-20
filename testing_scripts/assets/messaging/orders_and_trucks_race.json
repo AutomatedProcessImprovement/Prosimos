@@ -110,7 +110,7 @@
         ],
         "capacity": 2,
         "copy": {
-          "truck_id": "case_id"
+          "truck_id": "object_id"
         }
       }
     ]

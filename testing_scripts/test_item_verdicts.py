@@ -71,7 +71,7 @@ def _times(picking, log, activity, column):
 def _verdicts_claimed(report):
     """(verdict type, order, index) -> how many times it was claimed."""
     messages = {message.id: message for message in report.published}
-    return Counter((messages[message_id].type, messages[message_id].attributes["case_id"],
+    return Counter((messages[message_id].type, messages[message_id].attributes["object_id"],
                     messages[message_id].attributes["index"])
                    for message_id, process, _ in report.claims if messages[message_id].type in ("Shipped", "Cancelled"))
 

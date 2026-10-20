@@ -16,19 +16,19 @@
   "resource_calendars": [
     {"id": "Always", "name": "Always", "time_periods": [{"from": "MONDAY", "to": "SUNDAY", "beginTime": "00:00:00", "endTime": "23:59:59"}]}
   ],
-  "case_attributes": [
+  "object_attributes": [
     {"name": "city", "type": "discrete",
      "values": [{"key": "Tartu", "value": 0.4}, {"key": "Tallinn", "value": 0.3}, {"key": "Tapa", "value": 0.2}, {"key": "Pärnu", "value": 0.1}]},
     {"name": "tracking_no", "type": "discrete", "values": [{"key": "unknown", "value": 1}]}
   ],
   "messages": {
     "publish": [
-      {"event_id": "Throw_OrderPlaced", "type": "OrderPlaced", "attributes": ["case_id", "city"]},
-      {"event_id": "Throw_OrderClosed", "type": "OrderClosed", "attributes": ["case_id", "tracking_no"]}
+      {"event_id": "Throw_OrderPlaced", "type": "OrderPlaced", "attributes": ["object_id", "city"]},
+      {"event_id": "Throw_OrderClosed", "type": "OrderClosed", "attributes": ["object_id", "tracking_no"]}
     ],
     "consume": [
       {"event_id": "Catch_Shipment", "type": "Shipment",
-       "condition": [[{"attribute": "order_id", "comparison": "=", "case_attribute": "case_id"}]],
+       "condition": [[{"attribute": "order_id", "comparison": "=", "object_attribute": "object_id"}]],
        "copy": {"tracking_no": "tracking_no"}}
     ]
   }

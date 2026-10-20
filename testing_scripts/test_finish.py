@@ -80,7 +80,7 @@ def test_a_case_at_an_event_accepting_several_types_lists_them_all(tmp_path):
 
     report = run_engines({"Sales": sales}, None, 1)
 
-    assert [(process, case.case_id, case.message_types) for process, case in report.stalled] == [
+    assert [(process, case.object_id, case.message_types) for process, case in report.stalled] == [
         ("Sales", "Sales-0", ["Delay", "Shipment"])]
 
 

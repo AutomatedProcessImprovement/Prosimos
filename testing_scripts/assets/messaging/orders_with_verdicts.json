@@ -64,7 +64,7 @@
       ]
     }
   ],
-  "case_attributes": [
+  "object_attributes": [
     {
       "name": "items",
       "type": "continuous",
@@ -84,10 +84,10 @@
         "event_id": "Throw_Items",
         "type": "ItemOrdered",
         "count": {
-          "case_attribute": "items"
+          "object_attribute": "items"
         },
         "attributes": [
-          "case_id",
+          "object_id",
           "index"
         ]
       },
@@ -95,10 +95,10 @@
         "event_id": "Throw_Shipped",
         "type": "Shipped",
         "count": {
-          "case_attribute": "items"
+          "object_attribute": "items"
         },
         "attributes": [
-          "case_id",
+          "object_id",
           "index"
         ]
       },
@@ -106,10 +106,10 @@
         "event_id": "Throw_Cancelled",
         "type": "Cancelled",
         "count": {
-          "case_attribute": "items"
+          "object_attribute": "items"
         },
         "attributes": [
-          "case_id",
+          "object_id",
           "index"
         ]
       }
@@ -123,12 +123,12 @@
             {
               "attribute": "order_id",
               "comparison": "=",
-              "case_attribute": "case_id"
+              "object_attribute": "object_id"
             }
           ]
         ],
         "collect": {
-          "case_attribute": "items"
+          "object_attribute": "items"
         }
       }
     ]

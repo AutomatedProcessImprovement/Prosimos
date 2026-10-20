@@ -48,7 +48,7 @@ def test_parnu_orders_appear_as_stalled_cases(run):
     parnu = sorted(order for order, order_city in city.items() if order_city == "Pärnu")
 
     assert len(parnu) == 3
-    assert [(process, case.case_id, case.event_id, case.message_types) for process, case in report.stalled] == [
+    assert [(process, case.object_id, case.event_id, case.message_types) for process, case in report.stalled] == [
         ("Sales", order, "Catch_Shipment", ["Shipment"]) for order in parnu]
     assert report.unclaimed == [] and report.warnings == [] and report.engine_warnings == []
 

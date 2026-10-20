@@ -87,7 +87,7 @@
         "event_id": "Start_Item",
         "type": "ItemOrdered",
         "copy": {
-          "order_id": "case_id",
+          "order_id": "object_id",
           "index": "index"
         }
       },
@@ -97,14 +97,14 @@
         "condition": [
           [
             {
-              "attribute": "case_id",
+              "attribute": "object_id",
               "comparison": "=",
-              "case_attribute": "order_id"
+              "object_attribute": "order_id"
             },
             {
               "attribute": "index",
               "comparison": "=",
-              "case_attribute": "index"
+              "object_attribute": "index"
             }
           ]
         ]
@@ -115,14 +115,14 @@
         "condition": [
           [
             {
-              "attribute": "case_id",
+              "attribute": "object_id",
               "comparison": "=",
-              "case_attribute": "order_id"
+              "object_attribute": "order_id"
             },
             {
               "attribute": "index",
               "comparison": "=",
-              "case_attribute": "index"
+              "object_attribute": "index"
             }
           ]
         ]

@@ -5,14 +5,18 @@ message. One test per place, each with a misspelled key.
 """
 import json
 import time
+from datetime import datetime
 
 import pytest
+import pytz
 
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.messaging_parser import parse_messages
-from prosimos.orchestrator import CataloguePool, ProcessSpec, SimulationConfig, _checked_catalogue
+from prosimos.orchestrator import CataloguePool, ProcessSpec, SimulationConfig, _checked_catalogue, load_process
 from testing_scripts.test_catalogue import CONFIG, _config_with
 from testing_scripts.test_messaging_parser import bpmn, consume, publish  # noqa: F401 (bpmn is a fixture)
+
+START = pytz.utc.localize(datetime(2024, 1, 1, 9))
 
 
 def _config_rejected(tmp_path, message, change):
@@ -37,32 +41,32 @@ def test_a_process_entry(tmp_path):
     def misspelled(data):
         data["processes"][1]["object_typ"] = data["processes"][1].pop("object_type")
 
-    _config_rejected(tmp_path, r"processes\[1\]: unknown key 'object_typ'; allowed: bpmn_path, carry_links, "
-                               r"json_path, name, object_type, qualifier, qualifier_by_activity, total_cases$",
+    _config_rejected(tmp_path, r"processes\[1\]: unknown key 'object_typ'; allowed: arrivals, bpmn_path, "
+                               r"carry_links, json_path, name, object_type, qualifier, qualifier_by_activity$",
                      misspelled)
 
 
 def test_an_object_of_a_listed_catalogue(tmp_path):
     def misspelled(data):
-        data["catalogue"]["customers"][2]["attribute"] = data["catalogue"]["customers"][2].pop("attributes")
+        data["catalogue"]["customer"][2]["attribute"] = data["catalogue"]["customer"][2].pop("attributes")
 
-    _config_rejected(tmp_path, r"catalogue.customers\[2\]: unknown key 'attribute'; allowed: attributes, id$",
+    _config_rejected(tmp_path, r"catalogue.customer\[2\]: unknown key 'attribute'; allowed: attributes, id$",
                      misspelled)
 
 
 def test_a_pool(tmp_path):
     def misspelled(data):
-        data["catalogue"]["customers"] = {"count": 10, "atributes": []}
+        data["catalogue"]["customer"] = {"count": 10, "atributes": []}
 
-    _config_rejected(tmp_path, r"catalogue.customers: unknown key 'atributes'; allowed: attributes, count$", misspelled)
+    _config_rejected(tmp_path, r"catalogue.customer: unknown key 'atributes'; allowed: attributes, count$", misspelled)
 
 
 def test_a_growing_catalogue(tmp_path):
     # a misspelled count would otherwise make the pool a growing catalogue
     def misspelled(data):
-        data["catalogue"]["customers"] = {"cont": 10, "attributes": []}
+        data["catalogue"]["customer"] = {"cont": 10, "attributes": []}
 
-    _config_rejected(tmp_path, r"catalogue.customers: unknown key 'cont'; allowed: attributes, count$", misspelled)
+    _config_rejected(tmp_path, r"catalogue.customer: unknown key 'cont'; allowed: attributes, count$", misspelled)
 
 
 def test_a_reference(tmp_path):
@@ -70,8 +74,8 @@ def test_a_reference(tmp_path):
         data["references"][0]["link_event"] = data["references"][0].pop("link_events")
         data["references"][0]["revers"] = data["references"][0].pop("reverse")
 
-    _config_rejected(tmp_path, r"references\[0\]: unknown keys 'link_event', 'revers'; allowed: case_attribute, "
-                               r"catalogue, link_events, o2o, pick, process, reverse, with$", misspelled)
+    _config_rejected(tmp_path, r"references\[0\]: unknown keys 'link_event', 'revers'; allowed: catalogue, "
+                               r"link_events, o2o, object_attribute, pick, process, reverse, with$", misspelled)
 
 
 def test_a_pick_object(tmp_path):
@@ -89,7 +93,7 @@ def _messages_rejected(section, bpmn_path, message):
 
 
 def test_a_publish_entry(bpmn):
-    _messages_rejected(publish(atributes=["case_id"]), bpmn,
+    _messages_rejected(publish(atributes=["object_id"]), bpmn,
                        r"messages.publish\[0\]: unknown key 'atributes'; allowed: attributes, count, event_id, o2o, "
                        r"qualifier, type$")
 
@@ -101,13 +105,13 @@ def test_a_consume_entry(bpmn):
 
 
 def test_a_count_object(bpmn):
-    _messages_rejected(publish(count={"case_atribute": "items"}), bpmn,
-                       r"messages.publish\[0\].count: unknown key 'case_atribute'; allowed: as, case_attribute, list$")
+    _messages_rejected(publish(count={"object_atribute": "items"}), bpmn,
+                       r"messages.publish\[0\].count: unknown key 'object_atribute'; allowed: as, list, object_attribute$")
 
 
 def test_a_collect_object(bpmn):
     _messages_rejected(consume(collect={"vale": 3}), bpmn,
-                       r"messages.consume\[0\].collect: unknown key 'vale'; allowed: case_attribute, max, min$")
+                       r"messages.consume\[0\].collect: unknown key 'vale'; allowed: max, min, object_attribute$")
 
 
 def test_a_capacity_object(bpmn):
@@ -117,6 +121,67 @@ def test_a_capacity_object(bpmn):
 
 def test_count_on_a_consume_entry_keeps_its_own_reason(bpmn):
     _messages_rejected(consume(count=2), bpmn, r"count is only for publish entries")
+
+
+# a process's JSON settings
+
+SALES = "testing_scripts/assets/order_management/sales"
+
+
+def _settings_rejected(tmp_path, message, change):
+    with open(f"{SALES}.json") as file:
+        settings = json.load(file)
+    change(settings)
+    (tmp_path / "sales.json").write_text(json.dumps(settings))
+    with pytest.raises(ValueError, match=message):
+        load_process(f"{SALES}.bpmn", str(tmp_path / "sales.json"), 1, START)
+
+
+def test_the_top_level_of_a_processs_settings(tmp_path):
+    def misspelled(settings):
+        settings["mesages"] = settings.pop("messages")
+
+    _settings_rejected(tmp_path, r"sales.json: top level: unknown key 'mesages'; allowed: arrival_time_calendar, "
+                                 r"arrival_time_distribution, .*, messages, .*, object_attributes, .*$", misspelled)
+
+
+# Prosimos's own names for what the configuration names after objects are no keys of it
+
+def test_total_cases_is_no_key_of_a_process_entry(tmp_path):
+    def prosimos_name(data):
+        data["processes"][0]["total_cases"] = data["processes"][0].pop("arrivals")
+
+    _config_rejected(tmp_path, r"processes\[0\]: unknown key 'total_cases'; allowed: arrivals, ", prosimos_name)
+
+
+def test_case_attribute_is_no_key_of_a_reference(tmp_path):
+    def prosimos_name(data):
+        data["references"][0]["case_attribute"] = data["references"][0].pop("object_attribute")
+
+    _config_rejected(tmp_path, r"references\[0\]: unknown key 'case_attribute'; allowed: catalogue, ", prosimos_name)
+
+
+def test_case_attributes_is_no_section_of_a_processs_settings(tmp_path):
+    def prosimos_name(settings):
+        settings["case_attributes"] = settings.pop("object_attributes")
+
+    _settings_rejected(tmp_path, r"sales.json: top level: unknown key 'case_attributes'; allowed: ", prosimos_name)
+
+
+@pytest.mark.parametrize("section, where", [
+    (publish(count={"case_attribute": "items"}), r"messages.publish\[0\].count"),
+    (consume(collect={"case_attribute": "items"}), r"messages.consume\[0\].collect"),
+    (consume(collect={"min": {"case_attribute": "items"}}), r"messages.consume\[0\].collect.min"),
+    (consume(condition=[[{"attribute": "order_id", "comparison": "=", "case_attribute": "order_id"}]]),
+     r"messages.consume\[0\].condition\[0\]\[0\]"),
+])
+def test_case_attribute_is_no_key_of_the_messages_section(bpmn, section, where):
+    _messages_rejected(section, bpmn, rf"{where}: unknown key 'case_attribute'; allowed: ")
+
+
+def test_case_id_is_no_reserved_name_of_a_message(bpmn):
+    _messages_rejected(publish(attributes=["case_id", "city"]), bpmn,
+                       r"messages.publish\[0\]: 'case_id' not declared as an object, global or event attribute")
 
 
 # duplicate ids

@@ -18,11 +18,11 @@
   ],
   "messages": {
     "publish": [
-      {"event_id": "Throw_First", "type": "First", "attributes": ["case_id", "weight"]},
-      {"event_id": "Throw_Second", "type": "Second", "attributes": ["case_id"]},
-      {"event_id": "Throw_Left", "type": "Left", "attributes": ["case_id"]},
-      {"event_id": "Throw_Right", "type": "Right", "attributes": ["case_id"]},
-      {"event_id": "End_Done", "type": "Done", "attributes": ["case_id", "weight"]}
+      {"event_id": "Throw_First", "type": "First", "attributes": ["object_id", "weight"]},
+      {"event_id": "Throw_Second", "type": "Second", "attributes": ["object_id"]},
+      {"event_id": "Throw_Left", "type": "Left", "attributes": ["object_id"]},
+      {"event_id": "Throw_Right", "type": "Right", "attributes": ["object_id"]},
+      {"event_id": "End_Done", "type": "Done", "attributes": ["object_id", "weight"]}
     ]
   }
 }

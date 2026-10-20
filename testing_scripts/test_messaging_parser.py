@@ -8,7 +8,7 @@ import pytz
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.messaging_parser import (ConditionTerm, ConsumePoint, MessagingModel, PublishPoint, declared_attributes,
                                        parse_messages)
-from prosimos.simulation_setup import SimDiffSetup
+from prosimos.orchestrator import load_process
 
 EVENTS = {
     "Start": '<bpmn:startEvent id="Start"/>',
@@ -27,7 +27,7 @@ EVENTS = {
 ARROWS = [("Place_Order", target) for target in ("Catch_Shipment", "Catch_Reminder", "Timer_Cancel", "End_Closed",
                                                  "Catch_Merged", "Catch_Merged", "End_Merged", "End_Merged")]
 DECLARED = {"city"}  # attributes declared in the process's JSON settings
-SHIPMENT_FOR_THIS_CASE = [[{"attribute": "order_id", "comparison": "=", "case_attribute": "case_id"}]]
+SHIPMENT_FOR_THIS_CASE = [[{"attribute": "order_id", "comparison": "=", "object_attribute": "object_id"}]]
 
 
 @pytest.fixture
@@ -58,7 +58,7 @@ def rejected(section, bpmn):
 def test_a_valid_section_is_parsed(bpmn):
     section = {
         "publish": [
-            {"event_id": "Throw_OrderPlaced", "type": "OrderPlaced", "attributes": ["case_id", "city"]},
+            {"event_id": "Throw_OrderPlaced", "type": "OrderPlaced", "attributes": ["object_id", "city"]},
             {"event_id": "End_Closed", "type": "OrderClosed"},
         ],
         "consume": [
@@ -71,10 +71,10 @@ def test_a_valid_section_is_parsed(bpmn):
 
     model = parse_messages(section, bpmn, DECLARED)
 
-    assert model.publish == (PublishPoint("Throw_OrderPlaced", "OrderPlaced", ("case_id", "city")),
+    assert model.publish == (PublishPoint("Throw_OrderPlaced", "OrderPlaced", ("object_id", "city")),
                              PublishPoint("End_Closed", "OrderClosed", ()))
     assert model.consume[0] == ConsumePoint("Catch_Shipment", "Shipment",
-                                            ((ConditionTerm("order_id", "=", case_attribute="case_id"),),))
+                                            ((ConditionTerm("order_id", "=", object_attribute="object_id"),),))
     assert model.consume[1].condition[1] == (ConditionTerm("weight", "in", value=[0, 10]),)
     assert model.subscriptions() == ["Shipment"]
 
@@ -137,9 +137,9 @@ def test_type_must_be_non_empty(bpmn, section):
 
 
 def test_published_attributes_must_be_declared(bpmn):
-    reason = rejected(publish(attributes=["case_id", "city", "cty", "zip"]), bpmn)
+    reason = rejected(publish(attributes=["object_id", "city", "cty", "zip"]), bpmn)
 
-    assert reason.endswith("messages.publish[0]: 'cty', 'zip' not declared as a case, global or event attribute")
+    assert reason.endswith("messages.publish[0]: 'cty', 'zip' not declared as an object, global or event attribute")
 
 
 @pytest.mark.parametrize("section", [publish("End_Merged"), consume("Catch_Merged")])
@@ -167,11 +167,11 @@ def test_condition_must_be_a_list_of_alternatives_of_terms(bpmn, condition):
 @pytest.mark.parametrize("term, reason", [
     ({"comparison": "=", "value": 1}, "'attribute' must be a message attribute name or 'source'"),
     ({"attribute": "order_id", "comparison": "==", "value": 1}, "'comparison' must be one of =, !=, <, <=, >, >=, in"),
-    ({"attribute": "order_id", "comparison": "="}, "give exactly one of 'value' and 'case_attribute'"),
-    ({"attribute": "order_id", "comparison": "=", "value": 1, "case_attribute": "case_id"},
-     "give exactly one of 'value' and 'case_attribute'"),
-    ({"attribute": "weight", "comparison": "in", "case_attribute": "max_weight"}, "'in' needs a fixed 'value' [low, high]"),
-    ({"attribute": "order_id", "comparison": "=", "value": 1, "attr": "x"}, "unknown key 'attr'; allowed: attribute, case_attribute, comparison, value"),
+    ({"attribute": "order_id", "comparison": "="}, "give exactly one of 'value' and 'object_attribute'"),
+    ({"attribute": "order_id", "comparison": "=", "value": 1, "object_attribute": "object_id"},
+     "give exactly one of 'value' and 'object_attribute'"),
+    ({"attribute": "weight", "comparison": "in", "object_attribute": "max_weight"}, "'in' needs a fixed 'value' [low, high]"),
+    ({"attribute": "order_id", "comparison": "=", "value": 1, "attr": "x"}, "unknown key 'attr'; allowed: attribute, comparison, object_attribute, value"),
 ])
 def test_condition_terms_use_the_branch_rule_format(bpmn, term, reason):
     assert reason in rejected(consume(condition=[[term]]), bpmn)
@@ -182,11 +182,12 @@ def test_the_engine_rejects_an_invalid_section_when_it_loads_a_model(tmp_path):
     with open("testing_scripts/assets/timer_with_task.json") as file:
         settings = json.load(file)
     settings["messages"] = consume("Event_056pdi5")
+    settings["object_attributes"] = settings.pop("case_attributes")
     json_path = tmp_path / "timer_with_task.json"
     json_path.write_text(json.dumps(settings))
 
     with pytest.raises(InvalidSimScenarioException, match="Event_056pdi5"):
-        SimDiffSetup("testing_scripts/assets/timer_with_task.bpmn", json_path, False, 1,
+        load_process("testing_scripts/assets/timer_with_task.bpmn", json_path, 1,
                      pytz.utc.localize(datetime(2024, 1, 1)))
 
 
@@ -197,7 +198,7 @@ def _load(tmp_path, bpmn_path, messages, **extra_settings):
     settings.update(messages=messages, **extra_settings)
     json_path = tmp_path / "settings.json"
     json_path.write_text(json.dumps(settings))
-    return SimDiffSetup(bpmn_path, json_path, False, 1, pytz.utc.localize(datetime(2024, 1, 1)))
+    return load_process(bpmn_path, json_path, 1, pytz.utc.localize(datetime(2024, 1, 1)))
 
 
 CITY = {"name": "city", "type": "discrete",
@@ -206,10 +207,10 @@ CITY = {"name": "city", "type": "discrete",
 
 def test_a_model_publishing_an_undeclared_attribute_is_rejected(tmp_path):
     model = "testing_scripts/assets/throw_events/with_message_throw.bpmn"
-    published = publish("Throw", attributes=["case_id", "city"])
+    published = publish("Throw", attributes=["object_id", "city"])
 
-    assert _load(tmp_path, model, published, case_attributes=[CITY]).messaging.publish[0].attributes == ("case_id", "city")
-    with pytest.raises(InvalidSimScenarioException, match="'city' not declared as a case, global or event attribute"):
+    assert _load(tmp_path, model, published, object_attributes=[CITY]).messaging.publish[0].attributes == ("object_id", "city")
+    with pytest.raises(InvalidSimScenarioException, match="'city' not declared as an object, global or event attribute"):
         _load(tmp_path, model, published)
 
 

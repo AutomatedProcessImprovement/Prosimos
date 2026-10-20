@@ -23,7 +23,7 @@ def _records(report, message_type):
 
 def _where(element):
     """(process, case id, element id) of a publisher or claimer, or None."""
-    return None if element is None else (element.process, element.case_id, element.element_id)
+    return None if element is None else (element.process, element.object_id, element.element_id)
 
 
 def _publishers(records):
@@ -52,7 +52,7 @@ def test_a_message_start_records_the_new_case_as_claimer():
     messages = {message.id: message for message in report.published}
     case_values = picking._env.sim_setup.bpmn_graph.all_attributes
     for record in records:
-        case = int(record.claimers[0].case_id.split("-")[1])
+        case = int(record.claimers[0].object_id.split("-")[1])
         assert case_values[case]["index"] == messages[record.message_id].attributes["index"]
 
 
@@ -71,7 +71,7 @@ def test_a_race_branch_records_the_waiting_case_at_its_catch_event():
     assert _publishers(records) == [("Sales", "Sales-0", "Throw_Shipped")] * 3
     messages = {message.id: message for message in report.published}
     # Shipped for item i goes to the item case started by ItemOrdered i, at its race branch
-    started_by_index = {messages[r.message_id].attributes["index"]: r.claimers[0].case_id
+    started_by_index = {messages[r.message_id].attributes["index"]: r.claimers[0].object_id
                         for r in _records(report, "ItemOrdered")}
     assert _claimers(records) == [
         [("Picking", started_by_index[messages[record.message_id].attributes["index"]], "Catch_Shipped")]
@@ -95,7 +95,7 @@ def test_capacity_2_records_both_claimers():
     # an order arrives every 10 minutes from 09:00 and waits for a truck after 1 minute of packing
     orders = _engine("Orders", "orders_and_trucks", f"{ASSETS}/orders_and_trucks.json", 3)
     carrier = ScriptedEngine("Carrier")
-    carrier.publish_at(START.replace(minute=30), "Truck", dock="Tartu", case_id="Carrier-0")
+    carrier.publish_at(START.replace(minute=30), "Truck", dock="Tartu", object_id="Carrier-0")
 
     report = run_engines({"Orders": orders, "Carrier": carrier}, None, 1)
 
@@ -111,7 +111,7 @@ def test_a_discarded_and_an_unclaimed_message_have_no_claimer():
                                        "testing_scripts/assets/running_example/sales.json", 2), START, None, seed=1)
     archive = ScriptedEngine("Archive")
     archive.consume("OrderPlaced", lambda message, now:
-                    Verdict.DISCARDED if message.attributes["case_id"] == "Sales-0" else Verdict.PENDING)
+                    Verdict.DISCARDED if message.attributes["object_id"] == "Sales-0" else Verdict.PENDING)
 
     report = run_engines({"Sales": sales, "Archive": archive}, None, 1)
 
@@ -129,7 +129,7 @@ def test_the_records_are_in_the_report_as_json():
     first = report.to_dict()["message_records"][0]
     # the links attach to row 0 of each log: Sales-0's place order and Picking-0's pick item
     assert first == {"message": report.published[0].id, "type": "ItemOrdered",
-                     "publisher": {"process": "Sales", "case_id": "Sales-0", "element_id": "Throw_Items",
+                     "publisher": {"process": "Sales", "object_id": "Sales-0", "element_id": "Throw_Items",
                                    "qualifier": "ItemOrdered", "task_rows": [0], "o2o": None},
-                     "claimers": [{"process": "Picking", "case_id": "Picking-0", "element_id": "Start_Item",
+                     "claimers": [{"process": "Picking", "object_id": "Picking-0", "element_id": "Start_Item",
                                    "qualifier": "ItemOrdered", "task_rows": [0], "o2o": None}]}

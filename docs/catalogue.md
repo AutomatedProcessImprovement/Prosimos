@@ -16,19 +16,19 @@ A first example, with two customers and Sales choosing one for every order:
 
 ```json
 "catalogue": {
-  "customers": [
+  "customer": [
     {"id": "c1", "attributes": {"segment": "retail"}},
     {"id": "c2", "attributes": {"segment": "business"}}
   ]
 },
 "references": [
-  {"process": "Sales", "case_attribute": "customer", "catalogue": "customers",
+  {"process": "Sales", "object_attribute": "customer", "catalogue": "customer",
    "o2o": "places", "reverse": true, "pick": "uniform"}
 ]
 ```
 
 Every Sales case gets `customer` set to `c1` or `c2` when it is created. The OCEL file then has the objects
-`c1` and `c2` of type `customers`, each linked by `places` to its orders, and every event of an order linked
+`c1` and `c2` of type `customer`, each linked by `places` to its orders, and every event of an order linked
 to its customer.
 
 ## Catalogue or process?
@@ -47,12 +47,12 @@ address, they would be the cases of a process too.
 | Pool    | `{"count": N, "attributes": [...]}`           | `<name>-1` to `<name>-N`                | the set is fixed but too large to type out                     | only the objects some case refers to       |
 | Growing | `{"attributes": [...]}`                       | `<name>-1`, `<name>-2`, ... as created  | the population isn't fixed: new customers keep arriving        | the objects cases created                  |
 
-The catalogue's name (`customers` above) is the objects' OCEL type.
+The catalogue's name (`customer` above) is the objects' OCEL type.
 
 ### List
 
 ```json
-"customers": [
+"customer": [
   {"id": "c1", "attributes": {"segment": "retail"}},
   {"id": "c2", "attributes": {"segment": "retail"}},
   {"id": "c3", "attributes": {"segment": "business"}}
@@ -68,7 +68,7 @@ it.
 ### Pool
 
 ```json
-"customers": {"count": 1500,
+"customer": {"count": 1500,
   "attributes": [
     {"name": "segment", "type": "discrete",
      "values": [{"key": "retail", "value": 0.8}, {"key": "business", "value": 0.2}]},
@@ -78,10 +78,10 @@ it.
 ```
 
 - `count` (required): a whole number, at least 1.
-- `attributes` (optional): in exactly the format of a process's `case_attributes`, discrete or continuous,
+- `attributes` (optional): in exactly the format of a process's `object_attributes`, discrete or continuous,
   drawn by Prosimos's case attribute code.
 
-The ids are `customers-1` to `customers-1500`. Each object's attributes are drawn once, at the start of the
+The ids are `customer-1` to `customer-1500`. Each object's attributes are drawn once, at the start of the
 run, from a generator seeded from the seed and the catalogue's name, so the same seed gives the same pool.
 Only the objects that some case's referenced attribute names are written, with their attributes timed at
 the start of the run: with 2,000 orders picking uniformly from 1,500 customers, about 1,100 of them.
@@ -89,7 +89,7 @@ the start of the run: with 2,000 orders picking uniformly from 1,500 customers, 
 ### Growing
 
 ```json
-"customers": {"attributes": [
+"customer": {"attributes": [
   {"name": "segment", "type": "discrete",
    "values": [{"key": "retail", "value": 0.8}, {"key": "business", "value": 0.2}]}]}
 ```
@@ -106,40 +106,40 @@ the same seed gives the same objects. They are timed when the first case took th
 
 A reference ties one case attribute of one process to a catalogue:
 
-| Key              | Required | Example                            | Meaning                                                                                                         |
-|------------------|----------|------------------------------------|-----------------------------------------------------------------------------------------------------------------|
-| `process`        | yes      | `"Sales"`                          | the process whose cases have the attribute                                                                      |
-| `case_attribute` | yes      | `"customer"`                       | the attribute whose value is a catalogue id                                                                     |
-| `catalogue`      | yes      | `"customers"`                      | the catalogue the id belongs to                                                                                 |
-| `o2o`            | no       | `"places"`                         | qualifier of a link between the case's object and the catalogue object; without it, no such link                |
-| `reverse`        | no       | `true`                             | turns the `o2o` link around: from the catalogue object to the case's object (default `false`)                   |
-| `link_events`    | no       | `["place order", "Confirm_Order"]` | which of the case's events link the catalogue object: task names or task ids; without it every event, `[]` none |
-| `pick`           | no       | `"uniform"`                        | the reference chooses the value itself (see "Pick")                                                             |
-| `with`           | no       | `["weight", "price"]`              | attributes of the picked object that the case also starts with (see "With")                                     |
+| Key                | Required | Example                            | Meaning                                                                                                         |
+|--------------------|----------|------------------------------------|-----------------------------------------------------------------------------------------------------------------|
+| `process`          | yes      | `"Sales"`                          | the process whose cases have the attribute                                                                      |
+| `object_attribute` | yes      | `"customer"`                       | the attribute whose value is a catalogue id                                                                     |
+| `catalogue`        | yes      | `"customer"`                       | the catalogue the id belongs to                                                                                 |
+| `o2o`              | no       | `"places"`                         | qualifier of a link between the case's object and the catalogue object; without it, no such link                |
+| `reverse`          | no       | `true`                             | turns the `o2o` link around: from the catalogue object to the case's object (default `false`)                   |
+| `link_events`      | no       | `["place order", "Confirm_Order"]` | which of the case's events link the catalogue object: task names or task ids; without it every event, `[]` none |
+| `pick`             | no       | `"uniform"`                        | the reference chooses the value itself (see "Pick")                                                             |
+| `with`             | no       | `["weight", "price"]`              | attributes of the picked object that the case also starts with (see "With")                                     |
 
 ### Two modes: with and without pick
 
 **With `pick`, the reference assigns the value.** When a case is created, the reference chooses a catalogue
-object and sets the attribute to its id, instead of `case_attributes`. Order Management picks its customer
+object and sets the attribute to its id, instead of `object_attributes`. Order Management picks its customer
 this way:
 
 ```json
-{"process": "Sales", "case_attribute": "customer", "catalogue": "customers", "pick": "uniform"}
+{"process": "Sales", "object_attribute": "customer", "catalogue": "customer", "pick": "uniform"}
 ```
 
 The picked value is a normal case attribute from then on: it is a column of the log, and messages and
-`copy` carry it like any other. The attribute must therefore not be in the process's `case_attributes`, and
+`copy` carry it like any other. The attribute must therefore not be in the process's `object_attributes`, and
 none of the process's own consume entries may copy, append or aggregate into it, since that value would replace
 the picked one. A process JSON whose messages publish a picked attribute only runs inside its configuration:
 run on its own, the attribute isn't declared (Order Management's `sales.json` is an example).
 
 **Without `pick`, the reference interprets a value that is already there**: drawn by the process's
-`case_attributes`, or copied from a message. In Order Management, the items get their order's customer from
+`object_attributes`, or copied from a message. In Order Management, the items get their order's customer from
 `ItemOrdered`. A reference on the Warehouse makes that copied text an object again, and links each item to
 its customer:
 
 ```json
-{"process": "Warehouse", "case_attribute": "customer", "catalogue": "customers",
+{"process": "Warehouse", "object_attribute": "customer", "catalogue": "customer",
  "o2o": "ordered by", "link_events": []}
 ```
 
@@ -148,8 +148,8 @@ A value that isn't an id of the catalogue gets no link, and a warning (see "Erro
 ### The links
 
 - **`o2o`**: the object of every case of the process is linked to the catalogue object of each value its
-  attribute took, with `o2o` as qualifier. With `"o2o": "placed by"`, order `Sales-13` is linked to
-  customer `c1`; with `"o2o": "places", "reverse": true`, customer `c1` is linked to order `Sales-13`.
+  attribute took, with `o2o` as qualifier. With `"o2o": "placed by"`, order `order-13` is linked to
+  customer `c1`; with `"o2o": "places", "reverse": true`, customer `c1` is linked to order `order-13`.
 - **`link_events`**: each event of the case named there is linked to the catalogue object of the value the
   attribute had when the event completed, with the attribute's name as qualifier. With
   `"link_events": ["place order", "confirm order"]`, place order and confirm order link `customer`, pay
@@ -167,12 +167,12 @@ A value that isn't an id of the catalogue gets no link, and a warning (see "Erro
 | `"new"`                     | growing      | an object of its own, created for it                                      |
 | `{"new_share": s}`          | growing      | a new object for share `s` of the cases; for the rest, one created so far |
 
-The tables below are the picks of the first 6 orders of a Sales process with seed 1, as a run gives them;
+The tables below are the picks of the first 6 orders of a Sales process (object type `order`) with seed 1, as a run gives them;
 the list examples use the catalogue `c1`, `c2`, `c3`.
 
 **`"uniform"`**: every object equally likely.
 
-| Order    | Sales-0 | Sales-1 | Sales-2 | Sales-3 | Sales-4 | Sales-5 |
+| Order    | order-0 | order-1 | order-2 | order-3 | order-4 | order-5 |
 |----------|---------|---------|---------|---------|---------|---------|
 | customer | c2      | c2      | c2      | c3      | c1      | c1      |
 
@@ -180,23 +180,23 @@ the list examples use the catalogue `c1`, `c2`, `c3`.
 Ids left out of `weights` are never picked. Weights are numbers of at least 0, not all 0. A list only: a
 pool's ids aren't known by name.
 
-| Order    | Sales-0 | Sales-1 | Sales-2 | Sales-3 | Sales-4 | Sales-5 |
+| Order    | order-0 | order-1 | order-2 | order-3 | order-4 | order-5 |
 |----------|---------|---------|---------|---------|---------|---------|
 | customer | c1      | c1      | c2      | c3      | c1      | c1      |
 
 **`"new"`**: every case creates its own object, 1 case ↔ 1 object.
 
-| Order    | Sales-0     | Sales-1     | Sales-2     | Sales-3     | Sales-4     | Sales-5     |
-|----------|-------------|-------------|-------------|-------------|-------------|-------------|
-| customer | customers-1 | customers-2 | customers-3 | customers-4 | customers-5 | customers-6 |
+| Order    | order-0    | order-1    | order-2    | order-3    | order-4    | order-5    |
+|----------|------------|------------|------------|------------|------------|------------|
+| customer | customer-1 | customer-2 | customer-3 | customer-4 | customer-5 | customer-6 |
 
 **`{"new_share": 0.3}`**: 30% of the cases create a new object, the rest reuse one created so far,
 uniformly. The first case always creates one. `new_share` is above 0 and at most 1; 1 is the same as
 `"new"`.
 
-| Order    | Sales-0           | Sales-1     | Sales-2           | Sales-3     | Sales-4     | Sales-5     |
-|----------|-------------------|-------------|-------------------|-------------|-------------|-------------|
-| customer | customers-1 (new) | customers-1 | customers-2 (new) | customers-2 | customers-2 | customers-1 |
+| Order    | order-0          | order-1    | order-2          | order-3    | order-4    | order-5    |
+|----------|------------------|------------|------------------|------------|------------|------------|
+| customer | customer-1 (new) | customer-1 | customer-2 (new) | customer-2 | customer-2 | customer-1 |
 
 Since reuse is uniform among the objects created so far, the earliest objects are candidates longest and
 end up with the most cases.
@@ -210,17 +210,17 @@ run.
 ### With
 
 ```json
-{"process": "Warehouse", "case_attribute": "product", "catalogue": "products",
+{"process": "Warehouse", "object_attribute": "product", "catalogue": "product",
  "pick": {"weights": {...}}, "with": ["weight", "price"]}
 ```
 
 ```
-item Warehouse-0 picks "iPad Air"  ->  product = "iPad Air", weight = 0.44, price = 476
+item item-0 picks "iPad Air"  ->  product = "iPad Air", weight = 0.44, price = 476
 ```
 
 `with` lists attributes of the catalogue object. When the reference picks an object, the case also gets each
 listed attribute, under the same name, as one of its starting values. From then on they are case values like
-those drawn in `case_attributes`: columns of the log, attributes of the case's OCEL object, and usable in
+those drawn in `object_attributes`: columns of the log, attributes of the case's OCEL object, and usable in
 conditions, `copy`, published messages and `aggregate`.
 
 `with` needs a `pick` on a list or a pool, whose objects and attributes exist when the case is created, and
@@ -241,8 +241,8 @@ in the log. This is its full configuration,
       "name": "Sales",
       "bpmn_path": "sales.bpmn",
       "json_path": "sales.json",
-      "total_cases": 2000,
-      "object_type": "orders",
+      "arrivals": 2000,
+      "object_type": "order",
       "qualifier": "order",
       "carry_links": true
     },
@@ -256,15 +256,15 @@ in the log. This is its full configuration,
       "name": "Warehouse",
       "bpmn_path": "warehouse.bpmn",
       "json_path": "warehouse.json",
-      "object_type": "items",
+      "object_type": "item",
       "qualifier": "item"
     },
     {
       "name": "Packaging",
       "bpmn_path": "packaging.bpmn",
       "json_path": "packaging.json",
-      "total_cases": 1200,
-      "object_type": "packages",
+      "arrivals": 1200,
+      "object_type": "package",
       "qualifier": "package",
       "qualifier_by_activity": {
         "Create_Package": "creates",
@@ -278,7 +278,7 @@ in the log. This is its full configuration,
   "seed": 1,
   "start_time": "2023-04-03T06:00:00+00:00",
   "catalogue": {
-    "customers": [
+    "customer": [
       {"id": "c1", "attributes": {"segment": "retail"}},
       {"id": "c2", "attributes": {"segment": "retail"}},
       {"id": "c3", "attributes": {"segment": "business"}},
@@ -295,7 +295,7 @@ in the log. This is its full configuration,
       {"id": "c14", "attributes": {"segment": "retail"}},
       {"id": "c15", "attributes": {"segment": "business"}}
     ],
-    "products": [
+    "product": [
       {"id": "iPhone X", "attributes": {"weight": 0.172, "price": 699}},
       {"id": "iPhone 8", "attributes": {"weight": 0.21, "price": 529}},
       {"id": "Fire Stick", "attributes": {"weight": 0.2, "price": 39.99}},
@@ -319,10 +319,10 @@ in the log. This is its full configuration,
     ]
   },
   "references": [
-    {"process": "Sales", "case_attribute": "customer", "catalogue": "customers",
+    {"process": "Sales", "object_attribute": "customer", "catalogue": "customer",
      "o2o": "places", "reverse": true, "link_events": ["place order", "confirm order"],
      "pick": "uniform"},
-    {"process": "Warehouse", "case_attribute": "product", "catalogue": "products", "o2o": "is a",
+    {"process": "Warehouse", "object_attribute": "product", "catalogue": "product", "o2o": "is a",
      "pick": {"weights": {
        "iPhone X": 433, "iPhone 8": 408, "Fire Stick": 405, "iPad Air": 405, "Fire Stick 4K": 400,
        "iPad Pro": 394, "Echo Plus": 394, "Kindle Paperwhite": 393, "Echo Show 8": 383, "MacBook Pro": 382,
@@ -339,28 +339,28 @@ Run it with
 poetry run prosimos start-orchestration --config testing_scripts/assets/order_management/simulation.json --ocel_out_path om.json
 ```
 
-`sales.json` has no `customer` in its `case_attributes`: the reference picks it. Its `ItemOrdered` message
+`sales.json` has no `customer` in its `object_attributes`: the reference picks it. Its `ItemOrdered` message
 then carries it to the items, and `ItemPicked` to the packages. Likewise, `warehouse.json` has no `product`:
 the second reference picks it, with the number of items of each product in the log as weights, and brings
 the product's `weight` and `price` into the item. `ItemPicked` carries the item's `weight` to the package.
 
 **What appears in the OCEL file** (excerpts of that run, 2,000 orders):
 
-- **The 15 customers**, type `customers`, with `segment` timed at the start of the run, and `objectTypes`
-  lists `{"name": "customers", "attributes": [{"name": "segment", "type": "string"}]}`. Each is linked by
+- **The 15 customers**, type `customer`, with `segment` timed at the start of the run, and `objectTypes`
+  lists `{"name": "customer", "attributes": [{"name": "segment", "type": "string"}]}`. Each is linked by
   `places` to its orders, 109 to 154 per customer, 2,000 in all:
 
   ```json
-  {"id": "c3", "type": "customers",
+  {"id": "c3", "type": "customer",
    "attributes": [{"name": "segment", "value": "business", "time": "2023-04-03T06:00:00.000000Z"}],
-   "relationships": [{"objectId": "Sales-25", "qualifier": "places"},
-                     {"objectId": "Sales-29", "qualifier": "places"}, ...]}
+   "relationships": [{"objectId": "order-25", "qualifier": "places"},
+                     {"objectId": "order-29", "qualifier": "places"}, ...]}
   ```
 
-- **The orders** keep `customer` as an attribute, as before:
+- **The orders** keep `customer` as an attribute:
 
   ```json
-  {"id": "Sales-0", "type": "orders",
+  {"id": "order-0", "type": "order",
    "attributes": [{"name": "items", "value": 5, "time": "2023-04-03T06:00:00.000000Z"},
                   {"name": "customer", "value": "c9", "time": "2023-04-03T06:00:00.000000Z"}], ...}
   ```
@@ -370,96 +370,95 @@ the product's `weight` and `price` into the item. `ItemPicked` carries the item'
 
   ```json
   {"id": "e1", "type": "place order", "time": "2023-04-03T06:01:00.000000Z",
-   "relationships": [{"objectId": "Sales-0", "qualifier": "order"},
-                     {"objectId": "Warehouse-0", "qualifier": "item"}, ...,
+   "relationships": [{"objectId": "order-0", "qualifier": "order"},
+                     {"objectId": "item-0", "qualifier": "item"}, ...,
                      {"objectId": "c9", "qualifier": "customer"}]}
   {"id": "e16", "type": "confirm order", "time": "2023-04-03T09:55:27.683160Z",
-   "relationships": [{"objectId": "Sales-0", "qualifier": "order"}, ...,
+   "relationships": [{"objectId": "order-0", "qualifier": "order"}, ...,
                      {"objectId": "c9", "qualifier": "customer"}]}
   {"id": "e523", "type": "pay order", "time": "2023-04-11T20:30:28.616308Z",
-   "relationships": [{"objectId": "Sales-0", "qualifier": "order"}, ...]}
+   "relationships": [{"objectId": "order-0", "qualifier": "order"}, ...]}
   ```
 
-- **The 20 products**, type `products`, with `weight` and `price` as in the log. Each item **is a** product
+- **The 20 products**, type `product`, with `weight` and `price` as in the log. Each item **is a** product
   (`"o2o": "is a"`, from the item to the product), keeps `product`, `weight` and `price` as attributes, and
   every one of its events is linked to the product with the qualifier `product` (no `link_events`):
 
   ```json
-  {"id": "Warehouse-0", "type": "items",
+  {"id": "item-0", "type": "item",
    "attributes": [{"name": "product", "value": "iPad Air", "time": "2023-04-03T06:01:00.000000Z"},
                   {"name": "weight", "value": 0.44, "time": "2023-04-03T06:01:00.000000Z"},
                   {"name": "price", "value": 476, "time": "2023-04-03T06:01:00.000000Z"}, ...],
    "relationships": [{"objectId": "iPad Air", "qualifier": "is a"}]}
   {"id": "e15", "type": "pick item", "time": "2023-04-03T09:27:32.013771Z",
-   "relationships": [{"objectId": "Warehouse-0", "qualifier": "item"}, ...,
+   "relationships": [{"objectId": "item-0", "qualifier": "item"}, ...,
                      {"objectId": "iPad Air", "qualifier": "product"}]}
   ```
 
 Items and packages carry `customer` too, but only as an attribute: there is no customer reference on the
 Warehouse or Packaging. Adding the Warehouse reference shown under "Two modes" would link each item to its
 customer as well. To have every order come from a new customer instead, replace the list with
-`"customers": {"attributes": [...]}` and the pick with `"new"`.
+`"customer": {"attributes": [...]}` and the pick with `"new"`.
 
 ## Errors and warnings
 
 **Load errors.** A configuration is checked when it is built (`SimulationConfig(...)` or
 `SimulationConfig.from_json`). Two errors stop reading the file at once, prefixed by its path:
 
-| Message                                                   | Cause                                                          |
-|-----------------------------------------------------------|----------------------------------------------------------------|
-| `catalogue.customers[0]: 'id' must be a non-empty string` | a list object without an `id`, or an empty one                 |
-| `references[0] is missing ['case_attribute']`             | a reference without `process`, `case_attribute` or `catalogue` |
+| Message                                                  | Cause                                                            |
+|----------------------------------------------------------|------------------------------------------------------------------|
+| `catalogue.customer[0]: 'id' must be a non-empty string` | a list object without an `id`, or an empty one                   |
+| `references[0] is missing ['object_attribute']`          | a reference without `process`, `object_attribute` or `catalogue` |
 
 All the others are collected and raised together, as one `ValueError` starting `Invalid catalogue: `, the
 problems separated by `; `. A growing catalogue with only a `"uniform"` pick, for example, breaks two rules:
 
 ```
-Invalid catalogue: growing catalogue 'customers' needs exactly one reference that creates its objects ("new" or new_share), got 0; references[0] picks from growing catalogue 'customers', which only takes "new" or {"new_share": ...}
+Invalid catalogue: growing catalogue 'customer' needs exactly one reference that creates its objects ("new" or new_share), got 0; references[0] picks from growing catalogue 'customer', which only takes "new" or {"new_share": ...}
 ```
 
 The messages, by the key they are about:
 
-| Key                          | Message                                                                                                                                                         |
-|------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `id`                         | `catalogue ids are repeated: ['x']` (ids are unique across all catalogues)                                                                                      |
-| `id`                         | `catalogue ids look like case ids (<process name>-<number>): ['Sales-1']`                                                                                       |
-| catalogue name               | `catalogue 'orders' is the object type of process Sales`                                                                                                        |
-| `count`                      | `catalogue 'customers': count must be a whole number of at least 1, got 0`                                                                                      |
-| `attributes` (pool, growing) | `catalogue 'customers': attributes[0]: InvalidCaseAttributeException: Case attribute segment: probabilities' sum should be equal to 1` (Prosimos's own message) |
-| growing catalogue            | `growing catalogue 'Sales' is named like a process; its ids would look like case ids`                                                                           |
-| growing catalogue            | `catalogue ids look like the ids growing catalogue 'customers' creates (customers-<number>): ['customers-2']`                                                   |
-| growing catalogue            | `growing catalogue 'customers' needs exactly one reference that creates its objects ("new" or new_share), got 0`                                                |
-| `catalogue`                  | `references[0] names unknown catalogue 'clients'`                                                                                                               |
-| `process`                    | `references[0] names unknown process 'Billing'`                                                                                                                 |
-| `link_events`                | `references[0] link_events names ['confrim order'], which are no tasks of process Sales`                                                                        |
-| `pick`                       | `references[0] pick must be "uniform", {"weights": {id: weight, ...}}, "new" or {"new_share": share}`                                                           |
-| `pick`                       | `references[0] picks customer, which process Sales also draws in its case_attributes`                                                                           |
-| `pick`                       | `references[0] picks customer, which process Warehouse also copies from a message (consume entries at ['Start_Item'])`                                          |
-| `pick`                       | `references[0] picks item_ids, which process Packaging also appends to from a message (consume entries at ['Catch_Items'])`                                     |
-| `pick`                       | `references[0] picks for Scripted, an engine not built from a ProcessSpec, which can't take a pick` (extra engines, see [orchestrator.md](orchestrator.md))     |
-| `pick`                       | `more than one reference picks customer of process Sales`                                                                                                       |
-| `weights`                    | `references[0] weights name ['c99'], which are no ids of catalogue 'customers'`                                                                                 |
-| `weights`                    | `references[0] weights must be numbers of at least 0, not all 0, got {'c1': 0, 'c2': 0}`                                                                        |
-| `weights`                    | `references[0] has weights on pool 'customers'; a pool can only be picked from uniformly`                                                                       |
-| `"new"`, `new_share`         | `references[0] picks "new" or new_share from catalogue 'customers', which is no growing catalogue`                                                              |
-| `"new"`, `new_share`         | `references[0] picks from growing catalogue 'customers', which only takes "new" or {"new_share": ...}`                                                          |
-| `new_share`                  | `references[0] new_share must be a number above 0 and at most 1, got 1.5`                                                                                       |
-| `with`                       | `references[0] with must be a list of attribute names, got 'weight'`                                                                                            |
-| `with`                       | `references[0] has with but no pick; a catalogue object brings its attributes only when the reference picks it`                                                 |
-| `with`                       | `references[0] has with on growing catalogue 'products', whose objects don't exist yet when a case is created`                                                  |
-| `with`                       | `references[0] with names ['volume'], which not every object of catalogue 'products' has`                                                                       |
-| `with`                       | `references[0] brings price, which process Warehouse also draws in its case_attributes`                                                                         |
-| `with`                       | `references[0] brings customer, which process Warehouse also copies from a message (consume entries at ['Start_Item'])`                                         |
-| `with`                       | `references[0] brings product, which process Warehouse also picks`                                                                                              |
-| `with`                       | `references[0] brings weight, which another with also brings to process Warehouse`                                                                              |
-| `with`                       | `references[0] brings case_id, which is reserved for the case's own identifier`                                                                                 |
+| Key                          | Message                                                                                                                                                        |
+|------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `id`                         | `catalogue ids are repeated: ['x']` (ids are unique across all catalogues)                                                                                     |
+| `id`                         | `catalogue ids look like object ids (<object type>-<number>): ['order-1']`                                                                                     |
+| catalogue name               | `catalogue 'order' is the object type of process Sales`                                                                                                        |
+| `count`                      | `catalogue 'customer': count must be a whole number of at least 1, got 0`                                                                                      |
+| `attributes` (pool, growing) | `catalogue 'customer': attributes[0]: InvalidCaseAttributeException: Case attribute segment: probabilities' sum should be equal to 1` (Prosimos's own message) |
+| growing catalogue            | `catalogue ids look like the ids growing catalogue 'customer' creates (customer-<number>): ['customer-2']`                                                     |
+| growing catalogue            | `growing catalogue 'customer' needs exactly one reference that creates its objects ("new" or new_share), got 0`                                                |
+| `catalogue`                  | `references[0] names unknown catalogue 'clients'`                                                                                                              |
+| `process`                    | `references[0] names unknown process 'Billing'`                                                                                                                |
+| `link_events`                | `references[0] link_events names ['confrim order'], which are no tasks of process Sales`                                                                       |
+| `pick`                       | `references[0] pick must be "uniform", {"weights": {id: weight, ...}}, "new" or {"new_share": share}`                                                          |
+| `pick`                       | `references[0] picks customer, which process Sales also draws in its object_attributes`                                                                        |
+| `pick`                       | `references[0] picks customer, which process Warehouse also copies from a message (consume entries at ['Start_Item'])`                                         |
+| `pick`                       | `references[0] picks item_ids, which process Packaging also appends to from a message (consume entries at ['Catch_Items'])`                                    |
+| `pick`                       | `references[0] picks for Scripted, an engine not built from a ProcessSpec, which can't take a pick` (extra engines, see [orchestrator.md](orchestrator.md))    |
+| `pick`                       | `more than one reference picks customer of process Sales`                                                                                                      |
+| `weights`                    | `references[0] weights name ['c99'], which are no ids of catalogue 'customer'`                                                                                 |
+| `weights`                    | `references[0] weights must be numbers of at least 0, not all 0, got {'c1': 0, 'c2': 0}`                                                                       |
+| `weights`                    | `references[0] has weights on pool 'customer'; a pool can only be picked from uniformly`                                                                       |
+| `"new"`, `new_share`         | `references[0] picks "new" or new_share from catalogue 'customer', which is no growing catalogue`                                                              |
+| `"new"`, `new_share`         | `references[0] picks from growing catalogue 'customer', which only takes "new" or {"new_share": ...}`                                                          |
+| `new_share`                  | `references[0] new_share must be a number above 0 and at most 1, got 1.5`                                                                                      |
+| `with`                       | `references[0] with must be a list of attribute names, got 'weight'`                                                                                           |
+| `with`                       | `references[0] has with but no pick; a catalogue object brings its attributes only when the reference picks it`                                                |
+| `with`                       | `references[0] has with on growing catalogue 'product', whose objects don't exist yet when a case is created`                                                  |
+| `with`                       | `references[0] with names ['volume'], which not every object of catalogue 'product' has`                                                                       |
+| `with`                       | `references[0] brings price, which process Warehouse also draws in its object_attributes`                                                                      |
+| `with`                       | `references[0] brings customer, which process Warehouse also copies from a message (consume entries at ['Start_Item'])`                                        |
+| `with`                       | `references[0] brings product, which process Warehouse also picks`                                                                                             |
+| `with`                       | `references[0] brings weight, which another with also brings to process Warehouse`                                                                             |
+| `with`                       | `references[0] brings object_id, which is reserved for the object's own id`                                                                                    |
 
 `link_events` is not checked for extra engines, which have no BPMN model.
 
 **Warning.** One kind, during the run, in the run report's `warnings`, once per attribute and value:
 
 ```
-case attribute customer has the value 'c99', which is not in catalogue customers; no OCEL link is written for it
+case attribute customer has the value 'c99', which is not in catalogue customer; no OCEL link is written for it
 ```
 
 A value is compared with the ids as text, so the number `7` matches the id `"7"`. The value keeps no link,

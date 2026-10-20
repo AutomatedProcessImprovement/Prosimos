@@ -26,7 +26,7 @@ def shipping_warehouse(name, cities, shipping_hours):
     def order_placed(message, now):
         if message.attributes["city"] not in cities:
             return Verdict.DISCARDED
-        order_id = message.attributes["case_id"]
+        order_id = message.attributes["object_id"]
         engine.at(now + timedelta(hours=shipping_hours), lambda _: [Message("Shipment", {"order_id": order_id})])
         return Verdict.CLAIMED
 

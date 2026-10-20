@@ -44,20 +44,21 @@ Start ──> Place order ──> (Throw_OrderPlaced) ──> (Catch_Shipment) �
 "messages": {
   "publish": [
     {"event_id": "Throw_OrderPlaced", "type": "OrderPlaced",
-     "attributes": ["case_id", "city"]}
+     "attributes": ["object_id", "city"]}
   ],
   "consume": [
     {"event_id": "Catch_Shipment", "type": "Shipment",
      "condition": [[{"attribute": "order_id", "comparison": "=",
-                     "case_attribute": "case_id"}]]}
+                     "object_attribute": "object_id"}]]}
   ]
 }
 ```
 
 **publish**: each entry names a publishing event, the message `type`, and the `attributes` the
 message carries (optional, default none). Their values are copied from the case when it passes the
-event. `case_id` is a reserved name for the case's identifier: the process name followed by the case
-number, e.g. `Sales-7`, so orders get unique ids without a new case attribute.
+event. `object_id` is a reserved name for the id of the case's object: its object type followed by its number,
+e.g. `order-7` (`Sales-7` for a process without an object type, see [orchestrator.md](orchestrator.md)), so orders
+get unique ids without a new attribute.
 
 **consume**: each entry names a catch event (or the start event, see "Processes started by
 messages"), the message `type` it accepts, and an optional `condition`; without one, any message of
@@ -65,16 +66,16 @@ that type is accepted. The process subscribes to every type listed under `consum
 
 **copy** (optional, on any `consume` entry) maps case attributes to message attributes: when the
 entry accepts a message, the listed message attributes are written into the case.
-`"copy": {"order_id": "case_id"}` sets the case's `order_id` to the message's `case_id`; `source`
+`"copy": {"order_id": "object_id"}` sets the case's `order_id` to the message's `object_id`; `source`
 can be copied too. A copied name counts as declared, so the process can publish it later (e.g.
-`Shipment{order_id}`). The target can't be `case_id`, which is reserved.
+`Shipment{order_id}`). The target can't be `object_id`, which is reserved.
 
 - **At a start event**, the values go into the new case, on top of its drawn case attributes, before
   it starts: the Tartu warehouse's case gets `order_id = Sales-3` and later publishes
   `Shipment{order_id: Sales-3}`.
 - **At a catch event**, they go into the waiting case that claims the message, at the time of the
   claim, replacing earlier values. Sales waiting for `Shipment{order_id, tracking_no}` with
-  `"copy": {"tracking_no": "tracking_no"}` can then publish `OrderClosed{case_id, tracking_no}`.
+  `"copy": {"tracking_no": "tracking_no"}` can then publish `OrderClosed{object_id, tracking_no}`.
 
 Copied values are ordinary case attribute values from then on: later gateways, conditions,
 published messages and the log see them. To make a copied value such as a customer id an OCEL object,
@@ -86,27 +87,27 @@ leaves that case attribute unchanged, with one warning per event and attribute.
 **append** (optional, on any `consume` entry) keeps every value instead of the last one. With `collect`,
 `copy` overwrites: a package that collected items 12, 17 and 23 only remembers 23. `append` maps case
 attributes to message attributes like `copy`, but adds the message attribute's value of every claimed
-message to a list in the case. In Order Management, each item sends its own id (`case_id` is reserved: the
-publishing case's own id), and the package keeps them all:
+message to a list in the case. In Order Management, each item sends its own id (`object_id` is reserved: the
+publishing object's own id), and the package keeps them all:
 
 ```
 warehouse.json:  "publish": [{"event_id": "End_Picked", "type": "ItemPicked",
-                              "attributes": ["order_id", "item_index", "customer", "case_id", "weight"]}]
-packaging.json:  "consume": [{"event_id": "Catch_Items", "type": "ItemPicked", ..., "append": {"item_ids": "case_id"}}]
+                              "attributes": ["order_id", "item_index", "customer", "object_id", "weight"]}]
+packaging.json:  "consume": [{"event_id": "Catch_Items", "type": "ItemPicked", ..., "append": {"item_ids": "object_id"}}]
 ```
 
-After the collect, `item_ids = ["Warehouse-12", "Warehouse-17", "Warehouse-23"]`, in claim order.
+After the collect, `item_ids = ["item-12", "item-17", "item-23"]`, in claim order.
 
 - Each message carries one value; the list exists only inside the receiving case.
 - The list starts empty when the case is created, and grows by one value per claimed message, at a start
   event (the message that starts the case) and at a catch event alike. A message without the attribute adds
   nothing, with one warning per event and attribute.
 - The list is an ordinary case attribute value: messages can publish it, and the log has a column for it,
-  holding the list as JSON text, e.g. `["Warehouse-12", "Warehouse-17"]` (`[]` before the first claim). In the
+  holding the list as JSON text, e.g. `["item-12", "item-17"]` (`[]` before the first claim). In the
   OCEL output it is an object attribute, also as JSON text since OCEL attribute values are single values,
   with one value per change.
 - An appended attribute can't also be in the entry's `copy`, in another entry's `copy` (which would
-  overwrite the list), or in the process's `case_attributes` (whose value is drawn, not a list that starts
+  overwrite the list), or in the process's `object_attributes` (whose value is drawn, not a list that starts
   empty).
 
 **aggregate** (optional, on any `consume` entry) writes a value computed over the messages claimed into
@@ -132,7 +133,7 @@ With items weighing 1.2, 0.8 and 2.1, the package weighs 1.2 after the first cla
 - The value is an ordinary case attribute value: messages can publish it, the log has a column for it, and
   in the OCEL output it is an object attribute, with one value per change.
 - An aggregated attribute can't also be in the entry's `copy` or `append`, in another entry's `copy` or
-  `append`, or in the process's `case_attributes`.
+  `append`, or in the process's `object_attributes`.
 
 **capacity** (optional, on a catch event's entry) says how many waiting cases one message resumes, as a
 min and a max, the mirror of `collect`: while fewer than min cases are waiting, the message waits; with min
@@ -152,7 +153,7 @@ For example, orders waiting at the dock and a truck taking at least 2 of them, u
 {"event_id": "Catch_Truck", "type": "Truck",
  "condition": [[{"attribute": "dock", "comparison": "=", "value": "Tartu"}]],
  "capacity": {"min": 2, "max": {"attribute": "capacity"}},
- "copy": {"truck_id": "case_id"}}
+ "copy": {"truck_id": "object_id"}}
 ```
 
 **collect** (optional, on a catch event's entry) says how many matching messages a case claims there
@@ -162,10 +163,10 @@ up to max; to wait for more but leave after a while, race the catch event with a
 event-based gateways"). Without `collect`, one message is enough.
 
 ```
-"collect": {"min": 2, "max": 5}                   each bound a number, or {"case_attribute": ...} read from the case
-"collect": {"min": {"case_attribute": "items"}}   without max: no limit
+"collect": {"min": 2, "max": 5}                   each bound a number, or {"object_attribute": ...} read from the case
+"collect": {"min": {"object_attribute": "items"}}   without max: no limit
 "collect": 3                                      (3, 3)
-"collect": {"case_attribute": "items"}            (items, items)
+"collect": {"object_attribute": "items"}            (items, items)
 "collect": "all"                                  (1, no limit): the next message, and every other one offered then
 "collect": 0                                      (0, 0): passes straight on
 ```
@@ -174,8 +175,8 @@ For example, an order waiting until an `ItemReady` has come for each of its item
 
 ```json
 {"event_id": "Catch_Items", "type": "ItemReady",
- "condition": [[{"attribute": "order_id", "comparison": "=", "case_attribute": "case_id"}]],
- "collect": {"case_attribute": "items"}}
+ "condition": [[{"attribute": "order_id", "comparison": "=", "object_attribute": "object_id"}]],
+ "collect": {"object_attribute": "items"}}
 ```
 
 **same** (optional, with `collect`) lists message attributes that every message a case collects there must
@@ -193,16 +194,16 @@ and i7; i2 stays for the next package. A message without one of the listed attri
 warning per event and attribute.
 
 **count** (optional, on a `publish` entry) publishes several messages at once, one per object: a
-fixed number such as `3`, or `{"case_attribute": "items"}` to read it from the case when it passes the
+fixed number such as `3`, or `{"object_attribute": "items"}` to read it from the case when it passes the
 event. Without it, the entry publishes one message. `index` is a reserved name for the message's
-number, 1..N, and can only be listed on an entry with `count`; together with `case_id` it identifies
+number, 1..N, and can only be listed on an entry with `count`; together with `object_id` it identifies
 the object (`Sales-7` item 2), e.g. for the receiver to copy into its new case. For example, an order
 announcing each of its items, so that Picking starts one case per item:
 
 ```json
 {"event_id": "Throw_Items", "type": "ItemOrdered",
- "count": {"case_attribute": "items"},
- "attributes": ["case_id", "index"]}
+ "count": {"object_attribute": "items"},
+ "attributes": ["object_id", "index"]}
 ```
 
 This is how an object-centric event log records it: one event (e.g. Place order) linked to N new
@@ -217,16 +218,16 @@ example, a package telling each of its items that it was packed, while each item
 
 ```
 packages.json:      "publish": [{"event_id": "Throw_Packed", "type": "Packed",
-                                 "count": {"list": "item_ids", "as": "item_id"}, "attributes": ["case_id", "index"]}]
+                                 "count": {"list": "item_ids", "as": "item_id"}, "attributes": ["object_id", "index"]}]
 packed_items.json:  "consume": [{"event_id": "Catch_Packed", "type": "Packed",
-                                 "condition": [[{"attribute": "item_id", "comparison": "=", "case_attribute": "case_id"}]]}]
+                                 "condition": [[{"attribute": "item_id", "comparison": "=", "object_attribute": "object_id"}]]}]
 ```
 
-With `item_ids = ["Items-0", "Items-1", "Items-2"]`, the package publishes 3 messages:
-`Packed{case_id: Packages-0, index: 1, item_id: Items-0}`, then `index: 2, item_id: Items-1` and
-`index: 3, item_id: Items-2`, in the order of the list. Each item takes the one with its own id.
+With `item_ids = ["item-0", "item-1", "item-2"]`, the package publishes 3 messages:
+`Packed{object_id: package-0, index: 1, item_id: item-0}`, then `index: 2, item_id: item-1` and
+`index: 3, item_id: item-2`, in the order of the list. Each item takes the one with its own id.
 
-- `as` is added to every message; it isn't listed in `attributes`, and can't be `case_id` or `index`.
+- `as` is added to every message; it isn't listed in `attributes`, and can't be `object_id` or `index`.
 - `index` is the entry's position, 1..N, as with the other forms; list it in `attributes` to send it.
 - A missing or empty list publishes nothing, with one warning per event.
 
@@ -256,12 +257,12 @@ terms. A message is accepted when all the terms of at least one alternative hold
 "the message's `attribute` `comparison` X", where X is either a fixed `value` or an attribute of the
 waiting case:
 
-| Term                                                                        | Reads as                                                 |
-|-----------------------------------------------------------------------------|----------------------------------------------------------|
-| `{"attribute": "source", "comparison": "=", "value": "TartuWarehouse"}`     | the message was published by TartuWarehouse              |
-| `{"attribute": "weight", "comparison": "in", "value": [5, 10]}`             | the message's `weight` is between 5 and 10               |
-| `{"attribute": "order_id", "comparison": "=", "case_attribute": "case_id"}` | the message's `order_id` is this case's id (correlation) |
-| `{"attribute": "price", "comparison": "<=", "case_attribute": "budget"}`    | the message's `price` is at most this case's `budget`    |
+| Term                                                                            | Reads as                                                 |
+|---------------------------------------------------------------------------------|----------------------------------------------------------|
+| `{"attribute": "source", "comparison": "=", "value": "TartuWarehouse"}`         | the message was published by TartuWarehouse              |
+| `{"attribute": "weight", "comparison": "in", "value": [5, 10]}`                 | the message's `weight` is between 5 and 10               |
+| `{"attribute": "order_id", "comparison": "=", "object_attribute": "object_id"}` | the message's `order_id` is this case's id (correlation) |
+| `{"attribute": "price", "comparison": "<=", "object_attribute": "budget"}`      | the message's `price` is at most this case's `budget`    |
 
 `attribute` is a message attribute, or `source` for the process that published the message.
 Comparisons are those of branch rules: `=`, `!=`, `<`, `<=`, `>`, `>=` and `in` (with a fixed
@@ -269,7 +270,7 @@ Comparisons are those of branch rules: `=`, `!=`, `<`, `<=`, `>`, `>=` and `in` 
 
 ```json
 "condition": [
-  [ {"attribute": "order_id", "comparison": "=", "case_attribute": "case_id"},
+  [ {"attribute": "order_id", "comparison": "=", "object_attribute": "object_id"},
     {"attribute": "status", "comparison": "!=", "value": "cancelled"} ],
   [ {"attribute": "source", "comparison": "=", "value": "HeadOffice"} ]
 ]
@@ -291,10 +292,10 @@ The section is checked when the model is loaded. An invalid section stops loadin
 - A `publish` event is an intermediate message throw event or a message end event.
 - A `consume` event is an intermediate message catch event or a message start event.
 - `type` is a non-empty string.
-- `attributes` is a list of names, each `case_id`, `index` (only with `count`) or a declared case,
+- `attributes` is a list of names, each `object_id`, `index` (only with `count`) or a declared object,
   global or event attribute, and not count's `as`.
-- `count` is either a whole number of at least 0, `{"case_attribute": <declared attribute>}` or
-  `{"list": <declared attribute>, "as": <name other than case_id and index>}`, and only on a `publish`
+- `count` is either a whole number of at least 0, `{"object_attribute": <declared attribute>}` or
+  `{"list": <declared attribute>, "as": <name other than object_id and index>}`, and only on a `publish`
   entry: only throw and end events publish, and a start event starts exactly one case per message.
 - A message end event under `publish`, or a catch event under `consume`, has exactly one incoming
   arrow; otherwise: "draw an explicit gateway before <event id>". In BPMN, several arrows into one
@@ -304,16 +305,16 @@ The section is checked when the model is loaded. An invalid section stops loadin
 - After an event-based gateway with a branch that waits for a message (a race, see "Races at
   event-based gateways"), every branch is a message catch event or a timer, and no branch has a fixed
   `collect` of 0.
-- `copy` maps case attribute names to message attribute names, and doesn't set `case_id`.
-- `append` does the same; its attributes are in no entry's `copy` and not in `case_attributes`.
+- `copy` maps object attribute names to message attribute names, and doesn't set `object_id`.
+- `append` does the same; its attributes are in no entry's `copy` and not in `object_attributes`.
 - `aggregate` maps case attribute names to one function (`sum`, `count`, `min` or `max`) and a message
-  attribute, and doesn't set `case_id`; its attributes are in no entry's `copy` or `append`, not in
-  `case_attributes`, and every entry aggregating into one attribute uses the same function.
+  attribute, and doesn't set `object_id`; its attributes are in no entry's `copy` or `append`, not in
+  `object_attributes`, and every entry aggregating into one attribute uses the same function.
 - `capacity` is a whole number of at least 1, `{"attribute": <name>}`, or `{"min": <bound>, "max":
   <bound>}` (max optional) with each bound a whole number of at least 1 or `{"attribute": <name>}`; a fixed
   min isn't above a fixed max. It is only on a catch event: a start message starts exactly one case.
-- `collect` is a whole number of at least 0, `"all"`, `{"case_attribute": <name>}`, or `{"min": <bound>,
-  "max": <bound>}` (max optional) with each bound a whole number of at least 0 or `{"case_attribute":
+- `collect` is a whole number of at least 0, `"all"`, `{"object_attribute": <name>}`, or `{"min": <bound>,
+  "max": <bound>}` (max optional) with each bound a whole number of at least 0 or `{"object_attribute":
   <name>}`. A fixed min isn't above a fixed max, and a max of 0 doesn't come with a min read from a case
   attribute.
 - `collect` is only on a catch event with exactly one `consume` entry: a case waiting there keeps one
@@ -329,10 +330,10 @@ The section is checked when the model is loaded. An invalid section stops loadin
   without one, a case takes a single message, so there is nothing to compare it with.
 - `qualifier` and `o2o`, where given, are non-empty strings.
 - A process started by messages (a `consume` entry on its start event) has exactly one start event,
-  and the start event's condition uses only fixed values and `source`, not `case_attribute`: there
+  and the start event's condition uses only fixed values and `source`, not `object_attribute`: there
   is no case yet to compare with.
 - `condition` is a non-empty list of non-empty lists of terms.
-- A term has `attribute`, a known `comparison`, and exactly one of `value` and `case_attribute`;
+- A term has `attribute`, a known `comparison`, and exactly one of `value` and `object_attribute`;
   `in` takes a fixed `value` `[low, high]`.
 
 ## Publishing
@@ -379,7 +380,7 @@ Each message delivered to the process gets one of three answers:
   and attribute. Only if no waiting case takes it, a matching start event does: it starts a new case (see
   "Processes started by messages").
 - **`DISCARDED`**: no case can ever accept it: it fails every condition on the message alone (fixed
-  values, `source`), or the case it names through `case_id` doesn't exist in this process or has
+  values, `source`), or the case it names through `object_id` doesn't exist in this process or has
   already finished. A case that just hasn't started yet still counts, and so, in a process started
   by messages, does a case number beyond the cases created so far (e.g. `Warehouse-5` when there are
   5): a start message may still create it. A start event whose condition fails never accepts it
@@ -387,7 +388,7 @@ Each message delivered to the process gets one of three answers:
 - **`PENDING`**: otherwise, e.g. its case hasn't reached the catch event yet, fewer cases than its
   `capacity` min are waiting, or its case doesn't exist yet in a process started by messages (if it never
   appears, the message ends the run unclaimed). The orchestrator offers it again later. A condition on a
-  case attribute other than `case_id` never causes a discard, because the attribute can still change.
+  case attribute other than `object_id` never causes a discard, because the attribute can still change.
 
 A case reaches a catch event, and can claim a message, only at the time it really gets there, not
 while the task before it is still running. If its message was already waiting in the orchestrator's
@@ -448,7 +449,7 @@ gets its delay from `event_distribution` (model: `testing_scripts/assets/messagi
 "messages": {
   "consume": [
     {"event_id": "Catch_Shipment", "type": "Shipment",
-     "condition": [[{"attribute": "order_id", "comparison": "=", "case_attribute": "case_id"}]]}
+     "condition": [[{"attribute": "order_id", "comparison": "=", "object_attribute": "object_id"}]]}
   ]
 },
 "event_distribution": [
@@ -520,14 +521,14 @@ every order from Tartu or Tapa and keeps the order's id (model: `testing_scripts
   {"event_id": "Start_Order", "type": "OrderPlaced",
    "condition": [[{"attribute": "city", "comparison": "=", "value": "Tartu"}],
                  [{"attribute": "city", "comparison": "=", "value": "Tapa"}]],
-   "copy": {"order_id": "case_id"}}
+   "copy": {"order_id": "object_id"}}
 ]
 ```
 
 A process is started either by its arrival schedule or by messages, never both:
 
 - the model has exactly one start event;
-- in the simulation configuration, the process has no `total_cases` (giving one is an error, so
+- in the simulation configuration, the process has no `arrivals` (giving one is an error, so
   nobody thinks it limits anything), while every other process needs one;
 - its JSON settings need no `arrival_time_distribution` or `arrival_time_calendar`; every other
   process needs an `arrival_time_distribution`.
@@ -551,20 +552,20 @@ Order (Sales):   Place order -> (throw ItemOrdered x items, index)
                  -> race: (collect ItemReady, items) -> (throw Shipped x items, index)
                         | (timer 2 days)           -> (throw Cancelled x items, index)
 Item (Picking):  start ItemOrdered (copy order_id, index) -> Pick -> (throw ItemReady{order_id})
-                 -> race: (catch Shipped,   case_id = order_id and index = index) -> done
-                        | (catch Cancelled, case_id = order_id and index = index) -> Return to stock
+                 -> race: (catch Shipped,   object_id = order_id and index = index) -> done
+                        | (catch Cancelled, object_id = order_id and index = index) -> Return to stock
 ```
 
-- **The order** publishes `ItemOrdered` with `"count": {"case_attribute": "items"}` and attributes
-  `case_id` and `index`; after its race, `Shipped` or `Cancelled` the same way, so verdict *i* carries
-  the same `case_id` and `index` as item *i*'s `ItemOrdered`.
+- **The order** publishes `ItemOrdered` with `"count": {"object_attribute": "items"}` and attributes
+  `object_id` and `index`; after its race, `Shipped` or `Cancelled` the same way, so verdict *i* carries
+  the same `object_id` and `index` as item *i*'s `ItemOrdered`.
 - **The item** starts on `ItemOrdered` and copies both into the case
-  (`"copy": {"order_id": "case_id", "index": "index"}`). Its two catch events accept only the verdict for
+  (`"copy": {"order_id": "object_id", "index": "index"}`). Its two catch events accept only the verdict for
   this order and this item:
 
   ```json
-  "condition": [[{"attribute": "case_id", "comparison": "=", "case_attribute": "order_id"},
-                 {"attribute": "index", "comparison": "=", "case_attribute": "index"}]]
+  "condition": [[{"attribute": "object_id", "comparison": "=", "object_attribute": "order_id"},
+                 {"attribute": "index", "comparison": "=", "object_attribute": "index"}]]
   ```
 
 - **Late items:** an item still being picked when its order is canceled isn't waiting yet, so its
@@ -582,7 +583,7 @@ Item (Picking):  start ItemOrdered (copy order_id, index) -> Pick -> (throw Item
     claims and aren't offered to anyone else (to send items back, see "One verdict per item"), and
     later ones for it are discarded;
   - a message for a branch the case no longer waits at is pending, not discarded, while the case is
-    still running and the condition is on `case_id`, since the case can still change; it is discarded
+    still running and the condition is on `object_id`, since the case can still change; it is discarded
     only when offered after the case has finished;
   - a message matching several branches of one race goes to one of them, the one listed first, not to
     all.
@@ -594,7 +595,7 @@ Item (Picking):  start ItemOrdered (copy order_id, index) -> Pick -> (throw Item
   message's number, so a case can't pass on a number it was given under that name (e.g. an item publishing
   the `index` it copied from `ItemOrdered`). Copy it into a case attribute with another name, e.g.
   `"copy": {"item_index": "index"}`, and publish that.
-- **`case_attribute` names** in conditions aren't checked against the declared attributes; a term
+- **`object_attribute` names** in conditions aren't checked against the declared attributes; a term
   naming an attribute the case doesn't have is simply false.
 - **Capacity is per `consume` entry.** One message resumes extra cases only at the entry that resumed
   the first case, so a truck accepted at two different catch events doesn't load cases from both. To

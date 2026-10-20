@@ -13,12 +13,12 @@
   ],
   "messages": {
     "publish": [
-      {"event_id": "Throw_Packed", "type": "Packed", "attributes": ["case_id", "index"],
+      {"event_id": "Throw_Packed", "type": "Packed", "attributes": ["object_id", "index"],
        "count": {"list": "item_ids", "as": "item_id"}}
     ],
     "consume": [
-      {"event_id": "Start_Package", "type": "ItemPicked", "append": {"item_ids": "case_id"}},
-      {"event_id": "Catch_More_Items", "type": "ItemPicked", "collect": 2, "append": {"item_ids": "case_id"}}
+      {"event_id": "Start_Package", "type": "ItemPicked", "append": {"item_ids": "object_id"}},
+      {"event_id": "Catch_More_Items", "type": "ItemPicked", "collect": 2, "append": {"item_ids": "object_id"}}
     ]
   }
 }

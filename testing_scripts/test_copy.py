@@ -46,7 +46,7 @@ def test_a_case_created_by_a_start_message_has_the_copied_attribute():
     # the Tartu warehouse copies the order's case_id into its new case's order_id
     warehouse, _ = _engine("TartuWarehouse", "tartu_warehouse.bpmn", "tartu_warehouse.json")
 
-    warehouse.deliver(Message("OrderPlaced", {"case_id": "Sales-3", "city": "Tartu"}, source="Sales"), START)
+    warehouse.deliver(Message("OrderPlaced", {"object_id": "Sales-3", "city": "Tartu"}, source="Sales"), START)
 
     assert _case_values(warehouse, 0)["order_id"] == "Sales-3"
     assert [(m.type, m.attributes) for m in _run_until_idle(warehouse)] == [("Shipment", {"order_id": "Sales-3"})]
@@ -67,7 +67,7 @@ def test_a_waiting_case_gets_the_copied_value_at_the_claim_time_and_publishes_it
     assert [_case_values(sales, case)["tracking_no"] for case in (0, 1)] == ["TRK-1", "unknown"]
     published = _run_until_idle(sales)
     assert [(m.type, m.attributes) for m in published] == [
-        ("OrderClosed", {"case_id": "Sales-0", "tracking_no": "TRK-1"})]
+        ("OrderClosed", {"object_id": "Sales-0", "tracking_no": "TRK-1"})]
     # the log's case attribute column shows the value from the claim on
     assert [(row[1], row[-1]) for row in log.rows if row[0] == 0] == [("Take order", "unknown"),
                                                                      ("Close order", "TRK-1")]
@@ -111,7 +111,7 @@ def test_a_copied_name_gets_a_log_column_that_stays_empty_until_the_value_is_cop
     # sales_closing without its tracking_no case attribute: the name now exists only through copy
     with open(f"{ASSETS}/sales_closing.json") as file:
         settings = json.load(file)
-    settings["case_attributes"] = [a for a in settings["case_attributes"] if a["name"] != "tracking_no"]
+    settings["object_attributes"] = [a for a in settings["object_attributes"] if a["name"] != "tracking_no"]
     (tmp_path / "sales_closing.json").write_text(json.dumps(settings))
     log = _Log()
     spec = ProcessSpec("Sales", f"{ASSETS}/sales_closing.bpmn", str(tmp_path / "sales_closing.json"), 1)

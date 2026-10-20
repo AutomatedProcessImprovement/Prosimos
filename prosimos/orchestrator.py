@@ -5,6 +5,7 @@ import itertools
 import json
 import random
 import re
+import tempfile
 from abc import ABC, abstractmethod
 from collections import Counter, defaultdict
 from contextlib import contextmanager
@@ -32,7 +33,7 @@ class ProcessSpec:
     name: str
     bpmn_path: str
     json_path: str
-    total_cases: Optional[int] = None  # None for a process started by messages
+    arrivals: Optional[int] = None  # how many cases arrive; None for a process started by messages
     # the OCEL object type of its cases: "" (the default) means the process name; None writes no objects
     # and no events for this process in the OCEL output
     object_type: Optional[str] = ""
@@ -47,6 +48,11 @@ class ProcessSpec:
     def ocel_object_type(self) -> Optional[str]:
         return self.name if self.object_type == "" else self.object_type
 
+    @property
+    def id_prefix(self) -> str:
+        """Its objects' ids are <id prefix>-<number>: the object type, or the name of a process without one."""
+        return self.ocel_object_type or self.name
+
 
 @dataclass(frozen=True)
 class CatalogueObject:
@@ -60,7 +66,7 @@ class CatalogueObject:
 class CataloguePool:
     """A generated catalogue, for sets too large to list: count objects with ids <catalogue name>-1 to
     <catalogue name>-<count>, each with attributes drawn once at the start of the run, given in the format
-    of case_attributes (discrete or continuous)."""
+    of object_attributes (discrete or continuous)."""
 
     count: int
     attributes: Tuple[Dict[str, Any], ...] = ()
@@ -70,7 +76,7 @@ class CataloguePool:
 class GrowingCatalogue:
     """A catalogue with no list and no count, for populations that aren't fixed: it starts empty, and a reference
     that picks "new" or new_share creates its objects as cases are created, with ids <catalogue name>-1,
-    <catalogue name>-2, ... in creation order, each with attributes in the format of case_attributes."""
+    <catalogue name>-2, ... in creation order, each with attributes in the format of object_attributes."""
 
     attributes: Tuple[Dict[str, Any], ...] = ()
 
@@ -91,11 +97,11 @@ class Reference:
     With pick, the reference also assigns the value, when the case is created: "uniform" (every object
     equally likely) or, for a listed catalogue, weights as ((id, weight), ...) (ids left out are never picked);
     for a growing catalogue, "new" (every case creates its own object) or NewShare. Without it, the value comes
-    from case_attributes or a message. with_attributes (JSON "with") names attributes of the picked object that
+    from object_attributes or a message. with_attributes (JSON "with") names attributes of the picked object that
     the case also starts with, under the same names."""
 
     process: str
-    case_attribute: str
+    object_attribute: str
     catalogue: str
     o2o: Optional[str] = None
     reverse: bool = False
@@ -109,9 +115,9 @@ class Reference:
 
 
 CONFIG_KEYS = {"processes", "start_time", "seed", "consumer_groups", "catalogue", "references"}
-PROCESS_KEYS = {"name", "bpmn_path", "json_path", "total_cases", "object_type", "qualifier", "qualifier_by_activity",
+PROCESS_KEYS = {"name", "bpmn_path", "json_path", "arrivals", "object_type", "qualifier", "qualifier_by_activity",
                 "carry_links"}
-REFERENCE_KEYS = {"process", "case_attribute", "catalogue", "o2o", "reverse", "link_events", "pick", "with"}
+REFERENCE_KEYS = {"process", "object_attribute", "catalogue", "o2o", "reverse", "link_events", "pick", "with"}
 
 
 def _catalogue_ids(name, entry) -> List[str]:
@@ -136,15 +142,15 @@ class Message:
 
 
 def _checked_catalogue(processes, names, catalogue, references):
-    """Ids unique across the whole catalogue and unlike case ids (<process name>-<number>), since both are OCEL
-    object ids; catalogue names unlike the processes' object types; pools with a count of at least 1 and
-    attributes in the format of case_attributes; and references only naming known catalogues, processes and,
+    """Ids unique across the whole catalogue and unlike the processes' object ids (<object type>-<number>), since
+    both are OCEL object ids; catalogue names unlike the processes' object types; pools with a count of at least 1
+    and attributes in the format of object_attributes; and references only naming known catalogues, processes and,
     in link_events, tasks of their process (by name or id). A pick is "uniform" or weights on known ids of a
     listed catalogue, "uniform" on a pool, or "new" or new_share on a growing catalogue, for a process built
-    from a ProcessSpec whose case_attributes don't have the attribute and whose consume entries don't copy,
+    from a ProcessSpec whose object_attributes don't have the attribute and whose consume entries don't copy,
     append or aggregate into it, and at most one per process and attribute. A growing catalogue's objects are created by exactly one reference, and no other id looks like
     them (<catalogue name>-<number>). with names attributes that every object of the picked listed catalogue or
-    pool has, which the process doesn't otherwise pick, draw, copy, append or aggregate into, and not case_id."""
+    pool has, which the process doesn't otherwise pick, draw, copy, append or aggregate into, and not object_id."""
     problems = []
     for name, entry in catalogue.items():
         if not isinstance(entry, (CataloguePool, GrowingCatalogue)):
@@ -155,20 +161,19 @@ def _checked_catalogue(processes, names, catalogue, references):
         for number, attribute in enumerate(entry.attributes):
             try:
                 CaseAttribute(attribute["name"], attribute["type"], attribute["values"])
-            except Exception as error:  # Prosimos's own messages for case_attributes
+            except Exception as error:  # Prosimos's own messages, as for object_attributes
                 problems.append(f"catalogue {name!r}: attributes[{number}]: {type(error).__name__}: {error}")
     ids = [object_id for name, entry in catalogue.items() for object_id in _catalogue_ids(name, entry)]
     repeated = sorted(object_id for object_id, times in Counter(ids).items() if times > 1)
     if repeated:
         problems.append(f"catalogue ids are repeated: {repeated}")
-    case_id = re.compile("|".join(rf"{re.escape(name)}-\d+" for name in names))
-    like_case_ids = sorted({object_id for object_id in ids if names and case_id.fullmatch(object_id)})
-    if like_case_ids:
-        problems.append(f"catalogue ids look like case ids (<process name>-<number>): {like_case_ids}")
+    object_types = {spec.ocel_object_type: spec.name for spec in processes if spec.ocel_object_type is not None}
+    object_id = re.compile("|".join(rf"{re.escape(object_type)}-\d+" for object_type in object_types))
+    like_object_ids = sorted({obj for obj in ids if object_types and object_id.fullmatch(obj)})
+    if like_object_ids:
+        problems.append(f"catalogue ids look like object ids (<object type>-<number>): {like_object_ids}")
     growing = [name for name, entry in catalogue.items() if isinstance(entry, GrowingCatalogue)]
     for name in growing:
-        if name in names:
-            problems.append(f"growing catalogue {name!r} is named like a process; its ids would look like case ids")
         created_id = re.compile(rf"{re.escape(name)}-\d+")
         like_created = sorted({object_id for object_id in ids if created_id.fullmatch(object_id)})
         if like_created:
@@ -178,7 +183,6 @@ def _checked_catalogue(processes, names, catalogue, references):
         if len(creators) != 1:
             problems.append(f"growing catalogue {name!r} needs exactly one reference that creates its objects "
                             f'("new" or new_share), got {len(creators)}')
-    object_types = {spec.ocel_object_type: spec.name for spec in processes if spec.ocel_object_type is not None}
     for name in catalogue:
         if name in object_types:
             problems.append(f"catalogue {name!r} is the object type of process {object_types[name]}")
@@ -201,7 +205,7 @@ def _checked_catalogue(processes, names, catalogue, references):
         if reference.pick is not None:
             problems.extend(f"references[{number}] {problem}"
                             for problem in _pick_problems(reference, catalogue.get(reference.catalogue), specs))
-    picked = [(reference.process, reference.case_attribute) for reference in references if reference.pick is not None]
+    picked = [(reference.process, reference.object_attribute) for reference in references if reference.pick is not None]
     for process, attribute in sorted({pair for pair in picked if picked.count(pair) > 1}):
         problems.append(f"more than one reference picks {attribute} of process {process}")
     brought = [(reference.process, name) for reference in references for name in reference.with_attributes]
@@ -237,17 +241,17 @@ def _pick_problems(reference, entry, specs):
             return [f"weights must be numbers of at least 0, not all 0, got {dict(reference.pick)}"]
     if reference.process not in specs:
         return [f"picks for {reference.process}, an engine not built from a ProcessSpec, which can't take a pick"]
-    return _settings_problems("picks", reference.case_attribute, reference.process, specs)
+    return _settings_problems("picks", reference.object_attribute, reference.process, specs)
 
 
 def _settings_problems(verb, attribute, process, specs):
     """An attribute that the orchestrator gives a process's cases when they are created, which its JSON settings
-    also set: drawn in case_attributes, or set from a message."""
+    also set: drawn in object_attributes, or set from a message."""
     with open(specs[process].json_path) as file:
         settings = json.load(file)
-    declared = {entry.get("name") for entry in settings.get("case_attributes", [])}
+    declared = {entry.get("name") for entry in settings.get("object_attributes", [])}
     if attribute in declared:
-        return [f"{verb} {attribute}, which process {process} also draws in its case_attributes"]
+        return [f"{verb} {attribute}, which process {process} also draws in its object_attributes"]
     # a copied value would replace the given one (with "new", the replaced object is never written), an
     # appended attribute is a list, and an aggregated one is computed over the messages claimed
     messages = settings.get("messages")
@@ -282,8 +286,8 @@ def _with_problems(reference, entry, specs, picked, brought):
         return []  # rejected with the pick
     problems = []
     for name in names:
-        if name == "case_id":
-            problems.append("brings case_id, which is reserved for the case's own identifier")
+        if name == "object_id":
+            problems.append("brings object_id, which is reserved for the object's own id")
         elif (reference.process, name) in picked:
             problems.append(f"brings {name}, which process {reference.process} also picks")
         elif brought.count((reference.process, name)) > 1:
@@ -347,6 +351,11 @@ class SimulationConfig:
         duplicates = sorted({name for name in names if names.count(name) > 1})
         if duplicates:
             raise ValueError(f"Process names must be unique, repeated: {duplicates}")
+        types = [spec.ocel_object_type for spec in self.processes if spec.ocel_object_type is not None]
+        shared = sorted({object_type for object_type in types if types.count(object_type) > 1})
+        if shared:
+            # <object type>-<number> names an object: two processes of one type would give the same ids
+            raise ValueError(f"Object types must be unique, repeated: {shared}")
 
         object.__setattr__(self, "consumer_groups", _checked_consumer_groups(names, self.consumer_groups))
         _checked_catalogue(self.processes, names, self.catalogue, self.references)
@@ -356,19 +365,19 @@ class SimulationConfig:
         """
         Load a configuration file such as
             {"processes": [{"name": "Sales", "bpmn_path": "sales.bpmn",
-                            "json_path": "sales.json", "total_cases": 100}, ...],
+                            "json_path": "sales.json", "arrivals": 100}, ...],
              "seed": 42, "start_time": "2024-01-01T09:00:00+00:00",
              "consumer_groups": {"Sales": ["Sales"], ...}}
         BPMN and JSON paths are relative to the configuration file's folder. seed and
         consumer_groups are optional; a start time without a time zone is taken as UTC. A process
-        started by messages has no total_cases. A process's optional object_type names the OCEL object
+        started by messages has no arrivals. A process's optional object_type names the OCEL object
         type of its cases (by default its name); null writes no objects and no events for it. Its
         optional qualifier (by default the object type) and qualifier_by_activity ({task id: qualifier})
         qualify each event's link to its own case's object, and carry_links (false by default) makes every
         later event of a case also link the objects the case is linked to through its messages.
         The optional catalogue ({name: [{"id": ..., "attributes": {...}}]}, {name: {"count": ...,
-        "attributes": [as in case_attributes]}} for a generated pool, or {name: {"attributes": [...]}} for a
-        growing one) declares objects with no events of their own, and references ([{"process", "case_attribute", "catalogue", "o2o", "reverse", "link_events",
+        "attributes": [as in object_attributes]}} for a generated pool, or {name: {"attributes": [...]}} for a
+        growing one) declares objects with no events of their own, and references ([{"process", "object_attribute", "catalogue", "o2o", "reverse", "link_events",
         "pick", "with"}], the last five optional) say which case attributes hold their ids, and may pick them
         and bring their attributes into the case.
         """
@@ -389,7 +398,7 @@ class SimulationConfig:
             if missing:
                 raise ValueError(f"{path}: process {entry.get('name', '?')} is missing {missing}")
             processes.append(ProcessSpec(
-                entry["name"], str(folder / entry["bpmn_path"]), str(folder / entry["json_path"]), entry.get("total_cases"),
+                entry["name"], str(folder / entry["bpmn_path"]), str(folder / entry["json_path"]), entry.get("arrivals"),
                 entry.get("object_type", ""), entry.get("qualifier"),
                 tuple(sorted(entry.get("qualifier_by_activity", {}).items())), entry.get("carry_links", False)
             ))
@@ -423,7 +432,7 @@ def _catalogue_object(path, name, number, entry):
 
 def _reference(path, number, entry):
     _check_keys(path, f"references[{number}]", entry, REFERENCE_KEYS)
-    missing = [key for key in ("process", "case_attribute", "catalogue") if key not in entry]
+    missing = [key for key in ("process", "object_attribute", "catalogue") if key not in entry]
     if missing:
         raise ValueError(f"{path}: references[{number}] is missing {missing}")
     link_events, pick = entry.get("link_events"), entry.get("pick")
@@ -435,7 +444,7 @@ def _reference(path, number, entry):
     elif isinstance(pick, dict) and list(pick) == ["new_share"]:
         pick = NewShare(pick["new_share"])
     with_attributes = entry.get("with", ())
-    return Reference(entry["process"], entry["case_attribute"], entry["catalogue"], entry.get("o2o"),
+    return Reference(entry["process"], entry["object_attribute"], entry["catalogue"], entry.get("o2o"),
                      entry.get("reverse", False), None if link_events is None else tuple(link_events), pick,
                      tuple(with_attributes) if isinstance(with_attributes, list) else with_attributes)
 
@@ -458,7 +467,7 @@ class Verdict(Enum):
 class StalledCase:
     """A case still waiting for a message when the run ended."""
 
-    case_id: str
+    object_id: str
     event_id: str
     message_types: List[str]  # the types it waits for: any one of them resumes it (several in a race)
     waiting_since: datetime
@@ -474,7 +483,7 @@ class PublishRecord:
     there is none. qualifier qualifies those links."""
 
     message_id: str
-    case_id: str
+    object_id: str
     element_id: str
     qualifier: str = ""
     task_rows: Tuple[int, ...] = ()
@@ -489,7 +498,7 @@ class ClaimRecord:
     qualifies those links."""
 
     message_id: str
-    case_id: str
+    object_id: str
     element_id: str
     qualifier: str = ""
     task_rows: Tuple[int, ...] = ()
@@ -501,7 +510,7 @@ class CaseObject:
     """One case of an engine, as an object of the OCEL output: its id and its case attributes over time,
     as (attribute, value, time): the values it had when it was created, then every later change."""
 
-    case_id: str
+    object_id: str
     attributes: List[Tuple[str, Any, datetime]] = field(default_factory=list)
 
 
@@ -524,7 +533,7 @@ class CaseElement:
     rows of the process's log they attach to (none if there is no such task)."""
 
     process: str
-    case_id: str
+    object_id: str
     element_id: str
     qualifier: str = ""
     task_rows: Tuple[int, ...] = ()
@@ -581,6 +590,34 @@ class SimulationEngine(ABC):
         """Called once, after the loop stops: the cases still waiting for a message, the warnings this
         engine raised, and its records of which cases and elements published and took each message. A
         lifecycle call, not a messaging one: nothing is published or delivered."""
+
+
+# the top-level sections of a process's JSON settings: Prosimos's own, with object_attributes in place of its
+# case_attributes, and messages
+PROCESS_SETTINGS_KEYS = {"resource_profiles", "resource_calendars", "task_resource_distribution",
+                         "arrival_time_distribution", "arrival_time_calendar", "gateway_branching_probabilities",
+                         "branch_rules", "event_distribution", "batch_processing", "prioritisation_rules",
+                         "object_attributes", "event_attributes", "global_attributes", "gateway_execution_limit",
+                         "multitask", "model_type", "granule_size", "messages"}
+
+
+def load_process(bpmn_path, json_path, arrivals, start_datetime, picks=()) -> SimDiffSetup:
+    """Prosimos's setup of one process, from its JSON settings in the orchestrator's names: Prosimos reads
+    object_attributes as its case_attributes and arrivals as its total_cases, so the settings are handed to it
+    translated, in a copy that is deleted once it has read them. A key that isn't one of the sections is
+    rejected, as a misspelled one would be ignored. picks are attributes given from outside the settings (see
+    _Pick)."""
+    with open(json_path) as file:
+        settings = json.load(file)
+    problem = unknown_keys("top level", settings, PROCESS_SETTINGS_KEYS)
+    if problem:
+        raise ValueError(f"{json_path}: {problem}")
+    if "object_attributes" in settings:
+        settings["case_attributes"] = settings.pop("object_attributes")
+    with tempfile.TemporaryDirectory() as folder:
+        translated = Path(folder) / Path(json_path).name
+        translated.write_text(json.dumps(settings))
+        return SimDiffSetup(bpmn_path, str(translated), False, arrivals, start_datetime, picks, "arrivals")
 
 
 class _GlobalGenerators:
@@ -649,8 +686,8 @@ class ProsimosEngine(SimulationEngine):
         with self._own_globals():
             # picked attributes join the declared ones: every case gets one when it is created, the log has a
             # column for it, and messages may carry it
-            sim_setup = SimDiffSetup(spec.bpmn_path, spec.json_path, False, spec.total_cases, start_datetime, picks)
-            self._env = SimBPMEnv(sim_setup, None, log_writer, process_name=spec.name)
+            sim_setup = load_process(spec.bpmn_path, spec.json_path, spec.arrivals, start_datetime, picks)
+            self._env = SimBPMEnv(sim_setup, None, log_writer, id_prefix=spec.id_prefix)
         tasks = {element_id for element_id, element in sim_setup.bpmn_graph.element_info.items()
                  if element.type is BPMN.TASK}
         unknown = sorted(task_id for task_id, _ in spec.qualifier_by_activity if task_id not in tasks)
@@ -705,10 +742,10 @@ class ProsimosEngine(SimulationEngine):
 
     def finish(self) -> EngineReport:
         with self._own_globals():
-            stalled = [StalledCase(self._env.case_id(parked_event.p_case), place, message_types,
+            stalled = [StalledCase(self._env.object_id(parked_event.p_case), place, message_types,
                                    parked_event.enabled_datetime, *self._env.collected(parked_event))
                        for parked_event, place, message_types in self._env.stalled_waits()]
-            objects = [CaseObject(self._env.case_id(p_case), history)
+            objects = [CaseObject(self._env.object_id(p_case), history)
                        for p_case, history in sorted(self._env.case_attribute_history().items())]
             published, claimed = self._attached_records()
             logged_elements = [element_id for _, element_id, _, _ in self._env.logged_rows]
@@ -757,7 +794,7 @@ class ProsimosEngine(SimulationEngine):
                 found = sorted({*last_of_task.values(), *[row for _, row, _ in rows[-1:]]})
             if not found and (element_id, forward) not in warned:
                 warned.add((element_id, forward))
-                side, case = "after" if forward else "before", self._env.case_id(p_case)
+                side, case = "after" if forward else "before", self._env.object_id(p_case)
                 if not tasks:
                     reason = f"{element_id} has no task {side} it in the model"
                 elif forward:  # e.g. the case was still waiting further on when the run ended
@@ -767,10 +804,10 @@ class ProsimosEngine(SimulationEngine):
                 warning_logger.add_warning(f"{reason}; the OCEL links of its messages there are dropped")
             return tuple(found)
 
-        published = [PublishRecord(message.id, self._env.case_id(p_case), element_id, point.link_qualifier,
+        published = [PublishRecord(message.id, self._env.object_id(p_case), element_id, point.link_qualifier,
                                    task_rows(p_case, element_id, when, forward=False), point.o2o)
                      for message, p_case, element_id, point, when in self._published]
-        claimed = [ClaimRecord(message_id, self._env.case_id(p_case), element_id, point.link_qualifier,
+        claimed = [ClaimRecord(message_id, self._env.object_id(p_case), element_id, point.link_qualifier,
                                task_rows(p_case, element_id, when, forward=True), point.o2o)
                    for message_id, p_case, element_id, point, when in self._claimed]
         return published, claimed
@@ -829,12 +866,12 @@ def _picks(config: "SimulationConfig", catalogue: Dict[str, List[CatalogueObject
     for reference in config.references:
         if reference.creates:
             share = reference.pick.share if isinstance(reference.pick, NewShare) else 1
-            picks[reference.process].append(_NewPick(reference.case_attribute, reference.catalogue, share, config.seed,
+            picks[reference.process].append(_NewPick(reference.object_attribute, reference.catalogue, share, config.seed,
                                                      reference.process))
         elif reference.pick is not None:
             ids = [obj.id for obj in catalogue[reference.catalogue]]
             weights = None if reference.pick == "uniform" else [dict(reference.pick).get(object_id, 0) for object_id in ids]
-            pick = _Pick(reference.case_attribute, ids, weights, config.seed, reference.process)
+            pick = _Pick(reference.object_attribute, ids, weights, config.seed, reference.process)
             picks[reference.process].append(pick)
             picks[reference.process].extend(
                 _Brought(name, pick, {obj.id: dict(obj.attributes)[name] for obj in catalogue[reference.catalogue]})
@@ -1006,7 +1043,7 @@ class RunReport:
             "unclaimed": [{"group": group, "message": message.id} for group, message in self.unclaimed],
             "discarded_counts": [{"type": message_type, "process": process, "count": count}
                                  for (message_type, process), count in self.discarded_counts.items()],
-            "stalled": [{"process": process, "case_id": case.case_id, "event_id": case.event_id,
+            "stalled": [{"process": process, "object_id": case.object_id, "event_id": case.event_id,
                          "message_types": case.message_types, "waiting_since": when(case.waiting_since),
                          "collected": case.collected, "needed": case.needed}
                         for process, case in self.stalled],
@@ -1153,10 +1190,10 @@ def run_engines(
         report.objects.extend((name, case_object) for case_object in engine_report.objects)
         report.logged_elements[name] = engine_report.logged_elements
         for record in engine_report.published:
-            publishers[record.message_id] = CaseElement(name, record.case_id, record.element_id, record.qualifier,
+            publishers[record.message_id] = CaseElement(name, record.object_id, record.element_id, record.qualifier,
                                                         record.task_rows, record.o2o)
         for record in engine_report.claimed:
-            claimers[record.message_id].append(CaseElement(name, record.case_id, record.element_id, record.qualifier,
+            claimers[record.message_id].append(CaseElement(name, record.object_id, record.element_id, record.qualifier,
                                                            record.task_rows, record.o2o))
     report.message_records = [MessageRecord(message.id, message.type, publishers.get(message.id), claimers[message.id])
                               for message in report.published]
@@ -1236,9 +1273,9 @@ def _message_links(records: List[MessageRecord], processes: Dict[str, OcelProces
         publisher = record.publisher
         for claimer in record.claimers:
             for row in publisher.task_rows if has_object(claimer) else ():
-                links[(publisher.process, row)].append((claimer.case_id, publisher.qualifier))
+                links[(publisher.process, row)].append((claimer.object_id, publisher.qualifier))
             for row in claimer.task_rows if has_object(publisher) else ():
-                links[(claimer.process, row)].append((publisher.case_id, claimer.qualifier))
+                links[(claimer.process, row)].append((publisher.object_id, claimer.qualifier))
     return dict(links)
 
 
@@ -1253,8 +1290,8 @@ def _object_links(records: List[MessageRecord], processes: Dict[str, OcelProcess
     links = defaultdict(list)
 
     def link(source, target, qualifier):
-        if qualifier and has_object(source) and has_object(target) and (target.case_id, qualifier) not in links[source.case_id]:
-            links[source.case_id].append((target.case_id, qualifier))
+        if qualifier and has_object(source) and has_object(target) and (target.object_id, qualifier) not in links[source.object_id]:
+            links[source.object_id].append((target.object_id, qualifier))
 
     for record in records:
         for claimer in record.claimers if record.publisher is not None else ():
@@ -1280,16 +1317,16 @@ def _reference_links(config: SimulationConfig, catalogue: Dict[str, List[Catalog
     that write no objects link nothing.
     """
     ids_of = {name: {obj.id for obj in catalogue_objects} for name, catalogue_objects in catalogue.items()}
-    history = {case_object.case_id: case_object.attributes for _, case_object in objects}
+    history = {case_object.object_id: case_object.attributes for _, case_object in objects}
     object_links, event_links, warned, referred = defaultdict(list), defaultdict(list), set(), set()
     first_taken = {}  # (catalogue name, id) -> when the first case took it
 
     def in_catalogue(reference, value):
         if str(value) in ids_of[reference.catalogue]:
             return True
-        if (reference.case_attribute, value) not in warned:
-            warned.add((reference.case_attribute, value))
-            warn(f"case attribute {reference.case_attribute} has the value {value!r}, which is not in catalogue "
+        if (reference.object_attribute, value) not in warned:
+            warned.add((reference.object_attribute, value))
+            warn(f"object attribute {reference.object_attribute} has the value {value!r}, which is not in catalogue "
                  f"{reference.catalogue}; no OCEL link is written for it")
         return False
 
@@ -1308,15 +1345,15 @@ def _reference_links(config: SimulationConfig, catalogue: Dict[str, List[Catalog
         for process, case_object in objects:
             if process != reference.process:
                 continue
-            for value in values(case_object.case_id, reference.case_attribute):
+            for value in values(case_object.object_id, reference.object_attribute):
                 if in_catalogue(reference, value):
                     referred.add((reference.catalogue, str(value)))
-                    taken = min(time for name, taken_value, time in history[case_object.case_id]
-                                if name == reference.case_attribute and taken_value == value)
+                    taken = min(time for name, taken_value, time in history[case_object.object_id]
+                                if name == reference.object_attribute and taken_value == value)
                     key = (reference.catalogue, str(value))
                     first_taken[key] = min(taken, first_taken.get(key, taken))
                     if has_objects and reference.o2o:
-                        ends = (str(value), case_object.case_id) if reference.reverse else (case_object.case_id, str(value))
+                        ends = (str(value), case_object.object_id) if reference.reverse else (case_object.object_id, str(value))
                         link(*ends, reference.o2o)
         if not has_objects:
             continue
@@ -1330,9 +1367,10 @@ def _reference_links(config: SimulationConfig, catalogue: Dict[str, List[Catalog
             element_id = element_ids[number] if number < len(element_ids) else None
             if reference.link_events is not None and not {row["activity"], element_id} & set(reference.link_events):
                 continue
-            for value in values(f"{process}-{row['case_id']}", reference.case_attribute, _as_datetime(row["end_time"])):
+            object_id = f"{processes[process].object_type}-{row['case_id']}"
+            for value in values(object_id, reference.object_attribute, _as_datetime(row["end_time"])):
                 if in_catalogue(reference, value):
-                    event_links[(process, number)].append((str(value), reference.case_attribute))
+                    event_links[(process, number)].append((str(value), reference.object_attribute))
 
     def time_of(name, object_id):
         growing = isinstance(config.catalogue[name], GrowingCatalogue)

@@ -34,14 +34,14 @@ def _run(tmp_path, sent, aggregate):
     picking = ScriptedEngine("Picking")
     for minutes, attributes in zip(range(0, 60, 10), sent):
         picking.publish_at(at(f"09:{minutes:02}"), "ItemPicked", **attributes)
-    config = SimulationConfig([ProcessSpec("Packages", PACKAGES, _settings(tmp_path, aggregate), None, "packages")],
+    config = SimulationConfig([ProcessSpec("Packages", PACKAGES, _settings(tmp_path, aggregate), None, "package")],
                               START, 1, extra_processes=["Picking"])
     report = run_orchestrator(config, tmp_path / "log.csv", {"Picking": picking}, ocel_out_path=tmp_path / "log.json")
     return report, pd.read_csv(tmp_path / "log.csv")
 
 
 def _history(report, attribute):
-    return [(value, time.strftime("%H:%M")) for _, case_object in report.objects if case_object.case_id == "Packages-0"
+    return [(value, time.strftime("%H:%M")) for _, case_object in report.objects if case_object.object_id == "package-0"
             for name, value, time in case_object.attributes if name == attribute]
 
 
@@ -80,11 +80,11 @@ def test_the_value_is_a_column_of_the_csv_log_and_an_ocel_object_attribute(tmp_p
         ocel = json.load(file)
 
     assert log.set_index("activity")["weight"]["Pack"] == 4.1
-    package = next(obj for obj in ocel["objects"] if obj["id"] == "Packages-0")
+    package = next(obj for obj in ocel["objects"] if obj["id"] == "package-0")
     assert [attribute["value"] for attribute in package["attributes"] if attribute["name"] == "weight"] == [
         0.8, pytest.approx(2.9), 4.1]
     assert {"name": "weight", "type": "float"} in next(
-        object_type for object_type in ocel["objectTypes"] if object_type["name"] == "packages")["attributes"]
+        object_type for object_type in ocel["objectTypes"] if object_type["name"] == "package")["attributes"]
 
 
 def test_a_sum_or_count_starts_at_0_and_a_min_or_max_has_no_value_before_the_first_message(tmp_path):
@@ -107,7 +107,7 @@ def test_a_planned_case_starts_with_a_sum_of_0_too(tmp_path):
 
     report, _, _ = _run_orders(tmp_path, WEIGHTS, aggregating)
 
-    assert [(value, time.strftime("%H:%M")) for _, case_object in report.objects if case_object.case_id == "Orders-0"
+    assert [(value, time.strftime("%H:%M")) for _, case_object in report.objects if case_object.object_id == "order-0"
             for name, value, time in case_object.attributes if name == "weight"] == [
         (0, "09:00"), (0.8, "09:20"), (pytest.approx(2.9), "09:30"), (4.1, "09:40")]
 
@@ -141,13 +141,13 @@ def _rejected(tmp_path, aggregate, message, change=lambda settings: None):
 
 
 @pytest.mark.parametrize("aggregate, message", [
-    (["weight"], r"'aggregate' must map case attribute names to \{<function>: <message attribute>\}"),
-    ({"weight": "weight"}, r"'aggregate' must map case attribute names to"),
+    (["weight"], r"'aggregate' must map object attribute names to \{<function>: <message attribute>\}"),
+    ({"weight": "weight"}, r"'aggregate' must map object attribute names to"),
     ({"weight": {"avg": "weight"}}, r"\.aggregate\.weight: unknown key 'avg'; allowed: count, max, min, sum"),
     ({"weight": {}}, r"aggregate 'weight' must be one function and a message attribute"),
     ({"weight": {"sum": "weight", "max": "weight"}}, r"aggregate 'weight' must be one function and a message attribute"),
     ({"weight": {"sum": 3}}, r"aggregate 'weight' must be one function and a message attribute"),
-    ({"case_id": {"sum": "weight"}}, r"'aggregate' can't set case_id"),
+    ({"object_id": {"sum": "weight"}}, r"'aggregate' can't set object_id"),
 ])
 def test_a_malformed_aggregate_is_rejected(tmp_path, aggregate, message):
     _rejected(tmp_path, aggregate, r"messages.consume\[0\](: )?" + message)
@@ -163,20 +163,20 @@ def test_the_same_attribute_in_copy_or_append_and_aggregate_of_one_entry_is_reje
               rf"messages.consume\[0\]: 'weight' is in both {key} and aggregate", both)
 
 
-def test_aggregating_into_an_attribute_declared_in_case_attributes_is_rejected(tmp_path):
+def test_aggregating_into_an_attribute_declared_in_object_attributes_is_rejected(tmp_path):
     def drawn(settings):
-        settings["case_attributes"] = [{"name": "weight", "type": "continuous",
+        settings["object_attributes"] = [{"name": "weight", "type": "continuous",
                                         "values": {"distribution_name": "fix", "distribution_params": [{"value": 1}]}}]
 
     _rejected(tmp_path, {"weight": {"sum": "weight"}},
-              r"messages.consume\[0\]: aggregate writes 'weight', which case_attributes declares", drawn)
+              r"messages.consume\[0\]: aggregate writes 'weight', which object_attributes declares", drawn)
 
 
 def test_aggregating_into_an_attribute_another_entry_appends_to_is_rejected(tmp_path):
     def other(settings):
         del settings["messages"]["consume"][0]["aggregate"], settings["messages"]["consume"][1]["append"]
 
-    _rejected(tmp_path, {"item_ids": {"count": "case_id"}},
+    _rejected(tmp_path, {"item_ids": {"count": "object_id"}},
               r"messages.consume\[1\]: aggregate writes 'item_ids', which messages.consume\[0\] appends to", other)
 
 
@@ -200,7 +200,7 @@ def test_picking_an_attribute_the_process_aggregates_into_is_rejected(tmp_path):
     packaging = tmp_path / "packaging.json"
     packaging.write_text(json.dumps(settings))
     path = _config_with(tmp_path, references=[
-        {"process": "Packaging", "case_attribute": "segment", "catalogue": "customers", "pick": "uniform"}])
+        {"process": "Packaging", "object_attribute": "segment", "catalogue": "customers", "pick": "uniform"}])
     data = json.loads(path.read_text())
     next(process for process in data["processes"] if process["name"] == "Packaging")["json_path"] = str(packaging)
     path.write_text(json.dumps(data))

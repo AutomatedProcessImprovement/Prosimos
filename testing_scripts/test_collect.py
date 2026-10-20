@@ -13,7 +13,8 @@ from cli.diff_res_bpsim import run_summary
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.orchestrator import Message, ProcessSpec, ProsimosEngine, Verdict, run_engines
 from prosimos.simulation_engine import run_simulation
-from prosimos.simulation_setup import SimDiffSetup
+from testing_scripts.orchestrator_settings import prosimos_settings
+from prosimos.orchestrator import load_process
 from testing_scripts.scripted_engine import ScriptedEngine
 
 ASSETS = "testing_scripts/assets/messaging"
@@ -58,7 +59,7 @@ def _settings(tmp_path, change):
 
 
 def _items(value):
-    return lambda settings: settings["case_attributes"][0]["values"].update(distribution_params=[{"value": value}])
+    return lambda settings: settings["object_attributes"][0]["values"].update(distribution_params=[{"value": value}])
 
 
 def _orders(cases=1, json_path=ORDERS_JSON):
@@ -113,7 +114,7 @@ def test_an_order_with_0_items_passes_straight_on(tmp_path):
 
 def test_with_0_items_the_catch_event_is_logged_with_zero_duration(tmp_path):
     log_path = tmp_path / "log.csv"
-    run_simulation(ORDERS, _settings(tmp_path, _items(0)), 1, None, log_path, START.isoformat(),
+    run_simulation(ORDERS, prosimos_settings(_settings(tmp_path, _items(0))), 1, None, log_path, START.isoformat(),
                    is_event_added_to_log=True)
 
     with open(log_path) as file:
@@ -130,7 +131,7 @@ def test_an_order_that_gets_only_2_of_3_items_is_stalled_with_2_of_3():
     _run_until_idle(engine)
 
     [stalled] = engine.finish().stalled
-    assert (stalled.case_id, stalled.collected, stalled.needed) == ("Orders-0", 2, 3)
+    assert (stalled.object_id, stalled.collected, stalled.needed) == ("Orders-0", 2, 3)
 
 
 def test_the_summary_shows_how_many_a_stalled_case_collected():
@@ -158,7 +159,7 @@ def test_the_oldest_case_that_still_needs_messages_gets_the_next_one(tmp_path):
 
     assert log.packed() == {0: at("11:30")}
     [stalled] = engine.finish().stalled
-    assert (stalled.case_id, stalled.collected, stalled.needed) == ("Orders-1", 1, 2)
+    assert (stalled.object_id, stalled.collected, stalled.needed) == ("Orders-1", 1, 2)
 
 
 def test_copy_is_applied_at_every_claim_the_last_message_winning():
@@ -195,7 +196,7 @@ def test_an_invalid_collect_is_rejected_when_the_model_is_loaded(tmp_path, chang
     settings = _settings(tmp_path, lambda settings: change(settings["messages"]["consume"][0]))
 
     with pytest.raises(InvalidSimScenarioException, match=reason):
-        SimDiffSetup(ORDERS, settings, False, 1, START)
+        load_process(ORDERS, settings, 1, START)
 
 
 def test_collect_is_only_allowed_on_a_catch_event_with_exactly_one_consume_entry(tmp_path):
@@ -208,7 +209,7 @@ def test_collect_is_only_allowed_on_a_catch_event_with_exactly_one_consume_entry
                              r"entry, but Catch_Items has 2: a case waiting there keeps one count. To accept several "
                              r"variants of one type, use one entry with alternatives in its condition; to wait for "
                              r"several kinds, use one catch event per type"):
-        SimDiffSetup(ORDERS, _settings(tmp_path, second_entry), False, 1, START)
+        load_process(ORDERS, _settings(tmp_path, second_entry), 1, START)
 
 
 def test_a_catch_event_with_several_entries_and_no_collect_still_loads(tmp_path):
@@ -216,7 +217,7 @@ def test_a_catch_event_with_several_entries_and_no_collect_still_loads(tmp_path)
         settings["messages"]["consume"][0].pop("collect")
         settings["messages"]["consume"].append({"event_id": "Catch_Items", "type": "ItemCancelled"})
 
-    setup = SimDiffSetup(ORDERS, _settings(tmp_path, two_entries_without_collect), False, 1, START)
+    setup = load_process(ORDERS, _settings(tmp_path, two_entries_without_collect), 1, START)
 
     assert [point.type for point in setup.messaging.consume] == ["ItemReady", "ItemCancelled"]
 
@@ -231,4 +232,4 @@ def test_a_start_event_cant_collect_and_the_error_points_to_start_then_collect(t
     with pytest.raises(InvalidSimScenarioException,
                        match=r"a start event can't collect.*Start on the first message, then collect the rest at a "
                              r"catch event right after the start"):
-        SimDiffSetup(f"{ASSETS}/tartu_warehouse.bpmn", str(path), False, None, START)
+        load_process(f"{ASSETS}/tartu_warehouse.bpmn", str(path), None, START)

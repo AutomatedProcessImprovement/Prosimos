@@ -19,7 +19,7 @@
       {"event_id": "Catch_Truck", "type": "Truck",
        "condition": [[{"attribute": "dock", "comparison": "=", "value": "Tartu"}]],
        "capacity": 2,
-       "copy": {"truck_id": "case_id"}}
+       "copy": {"truck_id": "object_id"}}
     ]
   }
 }

@@ -4,7 +4,7 @@
       "name": "Sales",
       "bpmn_path": "sales.bpmn",
       "json_path": "sales.json",
-      "total_cases": 20
+      "arrivals": 20
     },
     {
       "name": "Billing",

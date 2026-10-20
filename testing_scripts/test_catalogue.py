@@ -38,32 +38,32 @@ def _customer_of(order):
 def test_the_run_writes_every_customer_of_the_catalogue(order_management):
     ocel, _, _ = order_management
 
-    customers = _of_type(ocel, "customers")
+    customers = _of_type(ocel, "customer")
 
     assert sorted(customers) == sorted(f"c{n}" for n in range(1, 16))
     assert customers["c3"]["attributes"] == [{"name": "segment", "value": "business", "time": "2023-04-03T06:00:00.000000Z"}]
-    assert {"name": "customers", "attributes": [{"name": "segment", "type": "string"}]} in ocel["objectTypes"]
+    assert {"name": "customer", "attributes": [{"name": "segment", "type": "string"}]} in ocel["objectTypes"]
 
 
 def test_every_customer_places_exactly_its_orders(order_management):
     # "reverse": true turns the link around: from the customer to the order
     ocel, _, _ = order_management
-    orders = _of_type(ocel, "orders")
+    orders = _of_type(ocel, "order")
 
-    for customer_id, customer in _of_type(ocel, "customers").items():
+    for customer_id, customer in _of_type(ocel, "customer").items():
         assert sorted(link["objectId"] for link in customer["relationships"]) == sorted(
             order_id for order_id, order in orders.items() if _customer_of(order) == customer_id)
         assert {link["qualifier"] for link in customer["relationships"]} <= {"places"}
-    assert sum(len(customer["relationships"]) for customer in _of_type(ocel, "customers").values()) == 100
+    assert sum(len(customer["relationships"]) for customer in _of_type(ocel, "customer").values()) == 100
     assert not any(link["objectId"].startswith("c") for order in orders.values() for link in order["relationships"])
 
 
 def test_place_and_confirm_order_link_their_customer_and_pay_order_does_not(order_management):
     ocel, _, _ = order_management
-    orders = _of_type(ocel, "orders")
+    orders = _of_type(ocel, "order")
 
     def customers_of(event):
-        return [link for link in event["relationships"] if link["objectId"] in _of_type(ocel, "customers")]
+        return [link for link in event["relationships"] if link["objectId"] in _of_type(ocel, "customer")]
 
     linked = {"place order": 0, "confirm order": 0}
     for event in ocel["events"]:
@@ -82,7 +82,7 @@ def test_pm4py_reads_the_customers(order_management):
 
     read = pm4py.read_ocel2_json(str(path))
 
-    assert (read.objects["ocel:type"] == "customers").sum() == 15
+    assert (read.objects["ocel:type"] == "customer").sum() == 15
     assert (read.o2o["ocel:qualifier"] == "places").sum() == 100
     assert (read.relations["ocel:qualifier"] == "customer").sum() == 200
 
@@ -94,7 +94,7 @@ SALES = str(Path(CONFIG).parent / "sales.bpmn")
 
 def _links(references, objects, rows, processes=None, catalogue=None):
     config = SimulationConfig([ProcessSpec("P", SALES, "p.json", 1)], START,
-                              catalogue=catalogue or {"customers": [CatalogueObject("c1"), CatalogueObject("c2")]},
+                              catalogue=catalogue or {"customer": [CatalogueObject("c1"), CatalogueObject("c2")]},
                               references=references)
     warnings = []
     static_objects, object_links, event_links = _reference_links(
@@ -107,55 +107,55 @@ def _row(case, activity, minutes):
     return "P", {"case_id": case, "activity": activity, "end_time": START + timedelta(minutes=minutes)}
 
 
-ONE_CASE = [("P", CaseObject("P-0", [("customer", "c1", START)]))]
+ONE_CASE = [("P", CaseObject("p-0", [("customer", "c1", START)]))]
 TWO_ROWS = [_row(0, "place order", 10), _row(0, "confirm order", 20)]
 
 
 def test_without_link_events_every_event_of_the_case_links_its_object():
-    _, _, event_links, _ = _links([Reference("P", "customer", "customers")], ONE_CASE, TWO_ROWS)
+    _, _, event_links, _ = _links([Reference("P", "customer", "customer")], ONE_CASE, TWO_ROWS)
 
     assert event_links == {("P", 0): [("c1", "customer")], ("P", 1): [("c1", "customer")]}
 
 
 def test_link_events_may_name_a_task_by_its_id():
-    _, _, event_links, _ = _links([Reference("P", "customer", "customers", link_events=("Confirm_Order",))], ONE_CASE,
+    _, _, event_links, _ = _links([Reference("P", "customer", "customer", link_events=("Confirm_Order",))], ONE_CASE,
                                   TWO_ROWS)
 
     assert event_links == {("P", 1): [("c1", "customer")]}
 
 
 def test_without_reverse_the_link_goes_from_the_case_object_to_the_catalogue_object():
-    _, object_links, _, _ = _links([Reference("P", "customer", "customers", o2o="placed by", link_events=())],
+    _, object_links, _, _ = _links([Reference("P", "customer", "customer", o2o="placed by", link_events=())],
                                    ONE_CASE, TWO_ROWS)
 
-    assert object_links == {"P-0": [("c1", "placed by")]}
+    assert object_links == {"p-0": [("c1", "placed by")]}
 
 
 def test_an_event_links_the_value_the_attribute_had_when_it_completed():
     # the customer changes from c1 to c2 between the two events; the o2o link goes to both
-    objects = [("P", CaseObject("P-0", [("customer", "c1", START), ("customer", "c2", START + timedelta(minutes=15))]))]
+    objects = [("P", CaseObject("p-0", [("customer", "c1", START), ("customer", "c2", START + timedelta(minutes=15))]))]
 
-    _, object_links, event_links, _ = _links([Reference("P", "customer", "customers", o2o="placed by")], objects, TWO_ROWS)
+    _, object_links, event_links, _ = _links([Reference("P", "customer", "customer", o2o="placed by")], objects, TWO_ROWS)
 
     assert event_links == {("P", 0): [("c1", "customer")], ("P", 1): [("c2", "customer")]}
-    assert object_links == {"P-0": [("c1", "placed by"), ("c2", "placed by")]}
+    assert object_links == {"p-0": [("c1", "placed by"), ("c2", "placed by")]}
 
 
 def test_a_value_not_in_the_catalogue_gets_no_link_and_one_warning_per_attribute_and_value():
     objects = [("P", CaseObject(f"P-{case}", [("customer", "c9", START)])) for case in range(2)]
     rows = [_row(0, "place order", 10), _row(1, "place order", 10)]
 
-    _, object_links, event_links, warnings = _links([Reference("P", "customer", "customers", o2o="placed by")],
+    _, object_links, event_links, warnings = _links([Reference("P", "customer", "customer", o2o="placed by")],
                                                     objects, rows)
 
     assert object_links == {} and event_links == {}
-    assert warnings == ["case attribute customer has the value 'c9', which is not in catalogue customers; "
+    assert warnings == ["object attribute customer has the value 'c9', which is not in catalogue customer; "
                         "no OCEL link is written for it"]
 
 
 def test_an_empty_link_events_list_and_no_o2o_link_nothing_but_the_catalogue_is_still_written():
     static_objects, object_links, event_links, warnings = _links(
-        [Reference("P", "customer", "customers", link_events=())], ONE_CASE, TWO_ROWS)
+        [Reference("P", "customer", "customer", link_events=())], ONE_CASE, TWO_ROWS)
 
     assert object_links == {} and event_links == {} and warnings == []
     assert [object_id for _, object_id, _ in static_objects] == ["c1", "c2"]
@@ -163,11 +163,11 @@ def test_an_empty_link_events_list_and_no_o2o_link_nothing_but_the_catalogue_is_
 
 def test_a_process_without_objects_links_nothing_but_the_catalogue_is_still_written():
     static_objects, object_links, event_links, _ = _links(
-        [Reference("P", "customer", "customers", o2o="placed by")], ONE_CASE, TWO_ROWS, processes={"P": OcelProcess(None)},
-        catalogue={"customers": [CatalogueObject("c1", (("segment", "retail"),))]})
+        [Reference("P", "customer", "customer", o2o="placed by")], ONE_CASE, TWO_ROWS, processes={"P": OcelProcess(None)},
+        catalogue={"customer": [CatalogueObject("c1", (("segment", "retail"),))]})
 
     assert object_links == {} and event_links == {}
-    assert static_objects == [("customers", "c1", [("segment", "retail", START)])]
+    assert static_objects == [("customer", "c1", [("segment", "retail", START)])]
 
 
 # load errors
@@ -184,21 +184,21 @@ def _config_with(tmp_path, **changes):
 
 
 def test_a_reference_to_an_unknown_catalogue_is_rejected(tmp_path):
-    path = _config_with(tmp_path, references=[{"process": "Sales", "case_attribute": "customer", "catalogue": "clients"}])
+    path = _config_with(tmp_path, references=[{"process": "Sales", "object_attribute": "customer", "catalogue": "clients"}])
 
     with pytest.raises(ValueError, match=r"references\[0\] names unknown catalogue 'clients'"):
         SimulationConfig.from_json(path)
 
 
 def test_a_reference_to_an_unknown_process_is_rejected(tmp_path):
-    path = _config_with(tmp_path, references=[{"process": "Billing", "case_attribute": "customer", "catalogue": "customers"}])
+    path = _config_with(tmp_path, references=[{"process": "Billing", "object_attribute": "customer", "catalogue": "customer"}])
 
     with pytest.raises(ValueError, match=r"references\[0\] names unknown process 'Billing'"):
         SimulationConfig.from_json(path)
 
 
 def test_duplicate_ids_are_rejected_across_the_whole_catalogue(tmp_path):
-    path = _config_with(tmp_path, catalogue={"customers": [{"id": "c1"}, {"id": "x"}], "products": [{"id": "x"}]},
+    path = _config_with(tmp_path, catalogue={"customer": [{"id": "c1"}, {"id": "x"}], "product": [{"id": "x"}]},
                         references=[])
 
     with pytest.raises(ValueError, match=r"catalogue ids are repeated: \['x'\]"):
@@ -206,22 +206,22 @@ def test_duplicate_ids_are_rejected_across_the_whole_catalogue(tmp_path):
 
 
 def test_a_catalogue_object_without_an_id_is_rejected(tmp_path):
-    path = _config_with(tmp_path, catalogue={"customers": [{"attributes": {"segment": "retail"}}]}, references=[])
+    path = _config_with(tmp_path, catalogue={"customer": [{"attributes": {"segment": "retail"}}]}, references=[])
 
-    with pytest.raises(ValueError, match=r"catalogue.customers\[0\]: 'id' must be a non-empty string"):
+    with pytest.raises(ValueError, match=r"catalogue.customer\[0\]: 'id' must be a non-empty string"):
         SimulationConfig.from_json(path)
 
 
 def test_a_reference_missing_a_key_is_rejected(tmp_path):
-    path = _config_with(tmp_path, references=[{"process": "Sales", "catalogue": "customers"}])
+    path = _config_with(tmp_path, references=[{"process": "Sales", "catalogue": "customer"}])
 
-    with pytest.raises(ValueError, match=r"references\[0\] is missing \['case_attribute'\]"):
+    with pytest.raises(ValueError, match=r"references\[0\] is missing \['object_attribute'\]"):
         SimulationConfig.from_json(path)
 
 
 def test_a_link_events_name_that_is_no_task_of_the_process_is_rejected(tmp_path):
     # a typo would otherwise silently link nothing
-    path = _config_with(tmp_path, references=[{"process": "Sales", "case_attribute": "customer", "catalogue": "customers",
+    path = _config_with(tmp_path, references=[{"process": "Sales", "object_attribute": "customer", "catalogue": "customer",
                                                "link_events": ["place order", "confrim order", "Throw_ItemOrdered"]}])
 
     with pytest.raises(ValueError, match=r"references\[0\] link_events names \['confrim order', 'Throw_ItemOrdered'\], "
@@ -229,18 +229,19 @@ def test_a_link_events_name_that_is_no_task_of_the_process_is_rejected(tmp_path)
         SimulationConfig.from_json(path)
 
 
-def test_catalogue_ids_that_look_like_case_ids_are_rejected(tmp_path):
-    # case objects are named <process name>-<number>, e.g. Sales-1
-    path = _config_with(tmp_path, catalogue={"customers": [{"id": "Sales-1"}, {"id": "Warehouse-12"}, {"id": "Sales-x"}]},
+def test_catalogue_ids_that_look_like_object_ids_are_rejected(tmp_path):
+    # objects of the processes are named <object type>-<number>, e.g. order-1
+    path = _config_with(tmp_path, catalogue={"customer": [{"id": "order-1"}, {"id": "item-12"}, {"id": "order-x"},
+                                                          {"id": "Sales-1"}]},
                         references=[])
 
-    with pytest.raises(ValueError, match=r"catalogue ids look like case ids \(<process name>-<number>\): "
-                                         r"\['Sales-1', 'Warehouse-12'\]"):
+    with pytest.raises(ValueError, match=r"catalogue ids look like object ids \(<object type>-<number>\): "
+                                         r"\['item-12', 'order-1'\]"):
         SimulationConfig.from_json(path)
 
 
 def test_a_catalogue_named_like_a_processs_object_type_is_rejected(tmp_path):
-    path = _config_with(tmp_path, catalogue={"orders": [{"id": "o1"}]}, references=[])
+    path = _config_with(tmp_path, catalogue={"order": [{"id": "o1"}]}, references=[])
 
-    with pytest.raises(ValueError, match=r"catalogue 'orders' is the object type of process Sales"):
+    with pytest.raises(ValueError, match=r"catalogue 'order' is the object type of process Sales"):
         SimulationConfig.from_json(path)

@@ -12,7 +12,7 @@
   "resource_calendars": [
     {"id": "Always", "name": "Always", "time_periods": [{"from": "MONDAY", "to": "SUNDAY", "beginTime": "00:00:00", "endTime": "23:59:59"}]}
   ],
-  "case_attributes": [
+  "object_attributes": [
     {"name": "priority", "type": "discrete", "values": [{"key": "high", "value": 1}]}
   ],
   "messages": {

@@ -48,7 +48,7 @@ def test_the_summary_and_the_json_report_match_the_run_report(tmp_path):
     assert "Sales: 3 (" in output  # the three Pärnu orders
     saved = json.loads(_text(tmp_path / "cli_report.json"))
     assert saved == json.loads(json.dumps(report.to_dict(), default=str))
-    assert [case["case_id"] for case in saved["stalled"]] == [case.case_id for _, case in report.stalled]
+    assert [case["object_id"] for case in saved["stalled"]] == [case.object_id for _, case in report.stalled]
 
 
 def test_seed_overrides_the_configurations_seed(tmp_path):

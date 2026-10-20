@@ -44,22 +44,22 @@ def _packed(report):
 
 
 def test_a_package_of_3_items_publishes_packed_to_each_and_each_item_gets_exactly_its_own():
-    config = SimulationConfig([ProcessSpec("Items", ITEMS, ITEMS_JSON, 6, "items"),
-                               ProcessSpec("Packages", PACKAGES, PACKAGES_JSON, None, "packages")], START, 1)
+    config = SimulationConfig([ProcessSpec("Items", ITEMS, ITEMS_JSON, 6, "item"),
+                               ProcessSpec("Packages", PACKAGES, PACKAGES_JSON, None, "package")], START, 1)
 
     report = run_orchestrator(config, None)
 
     assert _packed(report) == [
-        ("09:30", {"case_id": "Packages-0", "index": 1, "item_id": "Items-0"}),
-        ("09:30", {"case_id": "Packages-0", "index": 2, "item_id": "Items-1"}),
-        ("09:30", {"case_id": "Packages-0", "index": 3, "item_id": "Items-2"}),
-        ("10:00", {"case_id": "Packages-1", "index": 1, "item_id": "Items-3"}),
-        ("10:00", {"case_id": "Packages-1", "index": 2, "item_id": "Items-4"}),
-        ("10:00", {"case_id": "Packages-1", "index": 3, "item_id": "Items-5"})]
+        ("09:30", {"object_id": "package-0", "index": 1, "item_id": "item-0"}),
+        ("09:30", {"object_id": "package-0", "index": 2, "item_id": "item-1"}),
+        ("09:30", {"object_id": "package-0", "index": 3, "item_id": "item-2"}),
+        ("10:00", {"object_id": "package-1", "index": 1, "item_id": "item-3"}),
+        ("10:00", {"object_id": "package-1", "index": 2, "item_id": "item-4"}),
+        ("10:00", {"object_id": "package-1", "index": 3, "item_id": "item-5"})]
     item_of = {message.id: message.attributes["item_id"] for message in report.published if message.type == "Packed"}
-    assert sorted((item_of[record.message_id], [claimer.case_id for claimer in record.claimers])
+    assert sorted((item_of[record.message_id], [claimer.object_id for claimer in record.claimers])
                   for record in report.message_records if record.type == "Packed") == [
-        (f"Items-{item}", [f"Items-{item}"]) for item in range(6)]
+        (f"item-{item}", [f"item-{item}"]) for item in range(6)]
     assert report.stalled == [] and report.engine_warnings == []
 
 
@@ -75,7 +75,7 @@ def _run(tmp_path, sent, change=lambda settings: None):
 
 
 def test_the_messages_follow_the_list_in_claim_order(tmp_path):
-    report = _run(tmp_path, [{"case_id": "w17"}, {"case_id": "w23"}, {"case_id": "w12"}])
+    report = _run(tmp_path, [{"object_id": "w17"}, {"object_id": "w23"}, {"object_id": "w12"}])
 
     assert [(attributes["index"], attributes["item_id"]) for _, attributes in _packed(report)] == [
         (1, "w17"), (2, "w23"), (3, "w12")]
@@ -92,8 +92,8 @@ def _copying_the_list(settings):
 def test_a_list_copied_from_a_message_is_walked_too(tmp_path):
     report = _run(tmp_path, [{"items": ["w5", "w6"]}], _copying_the_list)
 
-    assert _packed(report) == [("09:05", {"case_id": "Packages-0", "index": 1, "item_id": "w5"}),
-                               ("09:05", {"case_id": "Packages-0", "index": 2, "item_id": "w6"})]
+    assert _packed(report) == [("09:05", {"object_id": "Packages-0", "index": 1, "item_id": "w5"}),
+                               ("09:05", {"object_id": "Packages-0", "index": 2, "item_id": "w6"})]
 
 
 @pytest.mark.parametrize("sent, kind", [
@@ -111,7 +111,7 @@ def test_a_missing_or_empty_list_publishes_nothing_with_one_warning_per_event(tm
 
 # load errors
 
-def _rejected(tmp_path, count, message, attributes=("case_id", "index")):
+def _rejected(tmp_path, count, message, attributes=("object_id", "index")):
     def change(settings):
         settings["messages"]["publish"][0]["count"] = count
         settings["messages"]["publish"][0]["attributes"] = list(attributes)
@@ -124,16 +124,16 @@ def test_a_count_over_a_list_without_as_is_rejected(tmp_path):
     _rejected(tmp_path, {"list": "item_ids"}, r"'count' over a list needs 'as'")
 
 
-@pytest.mark.parametrize("name", ["case_id", "index"])
+@pytest.mark.parametrize("name", ["object_id", "index"])
 def test_as_equal_to_a_reserved_name_is_rejected(tmp_path, name):
     _rejected(tmp_path, {"list": "item_ids", "as": name}, rf"'count' as can't be {name}, which is reserved")
 
 
 @pytest.mark.parametrize("count, message", [
-    ({"list": "weights", "as": "item_id"}, r"'count' list 'weights' is not a declared case, global or event attribute"),
+    ({"list": "weights", "as": "item_id"}, r"'count' list 'weights' is not a declared object, global or event attribute"),
     ({"list": "item_ids", "as": ""}, r"'count' as must be a non-empty string"),
     ({"list": "item_ids", "as": 3}, r"'count' as must be a non-empty string"),
-    ({"list": "item_ids", "as": "item_id", "case_attribute": "items"}, r"'count' over a list has only 'list' and 'as'"),
+    ({"list": "item_ids", "as": "item_id", "object_attribute": "items"}, r"'count' over a list has only 'list' and 'as'"),
     ({"as": "item_id"}, r"'count' must be either"),
 ])
 def test_an_invalid_count_over_a_list_is_rejected(tmp_path, count, message):
@@ -142,7 +142,7 @@ def test_an_invalid_count_over_a_list_is_rejected(tmp_path, count, message):
 
 def test_as_also_listed_in_attributes_is_rejected(tmp_path):
     def listed(settings):
-        settings["messages"]["consume"][0]["copy"] = {"item_id": "case_id"}  # so that item_id is declared
+        settings["messages"]["consume"][0]["copy"] = {"item_id": "object_id"}  # so that item_id is declared
         settings["messages"]["publish"][0]["attributes"].append("item_id")
 
     with pytest.raises(InvalidSimScenarioException, match=r"messages.publish\[0\]: 'item_id' is both in "

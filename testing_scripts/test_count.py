@@ -10,7 +10,7 @@ import pytz
 
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.orchestrator import ProcessSpec, ProsimosEngine, run_engines
-from prosimos.simulation_setup import SimDiffSetup
+from prosimos.orchestrator import load_process
 
 ASSETS = "testing_scripts/assets/messaging"
 # an order arrives every hour from 09:00; after Take order (10 minutes) it publishes one ItemOrdered per item
@@ -46,7 +46,7 @@ def _settings(tmp_path, change, base=SALES_JSON):
 
 def _items(value):
     def change(settings):
-        settings["case_attributes"][0]["values"]["distribution_params"] = [{"value": value}]
+        settings["object_attributes"][0]["values"]["distribution_params"] = [{"value": value}]
     return change
 
 
@@ -65,7 +65,7 @@ def _published(report):
 def test_an_order_with_3_items_publishes_three_item_ordered_with_index_1_2_3_at_the_same_time():
     report, _, _ = _run()
 
-    assert _published(report) == [("ItemOrdered", {"case_id": "Sales-0", "index": index}, TEN_PAST_NINE)
+    assert _published(report) == [("ItemOrdered", {"object_id": "Sales-0", "index": index}, TEN_PAST_NINE)
                                   for index in (1, 2, 3)]
 
 
@@ -99,14 +99,14 @@ def test_a_count_that_is_not_a_whole_number_publishes_one_message_with_one_warni
     report, _, _ = _run(_settings(tmp_path, _items(2.5)), orders=2)
 
     assert _published(report) == [
-        ("ItemOrdered", {"case_id": "Sales-0", "index": 1}, TEN_PAST_NINE),
-        ("ItemOrdered", {"case_id": "Sales-1", "index": 1}, START.replace(hour=10, minute=10))]
+        ("ItemOrdered", {"object_id": "Sales-0", "index": 1}, TEN_PAST_NINE),
+        ("ItemOrdered", {"object_id": "Sales-1", "index": 1}, START.replace(hour=10, minute=10))]
     assert report.engine_warnings == [  # once per event and attribute, though both orders had 2.5
         ("Sales", "case 0 passes Throw_Items with no valid items (got 2.5); it publishes one ItemOrdered message")]
 
 
 def _load(json_path, bpmn_path=SALES):
-    return SimDiffSetup(bpmn_path, json_path, False, 1 if bpmn_path == SALES else None, START)
+    return load_process(bpmn_path, json_path, 1 if bpmn_path == SALES else None, START)
 
 
 def test_index_on_an_entry_without_count_is_rejected(tmp_path):
@@ -130,17 +130,16 @@ def test_count_on_a_start_or_catch_event_is_rejected(tmp_path, bpmn_path, base, 
     with pytest.raises(InvalidSimScenarioException,
                        match=r"messages.consume\[0\]: count is only for publish entries, on throw and end events: "
                              r"only they publish, and a start event starts exactly one case per message"):
-        SimDiffSetup(bpmn_path, _settings(tmp_path, counted, base=base), False,
-                     None if bpmn_path == PICKING else 1, START)
+        load_process(bpmn_path, _settings(tmp_path, counted, base=base), None if bpmn_path == PICKING else 1, START)
 
 
 @pytest.mark.parametrize("count, message", [
-    (-1, r"'count' must be either a whole number of at least 0, \{\"case_attribute\": <case attribute>\} or "
-         r"\{\"list\": <case attribute>, \"as\": <attribute name>\}, got -1"),
+    (-1, r"'count' must be either a whole number of at least 0, \{\"object_attribute\": <object attribute>\} or "
+         r"\{\"list\": <object attribute>, \"as\": <attribute name>\}, got -1"),
     (1.5, r"'count' must be either a whole number of at least 0, .*, got 1.5"),
     ("2", r"'count' must be either a whole number of at least 0, .*, got '2'"),
     ({}, r"'count' must be either a whole number of at least 0, .*, got \{\}"),
-    ({"case_attribute": "weight"}, r"'count' case_attribute 'weight' is not a declared case, global or event attribute"),
+    ({"object_attribute": "weight"}, r"'count' object_attribute 'weight' is not a declared object, global or event attribute"),
 ])
 def test_an_invalid_count_is_rejected(tmp_path, count, message):
     def invalid(settings):

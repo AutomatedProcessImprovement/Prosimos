@@ -175,7 +175,7 @@
           "customer": "customer"
         },
         "append": {
-          "item_ids": "case_id"
+          "item_ids": "object_id"
         },
         "aggregate": {
           "weight": {

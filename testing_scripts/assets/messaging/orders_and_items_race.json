@@ -94,7 +94,7 @@
       ]
     }
   ],
-  "case_attributes": [
+  "object_attributes": [
     {
       "name": "items",
       "type": "continuous",
@@ -118,12 +118,12 @@
             {
               "attribute": "order_id",
               "comparison": "=",
-              "case_attribute": "case_id"
+              "object_attribute": "object_id"
             }
           ]
         ],
         "collect": {
-          "case_attribute": "items"
+          "object_attribute": "items"
         },
         "copy": {
           "last_item": "item_id"

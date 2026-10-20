@@ -10,7 +10,7 @@ import pytz
 
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.orchestrator import Message, ProcessSpec, ProsimosEngine, Verdict, run_engines
-from prosimos.simulation_setup import SimDiffSetup
+from prosimos.orchestrator import load_process
 from testing_scripts.scripted_engine import ScriptedEngine
 
 ASSETS = "testing_scripts/assets/messaging"
@@ -64,8 +64,8 @@ def _run_until_idle(engine):
         engine.step()
 
 
-def truck(case_id="Carrier-0", **attributes):
-    return Message("Truck", {"case_id": case_id, "dock": "Tartu", **attributes}, source="Carrier")
+def truck(object_id="Carrier-0", **attributes):
+    return Message("Truck", {"object_id": object_id, "dock": "Tartu", **attributes}, source="Carrier")
 
 
 def _truck_ids(engine, cases):
@@ -98,13 +98,13 @@ def test_a_truck_that_finds_none_is_pending_and_resumes_the_first_order_to_arriv
     # when that order starts waiting at 09:01, and order 1 is left waiting
     orders, log = _orders(2)
     carrier = ScriptedEngine("Carrier")
-    carrier.publish_at(START.replace(hour=8, minute=30), "Truck", case_id="Carrier-0", dock="Tartu")
+    carrier.publish_at(START.replace(hour=8, minute=30), "Truck", object_id="Carrier-0", dock="Tartu")
 
     report = run_engines({"Carrier": carrier, "Orders": orders}, None, 1)
 
     assert [(process, time) for _, process, time in report.claims] == [("Orders", at("09:01"))]
     assert log.loaded() == {0: at("09:01")}
-    assert [case.case_id for _, case in report.stalled] == ["Orders-1"]
+    assert [case.object_id for _, case in report.stalled] == ["Orders-1"]
 
 
 def test_capacity_can_be_read_from_the_message(tmp_path):
@@ -160,7 +160,7 @@ def test_an_invalid_capacity_is_rejected_when_the_model_is_loaded(tmp_path, capa
     settings = _settings(tmp_path, lambda settings: settings["messages"]["consume"][0].update(capacity=capacity))
 
     with pytest.raises(InvalidSimScenarioException, match=reason):
-        SimDiffSetup(ORDERS, settings, False, 1, START)
+        load_process(ORDERS, settings, 1, START)
 
 
 def test_a_start_event_takes_no_capacity(tmp_path):
@@ -171,4 +171,4 @@ def test_a_start_event_takes_no_capacity(tmp_path):
     path.write_text(json.dumps(settings))
 
     with pytest.raises(InvalidSimScenarioException, match="a start event takes no capacity"):
-        SimDiffSetup(f"{ASSETS}/tartu_warehouse.bpmn", str(path), False, None, START)
+        load_process(f"{ASSETS}/tartu_warehouse.bpmn", str(path), None, START)

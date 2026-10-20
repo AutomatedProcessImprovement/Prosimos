@@ -13,6 +13,7 @@ import pytz
 
 from prosimos.orchestrator import ProcessSpec, ProsimosEngine
 from prosimos.simulation_engine import run_simulation
+from testing_scripts.orchestrator_settings import prosimos_settings
 
 ASSETS = "testing_scripts/assets/messaging"
 SALES = f"{ASSETS}/sales.bpmn"  # start -> Take order -> throw OrderPlaced -> catch Shipment -> end
@@ -74,11 +75,11 @@ def test_sales_publishes_one_order_placed_per_case_when_the_case_passes_the_thro
     published = _published(steps)
     assert [message.type for _, message in published] == ["OrderPlaced"] * 10
     for now, message in published:
-        case = message.attributes["case_id"].removeprefix("Sales-")
+        case = message.attributes["object_id"].removeprefix("Sales-")
         # the throw event follows Take order, so the case passes it when Take order ends
         assert now == _time(take_order[case][4])
-        assert message.attributes == {"case_id": f"Sales-{case}", "city": take_order[case][6]}
-    assert sorted(m.attributes["case_id"] for _, m in published) == [f"Sales-{case}" for case in range(10)]
+        assert message.attributes == {"object_id": f"Sales-{case}", "city": take_order[case][6]}
+    assert sorted(m.attributes["object_id"] for _, m in published) == [f"Sales-{case}" for case in range(10)]
 
 
 def test_a_message_is_not_released_before_its_time():
@@ -97,7 +98,7 @@ def test_a_throw_event_right_after_the_start_publishes_at_the_case_arrival_befor
     assert len(published) == 10
     assert steps[0][1] != []  # nothing is published before the simulation starts
     for now, message in published:
-        case = message.attributes["case_id"].removeprefix("Sales-")
+        case = message.attributes["object_id"].removeprefix("Sales-")
         index = next(i for i, (_, messages, _) in enumerate(steps) if message in messages)
         take_order = next(i for i, (_, _, written) in enumerate(steps) if ["Take order", case] in
                           [[row[1], row[0]] for row in written])
@@ -116,7 +117,7 @@ def test_publishing_leaves_the_log_unchanged(tmp_path):
         for json_path in (SALES_JSON, no_publishing):
             random.seed(1)
             np.random.seed(1)
-            run_simulation(bpmn, json_path, 20, None, tmp_path / "log.csv", "2024-01-01T09:00:00+00:00")
+            run_simulation(bpmn, prosimos_settings(json_path), 20, None, tmp_path / "log.csv", "2024-01-01T09:00:00+00:00")
             with open(tmp_path / "log.csv") as file:
                 logs.append(list(csv.reader(file)))
         assert logs[0] == logs[1]
@@ -131,7 +132,7 @@ def bursts():
 
 
 def test_messages_due_together_come_out_of_one_step_by_case_then_order_passed(bursts):
-    first_step = [(m.attributes["case_id"], m.type) for m in bursts[0][1]]
+    first_step = [(m.attributes["object_id"], m.type) for m in bursts[0][1]]
 
     assert bursts[0][0] == START
     assert [case for case, _ in first_step] == ["Bursts-0"] * 4 + ["Bursts-1"] * 4 + ["Bursts-2"] * 4
@@ -144,7 +145,7 @@ def test_messages_due_together_come_out_of_one_step_by_case_then_order_passed(bu
 def test_an_engine_holding_messages_is_not_finished_even_with_an_empty_queue(bursts):
     # the three Work events all leave the queue at 09:00; the Done messages are held until each
     # case really ends, so the engine keeps announcing steps after its queue is empty
-    assert [(now.strftime("%H:%M"), [(m.attributes["case_id"], m.type) for m in messages])
+    assert [(now.strftime("%H:%M"), [(m.attributes["object_id"], m.type) for m in messages])
             for now, messages, _ in bursts[-3:]] == [
         ("09:10", [("Bursts-0", "Done")]),
         ("09:20", [("Bursts-1", "Done")]),

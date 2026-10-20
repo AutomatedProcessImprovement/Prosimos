@@ -151,7 +151,7 @@
       ]
     }
   ],
-  "case_attributes": [
+  "object_attributes": [
     {
       "name": "items",
       "type": "discrete",
@@ -221,10 +221,10 @@
         "event_id": "Throw_ItemOrdered",
         "type": "ItemOrdered",
         "count": {
-          "case_attribute": "items"
+          "object_attribute": "items"
         },
         "attributes": [
-          "case_id",
+          "object_id",
           "index",
           "customer"
         ],
@@ -235,7 +235,7 @@
         "event_id": "Throw_OrderConfirmed",
         "type": "OrderConfirmed",
         "attributes": [
-          "case_id"
+          "object_id"
         ]
       }
     ],
@@ -248,7 +248,7 @@
             {
               "attribute": "order_id",
               "comparison": "=",
-              "case_attribute": "case_id"
+              "object_attribute": "object_id"
             }
           ]
         ]

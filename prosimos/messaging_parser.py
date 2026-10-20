@@ -17,7 +17,7 @@ MESSAGE_DEFINITION = BPMN_NS + "messageEventDefinition"
 PUBLISHING_EVENTS = {"intermediateThrowEvent": "an intermediate message throw event", "endEvent": "a message end event"}
 CONSUMING_EVENTS = {"intermediateCatchEvent": "an intermediate message catch event", "startEvent": "a message start event"}
 COMPARISONS = ("=", "!=", "<", "<=", ">", ">=", "in")  # the ones branch rules understand
-TERM_KEYS = {"attribute", "comparison", "value", "case_attribute"}
+TERM_KEYS = {"attribute", "comparison", "value", "object_attribute"}
 PUBLISH_KEYS = {"event_id", "type", "attributes", "count", "qualifier", "o2o"}
 CONSUME_KEYS = {"event_id", "type", "condition", "copy", "append", "aggregate", "capacity", "collect", "same",
                 "qualifier", "o2o"}
@@ -31,14 +31,14 @@ class ConditionTerm:
     attribute: str
     comparison: str
     value: Any = None
-    case_attribute: Optional[str] = None
+    object_attribute: Optional[str] = None
 
 
 @dataclass(frozen=True)
 class PublishPoint:
     event_id: str
     type: str
-    attributes: Tuple[str, ...]  # copied from the case's current values; 'case_id' is the case identifier,
+    attributes: Tuple[str, ...]  # copied from the case's current values; 'object_id' is the object's id,
     # 'index' the message's number among the ones count publishes
     count: Optional[int] = None  # how many messages are published at once, unless read from the case
     count_attribute: Optional[str] = None  # the case attribute holding that number, if any
@@ -110,7 +110,8 @@ class MessagingModel:
 
 def parse_messages_file(json_path, bpmn_path, also_declared=()) -> MessagingModel:
     """also_declared: names of case attributes given from outside the JSON settings (e.g. picked by the
-    orchestrator's references), which messages may use too."""
+    orchestrator's references), which messages may use too. The settings are read in Prosimos's names
+    (case_attributes), as the orchestrator's loader hands them over (orchestrator.load_process)."""
     with open(json_path) as json_file:
         settings = json.load(json_file)
     return parse_messages(settings.get("messages"), bpmn_path, declared_attributes(settings) | set(also_declared),
@@ -183,10 +184,10 @@ def _check_start(where, point, events):
     if len(starts) > 1:
         _fail(f"{where}: a process started by messages must have exactly one start event; "
               f"the model has {len(starts)} ({', '.join(starts)})")
-    on_case = [term.attribute for alternative in point.condition or () for term in alternative if term.case_attribute]
+    on_case = [term.attribute for alternative in point.condition or () for term in alternative if term.object_attribute]
     if on_case:
         _fail(f"{where}: the condition of a start event may only use fixed values and source, not "
-              f"case_attribute (there is no case yet), but its terms on {', '.join(map(repr, on_case))} do")
+              f"object_attribute (there is no object yet), but its terms on {', '.join(map(repr, on_case))} do")
 
 
 def _capacity(entry, where, starts_case):
@@ -236,7 +237,7 @@ def _capacity_bound(capacity, name, where):
 
 def _collect(entry, where, starts_case):
     """(min, case attribute holding it, max, case attribute holding it), each bound fixed or read from the case:
-    {"min": 2, "max": 5}, {"min": {"case_attribute": "items"}}, 3 for (3, 3), {"case_attribute":
+    {"min": 2, "max": 5}, {"min": {"object_attribute": "items"}}, 3 for (3, 3), {"object_attribute":
     "items"} for both from items, "all" for (1, no limit), 0 for (0, 0). A max of None means the same as min, and
     math.inf no limit."""
     if "collect" not in entry:
@@ -265,18 +266,18 @@ def _collect(entry, where, starts_case):
                   f"couldn't take any")
         return low, low_attribute, high, high_attribute
     if isinstance(collect, dict):
-        _check_keys(f"{where}.collect", collect, {"case_attribute", "min", "max"})
+        _check_keys(f"{where}.collect", collect, {"object_attribute", "min", "max"})
     if not isinstance(collect, dict) or len(collect) != 1:
         if is_whole_number(collect, minimum=0):
             return int(collect), None, None, None
-        _fail(f"{where}: 'collect' must be either a whole number of at least 0, \"all\", {{\"case_attribute\": <case "
+        _fail(f"{where}: 'collect' must be either a whole number of at least 0, \"all\", {{\"object_attribute\": <object "
               f"attribute>}} or {{\"min\": <bound>, \"max\": <bound>}} with each bound a number or "
-              f"{{\"case_attribute\": <case attribute>}}")
+              f"{{\"object_attribute\": <object attribute>}}")
     if "max" in collect:
         _fail(f"{where}: 'collect' max needs a min, e.g. {{\"min\": 1, \"max\": {collect['max']!r}}}")
-    if not isinstance(collect["case_attribute"], str) or not collect["case_attribute"]:
-        _fail(f"{where}: 'collect' case_attribute must be a case attribute name")
-    return 1, collect["case_attribute"], None, None
+    if not isinstance(collect["object_attribute"], str) or not collect["object_attribute"]:
+        _fail(f"{where}: 'collect' object_attribute must be an object attribute name")
+    return 1, collect["object_attribute"], None, None
 
 
 def _same(entry, where):
@@ -297,15 +298,15 @@ def _same(entry, where):
 
 def _bound(collect, name, where):
     """(fixed number, case attribute holding it) of collect's bound name (min or max): 2 or
-    {"case_attribute": "items"}."""
+    {"object_attribute": "items"}."""
     bound = collect[name]
     if isinstance(bound, dict):
-        _check_keys(f"{where}.collect.{name}", bound, {"case_attribute"})
-        if isinstance(bound.get("case_attribute"), str) and bound["case_attribute"]:
-            return 1, bound["case_attribute"]
+        _check_keys(f"{where}.collect.{name}", bound, {"object_attribute"})
+        if isinstance(bound.get("object_attribute"), str) and bound["object_attribute"]:
+            return 1, bound["object_attribute"]
     elif is_whole_number(bound, minimum=0):
         return int(bound), None
-    _fail(f"{where}: 'collect' {name} must be a whole number of at least 0 or {{\"case_attribute\": <case "
+    _fail(f"{where}: 'collect' {name} must be a whole number of at least 0 or {{\"object_attribute\": <object "
           f"attribute>}}, got {bound!r}")
 
 
@@ -333,9 +334,9 @@ def _copy(entry, where, key="copy"):
     copy = entry.get(key, {})
     if not isinstance(copy, dict) or not all(isinstance(target, str) and target and isinstance(source, str) and source
                                              for target, source in copy.items()):
-        _fail(f"{where}: '{key}' must map case attribute names to message attribute names")
-    if "case_id" in copy:
-        _fail(f"{where}: '{key}' can't set case_id, which is reserved for the case's own identifier")
+        _fail(f"{where}: '{key}' must map object attribute names to message attribute names")
+    if "object_id" in copy:
+        _fail(f"{where}: '{key}' can't set object_id, which is reserved for the object's own id")
     return tuple(copy.items())
 
 
@@ -347,7 +348,7 @@ def _append(entry, where, case_attributes):
               f"overwritten by each message or a list that each message adds to")
     drawn = [target for target, _ in append if target in case_attributes]
     if drawn:
-        _fail(f"{where}: append adds to {', '.join(map(repr, drawn))}, which case_attributes declares: an appended "
+        _fail(f"{where}: append adds to {', '.join(map(repr, drawn))}, which object_attributes declares: an appended "
               f"attribute is a list that starts empty, not a drawn value")
     return append
 
@@ -356,9 +357,9 @@ def _aggregate(entry, where, case_attributes):
     aggregate = entry.get("aggregate", {})
     if not isinstance(aggregate, dict) or not all(isinstance(target, str) and target and isinstance(spec, dict)
                                                   for target, spec in aggregate.items()):
-        _fail(f"{where}: 'aggregate' must map case attribute names to {{<function>: <message attribute>}}")
-    if "case_id" in aggregate:
-        _fail(f"{where}: 'aggregate' can't set case_id, which is reserved for the case's own identifier")
+        _fail(f"{where}: 'aggregate' must map object attribute names to {{<function>: <message attribute>}}")
+    if "object_id" in aggregate:
+        _fail(f"{where}: 'aggregate' can't set object_id, which is reserved for the object's own id")
     result = []
     for target, spec in aggregate.items():
         _check_keys(f"{where}.aggregate.{target}", spec, AGGREGATE_FUNCTIONS)
@@ -374,7 +375,7 @@ def _aggregate(entry, where, case_attributes):
                   f"computed over the messages claimed, which {key} would overwrite")
     drawn = [target for target, _, _ in result if target in case_attributes]
     if drawn:
-        _fail(f"{where}: aggregate writes {', '.join(map(repr, drawn))}, which case_attributes declares: an "
+        _fail(f"{where}: aggregate writes {', '.join(map(repr, drawn))}, which object_attributes declares: an "
               f"aggregated attribute is computed over the messages claimed, not a drawn value")
     return tuple(result)
 
@@ -478,7 +479,7 @@ def _name(entry, key, where):
 
 def _count(entry, where, declared):
     """(fixed number of messages, case attribute holding it, case attribute holding a list, the name each
-    message carries its entry under): 3, {"case_attribute": "items"} or {"list": "item_ids", "as": "item_id"}; all
+    message carries its entry under): 3, {"object_attribute": "items"} or {"list": "item_ids", "as": "item_id"}; all
     None without count."""
     if "count" not in entry:
         return None, None, None, None
@@ -486,31 +487,31 @@ def _count(entry, where, declared):
     if is_whole_number(count, minimum=0):
         return int(count), None, None, None
     if isinstance(count, dict):
-        _check_keys(f"{where}.count", count, {"case_attribute", "list", "as"})
+        _check_keys(f"{where}.count", count, {"object_attribute", "list", "as"})
     if isinstance(count, dict) and "list" in count:
         return (None, None) + _count_over_list(count, where, declared)
-    if not isinstance(count, dict) or set(count) != {"case_attribute"}:
-        _fail(f"{where}: 'count' must be either a whole number of at least 0, {{\"case_attribute\": <case "
-              f"attribute>}} or {{\"list\": <case attribute>, \"as\": <attribute name>}}, got {count!r}")
-    if not isinstance(count["case_attribute"], str) or count["case_attribute"] not in declared:
-        _fail(f"{where}: 'count' case_attribute {count['case_attribute']!r} is not a declared case, global or "
+    if not isinstance(count, dict) or set(count) != {"object_attribute"}:
+        _fail(f"{where}: 'count' must be either a whole number of at least 0, {{\"object_attribute\": <object "
+              f"attribute>}} or {{\"list\": <object attribute>, \"as\": <attribute name>}}, got {count!r}")
+    if not isinstance(count["object_attribute"], str) or count["object_attribute"] not in declared:
+        _fail(f"{where}: 'count' object_attribute {count['object_attribute']!r} is not a declared object, global or "
               f"event attribute")
-    return None, count["case_attribute"], None, None
+    return None, count["object_attribute"], None, None
 
 
 def _count_over_list(count, where, declared):
     if not set(count) <= {"list", "as"}:
         _fail(f"{where}: 'count' over a list has only 'list' and 'as', got {', '.join(map(repr, sorted(count)))}")
     if not isinstance(count["list"], str) or count["list"] not in declared:
-        _fail(f"{where}: 'count' list {count['list']!r} is not a declared case, global or event attribute")
+        _fail(f"{where}: 'count' list {count['list']!r} is not a declared object, global or event attribute")
     if "as" not in count:
         _fail(f"{where}: 'count' over a list needs 'as', the attribute name under which each message carries its "
               f"entry")
     if not isinstance(count["as"], str) or not count["as"].strip():
         _fail(f"{where}: 'count' as must be a non-empty string")
-    if count["as"] in ("case_id", "index"):
-        _fail(f"{where}: 'count' as can't be {count['as']}, which is reserved: case_id is the publishing case's "
-              f"identifier and index the message's number")
+    if count["as"] in ("object_id", "index"):
+        _fail(f"{where}: 'count' as can't be {count['as']}, which is reserved: object_id is the publishing object's "
+              f"id and index the message's number")
     return count["list"], count["as"]
 
 
@@ -523,12 +524,12 @@ def _attributes(entry, where, declared):
               f"on the same entry")
     count = entry.get("count")
     # (a reserved as is reported by _count)
-    if isinstance(count, dict) and count.get("as") in attributes and count["as"] not in ("case_id", "index"):
+    if isinstance(count, dict) and count.get("as") in attributes and count["as"] not in ("object_id", "index"):
         _fail(f"{where}: {count['as']!r} is both in 'attributes' and count's 'as': each message carries its own "
               f"entry of {count.get('list')} under that name, so it can't also carry the case's attribute")
-    unknown = [name for name in attributes if name not in ("case_id", "index") and name not in declared]
+    unknown = [name for name in attributes if name not in ("object_id", "index") and name not in declared]
     if unknown:
-        _fail(f"{where}: {', '.join(map(repr, unknown))} not declared as a case, global or event attribute")
+        _fail(f"{where}: {', '.join(map(repr, unknown))} not declared as an object, global or event attribute")
     return tuple(attributes)
 
 
@@ -555,13 +556,13 @@ def _term(term, where):
         _fail(f"{where}: 'attribute' must be a message attribute name or 'source'")
     if term.get("comparison") not in COMPARISONS:
         _fail(f"{where}: 'comparison' must be one of {', '.join(COMPARISONS)}, got {term.get('comparison')!r}")
-    if ("value" in term) == ("case_attribute" in term):
-        _fail(f"{where}: give exactly one of 'value' and 'case_attribute'")
-    if "case_attribute" in term and (not isinstance(term["case_attribute"], str) or not term["case_attribute"]):
-        _fail(f"{where}: 'case_attribute' must be a case attribute name")
+    if ("value" in term) == ("object_attribute" in term):
+        _fail(f"{where}: give exactly one of 'value' and 'object_attribute'")
+    if "object_attribute" in term and (not isinstance(term["object_attribute"], str) or not term["object_attribute"]):
+        _fail(f"{where}: 'object_attribute' must be an object attribute name")
     if term["comparison"] == "in" and not (isinstance(term.get("value"), list) and len(term["value"]) == 2):
         _fail(f"{where}: 'in' needs a fixed 'value' [low, high]")
-    return ConditionTerm(term["attribute"], term["comparison"], term.get("value"), term.get("case_attribute"))
+    return ConditionTerm(term["attribute"], term["comparison"], term.get("value"), term.get("object_attribute"))
 
 
 def _bpmn_events(bpmn_path):

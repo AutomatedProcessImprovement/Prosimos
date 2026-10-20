@@ -140,13 +140,13 @@ Sales is a real Prosimos model; Billing and the two warehouses are scripted engi
 
 ```
 Sales (real Prosimos, testing_scripts/assets/running_example/):
-  start -> Place order -> throw OrderPlaced{case_id, city}
-        -> catch Shipment (order_id == case_id) -> Close order -> end
+  start -> Place order -> throw OrderPlaced{object_id, city}
+        -> catch Shipment (order_id == object_id) -> Close order -> end
 
 Billing:                claims every OrderPlaced
 TartuWarehouse:         claims OrderPlaced for Tartu and Tapa,   ships 1 h after claiming
 TallinnWarehouse:       claims OrderPlaced for Tallinn and Tapa, ships 1.5 h after claiming
-                        (Shipment{order_id}, where order_id is the order's case_id, e.g. Sales-3)
+                        (Shipment{order_id}, where order_id is the order's object_id, e.g. Sales-3)
 ```
 
 `city` is a case attribute drawn by Prosimos: Tartu 40%, Tallinn 30%, Tapa 20%, Pärnu 10%. Orders
@@ -172,19 +172,19 @@ All four processes are real Prosimos models in `testing_scripts/assets/running_e
 one configuration file, `simulation.json` (checked by `testing_scripts/test_real_running_example.py`):
 
 ```
-Sales:             start -> Place order -> throw OrderPlaced{case_id, city}
-                   -> catch Shipment (order_id = case_id) -> Close order -> end
+Sales:             start -> Place order -> throw OrderPlaced{object_id, city}
+                   -> catch Shipment (order_id = object_id) -> Close order -> end
 Billing:           message start OrderPlaced (any) -> Create invoice -> end
-TartuWarehouse:    message start OrderPlaced (city Tartu or Tapa), copy order_id <- case_id
+TartuWarehouse:    message start OrderPlaced (city Tartu or Tapa), copy order_id <- object_id
                    -> Pack order (1 h) -> message end Shipment{order_id}
 TallinnWarehouse:  the same for Tallinn or Tapa, Pack order 1.5 h
 
 consumer_groups:   Sales: [Sales]   Billing: [Billing]   Warehouses: [TartuWarehouse, TallinnWarehouse]
 ```
 
-Only Sales has an arrival schedule (`total_cases: 20`); the other three are started by `OrderPlaced`
-messages, so they have no `total_cases` and no arrival settings. Billing and the warehouses copy the
-order's `case_id` into `order_id`, so the merged log shows which order each of their cases belongs
+Only Sales has an arrival schedule (`arrivals: 20`); the other three are started by `OrderPlaced`
+messages, so they have no `arrivals` and no arrival settings. Billing and the warehouses copy the
+order's `object_id` into `order_id`, so the merged log shows which order each of their cases belongs
 to. The whole example runs from the file:
 
 ```python

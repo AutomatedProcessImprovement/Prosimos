@@ -56,7 +56,7 @@ def _items(ocel):
         return next(attribute["value"] for attribute in obj["attributes"] if attribute["name"] == name)
 
     return {(at_creation(obj, "order_id"), at_creation(obj, "item_index")): obj["id"]
-            for obj in ocel["objects"] if obj["type"] == "items"}
+            for obj in ocel["objects"] if obj["type"] == "item"}
 
 
 def _items_of_orders(ocel):
@@ -169,9 +169,9 @@ def test_a_case_still_waiting_at_the_end_drops_its_links_with_a_warning(tmp_path
     # order 0 waits for 3 items and gets one: its link would go to Pack, the task after Catch_Items
     report, _, _ = _run_orders(tmp_path, [{"item_id": "i17"}])
 
-    assert [case.case_id for _, case in report.stalled] == ["Orders-0"]
+    assert [case.object_id for _, case in report.stalled] == ["order-0"]
     assert report.engine_warnings == [
-        ("Orders", f"case Orders-0 reached no task after Catch_Items before the run ended; {DROPPED}")]
+        ("Orders", f"case order-0 reached no task after Catch_Items before the run ended; {DROPPED}")]
 
 
 def _verdicts(picking_json=PICKING_JSON):
@@ -187,7 +187,7 @@ def _verdicts(picking_json=PICKING_JSON):
 def _attached(engines, element):
     """(case id, element id) of each row a publisher or claimer is attached to."""
     env = engines[element.process]._env
-    return [(env.case_id(env.logged_rows[row][0]), env.logged_rows[row][1]) for row in element.task_rows]
+    return [(env.object_id(env.logged_rows[row][0]), env.logged_rows[row][1]) for row in element.task_rows]
 
 
 def test_a_publish_attaches_to_the_last_task_before_it_and_a_message_start_to_the_next_task_after_it():
@@ -197,7 +197,7 @@ def test_a_publish_attaches_to_the_last_task_before_it_and_a_message_start_to_th
         if record.type == "ItemOrdered":
             assert _attached(engines, record.publisher) == [("Sales-0", "Place_Order")]
             [claimer] = record.claimers
-            assert _attached(engines, claimer) == [(claimer.case_id, "Pick_Item")]
+            assert _attached(engines, claimer) == [(claimer.object_id, "Pick_Item")]
         if record.type == "Shipped":  # the last task before it is place order, back across the race
             assert _attached(engines, record.publisher) == [("Sales-0", "Place_Order")]
 
@@ -221,14 +221,14 @@ def test_the_winning_race_branch_attaches_to_its_own_next_task(tmp_path):
     cancelled = [record.claimers[0] for record in report.message_records if record.type == "Cancelled"]
     assert len(cancelled) == 3
     assert [_attached(engines, claimer) for claimer in cancelled] == [
-        [(claimer.case_id, "Return_To_Stock")] for claimer in cancelled]
+        [(claimer.object_id, "Return_To_Stock")] for claimer in cancelled]
 
 
 def test_capacity_attaches_each_resumed_case_to_its_own_next_task():
     orders = ProsimosEngine(ProcessSpec("Orders", f"{ASSETS}/orders_and_trucks.bpmn",
                                         f"{ASSETS}/orders_and_trucks.json", 3), START, None, seed=1)
     carrier = ScriptedEngine("Carrier")
-    carrier.publish_at(START.replace(minute=30), "Truck", dock="Tartu", case_id="Carrier-0")
+    carrier.publish_at(START.replace(minute=30), "Truck", dock="Tartu", object_id="Carrier-0")
 
     report = run_engines({"Orders": orders, "Carrier": carrier}, None, 1)
 
@@ -253,17 +253,17 @@ def _relationships(tmp_path, process):
 
 def test_carry_links_is_off_by_default(tmp_path):
     assert _relationships(tmp_path, OcelProcess("p")) == [
-        [("P-0", "p"), ("Q-1", "item")], [("P-0", "p")], [("P-1", "p")]]
+        [("p-0", "p"), ("Q-1", "item")], [("p-0", "p")], [("p-1", "p")]]
 
 
 def test_carry_links_passes_a_cases_links_to_its_later_events_only(tmp_path):
     assert _relationships(tmp_path, OcelProcess("p", carry_links=True)) == [
-        [("P-0", "p"), ("Q-1", "item")], [("P-0", "p"), ("Q-1", "item")], [("P-1", "p")]]
+        [("p-0", "p"), ("Q-1", "item")], [("p-0", "p"), ("Q-1", "item")], [("p-1", "p")]]
 
 
 def test_the_own_qualifier_defaults_to_the_object_type_and_can_be_set_per_activity(tmp_path):
     assert _relationships(tmp_path, OcelProcess("p", "case", {"B": "finishes"})) == [
-        [("P-0", "case"), ("Q-1", "item")], [("P-0", "finishes")], [("P-1", "finishes")]]
+        [("p-0", "case"), ("Q-1", "item")], [("p-0", "finishes")], [("p-1", "finishes")]]
 
 
 def test_qualifier_by_activity_must_name_tasks_of_the_model():

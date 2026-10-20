@@ -40,7 +40,7 @@ def _run(tmp_path, published, collect="all", same=("customer",)):
         picking.at(at(time), lambda now, items=items: items)
     report = run_engines({"Orders": orders, "Picking": picking}, None, 1)
     item_of = {message.id: message.attributes["item_id"] for message in report.published}
-    case_of = {record.message_id: record.claimers[0].case_id for record in report.message_records if record.claimers}
+    case_of = {record.message_id: record.claimers[0].object_id for record in report.message_records if record.claimers}
     taken = {item_of[message_id]: (case_of[message_id], time.strftime("%H:%M"))
              for message_id, _, time in report.claims}
     return report, log, taken

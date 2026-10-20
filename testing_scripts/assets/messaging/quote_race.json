@@ -105,7 +105,7 @@
             {
               "attribute": "quote_id",
               "comparison": "=",
-              "case_attribute": "case_id"
+              "object_attribute": "object_id"
             }
           ]
         ]
@@ -118,7 +118,7 @@
             {
               "attribute": "quote_id",
               "comparison": "=",
-              "case_attribute": "case_id"
+              "object_attribute": "object_id"
             }
           ]
         ]

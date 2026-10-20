@@ -52,7 +52,7 @@ class Race:
 
 
 class SimBPMEnv:
-    def __init__(self, sim_setup: SimDiffSetup, stat_fwriter, log_fwriter, process_name=None):
+    def __init__(self, sim_setup: SimDiffSetup, stat_fwriter, log_fwriter, id_prefix=None):
         self.sim_setup = sim_setup
         self.sim_resources = dict()
         self.stat_fwriter = stat_fwriter
@@ -103,7 +103,7 @@ class SimBPMEnv:
         # the step of the task before them, ahead of their real time, or even while arrivals are
         # generated. What passing them does is therefore held here and done by step() when it is
         # due: a heap of (due datetime, case id, pass order, element id).
-        self.process_name = process_name or sim_setup.process_name  # the prefix of published case ids
+        self.id_prefix = id_prefix or sim_setup.process_name  # the prefix of the object ids in its messages
         self._publish_points = dict()  # event id -> the 'publish' entries for it
         for point in sim_setup.messaging.publish:
             self._publish_points.setdefault(point.event_id, []).append(point)
@@ -271,9 +271,9 @@ class SimBPMEnv:
                 f"it publishes no {point.type} message")
         return ()
 
-    def case_id(self, p_case):
-        """How a case is named in messages, both when publishing and in conditions: e.g. Sales-7."""
-        return f"{self.process_name}-{p_case}"
+    def object_id(self, p_case):
+        """How a case's object is named in messages, both when publishing and in conditions: e.g. order-7."""
+        return f"{self.id_prefix}-{p_case}"
 
     def deliver(self, message_type, attributes, source, now):
         """Offers one message: 'claimed' if it resumed a waiting case (the one waiting longest, ties
@@ -721,29 +721,29 @@ class SimBPMEnv:
     def _term_holds(self, term, values, p_case):
         if term.attribute not in values:
             return False
-        if term.case_attribute is None:
+        if term.object_attribute is None:
             compared_with = term.value
-        elif term.case_attribute == "case_id":
-            compared_with = self.case_id(p_case)
+        elif term.object_attribute == "object_id":
+            compared_with = self.object_id(p_case)
         else:
             case_values = self.sim_setup.bpmn_graph.get_all_attributes(p_case)
-            if term.case_attribute not in case_values:
+            if term.object_attribute not in case_values:
                 return False
-            compared_with = case_values[term.case_attribute]
+            compared_with = case_values[term.object_attribute]
         # the same comparison as branch rules
         return BranchConditionRule(term.attribute, term.comparison, compared_with).is_rule_true(
             {term.attribute: values[term.attribute]})
 
     def _could_match(self, condition, values):
         """Whether some case that hasn't finished, or (in a process started by messages) one that doesn't
-        exist yet, could still accept the message. Only terms on fixed values and on case_id are decided
+        exist yet, could still accept the message. Only terms on fixed values and on object_id are decided
         now; other case attributes can still change."""
         unfinished = self._unfinished
         future_cases = self.sim_setup.messaging.started_by_messages
         if condition is None:
             return bool(unfinished) or future_cases
         for alternative in condition:
-            decided = [term for term in alternative if term.case_attribute in (None, "case_id")]
+            decided = [term for term in alternative if term.object_attribute in (None, "object_id")]
             if any(all(self._term_holds(term, values, p_case) for term in decided) for p_case in unfinished):
                 return True
             if future_cases and all(self._term_could_hold_for_a_future_case(term, values) for term in decided):
@@ -751,17 +751,17 @@ class SimBPMEnv:
         return False
 
     def _term_could_hold_for_a_future_case(self, term, values):
-        """For a case that a start message may still create. Its case_id isn't known yet, except that its
-        number is at least the number of cases so far: an '=' term holds only for such a name; any other
+        """For a case that a start message may still create. Its object_id isn't known yet, except that its
+        number is at least the number of cases so far: an '=' term holds only for such an id; any other
         comparison might hold."""
-        if term.case_attribute is None:
+        if term.object_attribute is None:
             return self._term_holds(term, values, None)
         if term.attribute not in values:
             return False
         if term.comparison != "=":
             return True
         prefix, _, number = str(values[term.attribute]).rpartition("-")
-        return (prefix == self.process_name and number.isdigit() and str(int(number)) == number
+        return (prefix == self.id_prefix and number.isdigit() and str(int(number)) == number
                 and int(number) >= len(self.log_info.trace_list))
 
     def _message_attributes(self, point, p_case, index):
@@ -770,8 +770,8 @@ class SimBPMEnv:
         values = self.sim_setup.bpmn_graph.get_all_attributes(p_case)
         attributes = dict()
         for name in point.attributes:
-            if name == "case_id":
-                attributes[name] = self.case_id(p_case)
+            if name == "object_id":
+                attributes[name] = self.object_id(p_case)
             elif name == "index":  # only listed on an entry with count (checked at load time)
                 attributes[name] = index
             elif name in values:

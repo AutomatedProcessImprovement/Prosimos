@@ -30,7 +30,7 @@ def _config(orders=ORDERS, rounds=ROUNDS):
     config = SimulationConfig.from_json(CONFIG)
     cases = {"Sales": orders, "Packaging": rounds}
     return dataclasses.replace(config, processes=[
-        dataclasses.replace(spec, total_cases=cases.get(spec.name, spec.total_cases)) for spec in config.processes])
+        dataclasses.replace(spec, arrivals=cases.get(spec.name, spec.arrivals)) for spec in config.processes])
 
 
 @pytest.fixture(scope="module")
@@ -45,7 +45,7 @@ def run(tmp_path_factory):
 def _packages(report):
     """Package case id -> the ItemPicked messages it claimed, in the order it claimed them, with when."""
     picked = {message.id: message for message in report.published if message.type == "ItemPicked"}
-    claimer = {record.message_id: record.claimers[0].case_id for record in report.message_records if record.claimers}
+    claimer = {record.message_id: record.claimers[0].object_id for record in report.message_records if record.claimers}
     packages = defaultdict(list)
     for message_id, process, time in report.claims:
         if process == "Packaging":
@@ -55,7 +55,7 @@ def _packages(report):
 
 def package_items(report):
     """Package case id -> the case ids of the items it took, in the order it claimed them."""
-    return {package: [message.attributes["case_id"] for message, _ in claimed]
+    return {package: [message.attributes["object_id"] for message, _ in claimed]
             for package, claimed in _packages(report).items()}
 
 
@@ -67,7 +67,7 @@ def _rows(log, process, activity=None):
 def _orders(log):
     """Sales case -> (order id, items, customer)."""
     first = _rows(log, "Sales").groupby("case_id").first()
-    return {case: (f"Sales-{case}", int(row["items"]), row["customer"]) for case, row in first.iterrows()}
+    return {case: (f"order-{case}", int(row["items"]), row["customer"]) for case, row in first.iterrows()}
 
 
 def test_every_order_publishes_one_item_ordered_per_item(run):
@@ -76,7 +76,7 @@ def test_every_order_publishes_one_item_ordered_per_item(run):
     published = defaultdict(list)
     for message in report.published:
         if message.type == "ItemOrdered":
-            published[message.attributes["case_id"]].append(
+            published[message.attributes["object_id"]].append(
                 (message.attributes["index"], message.attributes["customer"]))
     orders = _orders(log)
     assert len(orders) == ORDERS
@@ -120,20 +120,20 @@ def test_an_item_weighs_what_its_product_weighs_and_a_package_the_sum_of_its_ite
     with open(ocel_path) as file:
         objects = {obj["id"]: obj for obj in json.load(file)["objects"]}
     attributes = lambda obj: {attribute["name"]: attribute["value"] for attribute in obj["attributes"]}
-    items = [obj for obj in objects.values() if obj["type"] == "items"]
+    items = [obj for obj in objects.values() if obj["type"] == "item"]
     for item in items:
         [product] = [relation["objectId"] for relation in item["relationships"] if relation["qualifier"] == "is a"]
         assert {key: attributes(item)[key] for key in ("weight", "price")} == attributes(objects[product])
     weight = {item["id"]: attributes(item)["weight"] for item in items}
     picked = [message.attributes for message in report.published if message.type == "ItemPicked"]
-    assert all(message["weight"] == weight[message["case_id"]] for message in picked)  # what ItemPicked carries
+    assert all(message["weight"] == weight[message["object_id"]] for message in picked)  # what ItemPicked carries
     for package, contents in package_items(report).items():
         assert attributes(objects[package])["weight"] == pytest.approx(sum(weight[item] for item in contents))
 
 
 def test_product_weights_are_written_only_in_the_catalogue():
     folder = Path(CONFIG).parent
-    products = [product["id"] for product in json.loads(Path(CONFIG).read_text())["catalogue"]["products"]]
+    products = [product["id"] for product in json.loads(Path(CONFIG).read_text())["catalogue"]["product"]]
     for settings in folder.glob("*.json"):
         if settings.name != "simulation.json":
             assert not any(product in settings.read_text() for product in products), settings.name
@@ -145,13 +145,13 @@ def test_the_ocel_file_links_items_to_products_and_packages_by_the_real_log_s_qu
     with open(ocel_path) as file:
         ocel = json.load(file)
     product_of = _rows(log, "Warehouse").groupby("case_id")["product"].first()
-    items = [obj for obj in ocel["objects"] if obj["type"] == "items"]
+    items = [obj for obj in ocel["objects"] if obj["type"] == "item"]
     assert all(obj["relationships"] == [{"objectId": product_of[int(obj["id"].split("-")[1])], "qualifier": "is a"}]
                for obj in items)
     qualifiers = defaultdict(set)  # activity -> the qualifiers of its events' links to packages
     for event in ocel["events"]:
         for relation in event["relationships"]:
-            if relation["objectId"].startswith("Packaging-"):
+            if relation["objectId"].startswith("package-"):
                 qualifiers[event["type"]].add(relation["qualifier"])
     assert dict(qualifiers) == {"pick item": {"package"}, "create package": {"creates"},
                                 "send package": {"shipped package"}, "failed delivery": {"shipped package"},
@@ -215,7 +215,7 @@ def test_at_the_end_the_only_stalled_cases_are_packing_rounds_that_never_took_an
 
     assert report.stalled  # with this seed, the last few rounds find no items left
     assert all(process == "Packaging" and case.event_id == "Catch_Items" for process, case in report.stalled)
-    assert not {case.case_id for _, case in report.stalled} & set(_packages(report))
+    assert not {case.object_id for _, case in report.stalled} & set(_packages(report))
     assert len(report.stalled) + len(_packages(report)) == ROUNDS
     assert report.unclaimed == [] and report.discards == []
 
@@ -237,7 +237,7 @@ def test_the_same_seed_gives_the_same_run_through_start_orchestration(tmp_path):
         process["bpmn_path"] = str(folder / process["bpmn_path"])
         process["json_path"] = str(folder / process["json_path"])
         if process["name"] in ("Sales", "Packaging"):
-            process["total_cases"] = ORDERS if process["name"] == "Sales" else ROUNDS
+            process["arrivals"] = ORDERS if process["name"] == "Sales" else ROUNDS
     config_path = tmp_path / "simulation.json"
     config_path.write_text(json.dumps(settings))
 

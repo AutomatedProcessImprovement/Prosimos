@@ -59,7 +59,7 @@ def _run_until_idle(engine):
 
 
 def order(case_id, city):
-    return Message("OrderPlaced", {"case_id": case_id, "city": city}, source="Sales")
+    return Message("OrderPlaced", {"object_id": case_id, "city": city}, source="Sales")
 
 
 def test_a_claimed_start_message_creates_exactly_one_case_starting_at_the_claim_time():
@@ -93,7 +93,7 @@ def test_a_message_both_a_waiting_case_and_the_start_event_accept_goes_to_the_wa
     assert log.cases("Close") == {0: at("12:00")}  # case 0 was resumed instead
 
 
-def test_the_next_message_after_that_starts_a_new_case_with_drawn_case_attributes():
+def test_the_next_message_after_that_starts_a_new_case_with_drawn_object_attributes():
     engine, log = _updates()
     for hh_mm in ("09:00", "12:00", "13:00"):  # start case 0, resume it, start case 1
         engine.deliver(Message("Update", source="Feed"), at(hh_mm))
@@ -101,7 +101,7 @@ def test_the_next_message_after_that_starts_a_new_case_with_drawn_case_attribute
 
     assert log.cases("Handle") == {0: at("09:00"), 1: at("13:00")}
     assert [row[-1] for row in log.rows] == ["high"] * len(log.rows)  # the case attribute column
-    assert [case.case_id for case in engine.finish().stalled] == ["Updates-1"]
+    assert [case.object_id for case in engine.finish().stalled] == ["Updates-1"]
 
 
 def test_a_process_with_no_arrivals_runs_only_the_cases_its_messages_start():
@@ -109,7 +109,7 @@ def test_a_process_with_no_arrivals_runs_only_the_cases_its_messages_start():
     sales = ScriptedEngine("Sales")
     for hh_mm, case_id, city in (("09:10", "Sales-0", "Tartu"), ("09:20", "Sales-1", "Tallinn"),
                                  ("09:40", "Sales-2", "Tapa")):
-        sales.publish_at(at(hh_mm), "OrderPlaced", case_id=case_id, city=city)
+        sales.publish_at(at(hh_mm), "OrderPlaced", object_id=case_id, city=city)
 
     report = run_engines({"Sales": sales, "TartuWarehouse": warehouse}, None, 1)
 
@@ -126,7 +126,7 @@ def _updates_correlated(tmp_path):
     settings["messages"]["consume"] = [
         {"event_id": "Start_Update", "type": "Open"},
         {"event_id": "Catch_Update", "type": "Update",
-         "condition": [[{"attribute": "for_case", "comparison": "=", "case_attribute": "case_id"}]]}]
+         "condition": [[{"attribute": "for_case", "comparison": "=", "object_attribute": "object_id"}]]}]
     path = tmp_path / "updates.json"
     path.write_text(json.dumps(settings))
     log = _Log()

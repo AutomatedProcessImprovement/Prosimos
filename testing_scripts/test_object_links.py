@@ -41,7 +41,7 @@ def test_every_order_comprises_exactly_its_items(order_management):
     ocel, _, _ = order_management
     items_of_order = _items_of_orders(ocel)
 
-    orders = _related(ocel, "orders")
+    orders = _related(ocel, "order")
     assert len(orders) == 100
     for order, links in orders.items():
         assert sorted(links) == sorted((item, "comprises") for item in items_of_order[order])
@@ -53,7 +53,7 @@ def test_every_package_contains_exactly_its_items(order_management):
     # message it claimed; a packing round that took no item has no links
     ocel, items_of_package, _ = order_management
 
-    packages = _related(ocel, "packages")
+    packages = _related(ocel, "package")
     assert set(packages) >= set(items_of_package)
     for package, links in packages.items():
         assert sorted(links) == sorted((item, "contains") for item in items_of_package.get(package, []))
@@ -66,7 +66,7 @@ def test_a_link_goes_only_in_its_entrys_direction_and_no_key_gives_none(order_ma
     ocel, _, _ = order_management
 
     assert _items(ocel)
-    assert all([qualifier for _, qualifier in links] == ["is a"] for links in _related(ocel, "items").values())
+    assert all([qualifier for _, qualifier in links] == ["is a"] for links in _related(ocel, "item").values())
 
 
 def test_a_run_without_o2o_keys_links_no_objects():
@@ -74,7 +74,7 @@ def test_a_run_without_o2o_keys_links_no_objects():
     report, _ = _verdicts_run()
 
     assert report.message_records
-    assert _object_links(report.message_records, {"Sales": OcelProcess("orders"), "Picking": OcelProcess("items")}) == {}
+    assert _object_links(report.message_records, {"Sales": OcelProcess("order"), "Picking": OcelProcess("item")}) == {}
 
 
 def _record(publisher_o2o=None, claimer_o2o=None, claimer_process="P"):

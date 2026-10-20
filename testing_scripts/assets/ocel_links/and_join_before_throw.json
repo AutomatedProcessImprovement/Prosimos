@@ -100,7 +100,7 @@
         "event_id": "Throw_Done",
         "type": "Done",
         "attributes": [
-          "case_id"
+          "object_id"
         ]
       }
     ]

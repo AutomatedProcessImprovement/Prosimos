@@ -9,6 +9,7 @@ from pathlib import Path
 import pytz
 
 from prosimos.orchestrator import ProcessSpec, SimulationConfig, run_orchestrator
+from testing_scripts.orchestrator_settings import orchestrator_settings
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 ASSETS = REPO_ROOT / "testing_scripts" / "assets"
@@ -43,7 +44,7 @@ def write_random_configs(config_dir):
     # The stock configs use fixed arrival gaps and task durations, so which engine draws random
     # numbers first would never show in the output and ordering bugs would go unnoticed.
     for name, (_, json_file, random_arrivals) in PROCESSES.items():
-        with open(ASSETS / json_file) as f:
+        with open(orchestrator_settings(ASSETS / json_file)) as f:
             config = json.load(f)
         if random_arrivals:
             config["arrival_time_distribution"] = _expon(1800.0)

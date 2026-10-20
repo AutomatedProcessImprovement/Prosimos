@@ -4,8 +4,8 @@
       "name": "Sales",
       "bpmn_path": "sales.bpmn",
       "json_path": "sales.json",
-      "total_cases": 2000,
-      "object_type": "orders",
+      "arrivals": 2000,
+      "object_type": "order",
       "qualifier": "order",
       "carry_links": true
     },
@@ -19,15 +19,15 @@
       "name": "Warehouse",
       "bpmn_path": "warehouse.bpmn",
       "json_path": "warehouse.json",
-      "object_type": "items",
+      "object_type": "item",
       "qualifier": "item"
     },
     {
       "name": "Packaging",
       "bpmn_path": "packaging.bpmn",
       "json_path": "packaging.json",
-      "total_cases": 1200,
-      "object_type": "packages",
+      "arrivals": 1200,
+      "object_type": "package",
       "qualifier": "package",
       "qualifier_by_activity": {
         "Create_Package": "creates",
@@ -41,7 +41,7 @@
   "seed": 1,
   "start_time": "2023-04-03T06:00:00+00:00",
   "catalogue": {
-    "customers": [
+    "customer": [
       {"id": "c1", "attributes": {"segment": "retail"}},
       {"id": "c2", "attributes": {"segment": "retail"}},
       {"id": "c3", "attributes": {"segment": "business"}},
@@ -58,7 +58,7 @@
       {"id": "c14", "attributes": {"segment": "retail"}},
       {"id": "c15", "attributes": {"segment": "business"}}
     ],
-    "products": [
+    "product": [
       {"id": "iPhone X", "attributes": {"weight": 0.172, "price": 699}},
       {"id": "iPhone 8", "attributes": {"weight": 0.21, "price": 529}},
       {"id": "Fire Stick", "attributes": {"weight": 0.2, "price": 39.99}},
@@ -82,10 +82,10 @@
     ]
   },
   "references": [
-    {"process": "Sales", "case_attribute": "customer", "catalogue": "customers",
+    {"process": "Sales", "object_attribute": "customer", "catalogue": "customer",
      "o2o": "places", "reverse": true, "link_events": ["place order", "confirm order"],
      "pick": "uniform"},
-    {"process": "Warehouse", "case_attribute": "product", "catalogue": "products", "o2o": "is a",
+    {"process": "Warehouse", "object_attribute": "product", "catalogue": "product", "o2o": "is a",
      "pick": {"weights": {
        "iPhone X": 433, "iPhone 8": 408, "Fire Stick": 405, "iPad Air": 405, "Fire Stick 4K": 400,
        "iPad Pro": 394, "Echo Plus": 394, "Kindle Paperwhite": 393, "Echo Show 8": 383, "MacBook Pro": 382,

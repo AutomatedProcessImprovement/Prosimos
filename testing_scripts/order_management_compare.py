@@ -5,7 +5,9 @@ with the real OCEL 2.0 Order Management log, side by side.
     poetry run python testing_scripts/order_management_compare.py <order-management.json> <simulated_ocel.json>
 
 The real log isn't part of the repository; give its path. The simulated file is what start-orchestration writes
-with --ocel_out_path. Both are read the same way, from their objects, events and links.
+with --ocel_out_path. Both are read the same way, from their objects, events and links; the simulated file names
+its object types in the singular (order), the real log in the plural (orders), so they are read under the real
+log's names.
 """
 import json
 import statistics
@@ -42,12 +44,16 @@ ITEM_BUCKETS = [(f"{n}", lambda v, n=n: v == n) for n in range(1, 8)] + [("8+", 
 REMINDER_BUCKETS = [(f"{n}", lambda v, n=n: v == n) for n in range(0, 4)] + [("4+", lambda v: v >= 4)]
 FAILED_BUCKETS = [(f"{n}", lambda v, n=n: v == n) for n in range(0, 3)] + [("3+", lambda v: v >= 3)]
 EVENTS_WITH_ITEMS = ("place order", "create package", "send package")
+REAL_LOG_TYPES = {"order": "orders", "item": "items", "package": "packages", "customer": "customers",
+                  "product": "products"}
 
 
 def metrics(ocel_path):
     """The comparison's metrics of one OCEL file, section -> metric -> value."""
     with open(ocel_path) as file:
         ocel = json.load(file)
+    for obj in ocel["objects"]:
+        obj["type"] = REAL_LOG_TYPES.get(obj["type"], obj["type"])
     object_type = {obj["id"]: obj["type"] for obj in ocel["objects"]}
     related = lambda element, kind, qualifier=None: [
         relation["objectId"] for relation in element["relationships"]

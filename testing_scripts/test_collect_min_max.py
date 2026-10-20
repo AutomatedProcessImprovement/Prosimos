@@ -153,13 +153,13 @@ def test_0_passes_straight_on(tmp_path):
     assert log.packed() == {0: at("09:10")}
 
 
-def test_bounds_read_from_case_attributes(tmp_path):
+def test_bounds_read_from_object_attributes(tmp_path):
     def most(settings):
-        settings["case_attributes"].append({"name": "most", "type": "continuous", "values": {
+        settings["object_attributes"].append({"name": "most", "type": "continuous", "values": {
             "distribution_name": "fix", "distribution_params": [{"value": 4}]}})
 
     published = [("10:00", f"i{number}") for number in range(1, 7)]
-    _, _, claimed = _run(tmp_path, {"min": {"case_attribute": "items"}, "max": {"case_attribute": "most"}}, published,
+    _, _, claimed = _run(tmp_path, {"min": {"object_attribute": "items"}, "max": {"object_attribute": "most"}}, published,
                          most)
 
     assert claimed == [(f"i{number}", "10:00") for number in range(1, 5)]
@@ -167,7 +167,7 @@ def test_bounds_read_from_case_attributes(tmp_path):
 
 def test_a_max_below_min_counts_as_min_with_one_warning(tmp_path):
     published = [("10:00", f"i{number}") for number in range(1, 7)]
-    report, _, claimed = _run(tmp_path, {"min": {"case_attribute": "items"}, "max": 2}, published)
+    report, _, claimed = _run(tmp_path, {"min": {"object_attribute": "items"}, "max": 2}, published)
 
     assert claimed == [(f"i{number}", "10:00") for number in range(1, 4)]  # items is 3
     assert [warning for _, warning in report.engine_warnings] == [
@@ -178,7 +178,7 @@ def test_a_case_stalled_below_min_reports_how_many_of_min_it_collected(tmp_path)
     report, _, _ = _run(tmp_path, {"min": 2, "max": 5}, [("10:00", "i1")])
 
     [(_, stalled)] = report.stalled
-    assert (stalled.case_id, stalled.collected, stalled.needed) == ("Orders-0", 1, 2)
+    assert (stalled.object_id, stalled.collected, stalled.needed) == ("Orders-0", 1, 2)
 
 
 def test_in_a_race_the_message_branch_wins_when_min_is_reached(tmp_path):
@@ -201,12 +201,12 @@ def test_in_a_race_the_message_branch_wins_when_min_is_reached(tmp_path):
 @pytest.mark.parametrize("collect, reason", [
     ({"min": 5, "max": 2}, r"'collect' min 5 is above max 2"),
     ({"min": 1, "max": 0}, r"'collect' min 1 is above max 0"),
-    ({"min": {"case_attribute": "items"}, "max": 0}, r"'collect' max is 0 but min is read from items"),
+    ({"min": {"object_attribute": "items"}, "max": 0}, r"'collect' max is 0 but min is read from items"),
     ({"max": 5}, r"'collect' max needs a min"),
-    ({"min": -1}, r"'collect' min must be a whole number of at least 0 or \{\"case_attribute\": <case attribute>\}, "
+    ({"min": -1}, r"'collect' min must be a whole number of at least 0 or \{\"object_attribute\": <object attribute>\}, "
                   r"got -1"),
     ({"min": 1, "max": "all"}, r"'collect' max must be a whole number of at least 0"),
-    ({"min": {"case_atribute": "items"}}, r"collect.min: unknown key 'case_atribute'; allowed: case_attribute"),
+    ({"min": {"object_atribute": "items"}}, r"collect.min: unknown key 'object_atribute'; allowed: object_attribute"),
     ({"min": 1, "most": 3}, r"collect: unknown key 'most'; allowed: max, min"),
     ("some", r"'collect' must be either a whole number of at least 0, \"all\""),
     (-1, r"'collect' must be either"),

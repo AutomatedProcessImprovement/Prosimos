@@ -82,7 +82,7 @@ def run_summary(report):
     stalled = {}
     for process, case in report.stalled:
         collecting = f" collected {case.collected} of {case.needed}" if case.needed > 1 else ""
-        stalled.setdefault(process, []).append(case.case_id + collecting)
+        stalled.setdefault(process, []).append(case.object_id + collecting)
     lines = [
         f"Messages: {len(report.published)} published, {len(report.claims)} claims, "
         f"{len(report.discards)} discards, {len(report.unclaimed)} unclaimed",

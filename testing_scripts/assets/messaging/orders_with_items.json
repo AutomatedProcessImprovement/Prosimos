@@ -64,7 +64,7 @@
       ]
     }
   ],
-  "case_attributes": [
+  "object_attributes": [
     {
       "name": "items",
       "type": "continuous",
@@ -84,10 +84,10 @@
         "event_id": "Throw_Items",
         "type": "ItemOrdered",
         "count": {
-          "case_attribute": "items"
+          "object_attribute": "items"
         },
         "attributes": [
-          "case_id",
+          "object_id",
           "index"
         ]
       }

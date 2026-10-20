@@ -9,6 +9,7 @@ import pytz
 from prosimos.orchestrator import (
     Message, ProcessSpec, ProsimosEngine, SimulationConfig, SimulationEngine, Verdict, run_orchestrator,
 )
+from testing_scripts.orchestrator_settings import orchestrator_settings
 from testing_scripts.test_batching_stats import get_path
 
 START = pytz.utc.localize(datetime(2024, 1, 1, 9, 30))
@@ -17,7 +18,7 @@ SEED = 42
 
 def _batch_process(name):
     assets = get_path()
-    return ProcessSpec(name, str(assets / "1_task-batch.bpmn"), str(assets / "1_task-batch.json"), 10)
+    return ProcessSpec(name, str(assets / "1_task-batch.bpmn"), orchestrator_settings(assets / "1_task-batch.json"), 10)
 
 
 def _gateway_process(name):
@@ -25,7 +26,7 @@ def _gateway_process(name):
     return ProcessSpec(
         name,
         str(assets / "gateway_condition_xor_model.bpmn"),
-        str(assets / "gateway_one_true_condition.json"),
+        orchestrator_settings(assets / "gateway_one_true_condition.json"),
         10,
     )
 
@@ -43,7 +44,7 @@ def _random_arrival_gateway_process(name, tmp_path):
     json_path = tmp_path / f"{name}.json"
     with open(json_path, "w") as f:
         json.dump(config, f)
-    return ProcessSpec(name, spec.bpmn_path, str(json_path), spec.total_cases)
+    return ProcessSpec(name, spec.bpmn_path, str(json_path), spec.arrivals)
 
 
 def _read_log(path):
@@ -70,8 +71,9 @@ def test_merged_log_is_sorted_by_start_time(tmp_path):
     run_orchestrator(
         SimulationConfig(
             [
-                ProcessSpec("stock", str(assets / "stock_replenishment.bpmn"), str(assets / "stock_replenishment_logs.json"), 10),
-                ProcessSpec("timer", str(assets / "timer_with_task.bpmn"), str(assets / "timer_with_task.json"), 10),
+                ProcessSpec("stock", str(assets / "stock_replenishment.bpmn"),
+                            orchestrator_settings(assets / "stock_replenishment_logs.json"), 10),
+                ProcessSpec("timer", str(assets / "timer_with_task.bpmn"), orchestrator_settings(assets / "timer_with_task.json"), 10),
             ],
             START, SEED,
         ),
@@ -204,11 +206,12 @@ def test_config_loads_from_a_json_file_and_runs(tmp_path):
         json.dump({
             "processes": [
                 {"name": "batch", "bpmn_path": os.path.relpath(assets / "1_task-batch.bpmn", tmp_path),
-                 "json_path": os.path.relpath(assets / "1_task-batch.json", tmp_path), "total_cases": 10},
+                 "json_path": os.path.relpath(orchestrator_settings(assets / "1_task-batch.json"), tmp_path), "arrivals": 10},
                 {"name": "gateway",
                  "bpmn_path": os.path.relpath(assets / "gateway_conditions/gateway_condition_xor_model.bpmn", tmp_path),
-                 "json_path": os.path.relpath(assets / "gateway_conditions/gateway_one_true_condition.json", tmp_path),
-                 "total_cases": 10},
+                 "json_path": os.path.relpath(orchestrator_settings(assets / "gateway_conditions/gateway_one_true_condition.json"),
+                                              tmp_path),
+                 "arrivals": 10},
             ],
             "seed": SEED,
             "start_time": "2024-01-01T09:30:00",
@@ -226,8 +229,8 @@ def test_config_loads_from_a_json_file_and_runs(tmp_path):
 def test_config_file_missing_a_required_field_is_rejected(tmp_path):
     config_file = tmp_path / "simulation.json"
     with open(config_file, "w") as f:
-        # total_cases is optional (a process started by messages has none), json_path isn't
-        json.dump({"processes": [{"name": "Sales", "bpmn_path": "sales.bpmn", "total_cases": 5}],
+        # arrivals is optional (a process started by messages has none), json_path isn't
+        json.dump({"processes": [{"name": "Sales", "bpmn_path": "sales.bpmn", "arrivals": 5}],
                    "start_time": "2024-01-01T09:30:00+00:00"}, f)
 
     with pytest.raises(ValueError, match=r"Sales is missing \['json_path'\]"):
