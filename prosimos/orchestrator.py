@@ -577,11 +577,13 @@ class ClaimRecord:
 class CaseObject:
     """One case of an engine, as an object of the OCEL output: its id in the engine, when it was created, and its
     case attributes over time, as (attribute, value, time): the values it had when it was created, then every
-    later change."""
+    later change. All of them are kept here; the OCEL output leaves some out (see ocel_writer._written)."""
 
     object_id: str
     created: datetime
     attributes: List[Tuple[str, Any, datetime]] = field(default_factory=list)
+    # its sums and counts whose value at creation is only their starting 0, no message having written them yet
+    only_started: Tuple[str, ...] = ()
 
 
 @dataclass
@@ -815,8 +817,8 @@ class ProsimosEngine(SimulationEngine):
             stalled = [StalledCase(self._env.object_id(parked_event.p_case), place, message_types,
                                    parked_event.enabled_datetime, *self._env.collected(parked_event))
                        for parked_event, place, message_types in self._env.stalled_waits()]
-            created = self._env.case_creation_times()
-            objects = [CaseObject(self._env.object_id(p_case), created[p_case], history)
+            created, only_started = self._env.case_creation_times(), self._env.only_started_values()
+            objects = [CaseObject(self._env.object_id(p_case), created[p_case], history, only_started[p_case])
                        for p_case, history in sorted(self._env.case_attribute_history().items())]
             published, claimed = self._attached_records()
             logged_elements = [element_id for _, element_id, _, _ in self._env.logged_rows]

@@ -125,7 +125,9 @@ With items weighing 1.2, 0.8 and 2.1, the package weighs 1.2 after the first cla
 - The value is updated at every claim, so it is right after the last one. Entries aggregating into the same
   case attribute share its values, as with `append`: in a package started by its first item and collecting
   the rest at a catch event, the first item counts too. Each must use the same function.
-- A sum or count starts at 0 when the case is created; a min or max has no value until the first message.
+- A sum or count starts at 0 when the case is created; a min or max has no value until the first message. The
+  OCEL output leaves the starting 0 out, and writes only the last of several values at the same moment
+  ([orchestrator.md](orchestrator.md), "Output").
 - `count` counts the messages that have the attribute; `sum`, `min` and `max` take numbers. A message
   without the attribute, or with a value that isn't a number (for `sum`, `min` and `max`), is skipped, with
   one warning per event and attribute.

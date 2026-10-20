@@ -51,7 +51,7 @@ def write_ocel(path, processes, objects, rows, logged_elements=None, message_lin
     processes: process -> OcelProcess, or its object type (None to leave the process out), in the order of the
     configuration;
     objects: (process, case object with its object_id in its engine, creation time and attributes as (attribute,
-    value, time)) for every case; only the attributes its process's OcelProcess lists are written;
+    value, time)) for every case; only the attributes its process's OcelProcess lists are written (see _written);
     rows: (process, {column: value}) for every logged task, as in the merged CSV log, each process's in the
     order it logged them;
     logged_elements: process -> the element id of each of its rows, in order (for qualifier_by_activity);
@@ -76,7 +76,7 @@ def write_ocel(path, processes, objects, rows, logged_elements=None, message_lin
     for source, targets in (object_links or {}).items():
         named_links[named(source)].extend((named(target), qualifier) for target, qualifier in targets)
     case_objects = [(processes[process].object_type, ids[(process, case_object.object_id)],
-                     [attribute for attribute in case_object.attributes if attribute[0] in processes[process].attributes])
+                     _written(case_object, processes[process].attributes))
                     for process, case_object in objects
                     if process in processes and processes[process].object_type is not None]
     ocel_objects, attribute_values = [], {}
@@ -141,6 +141,21 @@ def write_ocel(path, processes, objects, rows, logged_elements=None, message_lin
     }
     with open(path, "w", encoding="utf-8") as ocel_file:
         json.dump(ocel, ocel_file, indent=1, ensure_ascii=False)
+
+
+def _written(case_object, listed):
+    """The values of a case's object that the output writes: those of the listed attributes, without the starting 0
+    of a sum or count no message had written yet, and of several values of one attribute at the same moment only
+    the last (aggregate writes its running total after every message, and a case may take many at once)."""
+    only_started = set(case_object.only_started)
+    values = []
+    for name, value, time in case_object.attributes:
+        if name in only_started:  # its first value is the one it was created with
+            only_started.discard(name)
+        elif name in listed:
+            values.append((name, value, time))
+    last = {(name, time): place for place, (name, _, time) in enumerate(values)}
+    return [value for place, value in enumerate(values) if last[(value[0], value[2])] == place]
 
 
 def _settings(processes, process):

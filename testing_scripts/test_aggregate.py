@@ -46,6 +46,13 @@ def _history(report, attribute):
             for name, value, time in case_object.attributes if name == attribute]
 
 
+def _ocel_history(tmp_path, object_id, attribute):
+    with open(tmp_path / "log.json") as file:
+        objects = {obj["id"]: obj for obj in json.load(file)["objects"]}
+    return [(value["value"], value["time"][11:16]) for value in objects[object_id]["attributes"]
+            if value["name"] == attribute]
+
+
 WEIGHTS = [{"weight": 0.8}, {"weight": 2.1}, {"weight": 1.2}]
 
 
@@ -55,6 +62,15 @@ def test_a_package_of_items_weighing_1_2_0_8_and_2_1_weighs_4_1(tmp_path):
     # at every claim, the first at the start event. The sum is rounded once, at the end: added one by one,
     # 0.8 + 2.1 + 1.2 is 4.1000000000000005 (0.8 + 2.1 is 2.9000000000000004 either way)
     assert _history(report, "weight") == [(0.8, "09:00"), (pytest.approx(2.9), "09:10"), (4.1, "09:20")]
+
+
+def test_the_ocel_output_keeps_the_value_a_starting_message_wrote(tmp_path):
+    # the package is created by its first ItemPicked, which writes 0.8 into it: a value, not a starting 0
+    _run(tmp_path, WEIGHTS, {"weight": {"sum": "weight"}, "items": {"count": "weight"}})
+
+    assert _ocel_history(tmp_path, "package-0", "weight") == [
+        (0.8, "09:00"), (pytest.approx(2.9), "09:10"), (4.1, "09:20")]
+    assert _ocel_history(tmp_path, "package-0", "items") == [(1, "09:00"), (2, "09:10"), (3, "09:20")]
 
 
 @pytest.mark.parametrize("function, values", [
@@ -111,6 +127,19 @@ def test_a_planned_case_starts_with_a_sum_of_0_too(tmp_path):
     assert [(value, time.strftime("%H:%M")) for _, case_object in report.objects if case_object.object_id == "order-0"
             for name, value, time in case_object.attributes if name == "weight"] == [
         (0, "09:00"), (0.8, "09:20"), (pytest.approx(2.9), "09:30"), (4.1, "09:40")]
+
+
+
+def test_the_ocel_output_leaves_out_a_planned_cases_starting_0(tmp_path):
+    # the run report and the CSV log keep it (above); the OCEL output starts at the first message
+    def aggregating(settings):
+        settings["messages"]["consume"][0]["aggregate"] = {"weight": {"sum": "weight"}}
+
+    _, log, _ = _run_orders(tmp_path, WEIGHTS, aggregating, ocel_attributes=("weight",))
+
+    assert _ocel_history(tmp_path, "order-0", "weight") == [
+        (0.8, "09:20"), (pytest.approx(2.9), "09:30"), (4.1, "09:40")]
+    assert 0 in log["weight"].tolist()
 
 
 @pytest.mark.parametrize("function", ["sum", "count"])

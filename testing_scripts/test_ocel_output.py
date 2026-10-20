@@ -158,6 +158,36 @@ def test_a_value_copied_at_a_catch_event_is_a_later_attribute_value(tmp_path):
     assert objects["order-0"] == [{"name": "truck_id", "value": "Carrier-0", "time": "2024-01-01T09:30:00.000000Z"}]
 
 
+# one value per attribute and moment
+
+def test_of_several_values_at_one_moment_only_the_last_is_written_and_a_starting_0_is_left_out(tmp_path):
+    later = START.replace(minute=30)
+    # weight starts at 0 and takes 3 messages at 09:00 and one at 09:30; total is a real 0, written by a message
+    package = CaseObject("package-0", START, [
+        ("weight", 0, START), ("total", 0, START), ("weight", 0.5, START), ("weight", 1.2, START),
+        ("weight", 2.0, START), ("weight", 2.7, later)], only_started=("weight",))
+
+    write_ocel(tmp_path / "log.json", {"Packaging": OcelProcess("package", attributes=("weight", "total"))},
+               [("Packaging", package)], [])
+
+    with open(tmp_path / "log.json") as file:
+        [written] = json.load(file)["objects"]
+    assert [(value["name"], value["value"], value["time"][11:16]) for value in written["attributes"]] == [
+        ("total", 0, "09:00"), ("weight", 2.0, "09:00"), ("weight", 2.7, "09:30")]
+
+
+def test_every_order_management_package_with_items_has_one_weight_the_sum_of_its_items(order_management):
+    _, _, ocel, _ = order_management
+    weights = {obj["id"]: [value["value"] for value in obj["attributes"] if value["name"] == "weight"]
+               for obj in ocel["objects"]}
+    packages = [obj for obj in ocel["objects"] if obj["type"] == "package" and obj["relationships"]]
+
+    assert packages
+    for package in packages:
+        items = [link["objectId"] for link in package["relationships"] if link["qualifier"] == "contains"]
+        assert weights[package["id"]] == [pytest.approx(sum(weights[item][0] for item in items))]
+
+
 # ocel_attributes
 
 @pytest.mark.parametrize("listed, written", [(("city",), {"city"}), ((), set())])

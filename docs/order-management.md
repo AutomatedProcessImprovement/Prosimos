@@ -174,7 +174,9 @@ Warehouse's `ocel_attributes`), and
 
 Only the attributes the log has are written to the objects (`ocel_attributes`): an item's `weight` and `price`
 and a package's `weight`. The others route messages (`order_id`, `item_index`, `item_ids`, `items`) or are links
-already (`customer`, `product`), and stay in the CSV log only.
+already (`customer`, `product`), and stay in the CSV log only. A packing round takes all its items at the same
+moment, so its package gets one weight, the sum of its items', as in the log, without the running totals in
+between or the starting 0.
 
 Sales and Packaging have `carry_links`; Warehouse doesn't, so a reorder is linked only to its item and its
 product. A packing round that never took an item has no events and no links; its package object is in the

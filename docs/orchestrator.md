@@ -117,9 +117,13 @@ written as an OCEL 2.0 JSON file, the format of the OCEL 2.0 sample logs, readab
   `shipment-0` and `shipment-1`, and every link uses those ids. Its attributes are those its process lists in
   `ocel_attributes`, without it none, so that attributes only routing messages (an order id copied into an item, a
   list of item ids) stay out: the values each had when the object was created, at that time, and every value written
-  into it later at a catch event, at the time of the claim (an appended list as JSON text). `ocel_attributes` may
-  name only attributes the objects have: drawn in `object_attributes`, picked or brought (`with`) by a reference, or
-  copied, appended or aggregated from messages; any other name is a load error (`Invalid ocel_attributes:
+  into it later at a catch event, at the time of the claim (an appended list as JSON text). Of several values of one
+  attribute at the same moment only the last is written: a package that takes 15 items at once gets one weight, the
+  total, while one that takes 7, then 3, then 5 items at three moments gets three. A sum's or count's starting 0 is
+  left out until a message writes it: a package created before its first item has no weight until it takes one. Only
+  the OCEL output does this; the CSV log and the run report are unchanged. `ocel_attributes` may name only
+  attributes the objects have: drawn in `object_attributes`, picked or brought (`with`) by a reference, or copied,
+  appended or aggregated from messages; any other name is a load error (`Invalid ocel_attributes:
   processes[2].ocel_attributes names ['colour'], which the objects of process Warehouse never have (...)`). Its
   relationships are its links to other objects, from the `o2o` keys of message entries
   ([messaging.md](messaging.md)): e.g. an order comprises each item its ItemOrdered messages started. Without `o2o`

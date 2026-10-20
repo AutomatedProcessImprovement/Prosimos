@@ -131,6 +131,9 @@ class SimBPMEnv:
                                       | {target for point in sim_setup.messaging.consume for target, _ in point.copy}
                                       | set(self._appended) | set(self._aggregated))
         self._case_created = dict()  # case id -> (when it was created, its case attribute values then)
+        # case id -> its sums and counts no message had written when it was created: their value then is only the
+        # starting 0
+        self._only_started = dict()
         self._copied_later = []  # (case id, attribute, value, when copied)
         self._warned_missing_copies = set()
         self._warned_missing_appends = set()
@@ -565,6 +568,11 @@ class SimBPMEnv:
         """Case id -> when it was created."""
         return {p_case: createdAt for p_case, (createdAt, _) in self._case_created.items()}
 
+    def only_started_values(self):
+        """Case id -> the sums and counts whose value when it was created is only their starting 0: no message had
+        written them yet (a message that starts a case writes its own aggregates into the new case)."""
+        return dict(self._only_started)
+
     def stalled_at(self, parked_event):
         """Where a parked case is reported stalled: the race gateway if it waits in a race, else its event."""
         return self._race_gateway_of.get(parked_event.task_id, parked_event.task_id)
@@ -812,6 +820,9 @@ class SimBPMEnv:
         case_values = sim_setup.bpmn_graph.all_attributes.get(p_case, {})
         self._case_created[p_case] = (enabled_datetime, {name: value for name, value in case_values.items()
                                                          if name in self._case_attribute_names})
+        self._only_started[p_case] = tuple(
+            target for target in self._starting_values()
+            if target in self._aggregated and (p_case, target) not in self._aggregated_values)
         for task in enabled_tasks:
             task_id = task.task_id
             self.events_queue.append_event(
