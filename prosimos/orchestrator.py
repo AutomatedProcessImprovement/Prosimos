@@ -405,11 +405,6 @@ class SimulationConfig:
         duplicates = sorted({name for name in names if names.count(name) > 1})
         if duplicates:
             raise ValueError(f"Process names must be unique, repeated: {duplicates}")
-        types = [spec.object_type for spec in self.processes if spec.object_type is not None]
-        shared = sorted({object_type for object_type in types if types.count(object_type) > 1})
-        if shared:
-            # <object type>-<number> names an object: two processes of one type would give the same ids
-            raise ValueError(f"Object types must be unique, repeated: {shared}")
 
         object.__setattr__(self, "consumer_groups", _checked_consumer_groups(names, self.consumer_groups))
         _checked_catalogue(self.processes)
@@ -580,10 +575,12 @@ class ClaimRecord:
 
 @dataclass
 class CaseObject:
-    """One case of an engine, as an object of the OCEL output: its id and its case attributes over time,
-    as (attribute, value, time): the values it had when it was created, then every later change."""
+    """One case of an engine, as an object of the OCEL output: its id in the engine, when it was created, and its
+    case attributes over time, as (attribute, value, time): the values it had when it was created, then every
+    later change."""
 
     object_id: str
+    created: datetime
     attributes: List[Tuple[str, Any, datetime]] = field(default_factory=list)
 
 
@@ -818,7 +815,8 @@ class ProsimosEngine(SimulationEngine):
             stalled = [StalledCase(self._env.object_id(parked_event.p_case), place, message_types,
                                    parked_event.enabled_datetime, *self._env.collected(parked_event))
                        for parked_event, place, message_types in self._env.stalled_waits()]
-            objects = [CaseObject(self._env.object_id(p_case), history)
+            created = self._env.case_creation_times()
+            objects = [CaseObject(self._env.object_id(p_case), created[p_case], history)
                        for p_case, history in sorted(self._env.case_attribute_history().items())]
             published, claimed = self._attached_records()
             logged_elements = [element_id for _, element_id, _, _ in self._env.logged_rows]
@@ -1325,8 +1323,8 @@ def run_orchestrator(config: SimulationConfig, log_out_path: Optional[str] = Non
             config, catalogue, processes, report.objects, merged_log.rows, report.logged_elements,
             report.warnings.append)
         object_links = _object_links(report.message_records, processes)
-        for object_id, links in reference_object_links.items():
-            object_links.setdefault(object_id, []).extend(links)
+        for source, links in reference_object_links.items():
+            object_links.setdefault(source, []).extend(links)
         write_ocel(ocel_out_path, processes, report.objects, merged_log.rows, report.logged_elements,
                    _message_links(report.message_records, processes), object_links, static_objects,
                    reference_event_links)
@@ -1335,9 +1333,9 @@ def run_orchestrator(config: SimulationConfig, log_out_path: Optional[str] = Non
 
 
 def _message_links(records: List[MessageRecord], processes: Dict[str, OcelProcess]):
-    """(process, row of that process) -> [(object id, qualifier)]: the tasks a publisher's records attach to
-    link the object of every case that claimed the message, and the tasks a claimer's records attach to link
-    the publisher's object, each with its own end's qualifier. Ends without a qualifier or a task, or whose other
+    """(process, row of that process) -> [((process, object id), qualifier)]: the tasks a publisher's records
+    attach to link the object of every case that claimed the message, and the tasks a claimer's records attach to
+    link the publisher's object, each with its own end's qualifier. Ends without a qualifier or a task, or whose other
     end's process writes no objects, link nothing."""
     def has_object(element):
         return element.process in processes and processes[element.process].object_type is not None
@@ -1349,14 +1347,15 @@ def _message_links(records: List[MessageRecord], processes: Dict[str, OcelProces
         publisher = record.publisher
         for claimer in record.claimers:
             for row in publisher.task_rows if has_object(claimer) else ():
-                links[(publisher.process, row)].append((claimer.object_id, publisher.qualifier))
+                links[(publisher.process, row)].append(((claimer.process, claimer.object_id), publisher.qualifier))
             for row in claimer.task_rows if has_object(publisher) else ():
-                links[(claimer.process, row)].append((publisher.object_id, claimer.qualifier))
+                links[(claimer.process, row)].append(((publisher.process, publisher.object_id), claimer.qualifier))
     return dict(links)
 
 
 def _object_links(records: List[MessageRecord], processes: Dict[str, OcelProcess]):
-    """Object id -> [(object id, qualifier)]: the OCEL links between objects that the messages' o2o keys give.
+    """(process, object id) -> [((process, object id), qualifier)]: the OCEL links between objects that the
+    messages' o2o keys give.
     A publish entry's o2o links the publisher's object to the object of every case that claimed the
     message, a consume entry's links the claimer's object to the publisher's. A link is written once, however
     many messages give it; ends whose process writes no objects link nothing."""
@@ -1366,8 +1365,11 @@ def _object_links(records: List[MessageRecord], processes: Dict[str, OcelProcess
     links = defaultdict(list)
 
     def link(source, target, qualifier):
-        if qualifier and has_object(source) and has_object(target) and (target.object_id, qualifier) not in links[source.object_id]:
-            links[source.object_id].append((target.object_id, qualifier))
+        if not (qualifier and has_object(source) and has_object(target)):
+            return
+        end = (target.process, target.object_id)
+        if (end, qualifier) not in links[(source.process, source.object_id)]:
+            links[(source.process, source.object_id)].append((end, qualifier))
 
     for record in records:
         for claimer in record.claimers if record.publisher is not None else ():
@@ -1384,8 +1386,9 @@ def _reference_links(config: SimulationConfig, catalogue: Dict[str, List[Catalog
     case's referenced attribute names; their attributes are timed at the start of the run, a growing catalogue's
     when the first case took its id; and the links its references give, joined with the case objects and log rows
     after the run:
-    - object id -> [(object id, qualifier)]: a reference with o2o links the object of every case of its process
-      to the catalogue object of each value its attribute took (reverse: from the catalogue object);
+    - object -> [(object, qualifier)]: a reference with o2o links the object of every case of its process, as
+      (process, object id), to the catalogue object of each value its attribute took, as its id (reverse: from
+      the catalogue object);
     - (process, row of that process) -> [(object id, qualifier)]: each event of those cases named in
       link_events (every event without the key) links the catalogue object of the value the attribute had when
       the event completed, with the attribute's name as qualifier.
@@ -1393,7 +1396,7 @@ def _reference_links(config: SimulationConfig, catalogue: Dict[str, List[Catalog
     that write no objects link nothing.
     """
     ids_of = {name: {obj.id for obj in catalogue_objects} for name, catalogue_objects in catalogue.items()}
-    history = {case_object.object_id: case_object.attributes for _, case_object in objects}
+    history = {(process, case_object.object_id): case_object.attributes for process, case_object in objects}
     object_links, event_links, warned, referred = defaultdict(list), defaultdict(list), set(), set()
     first_taken = {}  # (catalogue name, id) -> when the first case took it
 
@@ -1406,9 +1409,9 @@ def _reference_links(config: SimulationConfig, catalogue: Dict[str, List[Catalog
                  f"{reference.catalogue}; no OCEL link is written for it")
         return False
 
-    def values(object_id, attribute, until=None):
-        """The values the case's attribute took, in order, or only the one it had at until."""
-        taken = [value for name, value, time in history.get(object_id, [])
+    def values(case, attribute, until=None):
+        """The values the attribute of case, (process, object id), took, in order, or only the one it had at until."""
+        taken = [value for name, value, time in history.get(case, [])
                  if name == attribute and value is not None and (until is None or time <= until)]
         return taken[-1:] if until is not None else list(dict.fromkeys(taken))
 
@@ -1421,15 +1424,16 @@ def _reference_links(config: SimulationConfig, catalogue: Dict[str, List[Catalog
         for process, case_object in objects:
             if process != reference.process:
                 continue
-            for value in values(case_object.object_id, reference.object_attribute):
+            case = (process, case_object.object_id)
+            for value in values(case, reference.object_attribute):
                 if in_catalogue(reference, value):
                     referred.add((reference.catalogue, str(value)))
-                    taken = min(time for name, taken_value, time in history[case_object.object_id]
+                    taken = min(time for name, taken_value, time in history[case]
                                 if name == reference.object_attribute and taken_value == value)
                     key = (reference.catalogue, str(value))
                     first_taken[key] = min(taken, first_taken.get(key, taken))
                     if has_objects and reference.o2o:
-                        ends = (str(value), case_object.object_id) if reference.reverse else (case_object.object_id, str(value))
+                        ends = (str(value), case) if reference.reverse else (case, str(value))
                         link(*ends, reference.o2o)
         if not has_objects:
             continue
@@ -1443,8 +1447,8 @@ def _reference_links(config: SimulationConfig, catalogue: Dict[str, List[Catalog
             element_id = element_ids[number] if number < len(element_ids) else None
             if reference.link_events is not None and not {row["activity"], element_id} & set(reference.link_events):
                 continue
-            object_id = f"{processes[process].object_type}-{row['case_id']}"
-            for value in values(object_id, reference.object_attribute, _as_datetime(row["end_time"])):
+            case = (process, f"{processes[process].object_type}-{row['case_id']}")
+            for value in values(case, reference.object_attribute, _as_datetime(row["end_time"])):
                 if in_catalogue(reference, value):
                     event_links[(process, number)].append((str(value), reference.object_attribute))
 

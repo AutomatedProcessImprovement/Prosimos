@@ -14,8 +14,8 @@ import pytz
 
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.ocel_writer import OcelProcess, write_ocel
-from prosimos.orchestrator import (CaseElement, MessageRecord, ProcessSpec, ProsimosEngine, SimulationConfig, Verdict,
-                                   _message_links, run_engines, run_orchestrator)
+from prosimos.orchestrator import (CaseElement, CaseObject, MessageRecord, ProcessSpec, ProsimosEngine,
+                                   SimulationConfig, Verdict, _message_links, run_engines, run_orchestrator)
 from testing_scripts.orchestrator_settings import with_qualifiers
 from testing_scripts.scripted_engine import ScriptedEngine
 from testing_scripts.test_item_verdicts import PICKING, PICKING_JSON, SALES, SALES_JSON, _picking_in
@@ -268,10 +268,12 @@ def _row(case, activity, end):
 
 
 def _relationships(tmp_path, process):
-    """Case 0 of P logs A then B; A's message linked object Q-1. Each event's (object, qualifier) links."""
+    """Case 0 of P logs A then B; A's message linked object q-1. Each event's (object, qualifier) links."""
     rows = [_row(0, "a", 1), _row(0, "b", 2), _row(1, "b", 3)]
-    write_ocel(tmp_path / "log.json", {"P": process}, [], rows, {"P": ["A", "B", "B"]},
-               {("P", 0): [("Q-1", "item")]})
+    objects = [(name, CaseObject(f"{object_type}-{case}", START.replace(minute=case)))
+               for name, object_type in (("P", "p"), ("Q", "q")) for case in range(2)]
+    write_ocel(tmp_path / "log.json", {"P": process, "Q": OcelProcess("q")}, objects, rows, {"P": ["A", "B", "B"]},
+               {("P", 0): [(("Q", "q-1"), "item")]})
     with open(tmp_path / "log.json") as file:
         return [[(link["objectId"], link["qualifier"]) for link in event["relationships"]]
                 for event in json.load(file)["events"]]
@@ -279,17 +281,17 @@ def _relationships(tmp_path, process):
 
 def test_carry_links_is_off_by_default(tmp_path):
     assert _relationships(tmp_path, OcelProcess("p")) == [
-        [("p-0", "p"), ("Q-1", "item")], [("p-0", "p")], [("p-1", "p")]]
+        [("p-0", "p"), ("q-1", "item")], [("p-0", "p")], [("p-1", "p")]]
 
 
 def test_carry_links_passes_a_cases_links_to_its_later_events_only(tmp_path):
     assert _relationships(tmp_path, OcelProcess("p", carry_links=True)) == [
-        [("p-0", "p"), ("Q-1", "item")], [("p-0", "p"), ("Q-1", "item")], [("p-1", "p")]]
+        [("p-0", "p"), ("q-1", "item")], [("p-0", "p"), ("q-1", "item")], [("p-1", "p")]]
 
 
 def test_the_own_qualifier_defaults_to_the_object_type_and_can_be_set_per_activity(tmp_path):
     assert _relationships(tmp_path, OcelProcess("p", "case", {"B": "finishes"})) == [
-        [("p-0", "case"), ("Q-1", "item")], [("p-0", "finishes")], [("p-1", "finishes")]]
+        [("p-0", "case"), ("q-1", "item")], [("p-0", "finishes")], [("p-1", "finishes")]]
 
 
 def test_qualifier_by_activity_must_name_tasks_of_the_model():
@@ -440,4 +442,4 @@ def test_a_message_attached_to_several_tasks_links_its_objects_from_each():
                            [CaseElement("P", "P-0", "Catch_Go", "sender", (1, 2))])
 
     assert _message_links([record], {"S": OcelProcess("s"), "P": OcelProcess("p")}) == {
-        ("S", 4): [("P-0", "go")], ("P", 1): [("S-0", "sender")], ("P", 2): [("S-0", "sender")]}
+        ("S", 4): [(("P", "P-0"), "go")], ("P", 1): [(("S", "S-0"), "sender")], ("P", 2): [(("S", "S-0"), "sender")]}

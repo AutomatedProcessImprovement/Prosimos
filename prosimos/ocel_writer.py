@@ -3,8 +3,13 @@ Writes a multi-process run as an OCEL 2.0 JSON file (docs/orchestrator.md): one 
 process's object type, and one event per task, linked to its case's object and to the objects on the other end
 of its messages, and objects to each other where a message entry asks for it (o2o); plus the catalogue's
 objects, which have no events of their own, linked where a reference says a case attribute holds their ids.
+
+Engines number their cases each on their own, so two processes of one object type both have an item-0. The writer
+names the objects of the output: <object type>-0, <object type>-1, ... per object type across all its processes
+(object_ids). A case's object comes in named (process, its id in the engine), a catalogue object by its id.
 """
 import json
+from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, Optional, Tuple
@@ -25,28 +30,52 @@ class OcelProcess:
     attributes: Tuple[str, ...] = ()  # the attributes written to its objects; the others are left out
 
 
+def object_ids(processes, objects):
+    """(process, object id in its engine) -> the object's id in the output: <object type>-<number>, numbered per
+    object type across all its processes in order of creation. Objects created at the same moment go by the order
+    of their processes in processes, and those of one process by its own case number. processes and objects are
+    as write_ocel takes them; a process left out has no ids."""
+    order = {name: place for place, name in enumerate(processes)}
+    of_type = defaultdict(list)
+    for place, (process, case_object) in enumerate(objects):
+        object_type = _settings(processes, process).object_type
+        if object_type is not None:
+            of_type[object_type].append((case_object.created, order[process], place, process, case_object.object_id))
+    return {(process, object_id): f"{object_type}-{number}" for object_type, found in of_type.items()
+            for number, (*_, process, object_id) in enumerate(sorted(found))}
+
+
 def write_ocel(path, processes, objects, rows, logged_elements=None, message_links=None, object_links=None,
                static_objects=None, reference_links=None):
     """
-    processes: process -> OcelProcess, or its object type (None to leave the process out);
-    objects: (process, case object with its object_id and attributes as (attribute, value, time)) for
-    every case; only the attributes its process's OcelProcess lists are written;
+    processes: process -> OcelProcess, or its object type (None to leave the process out), in the order of the
+    configuration;
+    objects: (process, case object with its object_id in its engine, creation time and attributes as (attribute,
+    value, time)) for every case; only the attributes its process's OcelProcess lists are written;
     rows: (process, {column: value}) for every logged task, as in the merged CSV log, each process's in the
     order it logged them;
     logged_elements: process -> the element id of each of its rows, in order (for qualifier_by_activity);
-    message_links: (process, row of that process) -> [(object id, qualifier)], the links the event of that
-    row gets through its messages;
-    object_links: object id -> [(object id, qualifier)], its links to other objects;
+    message_links: (process, row of that process) -> [((process, object id), qualifier)], the links the event of
+    that row gets through its messages;
+    object_links: object -> [(object, qualifier)], its links to other objects, each a case's object as (process,
+    object id) or a catalogue object as its id;
     static_objects: (object type, id, attributes as (attribute, value, time)) for every object with no events
     of its own, all its attributes written;
     reference_links: (process, row of that process) -> [(object id, qualifier)], the links the event of that
     row gets to such objects (never carried by carry_links).
     """
-    processes = {name: process if isinstance(process, OcelProcess) else OcelProcess(process)
-                 for name, process in processes.items()}
-    logged_elements, message_links, object_links = logged_elements or {}, message_links or {}, object_links or {}
+    processes = {name: _settings(processes, name) for name in processes}
+    ids = object_ids(processes, objects)
+
+    def named(end):
+        return ids[end] if isinstance(end, tuple) else end
+
+    logged_elements, message_links = logged_elements or {}, message_links or {}
     reference_links = reference_links or {}
-    case_objects = [(processes[process].object_type, case_object.object_id,
+    named_links = defaultdict(list)
+    for source, targets in (object_links or {}).items():
+        named_links[named(source)].extend((named(target), qualifier) for target, qualifier in targets)
+    case_objects = [(processes[process].object_type, ids[(process, case_object.object_id)],
                      [attribute for attribute in case_object.attributes if attribute[0] in processes[process].attributes])
                     for process, case_object in objects
                     if process in processes and processes[process].object_type is not None]
@@ -59,7 +88,7 @@ def write_ocel(path, processes, objects, rows, logged_elements=None, message_lin
         attribute_values.setdefault(object_type, {})
         ocel_objects.append({"id": object_id, "type": object_type, "attributes": attributes,
                              "relationships": [{"objectId": target, "qualifier": qualifier}
-                                               for target, qualifier in object_links.get(object_id, [])]})
+                                               for target, qualifier in named_links.get(object_id, [])]})
 
     # every row becomes an event, linked to its own case's object and to the objects its messages linked
     logged, rows_so_far = [], {}
@@ -71,8 +100,9 @@ def write_ocel(path, processes, objects, rows, logged_elements=None, message_lin
         element_id = logged_elements[process][number] if process in logged_elements else None
         own_qualifier = settings.qualifier_by_activity.get(element_id, settings.qualifier or settings.object_type)
         logged.append({"time": _as_datetime(row["end_time"]), "process": process, "number": number, "row": row,
-                       "own": (f"{settings.object_type}-{row['case_id']}", own_qualifier),
-                       "links": list(message_links.get((process, number), [])), "carried": [],
+                       "own": (ids[(process, f"{settings.object_type}-{row['case_id']}")], own_qualifier),
+                       "links": [(ids[end], qualifier) for end, qualifier in message_links.get((process, number), [])],
+                       "carried": [],
                        "references": list(reference_links.get((process, number), []))})
 
     # with carry_links, every later event of a case also links what its earlier events linked through messages
@@ -111,6 +141,11 @@ def write_ocel(path, processes, objects, rows, logged_elements=None, message_lin
     }
     with open(path, "w", encoding="utf-8") as ocel_file:
         json.dump(ocel, ocel_file, indent=1, ensure_ascii=False)
+
+
+def _settings(processes, process):
+    settings = processes.get(process)
+    return settings if isinstance(settings, OcelProcess) else OcelProcess(settings)
 
 
 def _json_value(value):

@@ -11,8 +11,9 @@ import pandas as pd
 import pytest
 import pytz
 
-from prosimos.orchestrator import ProcessSpec, ProsimosEngine, SimulationConfig, run_engines, run_orchestrator
-from prosimos.ocel_writer import OcelProcess, write_ocel
+from prosimos.orchestrator import (CaseObject, ProcessSpec, ProsimosEngine, SimulationConfig, run_engines,
+                                   run_orchestrator)
+from prosimos.ocel_writer import OcelProcess, object_ids, write_ocel
 from testing_scripts.scripted_engine import ScriptedEngine
 from testing_scripts.test_order_management import _config
 
@@ -108,11 +109,36 @@ def test_an_object_is_named_after_its_type_or_without_one_after_its_process(obje
     assert [message.attributes["object_id"] for message in published] == [object_id]
 
 
-def test_two_processes_with_the_same_object_type_are_rejected():
-    # both would name their objects order-0, order-1, ...
-    with pytest.raises(ValueError, match=r"Object types must be unique, repeated: \['order'\]"):
-        SimulationConfig([ProcessSpec("Sales", "s.bpmn", "s.json", 1, "order"),
-                          ProcessSpec("Returns", "r.bpmn", "r.json", 1, "order")], START)
+def test_processes_of_one_object_type_get_ids_numbered_across_them_by_creation_time(tmp_path):
+    # Sales and Returns both make orders and each numbers its own from order-0; the output numbers them together
+    config = SimulationConfig([ProcessSpec(name, "testing_scripts/assets/messaging/sales.bpmn",
+                                           "testing_scripts/assets/messaging/sales.json", 4, "order")
+                               for name in ("Sales", "Returns")], START, 1)
+    report = run_orchestrator(config, tmp_path / "log.csv", ocel_out_path=tmp_path / "log.json")
+
+    assert sorted(case.object_id for _, case in report.objects) == [f"order-{case}" for case in range(4) for _ in "SR"]
+    in_creation_order = sorted(report.objects, key=lambda pair: (pair[1].created, pair[0] != "Sales"))
+    ids = {(process, case.object_id): f"order-{number}" for number, (process, case) in enumerate(in_creation_order)}
+    assert [process for process, _ in in_creation_order] != ["Sales"] * 4 + ["Returns"] * 4  # the processes interleave
+    with open(tmp_path / "log.json") as file:
+        ocel = json.load(file)
+    assert sorted(obj["id"] for obj in ocel["objects"]) == sorted(f"order-{number}" for number in range(8))
+    # each object's events are its case's rows of the log
+    events = Counter((event["relationships"][0]["objectId"], event["type"], event["time"]) for event in ocel["events"])
+    log = pd.read_csv(tmp_path / "log.csv", parse_dates=["end_time"])
+    rows = Counter((ids[(process, f"order-{case}")], activity, end.strftime("%Y-%m-%dT%H:%M:%S.%fZ"))
+                   for process, case, activity, end
+                   in log[["process", "case_id", "activity", "end_time"]].itertuples(index=False))
+    assert events == rows
+
+
+def test_objects_created_at_the_same_moment_go_by_process_order_then_case_number():
+    later = START.replace(minute=1)
+    objects = [("A", CaseObject("x-0", later)), ("A", CaseObject("x-1", later)),
+               ("B", CaseObject("x-0", later)), ("B", CaseObject("x-1", START))]
+
+    assert object_ids({"B": OcelProcess("x"), "A": OcelProcess("x"), "C": OcelProcess(None)}, objects) == {
+        ("B", "x-1"): "x-0", ("B", "x-0"): "x-1", ("A", "x-0"): "x-2", ("A", "x-1"): "x-3"}
 
 
 def test_a_value_copied_at_a_catch_event_is_a_later_attribute_value(tmp_path):
@@ -128,7 +154,8 @@ def test_a_value_copied_at_a_catch_event_is_a_later_attribute_value(tmp_path):
 
     with open(tmp_path / "log.json") as file:
         objects = {obj["id"]: obj["attributes"] for obj in json.load(file)["objects"]}
-    assert objects["Orders-0"] == [{"name": "truck_id", "value": "Carrier-0", "time": "2024-01-01T09:30:00.000000Z"}]
+    # the writer names the objects: Orders-0 is the first order
+    assert objects["order-0"] == [{"name": "truck_id", "value": "Carrier-0", "time": "2024-01-01T09:30:00.000000Z"}]
 
 
 # ocel_attributes

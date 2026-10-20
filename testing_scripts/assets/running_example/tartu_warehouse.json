@@ -20,7 +20,7 @@
       {"event_id": "Start_Order", "type": "OrderPlaced",
        "condition": [[{"attribute": "city", "comparison": "=", "value": "Tartu"}],
                      [{"attribute": "city", "comparison": "=", "value": "Tapa"}]],
-       "copy": {"order_id": "object_id"}}
+       "copy": {"order_id": "object_id"}, "qualifier": "packed order", "o2o": "ships"}
     ]
   }
 }

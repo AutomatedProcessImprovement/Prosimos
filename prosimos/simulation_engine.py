@@ -561,6 +561,10 @@ class SimBPMEnv:
             history[p_case].append((name, value, copiedAt))
         return history
 
+    def case_creation_times(self):
+        """Case id -> when it was created."""
+        return {p_case: createdAt for p_case, (createdAt, _) in self._case_created.items()}
+
     def stalled_at(self, parked_event):
         """Where a parked case is reported stalled: the race gateway if it waits in a race, else its event."""
         return self._race_gateway_of.get(parked_event.task_id, parked_event.task_id)

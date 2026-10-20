@@ -325,6 +325,38 @@ def test_a_claim_that_moves_a_case_to_a_second_catch_event_lets_a_pending_copy_b
     assert log.times("Close order") == {0: at("12:00")}
 
 
+def _delivered_to(json_path):
+    """Order order-0 waits for its Shipment, copying the shipment's object_id and source, then for its Delivered.
+    The two warehouses both make shipments, so each has its own shipment-0: Tartu's is order-0's, and Tallinn's
+    Delivered{shipment-0} comes first. Who sent the Delivered order-0 took, and when."""
+    sales = ProsimosEngine(ProcessSpec("Sales", f"{ASSETS}/sales_delivered.bpmn", json_path, 1, "order"), START, None,
+                           seed=1)
+    tartu, tallinn = ScriptedEngine("TartuWarehouse"), ScriptedEngine("TallinnWarehouse")
+    tartu.publish_at(at("12:00"), "Shipment", order_id="order-0", object_id="shipment-0")
+    tallinn.publish_at(at("13:00"), "Delivered", object_id="shipment-0")
+    tartu.publish_at(at("14:00"), "Delivered", object_id="shipment-0")
+
+    report = run_engines({"Sales": sales, "TartuWarehouse": tartu, "TallinnWarehouse": tallinn}, None, 1)
+    messages = {message.id: message for message in report.published}
+    return [(messages[message_id].source, time) for message_id, _, time in report.claims
+            if messages[message_id].type == "Delivered"]
+
+
+def test_an_id_of_a_shared_object_type_matched_with_its_source_finds_its_own_object():
+    assert _delivered_to(f"{ASSETS}/sales_delivered.json") == [("TartuWarehouse", at("14:00"))]
+
+
+def test_an_id_of_a_shared_object_type_matched_without_its_source_may_find_another_object(tmp_path):
+    with open(f"{ASSETS}/sales_delivered.json") as file:
+        settings = json.load(file)
+    delivered = settings["messages"]["consume"][1]
+    delivered["condition"] = [[term for term in delivered["condition"][0] if term["attribute"] != "source"]]
+    path = tmp_path / "sales_delivered.json"
+    path.write_text(json.dumps(settings))
+
+    assert _delivered_to(str(path)) == [("TallinnWarehouse", at("13:00"))]
+
+
 def test_a_catch_event_not_listed_under_consume_keeps_its_drawn_delay(tmp_path):
     def delay_instead(settings):
         settings["messages"]["consume"] = []

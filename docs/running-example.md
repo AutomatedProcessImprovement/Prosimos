@@ -182,6 +182,16 @@ TallinnWarehouse:  the same for Tallinn or Tapa, Pack order 1.5 h
 consumer_groups:   Sales: [Sales]   Billing: [Billing]   Warehouses: [TartuWarehouse, TallinnWarehouse]
 ```
 
+Each process names the type of the objects its cases are, in the singular: `order` (Sales), `invoice`
+(Billing) and `shipment` (both warehouses, which make the same kind of thing). The two warehouses each number
+their own shipments from `shipment-0`, as the run report and the messages show them; the OCEL output
+(`ocel_out_path`) numbers them across both, in the order they were created, so its 17 shipments are
+`shipment-0` to `shipment-16` ([orchestrator.md](orchestrator.md), "Output"). Each `OrderPlaced` a case starts
+from links it to its order: an invoice `bills` the order, and Create invoice links it as the `billed order`; a
+shipment `ships` it, and Pack order links it as the `packed order`. Sales's `Shipment` entry links Close order
+to the shipment that ships the order, as the `received shipment`. Sales's own `OrderPlaced` entry has no
+qualifier, so Place order links only its order.
+
 Only Sales has an arrival schedule (`arrivals: 20`); the other three are started by `OrderPlaced`
 messages, so they have no `arrivals` and no arrival settings. Billing and the warehouses copy the
 order's `object_id` into `order_id`, so the merged log shows which order each of their cases belongs

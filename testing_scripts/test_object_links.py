@@ -87,16 +87,18 @@ PROCESSES = {"S": OcelProcess("s"), "P": OcelProcess("p"), "Q": OcelProcess(None
 
 
 def test_a_publish_entrys_o2o_links_the_publisher_to_each_claimer():
-    assert _object_links([_record(publisher_o2o="sends")], PROCESSES) == {"S-0": [("P-0", "sends"), ("P-1", "sends")]}
+    assert _object_links([_record(publisher_o2o="sends")], PROCESSES) == {
+        ("S", "S-0"): [(("P", "P-0"), "sends"), (("P", "P-1"), "sends")]}
 
 
 def test_a_consume_entrys_o2o_links_each_claimer_to_the_publisher():
-    assert _object_links([_record(claimer_o2o="from")], PROCESSES) == {"P-0": [("S-0", "from")], "P-1": [("S-0", "from")]}
+    assert _object_links([_record(claimer_o2o="from")], PROCESSES) == {
+        ("P", "P-0"): [(("S", "S-0"), "from")], ("P", "P-1"): [(("S", "S-0"), "from")]}
 
 
 def test_a_link_is_written_once_however_many_messages_give_it():
     assert _object_links([_record(publisher_o2o="sends"), _record(publisher_o2o="sends")], PROCESSES) == {
-        "S-0": [("P-0", "sends"), ("P-1", "sends")]}
+        ("S", "S-0"): [(("P", "P-0"), "sends"), (("P", "P-1"), "sends")]}
 
 
 def test_no_link_to_or_from_a_process_without_objects():

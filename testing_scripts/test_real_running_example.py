@@ -3,6 +3,8 @@ The running example with real Prosimos engines only (docs/running-example.md): S
 two warehouses, all loaded from one configuration file and run with run_orchestrator.
 """
 import csv
+import json
+from collections import Counter
 from datetime import datetime
 
 import pytest
@@ -22,7 +24,7 @@ def _run(log_path):
 @pytest.fixture
 def run(tmp_path):
     report, rows = _run(tmp_path / "merged_log.csv")
-    city = {f"Sales-{row['case_id']}": row["city"] for row in rows if row["process"] == "Sales"}
+    city = {f"order-{row['case_id']}": row["city"] for row in rows if row["process"] == "Sales"}
     return report, rows, city
 
 
@@ -47,7 +49,7 @@ def test_each_order_from_a_served_city_has_one_warehouse_case_and_is_closed_afte
     report, rows, city = run
     packed_by = {order_id: warehouse for warehouse in SERVES for order_id in _order_ids(rows, warehouse)}
     shipments = {m.attributes["order_id"]: m for m in report.published if m.type == "Shipment"}
-    closed = {f"Sales-{row['case_id']}": datetime.fromisoformat(row["start_time"])
+    closed = {f"order-{row['case_id']}": datetime.fromisoformat(row["start_time"])
               for row in rows if row["process"] == "Sales" and row["activity"] == "Close order"}
 
     served = sorted(order for order, order_city in city.items() if order_city != "Pärnu")
@@ -73,3 +75,38 @@ def test_the_same_seed_gives_the_same_run(tmp_path):
     second = _run(tmp_path / "second.csv")
 
     assert first == second
+
+
+def test_the_ocel_output_names_objects_by_type_and_numbers_shipments_across_both_warehouses(tmp_path):
+    run_orchestrator(SimulationConfig.from_json(CONFIG), None, ocel_out_path=tmp_path / "log.json")
+    with open(tmp_path / "log.json", encoding="utf-8") as file:
+        objects = json.load(file)["objects"]
+
+    ids = Counter(obj["type"] for obj in objects)
+    assert ids == {"order": 20, "invoice": 20, "shipment": 17}  # 12 shipments from Tartu, 5 from Tallinn
+    assert sorted(obj["id"] for obj in objects) == sorted(
+        f"{object_type}-{number}" for object_type, count in ids.items() for number in range(count))
+
+
+def test_the_ocel_output_links_each_invoice_and_shipment_to_its_order(tmp_path):
+    run_orchestrator(SimulationConfig.from_json(CONFIG), None, ocel_out_path=tmp_path / "log.json")
+    with open(tmp_path / "log.json", encoding="utf-8") as file:
+        ocel = json.load(file)
+
+    # every invoice bills one order and every shipment ships one; each order is billed once and shipped at most once
+    order_of = {obj["id"]: [(link["objectId"], link["qualifier"]) for link in obj["relationships"]]
+                for obj in ocel["objects"] if obj["type"] in ("invoice", "shipment")}
+    assert all(len(links) == 1 for links in order_of.values())
+    billed = [order for (order, qualifier), in order_of.values() if qualifier == "bills"]
+    shipped = [order for (order, qualifier), in order_of.values() if qualifier == "ships"]
+    assert sorted(billed) == sorted(f"order-{number}" for number in range(20))
+    assert len(set(shipped)) == len(shipped) == 17
+    # each event links the order of its own invoice or shipment, and closing an order links the shipment that ships it
+    for event in ocel["events"]:
+        links = {link["qualifier"]: link["objectId"] for link in event["relationships"]}
+        if event["type"] == "Create invoice":
+            assert order_of[links["invoice"]] == [(links["billed order"], "bills")]
+        elif event["type"] == "Pack order":
+            assert order_of[links["shipment"]] == [(links["packed order"], "ships")]
+        elif event["type"] == "Close order":
+            assert order_of[links["received shipment"]] == [(links["order"], "ships")]

@@ -57,8 +57,10 @@ Start ──> Place order ──> (Throw_OrderPlaced) ──> (Catch_Shipment) �
 **publish**: each entry names a publishing event, the message `type`, and the `attributes` the
 message carries (optional, default none). Their values are copied from the case when it passes the
 event. `object_id` is a reserved name for the id of the case's object: its object type followed by its number,
-e.g. `order-7` (`Sales-7` for a process without an object type, see [orchestrator.md](orchestrator.md)), so orders
-get unique ids without a new attribute.
+e.g. `order-7` (`Sales-7` for a process without an object type, see [orchestrator.md](orchestrator.md)), so a
+process's cases get unique ids without a new attribute. Processes sharing an object type each number their own
+cases, so between them an id is unique only together with the process, the message's `source`; the OCEL output
+gives every object an id of its own.
 
 **consume**: each entry names a catch event (or the start event, see "Processes started by
 messages"), the message `type` it accepts, and an optional `condition`; without one, any message of
@@ -71,8 +73,8 @@ can be copied too. A copied name counts as declared, so the process can publish 
 `Shipment{order_id}`). The target can't be `object_id`, which is reserved.
 
 - **At a start event**, the values go into the new case, on top of its drawn case attributes, before
-  it starts: the Tartu warehouse's case gets `order_id = Sales-3` and later publishes
-  `Shipment{order_id: Sales-3}`.
+  it starts: the Tartu warehouse's case gets `order_id = order-3` and later publishes
+  `Shipment{order_id: order-3}`.
 - **At a catch event**, they go into the waiting case that claims the message, at the time of the
   claim, replacing earlier values. Sales waiting for `Shipment{order_id, tracking_no}` with
   `"copy": {"tracking_no": "tracking_no"}` can then publish `OrderClosed{object_id, tracking_no}`.
@@ -198,7 +200,7 @@ warning per event and attribute.
 fixed number such as `3`, or `{"object_attribute": "items"}` to read it from the case when it passes the
 event. Without it, the entry publishes one message. `index` is a reserved name for the message's
 number, 1..N, and can only be listed on an entry with `count`; together with `object_id` it identifies
-the object (`Sales-7` item 2), e.g. for the receiver to copy into its new case. For example, an order
+the object (`order-7` item 2), e.g. for the receiver to copy into its new case. For example, an order
 announcing each of its items, so that Picking starts one case per item:
 
 ```json
