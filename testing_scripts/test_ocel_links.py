@@ -52,25 +52,25 @@ def _linked(event, qualifier):
     return {link["objectId"] for link in event["relationships"][1:] if link["qualifier"] == qualifier}
 
 
-def _items(ocel):
-    """(order id, item index) -> the item object."""
-    def at_creation(obj, name):
-        return next(attribute["value"] for attribute in obj["attributes"] if attribute["name"] == name)
+def _items(report):
+    """(order id, item index) -> the item object, from the run report: the OCEL file writes neither attribute."""
+    def at_creation(case_object, name):
+        return next(value for attribute, value, _ in case_object.attributes if attribute == name)
 
-    return {(at_creation(obj, "order_id"), at_creation(obj, "item_index")): obj["id"]
-            for obj in ocel["objects"] if obj["type"] == "item"}
+    return {(at_creation(case_object, "order_id"), at_creation(case_object, "item_index")): case_object.object_id
+            for process, case_object in report.objects if process == "Warehouse"}
 
 
-def _items_of_orders(ocel):
+def _items_of_orders(report):
     items = defaultdict(set)
-    for (order, _), item in _items(ocel).items():
+    for (order, _), item in _items(report).items():
         items[order].add(item)
     return items
 
 
 def test_every_place_order_is_linked_to_exactly_its_orders_items(order_management):
-    _, ocel, _ = order_management
-    items_of_order = _items_of_orders(ocel)
+    report, ocel, _ = order_management
+    items_of_order = _items_of_orders(report)
 
     events = _events(ocel, "place order")
     assert len(events) == 100
@@ -108,8 +108,8 @@ def test_with_carry_links_the_later_events_of_a_package_link_its_items_too(order
 
 
 def test_with_carry_links_the_later_events_of_an_order_link_its_items_too(order_management):
-    _, ocel, _ = order_management
-    items_of_order = _items_of_orders(ocel)
+    report, ocel, _ = order_management
+    items_of_order = _items_of_orders(report)
 
     for activity in ("confirm order", "payment reminder", "pay order"):
         for event in _events(ocel, activity):

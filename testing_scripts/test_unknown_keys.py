@@ -43,8 +43,8 @@ def test_a_process_entry(tmp_path):
         data["processes"][2]["object_typ"] = data["processes"][2].pop("object_type")
 
     _config_rejected(tmp_path, r"processes\[2\]: unknown key 'object_typ'; allowed: arrivals, bpmn_path, "
-                               r"carry_links, catalogues, json_path, name, object_type, qualifier, qualifier_by_activity, "
-                               r"references$",
+                               r"carry_links, catalogues, json_path, name, object_type, ocel_attributes, qualifier, "
+                               r"qualifier_by_activity, references$",
                      misspelled)
 
 

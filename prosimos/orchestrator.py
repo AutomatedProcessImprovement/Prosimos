@@ -44,6 +44,8 @@ class ProcessSpec:
     qualifier_by_activity: Tuple[Tuple[str, str], ...] = ()
     # every later event of a case also links the objects the case is linked to through its messages
     carry_links: bool = False
+    # the attributes written to its objects in the OCEL output; the others, e.g. those only routing messages, aren't
+    ocel_attributes: Tuple[str, ...] = ()
     # its catalogues, name -> objects with no events of their own (see SimulationConfig), and its references, each
     # naming one of its own catalogues
     catalogues: Dict[str, Union[List["CatalogueObject"], "CataloguePool", "GrowingCatalogue"]] = field(
@@ -124,7 +126,7 @@ class Reference:
 
 CONFIG_KEYS = {"processes", "start_time", "seed", "consumer_groups"}
 PROCESS_KEYS = {"name", "bpmn_path", "json_path", "arrivals", "object_type", "qualifier", "qualifier_by_activity",
-                "carry_links", "catalogues", "references"}
+                "carry_links", "ocel_attributes", "catalogues", "references"}
 REFERENCE_KEYS = {"object_attribute", "catalogue", "o2o", "reverse", "link_events", "pick", "with"}
 
 
@@ -313,6 +315,32 @@ def _with_problems(reference, entry, specs, picked, brought):
     return problems
 
 
+def _checked_ocel_attributes(processes):
+    """Each name in a process's ocel_attributes is an attribute its objects have: drawn in its object_attributes,
+    picked or brought (with) by one of its references, or copied, appended or aggregated into by one of its consume
+    entries."""
+    problems = []
+    for index, spec in enumerate(processes):
+        if not spec.ocel_attributes:
+            continue
+        with open(spec.json_path) as file:
+            settings = json.load(file)
+        has = {entry.get("name") for entry in settings.get("object_attributes", [])}
+        has.update(reference.object_attribute for reference in spec.references if reference.pick is not None)
+        has.update(name for reference in spec.references for name in reference.with_attributes)
+        messages = settings.get("messages")
+        for entry in messages.get("consume", []) if isinstance(messages, dict) else []:
+            for key in ("copy", "append", "aggregate"):
+                if isinstance(entry, dict) and isinstance(entry.get(key), dict):
+                    has.update(entry[key])
+        unknown = [name for name in spec.ocel_attributes if name not in has]
+        if unknown:
+            problems.append(f"processes[{index}].ocel_attributes names {unknown}, which the objects of process "
+                            f"{spec.name} never have (they have {sorted(has)})")
+    if problems:
+        raise ValueError("Invalid ocel_attributes: " + "; ".join(problems))
+
+
 def _checked_consumer_groups(names, consumer_groups):
     """Every process in exactly one group, and groups only naming known processes. Without
     groups, every process is its own group."""
@@ -385,6 +413,7 @@ class SimulationConfig:
 
         object.__setattr__(self, "consumer_groups", _checked_consumer_groups(names, self.consumer_groups))
         _checked_catalogue(self.processes)
+        _checked_ocel_attributes(self.processes)
 
     @classmethod
     def from_json(cls, path) -> "SimulationConfig":
@@ -400,7 +429,8 @@ class SimulationConfig:
         type of its cases; without one, it writes no objects and no events. Its
         optional qualifier (by default the object type) and qualifier_by_activity ({task id: qualifier})
         qualify each event's link to its own case's object, and carry_links (false by default) makes every
-        later event of a case also link the objects the case is linked to through its messages.
+        later event of a case also link the objects the case is linked to through its messages. Its optional
+        ocel_attributes list the attributes written to its objects; without it, none.
         A process's optional catalogues ({name: [{"id": ..., "attributes": {...}}]}, {name: {"count": ...,
         "attributes": [as in object_attributes]}} for a generated pool, or {name: {"attributes": [...]}} for a
         growing one) declare objects with no events of their own, and its references ([{"object_attribute",
@@ -432,7 +462,7 @@ class SimulationConfig:
                 entry["name"], str(folder / entry["bpmn_path"]), str(folder / entry["json_path"]), entry.get("arrivals"),
                 _object_type(path, f"processes[{number}]", entry), entry.get("qualifier"),
                 tuple(sorted(entry.get("qualifier_by_activity", {}).items())), entry.get("carry_links", False),
-                catalogues, tuple(references)
+                _ocel_attributes(path, where, entry), catalogues, tuple(references)
             ))
 
         start = parse_datetime(data["start_time"], True)
@@ -440,6 +470,13 @@ class SimulationConfig:
             start = pytz.utc.localize(start)
 
         return cls(processes, start, data.get("seed"), data.get("consumer_groups"))
+
+
+def _ocel_attributes(path, where, entry):
+    names = entry.get("ocel_attributes", [])
+    if not isinstance(names, list) or not all(isinstance(name, str) and name for name in names):
+        raise ValueError(f"{path}: {where}: 'ocel_attributes' must be a list of attribute names, got {names!r}")
+    return tuple(names)
 
 
 def _object_type(path, where, entry):
@@ -1283,7 +1320,7 @@ def run_orchestrator(config: SimulationConfig, log_out_path: Optional[str] = Non
         merged_log.write(log_out_path)
     if ocel_out_path is not None:
         processes = {spec.name: OcelProcess(spec.object_type, spec.qualifier, dict(spec.qualifier_by_activity),
-                                            spec.carry_links) for spec in config.processes}
+                                            spec.carry_links, spec.ocel_attributes) for spec in config.processes}
         static_objects, reference_object_links, reference_event_links = _reference_links(
             config, catalogue, processes, report.objects, merged_log.rows, report.logged_elements,
             report.warnings.append)

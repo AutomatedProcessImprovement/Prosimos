@@ -44,6 +44,7 @@
       "json_path": "warehouse.json",
       "object_type": "item",
       "qualifier": "item",
+      "ocel_attributes": ["weight", "price"],
       "catalogues": {
         "product": [
           {"id": "iPhone X", "attributes": {"weight": 0.172, "price": 699}},
@@ -85,6 +86,7 @@
       "arrivals": 1200,
       "object_type": "package",
       "qualifier": "package",
+      "ocel_attributes": ["weight"],
       "qualifier_by_activity": {
         "Create_Package": "creates",
         "Send_Package": "shipped package",

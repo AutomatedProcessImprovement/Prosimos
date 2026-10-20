@@ -2,6 +2,7 @@
 OCEL 2.0 output (docs/orchestrator.md): one object per case, typed by its process's object_type, and one event per
 task, linked to its case's object.
 """
+import dataclasses
 import json
 from collections import Counter
 from datetime import datetime
@@ -11,7 +12,7 @@ import pytest
 import pytz
 
 from prosimos.orchestrator import ProcessSpec, ProsimosEngine, SimulationConfig, run_engines, run_orchestrator
-from prosimos.ocel_writer import write_ocel
+from prosimos.ocel_writer import OcelProcess, write_ocel
 from testing_scripts.scripted_engine import ScriptedEngine
 from testing_scripts.test_order_management import _config
 
@@ -57,13 +58,11 @@ def test_there_is_one_event_per_task_linked_to_its_case(order_management):
 def test_object_and_event_types_are_listed_with_their_attributes(order_management):
     _, _, ocel, _ = order_management
 
+    # only the listed attributes: none of the attributes that route messages (order_id, item_index, item_ids, items)
     assert {t["name"]: t["attributes"] for t in ocel["objectTypes"]} == {
-        "item": [{"name": "customer", "type": "string"}, {"name": "item_index", "type": "integer"},
-                  {"name": "order_id", "type": "string"}, {"name": "price", "type": "float"},
-                  {"name": "product", "type": "string"}, {"name": "weight", "type": "float"}],
-        "order": [{"name": "customer", "type": "string"}, {"name": "items", "type": "integer"}],
-        "package": [{"name": "customer", "type": "string"}, {"name": "item_ids", "type": "string"},
-                     {"name": "weight", "type": "float"}],
+        "item": [{"name": "price", "type": "float"}, {"name": "weight", "type": "float"}],
+        "order": [],
+        "package": [{"name": "weight", "type": "float"}],
         "customer": [{"name": "segment", "type": "string"}],
         "product": [{"name": "price", "type": "float"}, {"name": "weight", "type": "float"}],
     }
@@ -125,8 +124,58 @@ def test_a_value_copied_at_a_catch_event_is_a_later_attribute_value(tmp_path):
     carrier.publish_at(START.replace(minute=30), "Truck", dock="Tartu", object_id="Carrier-0")
     report = run_engines({"Orders": orders, "Carrier": carrier}, None, 1)
 
-    write_ocel(tmp_path / "log.json", {"Orders": "orders"}, report.objects, [])
+    write_ocel(tmp_path / "log.json", {"Orders": OcelProcess("order", attributes=("truck_id",))}, report.objects, [])
 
     with open(tmp_path / "log.json") as file:
         objects = {obj["id"]: obj["attributes"] for obj in json.load(file)["objects"]}
     assert objects["Orders-0"] == [{"name": "truck_id", "value": "Carrier-0", "time": "2024-01-01T09:30:00.000000Z"}]
+
+
+# ocel_attributes
+
+@pytest.mark.parametrize("listed, written", [(("city",), {"city"}), ((), set())])
+def test_only_the_listed_attributes_become_object_attributes(tmp_path, listed, written):
+    # Sales draws a city for every order; its objects carry it only if ocel_attributes lists it
+    config = SimulationConfig([ProcessSpec("Sales", "testing_scripts/assets/messaging/sales.bpmn",
+                                           "testing_scripts/assets/messaging/sales.json", 3, "order",
+                                           ocel_attributes=listed)], START, 1)
+    run_orchestrator(config, None, ocel_out_path=tmp_path / "log.json")
+
+    with open(tmp_path / "log.json") as file:
+        orders = [obj for obj in json.load(file)["objects"] if obj["type"] == "order"]
+    assert len(orders) == 3 and all({attribute["name"] for attribute in obj["attributes"]} == written for obj in orders)
+
+
+@pytest.mark.parametrize("process, name", [
+    ("Sales", "items"),  # drawn in object_attributes
+    ("Sales", "customer"),  # picked
+    ("Warehouse", "price"),  # brought with with
+    ("Warehouse", "order_id"),  # copied
+    ("Packaging", "item_ids"),  # appended
+    ("Packaging", "weight"),  # aggregated
+])
+def test_ocel_attributes_may_name_every_attribute_the_objects_have(process, name):
+    config = _config(10)
+    config = SimulationConfig([dataclasses.replace(spec, ocel_attributes=(name,)) if spec.name == process else spec
+                               for spec in config.processes], config.start_datetime, config.seed)
+
+    assert next(spec for spec in config.processes if spec.name == process).ocel_attributes == (name,)
+
+
+def test_ocel_attributes_naming_an_attribute_the_objects_never_have_are_rejected():
+    config = _config(10)
+    processes = [dataclasses.replace(spec, ocel_attributes=("weight", "colour")) if spec.name == "Warehouse" else spec
+                 for spec in config.processes]
+
+    with pytest.raises(ValueError, match=r"Invalid ocel_attributes: processes\[2\].ocel_attributes names \['colour'\], "
+                                         r"which the objects of process Warehouse never have"):
+        SimulationConfig(processes, config.start_datetime, config.seed)
+
+
+def test_ocel_attributes_that_arent_a_list_of_names_are_rejected(tmp_path):
+    config_path = tmp_path / "simulation.json"
+    config_path.write_text(json.dumps({"start_time": "2024-01-01T09:00:00+00:00", "processes": [
+        {"name": "Sales", "bpmn_path": "s.bpmn", "json_path": "s.json", "arrivals": 1, "ocel_attributes": "city"}]}))
+
+    with pytest.raises(ValueError, match=r"processes\[0\]: 'ocel_attributes' must be a list of attribute names, got 'city'"):
+        SimulationConfig.from_json(config_path)

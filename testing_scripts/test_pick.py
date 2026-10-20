@@ -32,7 +32,8 @@ THREE = [CatalogueObject("c1"), CatalogueObject("c2"), CatalogueObject("c3")]
 
 def _loans(cases, catalogue, pick, seed=1, with_attributes=()):
     """A config of one process, Loans, whose cases pick a customer."""
-    return SimulationConfig([ProcessSpec("Loans", *LOANS, cases, "loan", catalogues={"customer": catalogue},
+    return SimulationConfig([ProcessSpec("Loans", *LOANS, cases, "loan", ocel_attributes=("customer", *with_attributes),
+                                         catalogues={"customer": catalogue},
                                          references=(Reference("customer", "customer", o2o="applies for", reverse=True,
                                                                link_events=(), pick=pick,
                                                                with_attributes=with_attributes),))], START, seed)

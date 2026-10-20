@@ -21,13 +21,14 @@ def _appending(settings):
     settings["messages"]["consume"][0]["append"] = {"item_ids": "item_id"}
 
 
-def _run(tmp_path, sent, change=_appending):
+def _run(tmp_path, sent, change=_appending, ocel_attributes=("item_ids",)):
     """One order (order-0, 3 items) waiting at Catch_Items from 09:10, and a Picking engine sending it an
     ItemReady with each of sent's attributes, at 09:20, 09:30, ...; the report, the CSV log and the OCEL file."""
     picking = ScriptedEngine("Picking")
     for minutes, attributes in zip(range(20, 60, 10), sent):
         picking.publish_at(at(f"09:{minutes}"), "ItemReady", order_id="order-0", **attributes)
-    config = SimulationConfig([ProcessSpec("Orders", ORDERS, _settings(tmp_path, change), 1, "order")], START, 1,
+    config = SimulationConfig([ProcessSpec("Orders", ORDERS, _settings(tmp_path, change), 1, "order",
+                                           ocel_attributes=ocel_attributes)], START, 1,
                               extra_processes=["Picking"])
     report = run_orchestrator(config, tmp_path / "log.csv", {"Picking": picking}, ocel_out_path=tmp_path / "log.json")
     with open(tmp_path / "log.json") as file:

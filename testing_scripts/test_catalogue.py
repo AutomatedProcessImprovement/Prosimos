@@ -31,8 +31,10 @@ def _of_type(ocel, object_type):
     return {obj["id"]: obj for obj in ocel["objects"] if obj["type"] == object_type}
 
 
-def _customer_of(order):
-    return next(attribute["value"] for attribute in order["attributes"] if attribute["name"] == "customer")
+def _customers_of_orders(report):
+    """Order id -> its customer, from the run report: the OCEL file doesn't write the attribute."""
+    return {case_object.object_id: value for process, case_object in report.objects if process == "Sales"
+            for attribute, value, _ in case_object.attributes if attribute == "customer"}
 
 
 def test_the_run_writes_every_customer_of_the_catalogue(order_management):
@@ -47,20 +49,21 @@ def test_the_run_writes_every_customer_of_the_catalogue(order_management):
 
 def test_every_customer_places_exactly_its_orders(order_management):
     # "reverse": true turns the link around: from the customer to the order
-    ocel, _, _ = order_management
+    ocel, report, _ = order_management
     orders = _of_type(ocel, "order")
+    customer_of = _customers_of_orders(report)
 
     for customer_id, customer in _of_type(ocel, "customer").items():
         assert sorted(link["objectId"] for link in customer["relationships"]) == sorted(
-            order_id for order_id, order in orders.items() if _customer_of(order) == customer_id)
+            order_id for order_id in orders if customer_of[order_id] == customer_id)
         assert {link["qualifier"] for link in customer["relationships"]} <= {"places"}
     assert sum(len(customer["relationships"]) for customer in _of_type(ocel, "customer").values()) == 100
     assert not any(link["objectId"].startswith("c") for order in orders.values() for link in order["relationships"])
 
 
 def test_place_and_confirm_order_link_their_customer_and_pay_order_does_not(order_management):
-    ocel, _, _ = order_management
-    orders = _of_type(ocel, "order")
+    ocel, report, _ = order_management
+    customer_of = _customers_of_orders(report)
 
     def customers_of(event):
         return [link for link in event["relationships"] if link["objectId"] in _of_type(ocel, "customer")]
@@ -69,7 +72,7 @@ def test_place_and_confirm_order_link_their_customer_and_pay_order_does_not(orde
     for event in ocel["events"]:
         if event["type"] in linked:
             order = next(link["objectId"] for link in event["relationships"] if link["qualifier"] == "order")
-            assert customers_of(event) == [{"objectId": _customer_of(orders[order]), "qualifier": "customer"}]
+            assert customers_of(event) == [{"objectId": customer_of[order], "qualifier": "customer"}]
             linked[event["type"]] += 1
         elif event["type"] == "pay order":
             assert customers_of(event) == []
@@ -175,7 +178,8 @@ def test_a_process_without_objects_links_nothing_but_the_catalogue_is_still_writ
 def _config_with(tmp_path, catalogues=None, references=None, **changes):
     """The Order Management configuration with the given top-level changes. catalogues ({process: {name: objects}})
     and references ({process: [reference, ...]}), when given, replace those of every process: a process they don't
-    name has none."""
+    name has none. Given references also leave out every process's ocel_attributes, which name attributes the
+    committed references bring."""
     with open(CONFIG) as file:
         data = json.load(file)
     data.update(changes)
@@ -186,6 +190,8 @@ def _config_with(tmp_path, catalogues=None, references=None, **changes):
                 process.pop(key, None)
                 if process["name"] in given:
                     process[key] = given[process["name"]]
+        if references is not None:
+            process.pop("ocel_attributes", None)  # they name attributes the references bring
     path = tmp_path / "simulation.json"
     path.write_text(json.dumps(data))
     return path

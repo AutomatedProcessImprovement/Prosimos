@@ -168,8 +168,13 @@ carries the picked `customer`, `sales.json` only runs inside this configuration,
 from a catalogue of the Warehouse: the log's 20, each with its `weight` and first `price`. A reference of the
 Warehouse picks one for each item, with the number of items of each product in the log as weights, links the item to it (**is a**),
 links every event of the item to it, and, with `"with": ["weight", "price"]`, gives the item its product's weight
-and price when it is created. They are the item's own attributes from then on: written on its OCEL object, and
+and price when it is created. They are the item's own attributes from then on: written on its OCEL object (the
+Warehouse's `ocel_attributes`), and
 `weight` travels on `ItemPicked` to be summed into the package's.
+
+Only the attributes the log has are written to the objects (`ocel_attributes`): an item's `weight` and `price`
+and a package's `weight`. The others route messages (`order_id`, `item_index`, `item_ids`, `items`) or are links
+already (`customer`, `product`), and stay in the CSV log only.
 
 Sales and Packaging have `carry_links`; Warehouse doesn't, so a reorder is linked only to its item and its
 product. A packing round that never took an item has no events and no links; its package object is in the

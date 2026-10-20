@@ -34,7 +34,8 @@ def _run(tmp_path, sent, aggregate):
     picking = ScriptedEngine("Picking")
     for minutes, attributes in zip(range(0, 60, 10), sent):
         picking.publish_at(at(f"09:{minutes:02}"), "ItemPicked", **attributes)
-    config = SimulationConfig([ProcessSpec("Packages", PACKAGES, _settings(tmp_path, aggregate), None, "package")],
+    config = SimulationConfig([ProcessSpec("Packages", PACKAGES, _settings(tmp_path, aggregate), None, "package",
+                                           ocel_attributes=tuple(aggregate))],
                               START, 1, extra_processes=["Picking"])
     report = run_orchestrator(config, tmp_path / "log.csv", {"Picking": picking}, ocel_out_path=tmp_path / "log.json")
     return report, pd.read_csv(tmp_path / "log.csv")
@@ -105,7 +106,7 @@ def test_a_planned_case_starts_with_a_sum_of_0_too(tmp_path):
     def aggregating(settings):
         settings["messages"]["consume"][0]["aggregate"] = {"weight": {"sum": "weight"}}
 
-    report, _, _ = _run_orders(tmp_path, WEIGHTS, aggregating)
+    report, _, _ = _run_orders(tmp_path, WEIGHTS, aggregating, ocel_attributes=("weight",))
 
     assert [(value, time.strftime("%H:%M")) for _, case_object in report.objects if case_object.object_id == "order-0"
             for name, value, time in case_object.attributes if name == "weight"] == [

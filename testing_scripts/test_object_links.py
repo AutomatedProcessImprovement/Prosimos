@@ -27,7 +27,7 @@ def order_management(tmp_path_factory):
     report = run_orchestrator(_config(100), None, ocel_out_path=path)
     with open(path) as file:
         ocel = json.load(file)
-    return ocel, package_items(report), path
+    return ocel, package_items(report), path, report
 
 
 def _related(ocel, object_type):
@@ -38,8 +38,8 @@ def _related(ocel, object_type):
 
 def test_every_order_comprises_exactly_its_items(order_management):
     # publish side: Sales's ItemOrdered entry has "o2o": "comprises", from the order to each item it started
-    ocel, _, _ = order_management
-    items_of_order = _items_of_orders(ocel)
+    ocel, _, _, report = order_management
+    items_of_order = _items_of_orders(report)
 
     orders = _related(ocel, "order")
     assert len(orders) == 100
@@ -51,7 +51,7 @@ def test_every_order_comprises_exactly_its_items(order_management):
 def test_every_package_contains_exactly_its_items(order_management):
     # consume side: Packaging's ItemPicked entry has "o2o": "contains", from the package to each item whose
     # message it claimed; a packing round that took no item has no links
-    ocel, items_of_package, _ = order_management
+    ocel, items_of_package, _, _ = order_management
 
     packages = _related(ocel, "package")
     assert set(packages) >= set(items_of_package)
@@ -63,9 +63,9 @@ def test_every_package_contains_exactly_its_items(order_management):
 def test_a_link_goes_only_in_its_entrys_direction_and_no_key_gives_none(order_management):
     # items are on the other end of both links, and Warehouse's own entries have no o2o key: an item's only
     # link is to its product, from the reference that picks it
-    ocel, _, _ = order_management
+    ocel, _, _, report = order_management
 
-    assert _items(ocel)
+    assert _items(report)
     assert all([qualifier for _, qualifier in links] == ["is a"] for links in _related(ocel, "item").values())
 
 
@@ -105,7 +105,7 @@ def test_no_link_to_or_from_a_process_without_objects():
 
 def test_pm4py_reads_the_object_links(order_management):
     pm4py = pytest.importorskip("pm4py")
-    ocel, _, path = order_management
+    ocel, _, path, _ = order_management
 
     read = pm4py.read_ocel2_json(str(path))
 

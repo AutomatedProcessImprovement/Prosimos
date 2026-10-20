@@ -225,7 +225,8 @@ item item-0 picks "iPad Air"  ->  product = "iPad Air", weight = 0.44, price = 4
 
 `with` lists attributes of the catalogue object. When the reference picks an object, the case also gets each
 listed attribute, under the same name, as one of its starting values. From then on they are case values like
-those drawn in `object_attributes`: columns of the log, attributes of the case's OCEL object, and usable in
+those drawn in `object_attributes`: columns of the log, attributes of the case's OCEL object if the process lists
+them in `ocel_attributes`, and usable in
 conditions, `copy`, published messages and `aggregate`.
 
 `with` needs a `pick` on a list or a pool, whose objects and attributes exist when the case is created, and
@@ -286,6 +287,7 @@ Warehouse, which picks one for each item as often as in the log. This is its ful
       "json_path": "warehouse.json",
       "object_type": "item",
       "qualifier": "item",
+      "ocel_attributes": ["weight", "price"],
       "catalogues": {
         "product": [
           {"id": "iPhone X", "attributes": {"weight": 0.172, "price": 699}},
@@ -327,6 +329,7 @@ Warehouse, which picks one for each item as often as in the log. This is its ful
       "arrivals": 1200,
       "object_type": "package",
       "qualifier": "package",
+      "ocel_attributes": ["weight"],
       "qualifier_by_activity": {
         "Create_Package": "creates",
         "Send_Package": "shipped package",
@@ -365,13 +368,8 @@ the product's `weight` and `price` into the item. `ItemPicked` carries the item'
                      {"objectId": "order-29", "qualifier": "places"}, ...]}
   ```
 
-- **The orders** keep `customer` as an attribute:
-
-  ```json
-  {"id": "order-0", "type": "order",
-   "attributes": [{"name": "items", "value": 5, "time": "2023-04-03T06:00:00.000000Z"},
-                  {"name": "customer", "value": "c9", "time": "2023-04-03T06:00:00.000000Z"}], ...}
-  ```
+- **The orders** keep `customer` as an attribute of their case, a column of the log, but not of their OCEL
+  object: Sales lists no `ocel_attributes`, so the order is linked to its customer instead.
 
 - **place order and confirm order** are linked to their order's customer, with the qualifier `customer`
   (4,000 links: 2,000 of each); **pay order** isn't, since it isn't in `link_events`:
@@ -389,21 +387,21 @@ the product's `weight` and `price` into the item. `ItemPicked` carries the item'
   ```
 
 - **The 20 products**, type `product`, with `weight` and `price` as in the log. Each item **is a** product
-  (`"o2o": "is a"`, from the item to the product), keeps `product`, `weight` and `price` as attributes, and
-  every one of its events is linked to the product with the qualifier `product` (no `link_events`):
+  (`"o2o": "is a"`, from the item to the product), has `weight` and `price` as attributes (the Warehouse's
+  `ocel_attributes`; `product` is linked rather than written), and every one of its events is linked to the
+  product with the qualifier `product` (no `link_events`):
 
   ```json
   {"id": "item-0", "type": "item",
-   "attributes": [{"name": "product", "value": "iPad Air", "time": "2023-04-03T06:01:00.000000Z"},
-                  {"name": "weight", "value": 0.44, "time": "2023-04-03T06:01:00.000000Z"},
-                  {"name": "price", "value": 476, "time": "2023-04-03T06:01:00.000000Z"}, ...],
+   "attributes": [{"name": "weight", "value": 0.44, "time": "2023-04-03T06:01:00.000000Z"},
+                  {"name": "price", "value": 476, "time": "2023-04-03T06:01:00.000000Z"}],
    "relationships": [{"objectId": "iPad Air", "qualifier": "is a"}]}
   {"id": "e15", "type": "pick item", "time": "2023-04-03T09:27:32.013771Z",
    "relationships": [{"objectId": "item-0", "qualifier": "item"}, ...,
                      {"objectId": "iPad Air", "qualifier": "product"}]}
   ```
 
-Items and packages carry `customer` too, but only as an attribute: the customers are a catalogue of Sales,
+Items and packages carry `customer` too, but only as a case attribute: the customers are a catalogue of Sales,
 and a reference names a catalogue of its own process. To have every order come from a new customer instead,
 replace the list with `"customer": {"attributes": [...]}` and the pick with `"new"`.
 

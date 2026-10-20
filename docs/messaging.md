@@ -104,8 +104,8 @@ After the collect, `item_ids = ["item-12", "item-17", "item-23"]`, in claim orde
   nothing, with one warning per event and attribute.
 - The list is an ordinary case attribute value: messages can publish it, and the log has a column for it,
   holding the list as JSON text, e.g. `["item-12", "item-17"]` (`[]` before the first claim). In the
-  OCEL output it is an object attribute, also as JSON text since OCEL attribute values are single values,
-  with one value per change.
+  OCEL output it is an object attribute if the process lists it in `ocel_attributes`, also as JSON text since
+  OCEL attribute values are single values, with one value per change.
 - An appended attribute can't also be in the entry's `copy`, in another entry's `copy` (which would
   overwrite the list), or in the process's `object_attributes` (whose value is drawn, not a list that starts
   empty).
@@ -131,7 +131,8 @@ With items weighing 1.2, 0.8 and 2.1, the package weighs 1.2 after the first cla
   add up to 4.1 in any order, where adding them one by one may give 4.1000000000000005. A sum of whole
   numbers is a whole number.
 - The value is an ordinary case attribute value: messages can publish it, the log has a column for it, and
-  in the OCEL output it is an object attribute, with one value per change.
+  in the OCEL output it is an object attribute if the process lists it in `ocel_attributes`, with one value per
+  change.
 - An aggregated attribute can't also be in the entry's `copy` or `append`, in another entry's `copy` or
   `append`, or in the process's `object_attributes`.
 

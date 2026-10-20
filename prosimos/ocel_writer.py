@@ -7,7 +7,7 @@ objects, which have no events of their own, linked where a reference says a case
 import json
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 import pytz
 
@@ -22,6 +22,7 @@ class OcelProcess:
     qualifier: Optional[str] = None  # of each event's link to its own case's object; None means object_type
     qualifier_by_activity: Dict[str, str] = field(default_factory=dict)  # task id -> qualifier, overriding it
     carry_links: bool = False  # later events of a case also link the objects its messages linked
+    attributes: Tuple[str, ...] = ()  # the attributes written to its objects; the others are left out
 
 
 def write_ocel(path, processes, objects, rows, logged_elements=None, message_links=None, object_links=None,
@@ -29,7 +30,7 @@ def write_ocel(path, processes, objects, rows, logged_elements=None, message_lin
     """
     processes: process -> OcelProcess, or its object type (None to leave the process out);
     objects: (process, case object with its object_id and attributes as (attribute, value, time)) for
-    every case;
+    every case; only the attributes its process's OcelProcess lists are written;
     rows: (process, {column: value}) for every logged task, as in the merged CSV log, each process's in the
     order it logged them;
     logged_elements: process -> the element id of each of its rows, in order (for qualifier_by_activity);
@@ -37,7 +38,7 @@ def write_ocel(path, processes, objects, rows, logged_elements=None, message_lin
     row gets through its messages;
     object_links: object id -> [(object id, qualifier)], its links to other objects;
     static_objects: (object type, id, attributes as (attribute, value, time)) for every object with no events
-    of its own;
+    of its own, all its attributes written;
     reference_links: (process, row of that process) -> [(object id, qualifier)], the links the event of that
     row gets to such objects (never carried by carry_links).
     """
@@ -45,7 +46,8 @@ def write_ocel(path, processes, objects, rows, logged_elements=None, message_lin
                  for name, process in processes.items()}
     logged_elements, message_links, object_links = logged_elements or {}, message_links or {}, object_links or {}
     reference_links = reference_links or {}
-    case_objects = [(processes[process].object_type, case_object.object_id, case_object.attributes)
+    case_objects = [(processes[process].object_type, case_object.object_id,
+                     [attribute for attribute in case_object.attributes if attribute[0] in processes[process].attributes])
                     for process, case_object in objects
                     if process in processes and processes[process].object_type is not None]
     ocel_objects, attribute_values = [], {}
