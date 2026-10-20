@@ -7,7 +7,31 @@
       "arrivals": 2000,
       "object_type": "order",
       "qualifier": "order",
-      "carry_links": true
+      "carry_links": true,
+      "catalogues": {
+        "customer": [
+          {"id": "c1", "attributes": {"segment": "retail"}},
+          {"id": "c2", "attributes": {"segment": "retail"}},
+          {"id": "c3", "attributes": {"segment": "business"}},
+          {"id": "c4", "attributes": {"segment": "retail"}},
+          {"id": "c5", "attributes": {"segment": "retail"}},
+          {"id": "c6", "attributes": {"segment": "business"}},
+          {"id": "c7", "attributes": {"segment": "retail"}},
+          {"id": "c8", "attributes": {"segment": "retail"}},
+          {"id": "c9", "attributes": {"segment": "business"}},
+          {"id": "c10", "attributes": {"segment": "retail"}},
+          {"id": "c11", "attributes": {"segment": "retail"}},
+          {"id": "c12", "attributes": {"segment": "business"}},
+          {"id": "c13", "attributes": {"segment": "retail"}},
+          {"id": "c14", "attributes": {"segment": "retail"}},
+          {"id": "c15", "attributes": {"segment": "business"}}
+        ]
+      },
+      "references": [
+        {"object_attribute": "customer", "catalogue": "customer",
+         "o2o": "places", "reverse": true, "link_events": ["place order", "confirm order"],
+         "pick": "uniform"}
+      ]
     },
     {
       "name": "Customer",
@@ -20,7 +44,40 @@
       "bpmn_path": "warehouse.bpmn",
       "json_path": "warehouse.json",
       "object_type": "item",
-      "qualifier": "item"
+      "qualifier": "item",
+      "catalogues": {
+        "product": [
+          {"id": "iPhone X", "attributes": {"weight": 0.172, "price": 699}},
+          {"id": "iPhone 8", "attributes": {"weight": 0.21, "price": 529}},
+          {"id": "Fire Stick", "attributes": {"weight": 0.2, "price": 39.99}},
+          {"id": "iPad Air", "attributes": {"weight": 0.44, "price": 476}},
+          {"id": "Fire Stick 4K", "attributes": {"weight": 0.28, "price": 89.99}},
+          {"id": "iPad Pro", "attributes": {"weight": 0.483, "price": 1099}},
+          {"id": "Echo Plus", "attributes": {"weight": 1.28, "price": 149.99}},
+          {"id": "Kindle Paperwhite", "attributes": {"weight": 0.495, "price": 129}},
+          {"id": "Echo Show 8", "attributes": {"weight": 0.98, "price": 129.99}},
+          {"id": "MacBook Pro", "attributes": {"weight": 1.37, "price": 2500}},
+          {"id": "iPad mini", "attributes": {"weight": 0.28, "price": 449}},
+          {"id": "Echo Studio", "attributes": {"weight": 1.48, "price": 199.99}},
+          {"id": "Echo Dot", "attributes": {"weight": 0.38, "price": 29.99}},
+          {"id": "iPhone 11 Pro", "attributes": {"weight": 0.188, "price": 1149}},
+          {"id": "MacBook Air", "attributes": {"weight": 1.25, "price": 2200}},
+          {"id": "Echo Show 5", "attributes": {"weight": 0.88, "price": 89.99}},
+          {"id": "Echo", "attributes": {"weight": 0.78, "price": 99.99}},
+          {"id": "iPad", "attributes": {"weight": 0.483, "price": 495}},
+          {"id": "Kindle", "attributes": {"weight": 0.483, "price": 79.99}},
+          {"id": "iPhone 11", "attributes": {"weight": 0.166, "price": 799}}
+        ]
+      },
+      "references": [
+        {"object_attribute": "product", "catalogue": "product", "o2o": "is a",
+         "pick": {"weights": {
+           "iPhone X": 433, "iPhone 8": 408, "Fire Stick": 405, "iPad Air": 405, "Fire Stick 4K": 400,
+           "iPad Pro": 394, "Echo Plus": 394, "Kindle Paperwhite": 393, "Echo Show 8": 383, "MacBook Pro": 382,
+           "iPad mini": 382, "Echo Studio": 379, "Echo Dot": 375, "iPhone 11 Pro": 373, "MacBook Air": 369,
+           "Echo Show 5": 368, "Echo": 365, "iPad": 362, "Kindle": 346, "iPhone 11": 343}},
+         "with": ["weight", "price"]}
+      ]
     },
     {
       "name": "Packaging",
@@ -39,58 +96,5 @@
     }
   ],
   "seed": 1,
-  "start_time": "2023-04-03T06:00:00+00:00",
-  "catalogue": {
-    "customer": [
-      {"id": "c1", "attributes": {"segment": "retail"}},
-      {"id": "c2", "attributes": {"segment": "retail"}},
-      {"id": "c3", "attributes": {"segment": "business"}},
-      {"id": "c4", "attributes": {"segment": "retail"}},
-      {"id": "c5", "attributes": {"segment": "retail"}},
-      {"id": "c6", "attributes": {"segment": "business"}},
-      {"id": "c7", "attributes": {"segment": "retail"}},
-      {"id": "c8", "attributes": {"segment": "retail"}},
-      {"id": "c9", "attributes": {"segment": "business"}},
-      {"id": "c10", "attributes": {"segment": "retail"}},
-      {"id": "c11", "attributes": {"segment": "retail"}},
-      {"id": "c12", "attributes": {"segment": "business"}},
-      {"id": "c13", "attributes": {"segment": "retail"}},
-      {"id": "c14", "attributes": {"segment": "retail"}},
-      {"id": "c15", "attributes": {"segment": "business"}}
-    ],
-    "product": [
-      {"id": "iPhone X", "attributes": {"weight": 0.172, "price": 699}},
-      {"id": "iPhone 8", "attributes": {"weight": 0.21, "price": 529}},
-      {"id": "Fire Stick", "attributes": {"weight": 0.2, "price": 39.99}},
-      {"id": "iPad Air", "attributes": {"weight": 0.44, "price": 476}},
-      {"id": "Fire Stick 4K", "attributes": {"weight": 0.28, "price": 89.99}},
-      {"id": "iPad Pro", "attributes": {"weight": 0.483, "price": 1099}},
-      {"id": "Echo Plus", "attributes": {"weight": 1.28, "price": 149.99}},
-      {"id": "Kindle Paperwhite", "attributes": {"weight": 0.495, "price": 129}},
-      {"id": "Echo Show 8", "attributes": {"weight": 0.98, "price": 129.99}},
-      {"id": "MacBook Pro", "attributes": {"weight": 1.37, "price": 2500}},
-      {"id": "iPad mini", "attributes": {"weight": 0.28, "price": 449}},
-      {"id": "Echo Studio", "attributes": {"weight": 1.48, "price": 199.99}},
-      {"id": "Echo Dot", "attributes": {"weight": 0.38, "price": 29.99}},
-      {"id": "iPhone 11 Pro", "attributes": {"weight": 0.188, "price": 1149}},
-      {"id": "MacBook Air", "attributes": {"weight": 1.25, "price": 2200}},
-      {"id": "Echo Show 5", "attributes": {"weight": 0.88, "price": 89.99}},
-      {"id": "Echo", "attributes": {"weight": 0.78, "price": 99.99}},
-      {"id": "iPad", "attributes": {"weight": 0.483, "price": 495}},
-      {"id": "Kindle", "attributes": {"weight": 0.483, "price": 79.99}},
-      {"id": "iPhone 11", "attributes": {"weight": 0.166, "price": 799}}
-    ]
-  },
-  "references": [
-    {"process": "Sales", "object_attribute": "customer", "catalogue": "customer",
-     "o2o": "places", "reverse": true, "link_events": ["place order", "confirm order"],
-     "pick": "uniform"},
-    {"process": "Warehouse", "object_attribute": "product", "catalogue": "product", "o2o": "is a",
-     "pick": {"weights": {
-       "iPhone X": 433, "iPhone 8": 408, "Fire Stick": 405, "iPad Air": 405, "Fire Stick 4K": 400,
-       "iPad Pro": 394, "Echo Plus": 394, "Kindle Paperwhite": 393, "Echo Show 8": 383, "MacBook Pro": 382,
-       "iPad mini": 382, "Echo Studio": 379, "Echo Dot": 375, "iPhone 11 Pro": 373, "MacBook Air": 369,
-       "Echo Show 5": 368, "Echo": 365, "iPad": 362, "Kindle": 346, "iPhone 11": 343}},
-     "with": ["weight", "price"]}
-  ]
+  "start_time": "2023-04-03T06:00:00+00:00"
 }

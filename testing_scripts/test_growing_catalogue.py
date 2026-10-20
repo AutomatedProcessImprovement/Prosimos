@@ -8,7 +8,7 @@ from collections import Counter
 
 import pytest
 
-from prosimos.orchestrator import GrowingCatalogue, NewShare, Reference, SimulationConfig, _NewPick
+from prosimos.orchestrator import GrowingCatalogue, NewShare, SimulationConfig, _NewPick
 from testing_scripts.test_catalogue import _config_with
 from testing_scripts.test_order_management import _config
 from testing_scripts.test_pick import POOL, PICKING, _customers_of_cases, _loans, _run
@@ -17,13 +17,12 @@ CUSTOMERS = GrowingCatalogue(POOL.attributes)  # segment and credit_limit
 
 
 def _order_management(orders, pick):
-    """Order Management whose customers are a growing catalogue, with the items referring to the order's
-    customer that ItemOrdered carries (the items still pick their products)."""
+    """Order Management whose customers are a growing catalogue of Sales, from which each order picks with pick."""
     config = _config(orders)
-    customers, products = config.references
-    return dataclasses.replace(config, catalogue={**config.catalogue, "customer": CUSTOMERS}, references=[
-        dataclasses.replace(customers, pick=pick), products,
-        Reference("Warehouse", "customer", "customer", o2o="ordered by", link_events=())])
+    return dataclasses.replace(config, processes=[
+        dataclasses.replace(spec, catalogues={"customer": CUSTOMERS},
+                            references=(dataclasses.replace(spec.references[0], pick=pick),))
+        if spec.name == "Sales" else spec for spec in config.processes])
 
 
 def _created(ocel):
@@ -64,21 +63,6 @@ def test_a_new_object_gets_its_attributes_timed_when_it_is_created(new_run):
 
     assert {attribute["name"] for attribute in customer["attributes"]} == {"segment", "credit_limit"}
     assert {attribute["time"] for attribute in customer["attributes"]} == {created["order-6"].strftime("%Y-%m-%dT%H:%M:%S.%fZ")}
-
-
-def test_a_reference_without_pick_refers_to_the_objects_another_process_created(new_run):
-    # the items carry their order's new customer, from ItemOrdered
-    report, _, ocel = new_run
-    customer_of_item = _customers_of_cases(report, "Warehouse")
-
-    items = {obj["id"]: obj for obj in ocel["objects"] if obj["type"] == "item"}
-
-    assert len(items) > 100
-    for item_id, item in items.items():
-        assert [link["objectId"] for link in item["relationships"] if link["qualifier"] == "ordered by"] == \
-            [customer_of_item[item_id]]
-    assert set(customer_of_item.values()) <= set(_customers_of_cases(report, "Sales").values())
-    assert not any("not in catalogue" in warning for warning in report.warnings)
 
 
 # new_share
@@ -146,64 +130,67 @@ def test_the_same_seed_gives_the_same_objects(tmp_path):
 # load errors
 
 GROWING = {"customer": {"attributes": []}}
+SALES = r"processes\[0\].references"
 
 
 def test_a_growing_catalogue_reads_from_attributes_without_a_count(tmp_path):
-    path = _config_with(tmp_path, catalogue=GROWING, references=[{**PICKING, "pick": {"new_share": 0.3}}])
+    path = _config_with(tmp_path, catalogues={"Sales": GROWING}, references={"Sales": [{**PICKING, "pick": {"new_share": 0.3}}]})
 
-    config = SimulationConfig.from_json(path)
+    [sales] = [spec for spec in SimulationConfig.from_json(path).processes if spec.name == "Sales"]
 
-    assert config.catalogue == {"customer": GrowingCatalogue()}
-    assert config.references[0].pick == NewShare(0.3)
+    assert sales.catalogues == {"customer": GrowingCatalogue()}
+    assert sales.references[0].pick == NewShare(0.3)
 
 
-def _rejected(tmp_path, message, catalogue=None, references=None):
-    path = _config_with(tmp_path, catalogue=catalogue or GROWING, references=references or [{**PICKING, "pick": "new"}])
+def _rejected(tmp_path, message, catalogues=None, references=None):
+    """The Order Management configuration whose only catalogues are those of Sales, GROWING by default, and whose only
+    references are those of Sales, a "new" pick of its customer by default, is rejected with message."""
+    path = _config_with(tmp_path, catalogues={"Sales": catalogues or GROWING},
+                        references={"Sales": references or [{**PICKING, "pick": "new"}]})
     with pytest.raises(ValueError, match=message):
         SimulationConfig.from_json(path)
 
 
 def test_uniform_or_weights_on_a_growing_catalogue_are_rejected(tmp_path):
-    _rejected(tmp_path, r"references\[0\] picks from growing catalogue 'customer', which only takes \"new\"",
+    _rejected(tmp_path, rf"{SALES}\[0\] picks from growing catalogue 'customer', which only takes \"new\"",
               references=[{**PICKING, "pick": "uniform"}])
 
 
 @pytest.mark.parametrize("catalogue", [{"customer": [{"id": "c1"}]}, {"customer": {"count": 10}}])
 def test_new_on_a_listed_catalogue_or_a_pool_is_rejected(tmp_path, catalogue):
-    _rejected(tmp_path, r"references\[0\] picks \"new\" or new_share from catalogue 'customer', which is no growing",
-              catalogue=catalogue)
+    _rejected(tmp_path, rf"{SALES}\[0\] picks \"new\" or new_share from catalogue 'customer', which is no growing",
+              catalogues=catalogue)
 
 
 @pytest.mark.parametrize("share", [0, -0.1, 1.5, "0.3", True, None])
 def test_a_new_share_not_above_0_and_at_most_1_is_rejected(tmp_path, share):
-    _rejected(tmp_path, r"references\[0\] new_share must be a number above 0 and at most 1",
+    _rejected(tmp_path, rf"{SALES}\[0\] new_share must be a number above 0 and at most 1",
               references=[{**PICKING, "pick": {"new_share": share}}])
 
 
 def test_a_growing_catalogue_that_no_reference_creates_from_is_rejected(tmp_path):
     _rejected(tmp_path, r"growing catalogue 'customer' needs exactly one reference that creates its objects .*got 0",
-              references=[{"process": "Warehouse", "object_attribute": "customer", "catalogue": "customer"}])
+              references=[PICKING])
 
 
 def test_two_references_creating_from_one_growing_catalogue_are_rejected(tmp_path):
     _rejected(tmp_path, r"growing catalogue 'customer' needs exactly one reference that creates its objects .*got 2",
-              references=[{**PICKING, "pick": "new"},
-                          {"process": "Warehouse", "object_attribute": "buyer", "catalogue": "customer", "pick": "new"}])
+              references=[{**PICKING, "pick": "new"}, {"object_attribute": "buyer", "catalogue": "customer", "pick": "new"}])
 
 
 def test_a_growing_catalogue_named_like_an_object_type_is_rejected(tmp_path):
     # its ids, order-1, order-2, ..., would be those of Sales's orders
     _rejected(tmp_path, r"catalogue 'order' is the object type of process Sales",
-              catalogue={"order": {"attributes": []}}, references=[{**PICKING, "catalogue": "order", "pick": "new"}])
+              catalogues={"order": {"attributes": []}}, references=[{**PICKING, "catalogue": "order", "pick": "new"}])
 
 
 def test_ids_like_those_a_growing_catalogue_creates_are_rejected(tmp_path):
     _rejected(tmp_path, r"catalogue ids look like the ids growing catalogue 'customer' creates \(customer-<number>\): "
                         r"\['customer-2'\]",
-              catalogue={**GROWING, "vips": [{"id": "customer-2"}, {"id": "customer-x"}]})
+              catalogues={**GROWING, "vips": [{"id": "customer-2"}, {"id": "customer-x"}]})
 
 
 def test_growing_catalogue_attributes_prosimos_cant_parse_are_rejected(tmp_path):
     _rejected(tmp_path, r"catalogue 'customer': attributes\[0\]: .*probabilities' sum should be equal to 1",
-              catalogue={"customer": {"attributes": [
+              catalogues={"customer": {"attributes": [
                   {"name": "segment", "type": "discrete", "values": [{"key": "retail", "value": 0.5}]}]}})

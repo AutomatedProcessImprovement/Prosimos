@@ -133,7 +133,8 @@ def test_an_item_weighs_what_its_product_weighs_and_a_package_the_sum_of_its_ite
 
 def test_product_weights_are_written_only_in_the_catalogue():
     folder = Path(CONFIG).parent
-    products = [product["id"] for product in json.loads(Path(CONFIG).read_text())["catalogue"]["product"]]
+    [warehouse] = [process for process in json.loads(Path(CONFIG).read_text())["processes"] if process["name"] == "Warehouse"]
+    products = [product["id"] for product in warehouse["catalogues"]["product"]]
     for settings in folder.glob("*.json"):
         if settings.name != "simulation.json":
             assert not any(product in settings.read_text() for product in products), settings.name

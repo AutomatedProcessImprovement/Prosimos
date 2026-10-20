@@ -1,4 +1,5 @@
 import copy
+import dataclasses
 import csv
 import hashlib
 import itertools
@@ -43,6 +44,16 @@ class ProcessSpec:
     qualifier_by_activity: Tuple[Tuple[str, str], ...] = ()
     # every later event of a case also links the objects the case is linked to through its messages
     carry_links: bool = False
+    # its catalogues, name -> objects with no events of their own (see SimulationConfig), and its references, each
+    # naming one of its own catalogues
+    catalogues: Dict[str, Union[List["CatalogueObject"], "CataloguePool", "GrowingCatalogue"]] = field(
+        default_factory=dict, hash=False)
+    references: Tuple["Reference", ...] = ()
+
+    def __post_init__(self):
+        # each reference knows the process whose entry lists it
+        object.__setattr__(self, "references", tuple(dataclasses.replace(reference, process=self.name)
+                                                     for reference in self.references))
 
     @property
     def ocel_object_type(self) -> Optional[str]:
@@ -56,7 +67,7 @@ class ProcessSpec:
 
 @dataclass(frozen=True)
 class CatalogueObject:
-    """An object with no events of its own (a customer, a product), declared in the configuration's catalogue."""
+    """An object with no events of its own (a customer, a product), declared in a catalogue of a process."""
 
     id: str
     attributes: Tuple[Tuple[str, Any], ...] = ()
@@ -91,16 +102,16 @@ class NewShare:
 
 @dataclass(frozen=True)
 class Reference:
-    """Says that a case attribute's value of one process is the id of an object of a catalogue, and which OCEL
+    """Says that a case attribute's value of its process is the id of an object of one of its catalogues, and which OCEL
     links to write for it: from the case's object to it with o2o as qualifier (reverse turns it around), and
     from the case's events named in link_events (task names or ids; None for every event, () for none).
     With pick, the reference also assigns the value, when the case is created: "uniform" (every object
     equally likely) or, for a listed catalogue, weights as ((id, weight), ...) (ids left out are never picked);
     for a growing catalogue, "new" (every case creates its own object) or NewShare. Without it, the value comes
     from object_attributes or a message. with_attributes (JSON "with") names attributes of the picked object that
-    the case also starts with, under the same names."""
+    the case also starts with, under the same names. process is the process whose entry lists it, set by its
+    ProcessSpec."""
 
-    process: str
     object_attribute: str
     catalogue: str
     o2o: Optional[str] = None
@@ -108,16 +119,17 @@ class Reference:
     link_events: Optional[Tuple[str, ...]] = None
     pick: Union[None, str, Tuple[Tuple[str, float], ...], NewShare] = None
     with_attributes: Tuple[str, ...] = ()
+    process: str = ""
 
     @property
     def creates(self) -> bool:
         return self.pick == "new" or isinstance(self.pick, NewShare)
 
 
-CONFIG_KEYS = {"processes", "start_time", "seed", "consumer_groups", "catalogue", "references"}
+CONFIG_KEYS = {"processes", "start_time", "seed", "consumer_groups"}
 PROCESS_KEYS = {"name", "bpmn_path", "json_path", "arrivals", "object_type", "qualifier", "qualifier_by_activity",
-                "carry_links"}
-REFERENCE_KEYS = {"process", "object_attribute", "catalogue", "o2o", "reverse", "link_events", "pick", "with"}
+                "carry_links", "catalogues", "references"}
+REFERENCE_KEYS = {"object_attribute", "catalogue", "o2o", "reverse", "link_events", "pick", "with"}
 
 
 def _catalogue_ids(name, entry) -> List[str]:
@@ -141,17 +153,28 @@ class Message:
     time: Optional[datetime] = None
 
 
-def _checked_catalogue(processes, names, catalogue, references):
-    """Ids unique across the whole catalogue and unlike the processes' object ids (<object type>-<number>), since
-    both are OCEL object ids; catalogue names unlike the processes' object types; pools with a count of at least 1
-    and attributes in the format of object_attributes; and references only naming known catalogues, processes and,
-    in link_events, tasks of their process (by name or id). A pick is "uniform" or weights on known ids of a
-    listed catalogue, "uniform" on a pool, or "new" or new_share on a growing catalogue, for a process built
-    from a ProcessSpec whose object_attributes don't have the attribute and whose consume entries don't copy,
-    append or aggregate into it, and at most one per process and attribute. A growing catalogue's objects are created by exactly one reference, and no other id looks like
+def _checked_catalogue(processes):
+    """Catalogue names unique across the processes and unlike their object types, since both are OCEL object types;
+    ids unique across all catalogues and unlike the processes' object ids (<object type>-<number>), since both are
+    OCEL object ids; pools with a count of at least 1 and attributes in the format of object_attributes; and
+    references only naming catalogues of their own process and, in link_events, tasks of it (by name or id). A
+    pick is "uniform" or weights on known ids of a listed catalogue, "uniform" on a pool, or "new" or new_share on
+    a growing catalogue, for an attribute that the process's object_attributes don't have and its consume entries
+    don't copy, append or aggregate into, and at most one per process and attribute. A growing catalogue's objects are created by exactly one reference, and no other id looks like
     them (<catalogue name>-<number>). with names attributes that every object of the picked listed catalogue or
     pool has, which the process doesn't otherwise pick, draw, copy, append or aggregate into, and not object_id."""
     problems = []
+    owners = defaultdict(list)  # catalogue name -> the processes declaring it
+    for spec in processes:
+        for name in spec.catalogues:
+            owners[name].append(spec.name)
+    for name, declaring in owners.items():
+        if len(declaring) > 1:
+            problems.append(f"catalogue {name!r} is declared by more than one process: {', '.join(declaring)}")
+    catalogue = {name: entry for spec in processes for name, entry in spec.catalogues.items()}
+    # (where it is in the configuration, reference)
+    references = [(f"processes[{index}].references[{number}]", reference)
+                  for index, spec in enumerate(processes) for number, reference in enumerate(spec.references)]
     for name, entry in catalogue.items():
         if not isinstance(entry, (CataloguePool, GrowingCatalogue)):
             continue
@@ -179,7 +202,7 @@ def _checked_catalogue(processes, names, catalogue, references):
         if like_created:
             problems.append(f"catalogue ids look like the ids growing catalogue {name!r} creates "
                             f"({name}-<number>): {like_created}")
-        creators = [reference for reference in references if reference.catalogue == name and reference.creates]
+        creators = [reference for _, reference in references if reference.catalogue == name and reference.creates]
         if len(creators) != 1:
             problems.append(f"growing catalogue {name!r} needs exactly one reference that creates its objects "
                             f'("new" or new_share), got {len(creators)}')
@@ -188,31 +211,32 @@ def _checked_catalogue(processes, names, catalogue, references):
             problems.append(f"catalogue {name!r} is the object type of process {object_types[name]}")
     specs = {spec.name: spec for spec in processes}
     tasks_of = {}
-    for number, reference in enumerate(references):
-        if reference.catalogue not in catalogue:
-            problems.append(f"references[{number}] names unknown catalogue {reference.catalogue!r}")
-        if reference.process not in names:
-            problems.append(f"references[{number}] names unknown process {reference.process!r}")
-        elif reference.link_events and reference.process in specs:  # extra engines have no BPMN to check
+    for where, reference in references:
+        if reference.catalogue not in specs[reference.process].catalogues:
+            # what another process knows reaches this one only in messages
+            problems.append(f"{where} names catalogue {reference.catalogue!r} of process "
+                            f"{', '.join(owners[reference.catalogue])}; a reference names a catalogue of its own process"
+                            if reference.catalogue in owners else f"{where} names unknown catalogue {reference.catalogue!r}")
+            continue
+        if reference.link_events:
             if reference.process not in tasks_of:
                 graph = parse_simulation_model(specs[reference.process].bpmn_path)
                 tasks_of[reference.process] = {key for info in graph.element_info.values() if info.type == BPMN.TASK
                                                for key in (info.id, info.name)}
             unknown = [task for task in reference.link_events if task not in tasks_of[reference.process]]
             if unknown:
-                problems.append(f"references[{number}] link_events names {unknown}, which are no tasks of "
-                                f"process {reference.process}")
+                problems.append(f"{where} link_events names {unknown}, which are no tasks of process {reference.process}")
         if reference.pick is not None:
-            problems.extend(f"references[{number}] {problem}"
-                            for problem in _pick_problems(reference, catalogue.get(reference.catalogue), specs))
-    picked = [(reference.process, reference.object_attribute) for reference in references if reference.pick is not None]
+            problems.extend(f"{where} {problem}"
+                            for problem in _pick_problems(reference, catalogue[reference.catalogue], specs))
+    picked = [(reference.process, reference.object_attribute) for _, reference in references if reference.pick is not None]
     for process, attribute in sorted({pair for pair in picked if picked.count(pair) > 1}):
         problems.append(f"more than one reference picks {attribute} of process {process}")
-    brought = [(reference.process, name) for reference in references for name in reference.with_attributes]
-    for number, reference in enumerate(references):
-        if reference.with_attributes:
-            problems.extend(f"references[{number}] {problem}" for problem in _with_problems(
-                reference, catalogue.get(reference.catalogue), specs, set(picked), brought))
+    brought = [(reference.process, name) for _, reference in references for name in reference.with_attributes]
+    for where, reference in references:
+        if reference.with_attributes and reference.catalogue in specs[reference.process].catalogues:
+            problems.extend(f"{where} {problem}" for problem in _with_problems(
+                reference, catalogue[reference.catalogue], specs, set(picked), brought))
     if problems:
         raise ValueError("Invalid catalogue: " + "; ".join(problems))
 
@@ -239,8 +263,6 @@ def _pick_problems(reference, entry, specs):
         if not all(isinstance(weight, (int, float)) and not isinstance(weight, bool) and weight >= 0
                    for weight in weights) or sum(weights) <= 0:
             return [f"weights must be numbers of at least 0, not all 0, got {dict(reference.pick)}"]
-    if reference.process not in specs:
-        return [f"picks for {reference.process}, an engine not built from a ProcessSpec, which can't take a pick"]
     return _settings_problems("picks", reference.object_attribute, reference.process, specs)
 
 
@@ -282,8 +304,6 @@ def _with_problems(reference, entry, specs, picked, brought):
             missing = [name for name in names if not all(name in dict(obj.attributes) for obj in entry)]
         if missing:
             return [f"with names {missing}, which not every object of catalogue {reference.catalogue!r} has"]
-    if reference.process not in specs:
-        return []  # rejected with the pick
     problems = []
     for name in names:
         if name == "object_id":
@@ -330,10 +350,10 @@ class SimulationConfig:
     processes in it; without consumer_groups, every process is its own group. Every process must
     be in exactly one group, and groups may only name known processes. extra_processes names the
     processes that run_orchestrator receives as ready-made engines instead of building them from a
-    ProcessSpec (e.g. scripted test engines), so that groups can name them too. catalogue maps a name
-    (the OCEL object type) to the objects with no events of their own, and references say which case
-    attributes hold their ids, and may pick them (see _checked_catalogue for what is rejected). A catalogue is
-    a list of CatalogueObject, a CataloguePool or a GrowingCatalogue.
+    ProcessSpec (e.g. scripted test engines), so that groups can name them too. Each process's catalogues map a
+    name (the OCEL object type) to the objects with no events of their own, a list of CatalogueObject, a
+    CataloguePool or a GrowingCatalogue, and its references say which of its attributes hold their ids, and may
+    pick them (see _checked_catalogue for what is rejected).
     """
 
     processes: List[ProcessSpec]
@@ -341,12 +361,22 @@ class SimulationConfig:
     seed: Optional[int] = None
     consumer_groups: Optional[Dict[str, List[str]]] = None
     extra_processes: Tuple[str, ...] = ()
-    catalogue: Dict[str, Union[List[CatalogueObject], CataloguePool, GrowingCatalogue]] = field(default_factory=dict)
-    references: Tuple[Reference, ...] = ()
+
+    @property
+    def catalogue(self) -> Dict[str, Union[List[CatalogueObject], CataloguePool, GrowingCatalogue]]:
+        """Every process's catalogues, name -> objects; the names are unique across the processes. Only for the
+        OCEL output at the end of the run, which writes and links the objects of all of them: building a process
+        uses its own entry (ProcessSpec.catalogues)."""
+        return {name: entry for spec in self.processes for name, entry in spec.catalogues.items()}
+
+    @property
+    def references(self) -> Tuple[Reference, ...]:
+        """Every process's references, in the order of the processes. Only for the OCEL output at the end of the
+        run, which joins the links of all of them: building a process uses its own entry (ProcessSpec.references)."""
+        return tuple(reference for spec in self.processes for reference in spec.references)
 
     def __post_init__(self):
         object.__setattr__(self, "extra_processes", tuple(self.extra_processes))
-        object.__setattr__(self, "references", tuple(self.references))
         names = [spec.name for spec in self.processes] + list(self.extra_processes)
         duplicates = sorted({name for name in names if names.count(name) > 1})
         if duplicates:
@@ -358,7 +388,7 @@ class SimulationConfig:
             raise ValueError(f"Object types must be unique, repeated: {shared}")
 
         object.__setattr__(self, "consumer_groups", _checked_consumer_groups(names, self.consumer_groups))
-        _checked_catalogue(self.processes, names, self.catalogue, self.references)
+        _checked_catalogue(self.processes)
 
     @classmethod
     def from_json(cls, path) -> "SimulationConfig":
@@ -375,11 +405,11 @@ class SimulationConfig:
         optional qualifier (by default the object type) and qualifier_by_activity ({task id: qualifier})
         qualify each event's link to its own case's object, and carry_links (false by default) makes every
         later event of a case also link the objects the case is linked to through its messages.
-        The optional catalogue ({name: [{"id": ..., "attributes": {...}}]}, {name: {"count": ...,
+        A process's optional catalogues ({name: [{"id": ..., "attributes": {...}}]}, {name: {"count": ...,
         "attributes": [as in object_attributes]}} for a generated pool, or {name: {"attributes": [...]}} for a
-        growing one) declares objects with no events of their own, and references ([{"process", "object_attribute", "catalogue", "o2o", "reverse", "link_events",
-        "pick", "with"}], the last five optional) say which case attributes hold their ids, and may pick them
-        and bring their attributes into the case.
+        growing one) declare objects with no events of their own, and its references ([{"object_attribute",
+        "catalogue", "o2o", "reverse", "link_events", "pick", "with"}], the last five optional) say which of its
+        attributes hold the ids of its catalogues' objects, and may pick them and bring their attributes in.
         """
         path = Path(path)
         with open(path) as f:
@@ -397,54 +427,57 @@ class SimulationConfig:
             missing = [key for key in ("name", "bpmn_path", "json_path") if key not in entry]
             if missing:
                 raise ValueError(f"{path}: process {entry.get('name', '?')} is missing {missing}")
+            where = f"processes[{number}]"
+            catalogues = {name: _catalogue(path, f"{where}.catalogues.{name}", entries)
+                          for name, entries in entry.get("catalogues", {}).items()}
+            references = [_reference(path, f"{where}.references[{index}]", reference)
+                          for index, reference in enumerate(entry.get("references", []))]
             processes.append(ProcessSpec(
                 entry["name"], str(folder / entry["bpmn_path"]), str(folder / entry["json_path"]), entry.get("arrivals"),
                 entry.get("object_type", ""), entry.get("qualifier"),
-                tuple(sorted(entry.get("qualifier_by_activity", {}).items())), entry.get("carry_links", False)
+                tuple(sorted(entry.get("qualifier_by_activity", {}).items())), entry.get("carry_links", False),
+                catalogues, tuple(references)
             ))
 
         start = parse_datetime(data["start_time"], True)
         if start.tzinfo is None:
             start = pytz.utc.localize(start)
 
-        catalogue = {name: _catalogue(path, name, entries) for name, entries in data.get("catalogue", {}).items()}
-        references = [_reference(path, number, entry) for number, entry in enumerate(data.get("references", []))]
-
-        return cls(processes, start, data.get("seed"), data.get("consumer_groups"), (), catalogue, references)
+        return cls(processes, start, data.get("seed"), data.get("consumer_groups"))
 
 
-def _catalogue(path, name, entries):
+def _catalogue(path, where, entries):
     if isinstance(entries, dict):  # a pool, or growing without count
-        _check_keys(path, f"catalogue.{name}", entries, {"count", "attributes"})
+        _check_keys(path, where, entries, {"count", "attributes"})
     if isinstance(entries, dict) and "count" not in entries:
         return GrowingCatalogue(tuple(entries.get("attributes", [])))
     if isinstance(entries, dict):
         return CataloguePool(entries.get("count"), tuple(entries.get("attributes", [])))
-    return [_catalogue_object(path, name, number, entry) for number, entry in enumerate(entries)]
+    return [_catalogue_object(path, f"{where}[{number}]", entry) for number, entry in enumerate(entries)]
 
 
-def _catalogue_object(path, name, number, entry):
-    _check_keys(path, f"catalogue.{name}[{number}]", entry, {"id", "attributes"})
+def _catalogue_object(path, where, entry):
+    _check_keys(path, where, entry, {"id", "attributes"})
     if not isinstance(entry.get("id"), str) or not entry["id"]:
-        raise ValueError(f"{path}: catalogue.{name}[{number}]: 'id' must be a non-empty string")
+        raise ValueError(f"{path}: {where}: 'id' must be a non-empty string")
     return CatalogueObject(entry["id"], tuple(entry.get("attributes", {}).items()))
 
 
-def _reference(path, number, entry):
-    _check_keys(path, f"references[{number}]", entry, REFERENCE_KEYS)
-    missing = [key for key in ("process", "object_attribute", "catalogue") if key not in entry]
+def _reference(path, where, entry):
+    _check_keys(path, where, entry, REFERENCE_KEYS)
+    missing = [key for key in ("object_attribute", "catalogue") if key not in entry]
     if missing:
-        raise ValueError(f"{path}: references[{number}] is missing {missing}")
+        raise ValueError(f"{path}: {where} is missing {missing}")
     link_events, pick = entry.get("link_events"), entry.get("pick")
     if isinstance(pick, dict):
-        _check_keys(path, f"references[{number}].pick", pick, {"weights", "new_share"})
+        _check_keys(path, f"{where}.pick", pick, {"weights", "new_share"})
     # anything else but "uniform" and "new" is rejected when the configuration is checked
     if isinstance(pick, dict) and list(pick) == ["weights"] and isinstance(pick["weights"], dict):
         pick = tuple(pick["weights"].items())
     elif isinstance(pick, dict) and list(pick) == ["new_share"]:
         pick = NewShare(pick["new_share"])
     with_attributes = entry.get("with", ())
-    return Reference(entry["process"], entry["object_attribute"], entry["catalogue"], entry.get("o2o"),
+    return Reference(entry["object_attribute"], entry["catalogue"], entry.get("o2o"),
                      entry.get("reverse", False), None if link_events is None else tuple(link_events), pick,
                      tuple(with_attributes) if isinstance(with_attributes, list) else with_attributes)
 
@@ -860,42 +893,41 @@ class _NewPick:
         return f"{self.catalogue}-{self._generator.randint(1, self.created)}"
 
 
-def _picks(config: "SimulationConfig", catalogue: Dict[str, List[CatalogueObject]]) -> Dict[str, List[_Pick]]:
-    """Process name -> the attributes its references pick."""
-    picks = defaultdict(list)
-    for reference in config.references:
+def _picks(spec: ProcessSpec, seed: Optional[int], catalogues: Dict[str, List[CatalogueObject]]) -> List[_Pick]:
+    """The attributes a process's references pick, from its own catalogues as the run starts (see
+    _drawn_catalogues)."""
+    picks = []
+    for reference in spec.references:
         if reference.creates:
             share = reference.pick.share if isinstance(reference.pick, NewShare) else 1
-            picks[reference.process].append(_NewPick(reference.object_attribute, reference.catalogue, share, config.seed,
-                                                     reference.process))
+            picks.append(_NewPick(reference.object_attribute, reference.catalogue, share, seed, spec.name))
         elif reference.pick is not None:
-            ids = [obj.id for obj in catalogue[reference.catalogue]]
+            ids = [obj.id for obj in catalogues[reference.catalogue]]
             weights = None if reference.pick == "uniform" else [dict(reference.pick).get(object_id, 0) for object_id in ids]
-            pick = _Pick(reference.object_attribute, ids, weights, config.seed, reference.process)
-            picks[reference.process].append(pick)
-            picks[reference.process].extend(
-                _Brought(name, pick, {obj.id: dict(obj.attributes)[name] for obj in catalogue[reference.catalogue]})
-                for name in reference.with_attributes)
+            pick = _Pick(reference.object_attribute, ids, weights, seed, spec.name)
+            picks.append(pick)
+            picks.extend(_Brought(name, pick, {obj.id: dict(obj.attributes)[name] for obj in catalogues[reference.catalogue]})
+                         for name in reference.with_attributes)
     return picks
 
 
-def _drawn_catalogue(config: "SimulationConfig") -> Dict[str, List[CatalogueObject]]:
-    """Catalogue name -> its objects when the run starts: a listed catalogue's as given, a pool's with their
-    attributes drawn (see _drawn_objects), none yet for a growing catalogue."""
-    return {name: list(entry) if isinstance(entry, list) else _drawn_objects(config.seed, name, entry.attributes,
+def _drawn_catalogues(spec: ProcessSpec, seed: Optional[int]) -> Dict[str, List[CatalogueObject]]:
+    """A process's catalogues, name -> their objects when the run starts: a listed catalogue's as given, a pool's
+    with their attributes drawn (see _drawn_objects), none yet for a growing catalogue."""
+    return {name: list(entry) if isinstance(entry, list) else _drawn_objects(seed, name, entry.attributes,
                                                                             _catalogue_ids(name, entry))
-            for name, entry in config.catalogue.items()}
+            for name, entry in spec.catalogues.items()}
 
 
-def _grown_catalogue(config: "SimulationConfig", catalogue: Dict[str, List[CatalogueObject]],
-                     picks: Dict[str, List[_Pick]]) -> Dict[str, List[CatalogueObject]]:
-    """The catalogue after the run: each growing catalogue with the objects its pick created, <name>-1 to
+def _grown_catalogues(spec: ProcessSpec, seed: Optional[int], catalogues: Dict[str, List[CatalogueObject]],
+                      picks: List[_Pick]) -> Dict[str, List[CatalogueObject]]:
+    """A process's catalogues after the run: each growing catalogue with the objects its pick created, <name>-1 to
     <name>-<created>, their attributes drawn in creation order (see _drawn_objects). Drawing them now rather
     than when each was created gives the same values, since nothing else draws from their generators."""
-    grown = dict(catalogue)
-    for pick in itertools.chain.from_iterable(picks.values()):
+    grown = dict(catalogues)
+    for pick in picks:
         if isinstance(pick, _NewPick):
-            grown[pick.catalogue] = _drawn_objects(config.seed, pick.catalogue, config.catalogue[pick.catalogue].attributes,
+            grown[pick.catalogue] = _drawn_objects(seed, pick.catalogue, spec.catalogues[pick.catalogue].attributes,
                                                    [f"{pick.catalogue}-{number}" for number in range(1, pick.created + 1)])
     return grown
 
@@ -1228,17 +1260,21 @@ def run_orchestrator(config: SimulationConfig, log_out_path: Optional[str] = Non
     # every engine has its own random generators, seeded from the seed and its process name; without a
     # seed they are seeded from the global generators, so build them in name order rather than input
     # order to keep the result independent of how the list was written
-    catalogue = _drawn_catalogue(config)
-    picks = _picks(config, catalogue)
+    # each process's picks come from its own entry only: its references and its catalogues. All catalogues are
+    # drawn before any pick, and the picks before any engine, as without a seed each draws from the global generators
+    drawn = {spec.name: _drawn_catalogues(spec, config.seed) for spec in config.processes}
+    picks = {spec.name: _picks(spec, config.seed, drawn[spec.name]) for spec in config.processes}
     engines: Dict[str, SimulationEngine] = {}
     for spec in sorted(config.processes, key=lambda p: p.name):
         log_writer = merged_log.writer_for(spec.name) if merged_log is not None else None
         engines[spec.name] = ProsimosEngine(spec, config.start_datetime, log_writer, config.seed,
-                                            tuple(picks.get(spec.name, ())))
+                                            tuple(picks[spec.name]))
     engines.update(extra_engines)
 
     report = run_engines(engines, config.consumer_groups, config.seed)
-    catalogue = _grown_catalogue(config, catalogue, picks)
+    # the OCEL output needs every process's catalogue objects, the growing ones as the run left them
+    catalogue = {name: objects for spec in config.processes
+                 for name, objects in _grown_catalogues(spec, config.seed, drawn[spec.name], picks[spec.name]).items()}
 
     if log_out_path is not None:
         merged_log.write(log_out_path)
@@ -1303,7 +1339,7 @@ def _object_links(records: List[MessageRecord], processes: Dict[str, OcelProcess
 def _reference_links(config: SimulationConfig, catalogue: Dict[str, List[CatalogueObject]],
                      processes: Dict[str, OcelProcess], objects, rows, logged_elements, warn):
     """
-    The catalogue's objects (catalogue: as _grown_catalogue gives them), as (catalogue name, id, [(attribute,
+    The catalogue's objects (catalogue: every process's, as _grown_catalogues gives them), as (catalogue name, id, [(attribute,
     value, time)]): every object of a listed catalogue, and the objects of a pool or a growing catalogue that some
     case's referenced attribute names; their attributes are timed at the start of the run, a growing catalogue's
     when the first case took its id; and the links its references give, joined with the case objects and log rows

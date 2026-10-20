@@ -14,7 +14,7 @@ import pytest
 import pytz
 
 from prosimos.orchestrator import (CatalogueObject, CataloguePool, ProcessSpec, Reference, SimulationConfig, _Pick,
-                                   _drawn_catalogue, run_orchestrator)
+                                   _drawn_catalogues, run_orchestrator)
 from testing_scripts.test_catalogue import _config_with
 from testing_scripts.test_order_management import CONFIG, _config
 
@@ -32,9 +32,10 @@ THREE = [CatalogueObject("c1"), CatalogueObject("c2"), CatalogueObject("c3")]
 
 def _loans(cases, catalogue, pick, seed=1, with_attributes=()):
     """A config of one process, Loans, whose cases pick a customer."""
-    return SimulationConfig([ProcessSpec("Loans", *LOANS, cases, "loan")], START, seed, catalogue={"customer": catalogue},
-                            references=[Reference("Loans", "customer", "customer", o2o="applies for", reverse=True,
-                                                  link_events=(), pick=pick, with_attributes=with_attributes)])
+    return SimulationConfig([ProcessSpec("Loans", *LOANS, cases, "loan", catalogues={"customer": catalogue},
+                                         references=(Reference("customer", "customer", o2o="applies for", reverse=True,
+                                                               link_events=(), pick=pick,
+                                                               with_attributes=with_attributes),))], START, seed)
 
 
 def _run(config, tmp_path, name="log"):
@@ -54,8 +55,8 @@ def _customers_of_cases(report, process):
 def test_order_management_picks_its_customer_and_sales_json_no_longer_draws_it(tmp_path):
     with open(ASSETS / "order_management" / "sales.json") as file:
         assert "customer" not in {attribute["name"] for attribute in json.load(file)["object_attributes"]}
-    config = SimulationConfig.from_json(CONFIG)
-    assert [reference.pick for reference in config.references if reference.process == "Sales"] == ["uniform"]
+    [sales] = [spec for spec in SimulationConfig.from_json(CONFIG).processes if spec.name == "Sales"]
+    assert [reference.pick for reference in sales.references] == ["uniform"]
 
     report, log, _ = _run(_config(100), tmp_path)
 
@@ -135,10 +136,13 @@ def test_the_same_seed_gives_the_same_pool_and_the_same_picks(tmp_path):
 
 
 def test_the_pool_is_drawn_from_the_seed():
-    pool = _drawn_catalogue(_loans(1, POOL, "uniform"))["customer"]
+    def drawn(seed=1):
+        return _drawn_catalogues(_loans(1, POOL, "uniform").processes[0], seed)["customer"]
 
-    assert pool == _drawn_catalogue(_loans(1, POOL, "uniform"))["customer"]
-    assert pool != _drawn_catalogue(_loans(1, POOL, "uniform", seed=2))["customer"]
+    pool = drawn()
+
+    assert pool == drawn()
+    assert pool != drawn(seed=2)
     assert [obj.id for obj in pool] == [f"customer-{number}" for number in range(1, 1501)]
 
 
@@ -151,12 +155,11 @@ def test_picking_doesnt_change_the_processs_other_draws(tmp_path):
     settings["object_attributes"] = [{"name": "size", "type": "discrete",
                                     "values": [{"key": "small", "value": 0.5}, {"key": "large", "value": 0.5}]}]
     (tmp_path / "loans.json").write_text(json.dumps(settings))
-    spec = ProcessSpec("Loans", LOANS[0], str(tmp_path / "loans.json"), 200, "loan")
-    picking = SimulationConfig([spec], START, 1, catalogue={"customer": THREE},
-                               references=[Reference("Loans", "customer", "customer", pick="uniform")])
+    spec = ProcessSpec("Loans", LOANS[0], str(tmp_path / "loans.json"), 200, "loan", catalogues={"customer": THREE},
+                       references=(Reference("customer", "customer", pick="uniform"),))
 
-    _, with_pick, _ = _run(picking, tmp_path, "with")
-    _, without, _ = _run(dataclasses.replace(picking, references=()), tmp_path, "without")
+    _, with_pick, _ = _run(SimulationConfig([spec], START, 1), tmp_path, "with")
+    _, without, _ = _run(SimulationConfig([dataclasses.replace(spec, references=())], START, 1), tmp_path, "without")
 
     assert set(with_pick["customer"]) == {"c1", "c2", "c3"} and "customer" not in without
     assert set(without["size"]) == {"small", "large"}
@@ -212,35 +215,40 @@ def test_bringing_attributes_doesnt_change_what_is_picked_or_the_rest_of_the_log
 
 # load errors
 
-PICKING = {"process": "Sales", "object_attribute": "customer", "catalogue": "customer"}
+PICKING = {"object_attribute": "customer", "catalogue": "customer"}
+OM = json.loads(Path(CONFIG).read_text())
+CUSTOMERS, PRODUCTS_LIST = (next(entry["catalogues"][name] for entry in OM["processes"] if name in entry.get("catalogues", {}))
+                            for name in ("customer", "product"))
 
 
 def test_weights_naming_unknown_ids_are_rejected(tmp_path):
-    path = _config_with(tmp_path, references=[{**PICKING, "pick": {"weights": {"c1": 3, "c99": 1}}}])
+    path = _config_with(tmp_path, references={"Sales": [{**PICKING, "pick": {"weights": {"c1": 3, "c99": 1}}}]})
 
-    with pytest.raises(ValueError, match=r"references\[0\] weights name \['c99'\], which are no ids of catalogue 'customer'"):
+    with pytest.raises(ValueError, match=r"processes\[0\].references\[0\] weights name \['c99'\], which are no ids of "
+                                         r"catalogue 'customer'"):
         SimulationConfig.from_json(path)
 
 
 def test_weights_on_a_pool_are_rejected(tmp_path):
-    path = _config_with(tmp_path, catalogue={"customer": {"count": 10}},
-                        references=[{**PICKING, "pick": {"weights": {"customer-1": 1}}}])
+    path = _config_with(tmp_path, catalogues={"Sales": {"customer": {"count": 10}}},
+                        references={"Sales": [{**PICKING, "pick": {"weights": {"customer-1": 1}}}]})
 
-    with pytest.raises(ValueError, match=r"references\[0\] has weights on pool 'customer'"):
+    with pytest.raises(ValueError, match=r"processes\[0\].references\[0\] has weights on pool 'customer'"):
         SimulationConfig.from_json(path)
 
 
 @pytest.mark.parametrize("count", [0, -5, "10", 2.5, None])
 def test_a_pool_count_below_1_or_not_a_whole_number_is_rejected(tmp_path, count):
-    path = _config_with(tmp_path, catalogue={"customer": {"count": count}}, references=[{**PICKING, "pick": "uniform"}])
+    path = _config_with(tmp_path, catalogues={"Sales": {"customer": {"count": count}}},
+                        references={"Sales": [{**PICKING, "pick": "uniform"}]})
 
     with pytest.raises(ValueError, match=r"catalogue 'customer': count must be a whole number of at least 1"):
         SimulationConfig.from_json(path)
 
 
 def test_pool_attributes_prosimos_cant_parse_are_rejected(tmp_path):
-    path = _config_with(tmp_path, catalogue={"customer": {"count": 10, "attributes": [
-        {"name": "segment", "type": "discrete", "values": [{"key": "retail", "value": 0.5}]}]}}, references=[])
+    path = _config_with(tmp_path, catalogues={"Sales": {"customer": {"count": 10, "attributes": [
+        {"name": "segment", "type": "discrete", "values": [{"key": "retail", "value": 0.5}]}]}}}, references={})
 
     with pytest.raises(ValueError, match=r"catalogue 'customer': attributes\[0\]: .*probabilities' sum should be equal to 1"):
         SimulationConfig.from_json(path)
@@ -251,102 +259,100 @@ def test_picking_an_attribute_also_in_object_attributes_is_rejected(tmp_path):
         sales = json.load(file)
     sales["object_attributes"].append({"name": "customer", "type": "discrete", "values": [{"key": "c1", "value": 1}]})
     (tmp_path / "sales.json").write_text(json.dumps(sales))
-    path = _config_with(tmp_path, references=[{**PICKING, "pick": "uniform"}])
+    path = _config_with(tmp_path, references={"Sales": [{**PICKING, "pick": "uniform"}]})
     data = json.loads(path.read_text())
     next(process for process in data["processes"] if process["name"] == "Sales")["json_path"] = str(tmp_path / "sales.json")
     path.write_text(json.dumps(data))
 
-    with pytest.raises(ValueError, match=r"references\[0\] picks customer, which process Sales also draws in its object_attributes"):
+    with pytest.raises(ValueError, match=r"processes\[0\].references\[0\] picks customer, which process Sales also draws "
+                                         r"in its object_attributes"):
         SimulationConfig.from_json(path)
 
 
 def test_picking_an_attribute_the_process_copies_from_a_message_is_rejected(tmp_path):
-    # the Warehouse copies customer from ItemOrdered; a pick would be replaced by the copied value
-    path = _config_with(tmp_path, references=[{**PICKING, "process": "Warehouse", "pick": "uniform"}])
+    # the Warehouse copies customer from ItemOrdered; a pick from a customer catalogue of its own would be replaced
+    # by the copied value
+    path = _config_with(tmp_path, catalogues={"Warehouse": {"customer": CUSTOMERS}},
+                        references={"Warehouse": [{**PICKING, "pick": "uniform"}]})
 
-    with pytest.raises(ValueError, match=r"references\[0\] picks customer, which process Warehouse also copies from a "
-                                         r"message \(consume entries at \['Start_Item'\]\)"):
+    with pytest.raises(ValueError, match=r"processes\[2\].references\[0\] picks customer, which process Warehouse also "
+                                         r"copies from a message \(consume entries at \['Start_Item'\]\)"):
         SimulationConfig.from_json(path)
 
 
 def test_an_unknown_pick_is_rejected(tmp_path):
-    path = _config_with(tmp_path, references=[{**PICKING, "pick": "random"}])
+    path = _config_with(tmp_path, references={"Sales": [{**PICKING, "pick": "random"}]})
 
-    with pytest.raises(ValueError, match=r'references\[0\] pick must be "uniform", \{"weights"'):
+    with pytest.raises(ValueError, match=r'processes\[0\].references\[0\] pick must be "uniform", \{"weights"'):
         SimulationConfig.from_json(path)
 
 
 def test_weights_that_are_negative_or_all_zero_are_rejected(tmp_path):
-    path = _config_with(tmp_path, references=[{**PICKING, "pick": {"weights": {"c1": 0, "c2": 0}}}])
+    path = _config_with(tmp_path, references={"Sales": [{**PICKING, "pick": {"weights": {"c1": 0, "c2": 0}}}]})
 
-    with pytest.raises(ValueError, match=r"references\[0\] weights must be numbers of at least 0, not all 0"):
+    with pytest.raises(ValueError, match=r"processes\[0\].references\[0\] weights must be numbers of at least 0, not all 0"):
         SimulationConfig.from_json(path)
 
 
 def test_two_references_picking_the_same_attribute_are_rejected(tmp_path):
-    path = _config_with(tmp_path, references=[{**PICKING, "pick": "uniform"}, {**PICKING, "pick": "uniform"}])
+    path = _config_with(tmp_path, references={"Sales": [{**PICKING, "pick": "uniform"}, {**PICKING, "pick": "uniform"}]})
 
     with pytest.raises(ValueError, match=r"more than one reference picks customer of process Sales"):
         SimulationConfig.from_json(path)
 
 
-def test_a_pick_on_an_extra_engine_is_rejected():
-    with pytest.raises(ValueError, match=r"references\[0\] picks for Scripted, an engine not built from a ProcessSpec"):
-        SimulationConfig([], START, extra_processes=("Scripted",), catalogue={"customer": THREE},
-                         references=[Reference("Scripted", "customer", "customer", pick="uniform")])
+PRODUCTS = {"object_attribute": "product", "catalogue": "product", "pick": "uniform"}
+WAREHOUSE = r"processes\[2\].references"
 
 
-PRODUCTS = {"process": "Warehouse", "object_attribute": "product", "catalogue": "product", "pick": "uniform"}
-
-
-def _products_with(tmp_path, names, *other_references, attributes=None, **changes):
-    """The Order Management configuration whose only references are the Warehouse's product pick with these with
-    names and the other references; products have weight and price, and attributes if given."""
-    data = json.loads(Path(CONFIG).read_text())
-    products = data["catalogue"]["product"]
+def _products_with(tmp_path, names, *other_references, attributes=None, process="Warehouse"):
+    """The Order Management configuration whose only catalogue is the products, with weight and price and
+    attributes if given, and whose only references are a product pick with these with names and the other
+    references, all in process."""
+    products = json.loads(json.dumps(PRODUCTS_LIST))
     if attributes is not None:
         for product in products:
             product["attributes"].update(attributes)
-    return _config_with(tmp_path, catalogue={**data["catalogue"], "product": products},
-                        references=[{**PRODUCTS, "with": names}, *other_references], **changes)
+    return _config_with(tmp_path, catalogues={process: {"product": products}},
+                        references={process: [{**PRODUCTS, "with": names}, *other_references]})
 
 
 def test_with_without_a_pick_is_rejected(tmp_path):
-    path = _config_with(tmp_path, references=[{"process": "Warehouse", "object_attribute": "product",
-                                               "catalogue": "product", "with": ["weight"]}])
+    path = _config_with(tmp_path, references={"Warehouse": [{"object_attribute": "product", "catalogue": "product",
+                                                             "with": ["weight"]}]})
 
-    with pytest.raises(ValueError, match=r"references\[0\] has with but no pick; a catalogue object brings its "
+    with pytest.raises(ValueError, match=rf"{WAREHOUSE}\[0\] has with but no pick; a catalogue object brings its "
                                          r"attributes only when the reference picks it"):
         SimulationConfig.from_json(path)
 
 
 def test_with_on_a_growing_catalogue_is_rejected(tmp_path):
-    path = _config_with(tmp_path, catalogue={"product": {"attributes": [
-        {"name": "weight", "type": "discrete", "values": [{"key": 1, "value": 1}]}]}},
-                        references=[{**PRODUCTS, "pick": "new", "with": ["weight"]}])
+    path = _config_with(tmp_path, catalogues={"Warehouse": {"product": {"attributes": [
+        {"name": "weight", "type": "discrete", "values": [{"key": 1, "value": 1}]}]}}},
+                        references={"Warehouse": [{**PRODUCTS, "pick": "new", "with": ["weight"]}]})
 
-    with pytest.raises(ValueError, match=r"references\[0\] has with on growing catalogue 'product', whose objects "
+    with pytest.raises(ValueError, match=rf"{WAREHOUSE}\[0\] has with on growing catalogue 'product', whose objects "
                                          r"don't exist yet when a case is created"):
         SimulationConfig.from_json(path)
 
 
 def test_with_naming_an_attribute_not_every_object_has_is_rejected(tmp_path):
-    data = json.loads(Path(CONFIG).read_text())
-    data["catalogue"]["product"][3]["attributes"]["volume"] = 2.5  # only one product has a volume
-    path = _config_with(tmp_path, catalogue=data["catalogue"], references=[{**PRODUCTS, "with": ["weight", "volume",
-                                                                                                    "colour"]}])
+    products = json.loads(json.dumps(PRODUCTS_LIST))
+    products[3]["attributes"]["volume"] = 2.5  # only one product has a volume
+    path = _config_with(tmp_path, catalogues={"Warehouse": {"product": products}},
+                        references={"Warehouse": [{**PRODUCTS, "with": ["weight", "volume", "colour"]}]})
 
-    with pytest.raises(ValueError, match=r"references\[0\] with names \['volume', 'colour'\], which not every object "
+    with pytest.raises(ValueError, match=rf"{WAREHOUSE}\[0\] with names \['volume', 'colour'\], which not every object "
                                          r"of catalogue 'product' has"):
         SimulationConfig.from_json(path)
 
 
 def test_with_naming_an_attribute_a_pool_doesnt_draw_is_rejected(tmp_path):
-    path = _config_with(tmp_path, catalogue={"product": {"count": 5, "attributes": [
-        {"name": "weight", "type": "discrete", "values": [{"key": 1, "value": 1}]}]}},
-                        references=[{**PRODUCTS, "with": ["weight", "price"]}])
+    path = _config_with(tmp_path, catalogues={"Warehouse": {"product": {"count": 5, "attributes": [
+        {"name": "weight", "type": "discrete", "values": [{"key": 1, "value": 1}]}]}}},
+                        references={"Warehouse": [{**PRODUCTS, "with": ["weight", "price"]}]})
 
-    with pytest.raises(ValueError, match=r"references\[0\] with names \['price'\], which not every object of "
+    with pytest.raises(ValueError, match=rf"{WAREHOUSE}\[0\] with names \['price'\], which not every object of "
                                          r"catalogue 'product' has"):
         SimulationConfig.from_json(path)
 
@@ -355,7 +361,7 @@ def test_with_naming_an_attribute_a_pool_doesnt_draw_is_rejected(tmp_path):
 def test_with_that_isnt_a_list_of_names_is_rejected(tmp_path, names):
     path = _products_with(tmp_path, names)
 
-    with pytest.raises(ValueError, match=r"references\[0\] with must be a list of attribute names"):
+    with pytest.raises(ValueError, match=rf"{WAREHOUSE}\[0\] with must be a list of attribute names"):
         SimulationConfig.from_json(path)
 
 
@@ -370,7 +376,7 @@ def test_bringing_an_attribute_the_process_draws_in_its_object_attributes_is_rej
         str(tmp_path / "warehouse.json")
     path.write_text(json.dumps(data))
 
-    with pytest.raises(ValueError, match=r"references\[0\] brings price, which process Warehouse also draws in its "
+    with pytest.raises(ValueError, match=rf"{WAREHOUSE}\[0\] brings price, which process Warehouse also draws in its "
                                          r"object_attributes"):
         SimulationConfig.from_json(path)
 
@@ -378,38 +384,34 @@ def test_bringing_an_attribute_the_process_draws_in_its_object_attributes_is_rej
 def test_bringing_an_attribute_the_process_picks_is_rejected(tmp_path):
     path = _products_with(tmp_path, ["weight", "product"], attributes={"product": "same"})
 
-    with pytest.raises(ValueError, match=r"references\[0\] brings product, which process Warehouse also picks"):
+    with pytest.raises(ValueError, match=rf"{WAREHOUSE}\[0\] brings product, which process Warehouse also picks"):
         SimulationConfig.from_json(path)
 
 
 def test_two_withs_bringing_the_same_attribute_to_a_process_are_rejected(tmp_path):
-    gift = {"process": "Warehouse", "object_attribute": "gift", "catalogue": "product", "pick": "uniform",
-            "with": ["weight"]}
+    gift = {"object_attribute": "gift", "catalogue": "product", "pick": "uniform", "with": ["weight"]}
     path = _products_with(tmp_path, ["weight"], gift)
 
-    with pytest.raises(ValueError, match=r"references\[0\] brings weight, which another with also brings to process "
-                                         r"Warehouse; references\[1\] brings weight, which another with"):
+    with pytest.raises(ValueError, match=rf"{WAREHOUSE}\[0\] brings weight, which another with also brings to process "
+                                         rf"Warehouse; {WAREHOUSE}\[1\] brings weight, which another with"):
         SimulationConfig.from_json(path)
 
 
-@pytest.mark.parametrize("process, name, verb, event", [
-    ("Warehouse", "customer", "copies", "Start_Item"),
-    ("Packaging", "item_ids", "appends to", "Catch_Items"),
-    ("Packaging", "weight", "aggregates into", "Catch_Items"),
+@pytest.mark.parametrize("process, index, name, verb, event", [
+    ("Warehouse", 2, "customer", "copies", "Start_Item"),
+    ("Packaging", 3, "item_ids", "appends to", "Catch_Items"),
+    ("Packaging", 3, "weight", "aggregates into", "Catch_Items"),
 ])
-def test_bringing_an_attribute_the_process_sets_from_a_message_is_rejected(tmp_path, process, name, verb, event):
-    path = _products_with(tmp_path, [name], attributes={name: "x"})
-    data = json.loads(path.read_text())
-    data["references"][0]["process"] = process
-    path.write_text(json.dumps(data))
+def test_bringing_an_attribute_the_process_sets_from_a_message_is_rejected(tmp_path, process, index, name, verb, event):
+    path = _products_with(tmp_path, [name], attributes={name: "x"}, process=process)
 
-    with pytest.raises(ValueError, match=rf"references\[0\] brings {name}, which process {process} also {verb} from a "
-                                         rf"message \(consume entries at \['{event}'\]\)"):
+    with pytest.raises(ValueError, match=rf"processes\[{index}\].references\[0\] brings {name}, which process {process} "
+                                         rf"also {verb} from a message \(consume entries at \['{event}'\]\)"):
         SimulationConfig.from_json(path)
 
 
 def test_bringing_object_id_is_rejected(tmp_path):
     path = _products_with(tmp_path, ["object_id"], attributes={"object_id": "x"})
 
-    with pytest.raises(ValueError, match=r"references\[0\] brings object_id, which is reserved for the object's own id"):
+    with pytest.raises(ValueError, match=rf"{WAREHOUSE}\[0\] brings object_id, which is reserved for the object's own id"):
         SimulationConfig.from_json(path)
