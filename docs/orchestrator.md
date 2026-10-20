@@ -65,12 +65,12 @@ Extra engines (see "Configuration") can only be passed from Python.
 `run_orchestrator` takes a `SimulationConfig`, built in code or loaded with
 `SimulationConfig.from_json(path)`:
 
-| Field             | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-|-------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `processes`       | one entry per process: a unique `name`, `bpmn_path`, `json_path`, and `arrivals`, how many cases arrive, <br/>unless the process is started by messages ([messaging.md](messaging.md)); optionally `object_type`, the type of the objects its cases are, one kind of thing, named in the singular (by default the process name; `null` leaves the process out of the OCEL output; no two processes share one), `qualifier`, `qualifier_by_activity` and `carry_links` for its OCEL links (see "Output"), and `catalogues` and `references`, its objects with no events of their own and which of its attributes hold their ids ([catalogue.md](catalogue.md)) |
-| `start_time`      | the simulation's start, shared by all processes; a time without a time zone is taken as UTC                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `seed`            | optional; the same seed gives the same run. Each Prosimos engine gets its own random generators, seeded from the seed and its process name, so adding or changing one process doesn't change the others' draws. Without a seed, every run draws different random values                                                                                                                                                                                                                                                                                                                                                                                       |
-| `consumer_groups` | optional; group name → processes in it. Without it, every process is its own group (see "Message routing")                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Field             | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+|-------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `processes`       | one entry per process: a unique `name`, `bpmn_path`, `json_path`, and `arrivals`, how many cases arrive, <br/>unless the process is started by messages ([messaging.md](messaging.md)); optionally `object_type`, the type of the objects its cases are, one kind of thing, named in the singular (without one, the process is left out of the OCEL output; no two processes share one), `qualifier`, `qualifier_by_activity` and `carry_links` for its OCEL links (see "Output"), and `catalogues` and `references`, its objects with no events of their own and which of its attributes hold their ids ([catalogue.md](catalogue.md)) |
+| `start_time`      | the simulation's start, shared by all processes; a time without a time zone is taken as UTC                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `seed`            | optional; the same seed gives the same run. Each Prosimos engine gets its own random generators, seeded from the seed and its process name, so adding or changing one process doesn't change the others' draws. Without a seed, every run draws different random values                                                                                                                                                                                                                                                                                                                                                                 |
+| `consumer_groups` | optional; group name → processes in it. Without it, every process is its own group (see "Message routing")                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 File paths are relative to the configuration file's folder. A configuration is rejected if process
 names or object types repeat, a process is in no group or in more than one, a group names a process that
@@ -107,8 +107,8 @@ written as an OCEL 2.0 JSON file, the format of the OCEL 2.0 sample logs, readab
 `pm4py.read_ocel2_json`:
 
 - **Objects:** one per case, typed by its process's `object_type`, with the id `<object type>-<number>`,
-  numbered from 0 per process (e.g. `order-7`, the eighth order; `Sales-7` for a process without an object type).
-  The same id names the object in messages (`object_id`, see [messaging.md](messaging.md)). Its attributes are
+  numbered from 0 per process (e.g. `order-7`, the eighth order). The same id names the object in messages
+  (`Sales-7` for a process without an object type, which writes no objects) (`object_id`, see [messaging.md](messaging.md)). Its attributes are
   its object attributes, the declared ones and those copied,
   appended or aggregated from messages: the values it had when it was created, at that time, and every value
   written into it later at a catch event, at the time of the claim (an appended list as JSON text). Its relationships are its links to other objects, from the
@@ -120,7 +120,7 @@ written as an OCEL 2.0 JSON file, the format of the OCEL 2.0 sample logs, readab
   on the other end of its messages (see below) and to the catalogue objects its references name. Event ids (`e1`, `e2`, ...) follow time order.
 - `objectTypes` and `eventTypes` list each type with its attributes; an attribute's type is inferred
   from its values.
-- A process with `"object_type": null` writes no objects and no events. Extra engines write neither.
+- A process without an `object_type` writes no objects and no events. Extra engines write neither.
 
 A case that has no task in the log yet, e.g. an order still collecting its items when the run ends, has no
 events of its own, but it can still be linked from other events through its messages: the still-collecting
@@ -139,7 +139,8 @@ Management configuration as a worked example, and every error and warning are in
 
 **One event linked to many objects.** Messages only pass at events, which aren't in the log, so a
 message's links go to the task next to its event in the same case, on the token's path, and link the
-object of the case on the other end of the message:
+object of the case on the other end of the message. Each end writes its links only if its entry has a
+`qualifier` (see below), so a message may link from both ends, one, or neither:
 
 - **Publishing** (throw or end event): the last task before it. In Order Management, place order →
   ItemOrdered ×3, so place order is linked to the 3 items the messages started.
@@ -152,8 +153,8 @@ The task is found by following the flows from the event through any other events
 the case ran that task more than once, by time: the last one completed at or before the publish, or
 the first one enabled at or after the claim. Without such a task, e.g. a catch event followed only by
 the end event, or a case still waiting further on when the run ends, the links are dropped, with one
-warning per element in `engine_warnings`. Links to a process with `"object_type": null` aren't
-written; such a process looks for no tasks and warns nothing.
+warning per element in `engine_warnings`. An end without a qualifier, or of a process without an object type,
+looks for no tasks and warns nothing; links to a process without an object type aren't written.
 
 **Gateways between the event and its tasks.** The links go to the tasks the case actually ran next to
 the event, so a gateway on the way links what it let through in that case:
@@ -186,11 +187,11 @@ Three settings shape the links:
 | `qualifier` (process)                  | qualifier of each event's link to its own case's object; by default the object type                                                                                                           |
 | `qualifier_by_activity` (process)      | task id → qualifier, overriding `qualifier` for that task's events, e.g. `{"Create_Package": "creates", "Send_Package": "shipped package"}`; a key that isn't a task of the model is rejected |
 | `carry_links` (process)                | `true`: every later event of a case also links the objects its earlier events linked through messages, e.g. send package and package delivered link the package's items. Off by default       |
-| `qualifier` (publish or consume entry) | qualifier of the links this end of the message makes, in the JSON file ([messaging.md](messaging.md)); by default the message type                                                            |
+| `qualifier` (publish or consume entry) | qualifier of the links this end of the message makes, in the JSON file ([messaging.md](messaging.md)); without one, this end makes no links                                                   |
 
 So with a `"qualifier": "item"` on the ItemOrdered publish entry, place order's links to the items are
-qualified `item`; with `"qualifier": "order"` on Warehouse's consume entry, the item's first task links
-its order as `order`.
+qualified `item`; the Warehouse's consume entry has none, so the item's first task doesn't link its order, as
+in the real log. The link of every event to its own case's object is always written.
 
 **Run report.** `run_orchestrator` (and `run_engines`) return a `RunReport`; `RunReport.to_dict()`
 gives it as plain lists and dicts with times as ISO strings, which is what `--report_out_path` saves:

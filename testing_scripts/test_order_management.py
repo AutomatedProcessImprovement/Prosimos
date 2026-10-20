@@ -154,9 +154,33 @@ def test_the_ocel_file_links_items_to_products_and_packages_by_the_real_log_s_qu
         for relation in event["relationships"]:
             if relation["objectId"].startswith("package-"):
                 qualifiers[event["type"]].add(relation["qualifier"])
-    assert dict(qualifiers) == {"pick item": {"package"}, "create package": {"creates"},
+    # pick item doesn't link the package: the Warehouse's ItemPicked entry has no qualifier, as in the real log
+    assert dict(qualifiers) == {"create package": {"creates"},
                                 "send package": {"shipped package"}, "failed delivery": {"shipped package"},
                                 "package delivered": {"shipped package"}}
+
+
+# the object types each event type of the real log links to, apart from its employees (resources here) and products
+REAL_LOG_LINKS = {
+    "place order": {"order", "item", "customer"}, "confirm order": {"order", "item", "customer"},
+    "payment reminder": {"order", "item"}, "pay order": {"order", "item"},
+    "item out of stock": {"item"}, "reorder item": {"item"}, "pick item": {"item"},
+    "create package": {"package", "item"}, "send package": {"package", "item"},
+    "failed delivery": {"package", "item"}, "package delivered": {"package", "item"},
+}
+
+
+def test_each_event_type_links_the_object_types_the_real_log_links(run):
+    _, _, ocel_path = run
+
+    with open(ocel_path) as file:
+        ocel = json.load(file)
+    object_type = {obj["id"]: obj["type"] for obj in ocel["objects"]}
+    linked = defaultdict(set)
+    for event in ocel["events"]:
+        linked[event["type"]].update(object_type[relation["objectId"]] for relation in event["relationships"])
+
+    assert {activity: types - {"product"} for activity, types in linked.items()} == REAL_LOG_LINKS
 
 
 def test_pm4py_reads_the_simulated_file(run):

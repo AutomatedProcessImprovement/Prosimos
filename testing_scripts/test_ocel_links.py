@@ -8,13 +8,15 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import pandas as pd
 import pytest
 import pytz
 
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.ocel_writer import OcelProcess, write_ocel
-from prosimos.orchestrator import (CaseElement, MessageRecord, ProcessSpec, ProsimosEngine, Verdict, _message_links,
-                                   run_engines, run_orchestrator)
+from prosimos.orchestrator import (CaseElement, MessageRecord, ProcessSpec, ProsimosEngine, SimulationConfig, Verdict,
+                                   _message_links, run_engines, run_orchestrator)
+from testing_scripts.orchestrator_settings import with_qualifiers
 from testing_scripts.scripted_engine import ScriptedEngine
 from testing_scripts.test_item_verdicts import PICKING, PICKING_JSON, SALES, SALES_JSON, _picking_in
 from testing_scripts.test_append import _run as _run_orders
@@ -126,36 +128,19 @@ def test_without_carry_links_an_event_links_only_what_its_own_messages_linked(or
                for event in events)
 
 
-def test_an_item_links_its_order_at_its_first_task_and_its_package_at_its_last(order_management):
+def test_an_items_events_link_neither_its_order_nor_its_package_as_in_the_real_log(order_management):
+    # the order links its items from place order and the package from create package; the Warehouse's ItemOrdered
+    # and ItemPicked entries have no qualifier, so the item's end of those messages writes no link
     _, ocel, _ = order_management
-    order_of_item = {item: order for (order, _), item in _items(ocel).items()}
-    first_task = {}
-    for event in ocel["events"]:
-        if event["type"] in ("item out of stock", "pick item"):
-            first_task.setdefault(_owner(event)[0], event)
+    item_events = [event for event in ocel["events"] if event["type"] in ("item out of stock", "reorder item", "pick item")]
 
-    for item, event in first_task.items():
-        assert _linked(event, "order") == {order_of_item[item]}
-    for event in _events(ocel, "pick item"):
-        assert len(_linked(event, "package")) == 1
-
-
-def test_a_won_race_links_its_next_task_and_a_won_timer_links_nothing(order_management):
-    # Sales races Payment against a 20-day reminder: a payment claimed at Catch_Payment attaches to the
-    # order's pay order; a reminder is never the task a claim attaches to
-    report, _, _ = order_management
-    elements = report.logged_elements["Sales"]
-
-    attached = [row for record in report.message_records for claimer in record.claimers
-                if claimer.element_id == "Catch_Payment" for row in claimer.task_rows]
-    assert attached
-    assert {elements[row] for row in attached} == {"Pay_Order"}
-    assert len(set(attached)) == len(attached)  # each payment its own order's
-    assert "Payment_Reminder" in elements
+    object_type = {obj["id"]: obj["type"] for obj in ocel["objects"]}
+    assert item_events
+    assert {object_type[link["objectId"]] for event in item_events for link in event["relationships"]} == {"item", "product"}
 
 
 def test_a_process_without_objects_attaches_nothing_and_warns_nothing(order_management):
-    # Customer (object_type null) has no tasks at all: attached, every claim and publish would warn
+    # Customer (no object type) has no tasks at all: attached, every claim and publish would warn
     report, _, _ = order_management
 
     customer = [element for record in report.message_records
@@ -167,7 +152,10 @@ def test_a_process_without_objects_attaches_nothing_and_warns_nothing(order_mana
 
 def test_a_case_still_waiting_at_the_end_drops_its_links_with_a_warning(tmp_path):
     # order 0 waits for 3 items and gets one: its link would go to Pack, the task after Catch_Items
-    report, _, _ = _run_orders(tmp_path, [{"item_id": "i17"}])
+    def appending_with_links(settings):
+        settings["messages"]["consume"][0].update(append={"item_ids": "item_id"}, qualifier="item")
+
+    report, _, _ = _run_orders(tmp_path, [{"item_id": "i17"}], appending_with_links)
 
     assert [case.object_id for _, case in report.stalled] == ["order-0"]
     assert report.engine_warnings == [
@@ -178,10 +166,47 @@ def _verdicts(picking_json=PICKING_JSON):
     """One order with 3 items: Sales publishes ItemOrdered per item after place order, each starts an item
     case in Picking (pick item), which publishes ItemReady; Sales collects them in a race against 2 days and
     then sends each item Shipped (or Canceled), which the item takes in its own race."""
-    sales = ProsimosEngine(ProcessSpec("Sales", SALES, SALES_JSON, 1), START, None, seed=1)
-    picking = ProsimosEngine(ProcessSpec("Picking", PICKING, picking_json, None), START, None, seed=1)
+    sales = ProsimosEngine(ProcessSpec("Sales", SALES, with_qualifiers(SALES_JSON), 1, "order"), START, None, seed=1)
+    picking = ProsimosEngine(ProcessSpec("Picking", PICKING, with_qualifiers(picking_json), None, "item"), START, None,
+                             seed=1)
     report = run_engines({"Sales": sales, "Picking": picking}, None, 1)
     return report, {"Sales": sales, "Picking": picking}
+
+
+def _ocel_of_verdicts(tmp_path, sales_json, picking_json, picking_type="item"):
+    """The OCEL file and the CSV log of the run of _verdicts, Sales's orders of type order, Picking's items of
+    picking_type."""
+    config = SimulationConfig([ProcessSpec("Sales", SALES, sales_json, 1, "order"),
+                               ProcessSpec("Picking", PICKING, picking_json, None, picking_type)], START, 1)
+    run_orchestrator(config, tmp_path / "log.csv", ocel_out_path=tmp_path / "log.json")
+    with open(tmp_path / "log.json") as file:
+        return json.load(file), pd.read_csv(tmp_path / "log.csv")
+
+
+def test_an_entry_writes_its_ends_links_only_with_a_qualifier(tmp_path):
+    # only Sales's ItemOrdered entry has one: place order links the 3 items, and their pick item doesn't link the order
+    with open(SALES_JSON) as file:
+        settings = json.load(file)
+    next(entry for entry in settings["messages"]["publish"] if entry["type"] == "ItemOrdered")["qualifier"] = "item"
+    (tmp_path / "sales.json").write_text(json.dumps(settings))
+
+    ocel, _ = _ocel_of_verdicts(tmp_path, str(tmp_path / "sales.json"), PICKING_JSON)
+
+    [place_order] = _events(ocel, "Place order")
+    assert sorted(_linked(place_order, "item")) == ["item-0", "item-1", "item-2"]
+    picks = _events(ocel, "Pick item")
+    assert len(picks) == 3 and all(len(event["relationships"]) == 1 for event in picks)  # only its own item
+    assert {link["qualifier"] for event in ocel["events"] for link in event["relationships"][1:]} == {"item"}
+
+
+def test_a_process_without_an_object_type_writes_nothing(tmp_path):
+    # both ends of every message would link, but Picking has no object type: no item objects, no events of Picking,
+    # and no link to its cases
+    ocel, log = _ocel_of_verdicts(tmp_path, with_qualifiers(SALES_JSON), with_qualifiers(PICKING_JSON), None)
+
+    assert {obj["type"] for obj in ocel["objects"]} == {"order"}
+    assert {link["objectId"] for event in ocel["events"] for link in event["relationships"]} == {"order-0"}
+    assert len(ocel["events"]) == (log["process"] == "Sales").sum() < len(log)
 
 
 def _attached(engines, element):
@@ -195,11 +220,11 @@ def test_a_publish_attaches_to_the_last_task_before_it_and_a_message_start_to_th
 
     for record in report.message_records:
         if record.type == "ItemOrdered":
-            assert _attached(engines, record.publisher) == [("Sales-0", "Place_Order")]
+            assert _attached(engines, record.publisher) == [("order-0", "Place_Order")]
             [claimer] = record.claimers
             assert _attached(engines, claimer) == [(claimer.object_id, "Pick_Item")]
         if record.type == "Shipped":  # the last task before it is place order, back across the race
-            assert _attached(engines, record.publisher) == [("Sales-0", "Place_Order")]
+            assert _attached(engines, record.publisher) == [("order-0", "Place_Order")]
 
 
 def test_an_element_with_no_task_next_to_it_drops_its_links_with_one_warning():
@@ -226,7 +251,8 @@ def test_the_winning_race_branch_attaches_to_its_own_next_task(tmp_path):
 
 def test_capacity_attaches_each_resumed_case_to_its_own_next_task():
     orders = ProsimosEngine(ProcessSpec("Orders", f"{ASSETS}/orders_and_trucks.bpmn",
-                                        f"{ASSETS}/orders_and_trucks.json", 3), START, None, seed=1)
+                                        with_qualifiers(f"{ASSETS}/orders_and_trucks.json"), 3, "order"), START, None,
+                            seed=1)
     carrier = ScriptedEngine("Carrier")
     carrier.publish_at(START.replace(minute=30), "Truck", dock="Tartu", object_id="Carrier-0")
 
@@ -234,7 +260,7 @@ def test_capacity_attaches_each_resumed_case_to_its_own_next_task():
 
     [record] = [record for record in report.message_records if record.type == "Truck"]
     assert [_attached({"Orders": orders}, claimer) for claimer in record.claimers] == [
-        [("Orders-0", "Load")], [("Orders-1", "Load")]]
+        [("order-0", "Load")], [("order-1", "Load")]]
 
 
 def _row(case, activity, end):
@@ -291,8 +317,8 @@ def _gateway_run(model, settings=None, seed=1, **messages):
     process publishes each given message type at its time (or times) after 09:00 and takes every Done.
     settings: the settings file without .json, in the model's folder unless it is a path."""
     settings = settings if isinstance(settings, Path) else f"{GATEWAYS}/{settings or model}"
-    engine = ProsimosEngine(ProcessSpec("P", f"{GATEWAYS}/{model}.bpmn", f"{settings}.json", 1), START, None,
-                            seed=seed)
+    engine = ProsimosEngine(ProcessSpec("P", f"{GATEWAYS}/{model}.bpmn", with_qualifiers(f"{settings}.json"), 1, "p"),
+                            START, None, seed=seed)
     other = ScriptedEngine("S")
     for message_type, after in messages.items():
         for each in after if isinstance(after, list) else [after]:

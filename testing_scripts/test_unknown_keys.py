@@ -40,9 +40,9 @@ def test_the_top_level(tmp_path):
 
 def test_a_process_entry(tmp_path):
     def misspelled(data):
-        data["processes"][1]["object_typ"] = data["processes"][1].pop("object_type")
+        data["processes"][2]["object_typ"] = data["processes"][2].pop("object_type")
 
-    _config_rejected(tmp_path, r"processes\[1\]: unknown key 'object_typ'; allowed: arrivals, bpmn_path, "
+    _config_rejected(tmp_path, r"processes\[2\]: unknown key 'object_typ'; allowed: arrivals, bpmn_path, "
                                r"carry_links, catalogues, json_path, name, object_type, qualifier, qualifier_by_activity, "
                                r"references$",
                      misspelled)

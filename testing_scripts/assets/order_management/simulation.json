@@ -36,8 +36,7 @@
     {
       "name": "Customer",
       "bpmn_path": "customer.bpmn",
-      "json_path": "customer.json",
-      "object_type": null
+      "json_path": "customer.json"
     },
     {
       "name": "Warehouse",

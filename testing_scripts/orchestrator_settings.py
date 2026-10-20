@@ -34,3 +34,15 @@ def prosimos_settings(json_path, name=None):
     path = _FOLDER / (name or f"prosimos_{Path(json_path).name}")
     path.write_text(json.dumps(settings))
     return str(path)
+
+
+def with_qualifiers(json_path, name=None):
+    """The path of a copy of a process's JSON settings whose message entries without a qualifier get their message
+    type as one, so that both ends of every message write their OCEL links."""
+    with open(json_path) as file:
+        settings = json.load(file)
+    for entry in settings.get("messages", {}).get("publish", []) + settings.get("messages", {}).get("consume", []):
+        entry.setdefault("qualifier", entry["type"])
+    path = _FOLDER / (name or f"qualified_{Path(json_path).name}")
+    path.write_text(json.dumps(settings))
+    return str(path)

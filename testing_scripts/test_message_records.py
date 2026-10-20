@@ -7,6 +7,7 @@ from datetime import datetime
 import pytz
 
 from prosimos.orchestrator import ProcessSpec, ProsimosEngine, SimulationConfig, Verdict, run_engines, run_orchestrator
+from testing_scripts.orchestrator_settings import with_qualifiers
 from testing_scripts.scripted_engine import ScriptedEngine
 
 ASSETS = "testing_scripts/assets/messaging"
@@ -124,12 +125,19 @@ def test_a_discarded_and_an_unclaimed_message_have_no_claimer():
 
 
 def test_the_records_are_in_the_report_as_json():
-    report, _ = _verdicts_run()
+    # both ends of each message write links: the processes have object types and every entry a qualifier
+    sales = ProsimosEngine(ProcessSpec("Sales", f"{ASSETS}/orders_with_verdicts.bpmn",
+                                       with_qualifiers(f"{ASSETS}/orders_with_verdicts.json"), 1, "order"), START, None,
+                           seed=1)
+    picking = ProsimosEngine(ProcessSpec("Picking", f"{ASSETS}/items_awaiting_verdict.bpmn",
+                                         with_qualifiers(f"{ASSETS}/items_awaiting_verdict.json"), None, "item"), START,
+                             None, seed=1)
+    report = run_engines({"Sales": sales, "Picking": picking}, None, 1)
 
     first = report.to_dict()["message_records"][0]
-    # the links attach to row 0 of each log: Sales-0's place order and Picking-0's pick item
+    # the links attach to row 0 of each log: order-0's place order and item-0's pick item
     assert first == {"message": report.published[0].id, "type": "ItemOrdered",
-                     "publisher": {"process": "Sales", "object_id": "Sales-0", "element_id": "Throw_Items",
+                     "publisher": {"process": "Sales", "object_id": "order-0", "element_id": "Throw_Items",
                                    "qualifier": "ItemOrdered", "task_rows": [0], "o2o": None},
-                     "claimers": [{"process": "Picking", "object_id": "Picking-0", "element_id": "Start_Item",
+                     "claimers": [{"process": "Picking", "object_id": "item-0", "element_id": "Start_Item",
                                    "qualifier": "ItemOrdered", "task_rows": [0], "o2o": None}]}

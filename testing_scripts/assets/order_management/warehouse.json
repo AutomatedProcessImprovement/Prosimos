@@ -121,8 +121,7 @@
           "customer",
           "object_id",
           "weight"
-        ],
-        "qualifier": "package"
+        ]
       }
     ],
     "consume": [
@@ -133,8 +132,7 @@
           "order_id": "object_id",
           "item_index": "index",
           "customer": "customer"
-        },
-        "qualifier": "order"
+        }
       }
     ]
   }

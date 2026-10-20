@@ -139,20 +139,21 @@ poetry run python testing_scripts/order_management_compare.py <path to order-man
 The configuration names the object types in the singular, one kind of thing each: `order` (Sales), `item`
 (Warehouse) and `package` (Packaging), and the catalogue adds `customer` and `product`; objects are named
 `<object type>-<number>`, e.g. `order-7`. The comparison script reads them under the real log's plural names
-(`order` as `orders`). Customer has `"object_type": null`, so the OCEL file has no objects or events for it. Each event
+(`order` as `orders`). Customer has no object type, so the OCEL file has no objects or events for it. Each event
 is linked to the objects on the other end of its messages ([orchestrator.md](orchestrator.md), "One event
-linked to many objects"), as the Order Management log links them:
+linked to many objects"), as the Order Management log links them. Like the log, only one end of the messages
+between the items and the others links: `ItemOrdered` from the order's place order, `ItemPicked` from the
+package's create package; the Warehouse's entries have no qualifier, so the item's events link neither its order
+nor its package:
 
-| Event                                            | Linked to                                                                                              |
-|--------------------------------------------------|--------------------------------------------------------------------------------------------------------|
-| place order                                      | its order (`order`), the items its ItemOrdered messages started (`item`) and its customer (`customer`) |
-| confirm order                                    | its order, its customer and, with `carry_links`, its items                                             |
-| payment reminder, pay order                      | its order and, with `carry_links`, its items                                                           |
-| item out of stock or pick item, first task       | its item (`item`) and its order (`order`), from the ItemOrdered that started it                        |
-| pick item                                        | its item and the package that took its ItemPicked (`package`)                                          |
-| every event of an item                           | its product (`product`), from the reference that picks it                                              |
-| create package                                   | its package (`creates`) and the items it collected (`item`)                                            |
-| send package, failed delivery, package delivered | its package (`shipped package`) and, with `carry_links`, its items                                     |
+| Event                                            | Linked to                                                                                                     |
+|--------------------------------------------------|---------------------------------------------------------------------------------------------------------------|
+| place order                                      | its order (`order`), the items its ItemOrdered messages started (`item`) and its customer (`customer`)        |
+| confirm order                                    | its order, its customer and, with `carry_links`, its items                                                    |
+| payment reminder, pay order                      | its order and, with `carry_links`, its items                                                                  |
+| every event of an item                           | its item (`item`) and its product (`product`), from the reference that picks it; not its order or its package |
+| create package                                   | its package (`creates`) and the items it collected (`item`)                                                   |
+| send package, failed delivery, package delivered | its package (`shipped package`) and, with `carry_links`, its items                                            |
 
 Objects are linked to each other too: each order **comprises** its items (`"o2o": "comprises"` on Sales's
 ItemOrdered entry), each package **contains** its items (`"o2o": "contains"` on Packaging's ItemPicked entry),

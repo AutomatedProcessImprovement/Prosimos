@@ -231,12 +231,13 @@ With `item_ids = ["item-0", "item-1", "item-2"]`, the package publishes 3 messag
 - `index` is the entry's position, 1..N, as with the other forms; list it in `attributes` to send it.
 - A missing or empty list publishes nothing, with one warning per event.
 
-**qualifier** (optional, on any entry) qualifies the OCEL links this end of the message makes: on a
-`publish` entry, the links from the last task before the event to the cases that took the messages; on
+**qualifier** (optional, on any entry) makes this end of the message write OCEL links, and qualifies them: on
+a `publish` entry, the links from the last task before the event to the cases that took the messages; on
 a `consume` entry, the links from the next task after the event to the case that published the message
-([orchestrator.md](orchestrator.md), "One event linked to many objects"). By default, it is the message
-type. With `"qualifier": "item"` on the entry above, place order is linked to each new item as `item`.
-It must be a non-empty string.
+([orchestrator.md](orchestrator.md), "One event linked to many objects"). Without it, this end writes no
+links. Each process decides only about its own end: with `"qualifier": "item"` on the entry above, place order
+is linked to each new item as `item`, and the items' pick item links their order only if the items' consume
+entry has a qualifier too. In Order Management it doesn't, as in the real log. It must be a non-empty string.
 
 **o2o** (optional, on any entry) links the objects of the cases on the two ends of each message
 directly, as OCEL's object-to-object links, qualified by its value: on a `publish` entry, from the

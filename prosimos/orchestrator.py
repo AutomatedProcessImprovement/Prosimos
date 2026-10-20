@@ -35,9 +35,9 @@ class ProcessSpec:
     bpmn_path: str
     json_path: str
     arrivals: Optional[int] = None  # how many cases arrive; None for a process started by messages
-    # the OCEL object type of its cases: "" (the default) means the process name; None writes no objects
-    # and no events for this process in the OCEL output
-    object_type: Optional[str] = ""
+    # the OCEL object type of its cases, one kind of thing, in the singular; without one, the process writes no
+    # objects and no events in the OCEL output
+    object_type: Optional[str] = None
     # the qualifier of each event's link to its own case's object: None means the object type; per task id,
     # qualifier_by_activity overrides it, e.g. (("Create_Package", "creates"),)
     qualifier: Optional[str] = None
@@ -56,13 +56,9 @@ class ProcessSpec:
                                                      for reference in self.references))
 
     @property
-    def ocel_object_type(self) -> Optional[str]:
-        return self.name if self.object_type == "" else self.object_type
-
-    @property
     def id_prefix(self) -> str:
         """Its objects' ids are <id prefix>-<number>: the object type, or the name of a process without one."""
-        return self.ocel_object_type or self.name
+        return self.object_type or self.name
 
 
 @dataclass(frozen=True)
@@ -190,7 +186,7 @@ def _checked_catalogue(processes):
     repeated = sorted(object_id for object_id, times in Counter(ids).items() if times > 1)
     if repeated:
         problems.append(f"catalogue ids are repeated: {repeated}")
-    object_types = {spec.ocel_object_type: spec.name for spec in processes if spec.ocel_object_type is not None}
+    object_types = {spec.object_type: spec.name for spec in processes if spec.object_type is not None}
     object_id = re.compile("|".join(rf"{re.escape(object_type)}-\d+" for object_type in object_types))
     like_object_ids = sorted({obj for obj in ids if object_types and object_id.fullmatch(obj)})
     if like_object_ids:
@@ -381,7 +377,7 @@ class SimulationConfig:
         duplicates = sorted({name for name in names if names.count(name) > 1})
         if duplicates:
             raise ValueError(f"Process names must be unique, repeated: {duplicates}")
-        types = [spec.ocel_object_type for spec in self.processes if spec.ocel_object_type is not None]
+        types = [spec.object_type for spec in self.processes if spec.object_type is not None]
         shared = sorted({object_type for object_type in types if types.count(object_type) > 1})
         if shared:
             # <object type>-<number> names an object: two processes of one type would give the same ids
@@ -401,7 +397,7 @@ class SimulationConfig:
         BPMN and JSON paths are relative to the configuration file's folder. seed and
         consumer_groups are optional; a start time without a time zone is taken as UTC. A process
         started by messages has no arrivals. A process's optional object_type names the OCEL object
-        type of its cases (by default its name); null writes no objects and no events for it. Its
+        type of its cases; without one, it writes no objects and no events. Its
         optional qualifier (by default the object type) and qualifier_by_activity ({task id: qualifier})
         qualify each event's link to its own case's object, and carry_links (false by default) makes every
         later event of a case also link the objects the case is linked to through its messages.
@@ -434,7 +430,7 @@ class SimulationConfig:
                           for index, reference in enumerate(entry.get("references", []))]
             processes.append(ProcessSpec(
                 entry["name"], str(folder / entry["bpmn_path"]), str(folder / entry["json_path"]), entry.get("arrivals"),
-                entry.get("object_type", ""), entry.get("qualifier"),
+                _object_type(path, f"processes[{number}]", entry), entry.get("qualifier"),
                 tuple(sorted(entry.get("qualifier_by_activity", {}).items())), entry.get("carry_links", False),
                 catalogues, tuple(references)
             ))
@@ -444,6 +440,13 @@ class SimulationConfig:
             start = pytz.utc.localize(start)
 
         return cls(processes, start, data.get("seed"), data.get("consumer_groups"))
+
+
+def _object_type(path, where, entry):
+    object_type = entry.get("object_type")
+    if "object_type" in entry and (not isinstance(object_type, str) or not object_type):
+        raise ValueError(f"{path}: {where}: 'object_type' must be a non-empty string, got {object_type!r}")
+    return object_type
 
 
 def _catalogue(path, where, entries):
@@ -790,15 +793,15 @@ class ProsimosEngine(SimulationEngine):
         parallel or inclusive join the last task of every branch that came in; for one taken at a start or
         catch event, the next task after it, and after a parallel or inclusive split the first run of every
         task on the branches taken. Without such a task, the links are dropped, with one warning per element. A process left
-        out of the OCEL output attaches nothing."""
-        attach = self._spec.ocel_object_type is not None
+        out of the OCEL output, or an entry without a qualifier, attaches nothing: it writes no links."""
+        attach = self._spec.object_type is not None
         rows_of_case = defaultdict(list)
         for row, (p_case, element_id, enabled, completed) in enumerate(self._env.logged_rows):
             rows_of_case[p_case].append((row, element_id, enabled, completed))
         warned = set()
 
-        def task_rows(p_case, element_id, time, forward):
-            if not attach:
+        def task_rows(p_case, element_id, time, forward, qualifier):
+            if not attach or qualifier is None:
                 return ()
             tasks = self._env.tasks_next_to(element_id, forward)
             if forward:  # the first of them enabled when the case took the message, or later
@@ -837,11 +840,11 @@ class ProsimosEngine(SimulationEngine):
                 warning_logger.add_warning(f"{reason}; the OCEL links of its messages there are dropped")
             return tuple(found)
 
-        published = [PublishRecord(message.id, self._env.object_id(p_case), element_id, point.link_qualifier,
-                                   task_rows(p_case, element_id, when, forward=False), point.o2o)
+        published = [PublishRecord(message.id, self._env.object_id(p_case), element_id, point.qualifier or "",
+                                   task_rows(p_case, element_id, when, False, point.qualifier), point.o2o)
                      for message, p_case, element_id, point, when in self._published]
-        claimed = [ClaimRecord(message_id, self._env.object_id(p_case), element_id, point.link_qualifier,
-                               task_rows(p_case, element_id, when, forward=True), point.o2o)
+        claimed = [ClaimRecord(message_id, self._env.object_id(p_case), element_id, point.qualifier or "",
+                               task_rows(p_case, element_id, when, True, point.qualifier), point.o2o)
                    for message_id, p_case, element_id, point, when in self._claimed]
         return published, claimed
 
@@ -1279,7 +1282,7 @@ def run_orchestrator(config: SimulationConfig, log_out_path: Optional[str] = Non
     if log_out_path is not None:
         merged_log.write(log_out_path)
     if ocel_out_path is not None:
-        processes = {spec.name: OcelProcess(spec.ocel_object_type, spec.qualifier, dict(spec.qualifier_by_activity),
+        processes = {spec.name: OcelProcess(spec.object_type, spec.qualifier, dict(spec.qualifier_by_activity),
                                             spec.carry_links) for spec in config.processes}
         static_objects, reference_object_links, reference_event_links = _reference_links(
             config, catalogue, processes, report.objects, merged_log.rows, report.logged_elements,
@@ -1297,8 +1300,8 @@ def run_orchestrator(config: SimulationConfig, log_out_path: Optional[str] = Non
 def _message_links(records: List[MessageRecord], processes: Dict[str, OcelProcess]):
     """(process, row of that process) -> [(object id, qualifier)]: the tasks a publisher's records attach to
     link the object of every case that claimed the message, and the tasks a claimer's records attach to link
-    the publisher's object, each with its own end's qualifier. Ends with no task, or whose other end's process
-    writes no objects, link nothing."""
+    the publisher's object, each with its own end's qualifier. Ends without a qualifier or a task, or whose other
+    end's process writes no objects, link nothing."""
     def has_object(element):
         return element.process in processes and processes[element.process].object_type is not None
 

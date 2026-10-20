@@ -83,19 +83,21 @@ def test_pm4py_reads_the_file(order_management):
     assert set(ocel.objects["ocel:type"]) == {"order", "item", "package", "customer", "product"}
 
 
-def test_the_object_type_defaults_to_the_process_name_and_null_leaves_the_process_out(tmp_path):
+def test_a_process_has_an_object_type_only_where_it_is_given(tmp_path):
     config_path = tmp_path / "simulation.json"
-    config_path.write_text(json.dumps({"start_time": "2024-01-01T09:00:00+00:00", "processes": [
-        {"name": "Sales", "bpmn_path": "s.bpmn", "json_path": "s.json", "arrivals": 1},
-        {"name": "Customer", "bpmn_path": "c.bpmn", "json_path": "c.json", "object_type": None},
-        {"name": "Warehouse", "bpmn_path": "w.bpmn", "json_path": "w.json", "object_type": "item"}]}))
+    processes = [{"name": "Sales", "bpmn_path": "s.bpmn", "json_path": "s.json", "arrivals": 1},
+                 {"name": "Warehouse", "bpmn_path": "w.bpmn", "json_path": "w.json", "object_type": "item"}]
+    config_path.write_text(json.dumps({"start_time": "2024-01-01T09:00:00+00:00", "processes": processes}))
 
-    config = SimulationConfig.from_json(config_path)
+    assert [spec.object_type for spec in SimulationConfig.from_json(config_path).processes] == [None, "item"]
 
-    assert [spec.ocel_object_type for spec in config.processes] == ["Sales", None, "item"]
+    processes[0]["object_type"] = None
+    config_path.write_text(json.dumps({"start_time": "2024-01-01T09:00:00+00:00", "processes": processes}))
+    with pytest.raises(ValueError, match=r"processes\[0\]: 'object_type' must be a non-empty string, got None"):
+        SimulationConfig.from_json(config_path)
 
 
-@pytest.mark.parametrize("object_type, object_id", [("order", "order-0"), ("", "Sales-0"), (None, "Sales-0")])
+@pytest.mark.parametrize("object_type, object_id", [("order", "order-0"), (None, "Sales-0")])
 def test_an_object_is_named_after_its_type_or_without_one_after_its_process(object_type, object_id):
     # Sales announces each order with OrderPlaced{object_id, city}
     sales = ProsimosEngine(ProcessSpec("Sales", "testing_scripts/assets/messaging/sales.bpmn",

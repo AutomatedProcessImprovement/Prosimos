@@ -160,7 +160,7 @@ A value that isn't an id of the catalogue gets no link, and a warning (see "Erro
   `"link_events": ["place order", "confirm order"]`, place order and confirm order link `customer`, pay
   order doesn't. `"Confirm_Order"`, the task's id, works as well as its name. Without the key, every
   event of the case is linked; with `[]`, none.
-- A process with `"object_type": null` writes no objects and no events, so its references link nothing;
+- A process without an `object_type` writes no objects and no events, so its references link nothing;
   their values still count as referred to, so the pool objects they name are written.
 
 ## Pick
@@ -278,8 +278,7 @@ Warehouse, which picks one for each item as often as in the log. This is its ful
     {
       "name": "Customer",
       "bpmn_path": "customer.bpmn",
-      "json_path": "customer.json",
-      "object_type": null
+      "json_path": "customer.json"
     },
     {
       "name": "Warehouse",

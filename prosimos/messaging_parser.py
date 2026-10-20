@@ -44,12 +44,8 @@ class PublishPoint:
     count_attribute: Optional[str] = None  # the case attribute holding that number, if any
     count_list: Optional[str] = None  # the case attribute holding a list: one message per entry, if any
     count_as: Optional[str] = None  # the attribute under which each of those messages carries its entry
-    qualifier: Optional[str] = None  # of the OCEL links its messages give; None means the message type
+    qualifier: Optional[str] = None  # of the OCEL links its messages give; None: no links
     o2o: Optional[str] = None  # OCEL object link from the publishing case's object to each claimer's; None: none
-
-    @property
-    def link_qualifier(self):
-        return self.qualifier or self.type
 
     @property
     def counted(self):
@@ -69,7 +65,7 @@ class ConsumePoint:
     capacity_attribute: Optional[str] = None  # the message attribute holding that max, if any
     collect: int = 1  # min: how many messages a case must claim here before it continues, unless read from the case
     collect_attribute: Optional[str] = None  # the case attribute holding that number, if any
-    qualifier: Optional[str] = None  # of the OCEL links the messages it takes give; None means the message type
+    qualifier: Optional[str] = None  # of the OCEL links the messages it takes give; None: no links
     o2o: Optional[str] = None  # OCEL object link from the claiming case's object to the publisher's; None: none
     # (case attribute, message attribute): the message attribute's value is added to a list in the case, which
     # starts empty
@@ -88,10 +84,6 @@ class ConsumePoint:
     # message attribute capacity_min_attribute
     capacity_min: int = 1
     capacity_min_attribute: Optional[str] = None
-
-    @property
-    def link_qualifier(self):
-        return self.qualifier or self.type
 
 
 @dataclass(frozen=True)
