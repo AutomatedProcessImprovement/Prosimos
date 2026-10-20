@@ -1,6 +1,6 @@
 """
-The running example with real Prosimos engines only (docs/running-example.md): Sales, Billing and the
-two warehouses, all loaded from one configuration file and run with run_orchestrator.
+The running example (docs/running-example.md): Sales, Billing and the two warehouses, all real Prosimos models
+loaded from one configuration file and run with run_orchestrator.
 """
 import csv
 import json
@@ -53,6 +53,8 @@ def test_each_order_from_a_served_city_has_one_warehouse_case_and_is_closed_afte
               for row in rows if row["process"] == "Sales" and row["activity"] == "Close order"}
 
     served = sorted(order for order, order_city in city.items() if order_city != "Pärnu")
+    assert {city[order] for order in served} == {"Tartu", "Tallinn", "Tapa"}
+    assert sorted(closed) == served and sorted(shipments) == served  # only these are shipped and closed
     warehouse_cases = _order_ids(rows, "TartuWarehouse") + _order_ids(rows, "TallinnWarehouse")
     assert sorted(warehouse_cases) == served  # exactly one warehouse case per served order
     for order in served:
@@ -66,7 +68,10 @@ def test_parnu_orders_are_the_only_stalled_cases(run):
     report, _, city = run
 
     parnu = sorted(order for order, order_city in city.items() if order_city == "Pärnu")
-    assert [(process, case.object_id) for process, case in report.stalled] == [("Sales", order) for order in parnu]
+    assert len(parnu) == 3
+    # each still waiting for its shipment
+    assert [(process, case.object_id, case.event_id, case.message_types) for process, case in report.stalled] == [
+        ("Sales", order, "Catch_Shipment", ["Shipment"]) for order in parnu]
     assert report.warnings == [] and report.engine_warnings == [] and report.unclaimed == []
 
 

@@ -1,6 +1,6 @@
 # Order Management example
 
-A running example shaped like the OCEL 2.0 **Order Management** log (2,000 orders, 7,659 items, 1,128
+An example shaped like the OCEL 2.0 **Order Management** log (2,000 orders, 7,659 items, 1,128
 packages), to show the multi-process features working together on a realistic model and to compare counts
 and shares with the real log. Times are only roughly calibrated. The models are in
 `testing_scripts/assets/order_management/`; the tests are in `testing_scripts/test_order_management.py`.

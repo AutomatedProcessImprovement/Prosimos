@@ -49,10 +49,13 @@ Start ──> Place order ──> (Throw_OrderPlaced) ──> (Catch_Shipment) �
   "consume": [
     {"event_id": "Catch_Shipment", "type": "Shipment",
      "condition": [[{"attribute": "order_id", "comparison": "=",
-                     "object_attribute": "object_id"}]]}
+                     "object_attribute": "object_id"}]],
+     "qualifier": "received shipment"}
   ]
 }
 ```
+
+`qualifier` names the OCEL link from Close order to the shipment (see **qualifier** below).
 
 **publish**: each entry names a publishing event, the message `type`, and the `attributes` the
 message carries (optional, default none). Their values are copied from the case when it passes the

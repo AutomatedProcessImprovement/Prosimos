@@ -5,44 +5,51 @@ simulated by its own engine, usually a Prosimos simulation of a BPMN model. The 
 repeatedly steps the engine whose next event is earliest, passes the messages engines publish to the
 processes that consume them, and writes one merged event log.
 
-How a process model publishes and waits for messages is described in [messaging.md](messaging.md);
-a complete example is in [running-example.md](running-example.md).
+How a process model publishes and waits for messages is described in [messaging.md](messaging.md).
+There are two examples: the [running example](running-example.md), with orders, invoices and shipments, and the
+[Order Management example](order-management.md), after a real OCEL 2.0 event log.
 
 ## Quick start
 
 A configuration file lists the processes, the shared start time and, optionally, a seed and the
-consumer groups. Here the warehouses are started by Sales's orders, so they have no `arrivals`:
+consumer groups. This is the [running example](running-example.md)'s,
+`testing_scripts/assets/running_example/simulation.json`: Sales's orders are billed by Billing and
+packed by one of two warehouses, which are started by those orders, so they have no `arrivals`:
 
 ```json
 {
   "processes": [
-    {"name": "Sales", "bpmn_path": "sales.bpmn", "json_path": "sales.json", "arrivals": 100},
-    {"name": "TartuWarehouse", "bpmn_path": "tartu.bpmn", "json_path": "tartu.json"},
-    {"name": "TallinnWarehouse", "bpmn_path": "tallinn.bpmn", "json_path": "tallinn.json"}
+    {"name": "Sales", "bpmn_path": "sales.bpmn", "json_path": "sales.json", "arrivals": 20, "object_type": "order"},
+    {"name": "Billing", "bpmn_path": "billing.bpmn", "json_path": "billing.json", "object_type": "invoice"},
+    {"name": "TartuWarehouse", "bpmn_path": "tartu_warehouse.bpmn", "json_path": "tartu_warehouse.json",
+     "object_type": "shipment"},
+    {"name": "TallinnWarehouse", "bpmn_path": "tallinn_warehouse.bpmn", "json_path": "tallinn_warehouse.json",
+     "object_type": "shipment"}
   ],
-  "seed": 42,
+  "seed": 1,
   "start_time": "2024-01-01T09:00:00+00:00",
   "consumer_groups": {
     "Sales": ["Sales"],
+    "Billing": ["Billing"],
     "Warehouses": ["TartuWarehouse", "TallinnWarehouse"]
   }
 }
 ```
 
-Run it from the command line:
+Run it from the repository's root folder:
 
 ```
-poetry run prosimos start-orchestration --config config.json --log_out_path merged_log.csv --report_out_path report.json
+poetry run prosimos start-orchestration --config testing_scripts/assets/running_example/simulation.json --log_out_path merged_log.csv --report_out_path report.json --ocel_out_path running_example.json
 ```
 
 `--log_out_path` (the merged event log), `--report_out_path` (the run report as JSON) and
 `--ocel_out_path` (the run as an OCEL 2.0 JSON file, see "Output") are optional, and `--seed` overrides
-the configuration's seed. The command prints a short summary, e.g.
+the configuration's seed. The command prints a short summary:
 
 ```
 Messages: 37 published, 54 claims, 9 discards, 0 unclaimed
 Stalled cases:
-  Sales: 3 (Sales-2, Sales-6, Sales-7)
+  Sales: 3 (order-2, order-6, order-7)
 Warnings: none
 ```
 
@@ -51,8 +58,8 @@ or from Python:
 ```python
 from prosimos.orchestrator import SimulationConfig, run_orchestrator
 
-config = SimulationConfig.from_json("config.json")
-report = run_orchestrator(config, log_out_path="merged_log.csv")
+config = SimulationConfig.from_json("testing_scripts/assets/running_example/simulation.json")
+report = run_orchestrator(config, log_out_path="merged_log.csv", ocel_out_path="running_example.json")
 
 print(report.stalled)    # cases still waiting for a message at the end
 print(report.warnings)   # e.g. messages nobody could use

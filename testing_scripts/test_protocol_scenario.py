@@ -1,9 +1,12 @@
 """
-The running example (docs/running-example.md) played through the orchestrator loop with scripted
-engines, one test per check. ord3 can go to either warehouse depending on the seed, so rules that
-always hold are checked for many seeds, and the exact outcome of one seed is recorded separately.
-The truck loading rule is scripted in the fake warehouses, so the capacity check tests the scenario,
-not the orchestrator.
+The orchestrator protocol, played through with the scripted engines of protocol_scenario.py (orders, a billing
+process, two warehouses in one group and a carrier's trucks), one test per rule: announcements reach every group, a
+shared group gives each copy to one member, ties are broken by the seed, a message nobody can take yet stays
+pending, discards, warnings for messages nobody could use, pooled copies offered oldest first, the end-of-run
+report, time never going backwards and the same seed giving the same run. ord3 (Tapa) can go to either warehouse
+depending on the seed, so rules that always hold are checked for many seeds, and the exact outcome of one seed is
+recorded separately. The truck loading rule is scripted in the fake warehouses, so the capacity check tests the
+scenario, not the orchestrator.
 """
 import random
 from collections import Counter

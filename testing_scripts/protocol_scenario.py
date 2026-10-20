@@ -1,4 +1,19 @@
-"""The running example (docs/running-example.md) built from scripted engines."""
+"""
+Scripted engines for the orchestrator protocol tests (test_protocol_scenario.py), which show that the orchestrator
+works with any engine, not only Prosimos. Five processes, each a ScriptedEngine with fixed orders and trucks:
+
+- Sales places five orders between 09:00 and 09:40 (ORDERS: ord1 Tartu, ord2 Tallinn, ord3 Tapa, ord4 Pärnu, ord5
+  Tartu), each announced as OrderPlaced{order_id, city}; it sends a Newsletter at 09:05, which nobody subscribes
+  to, and cancels ord2 at 10:00. It takes the Shipment of an order waiting for it, keeps the one of an order not
+  waiting yet pending, and discards the others.
+- Billing takes every OrderPlaced.
+- TartuWarehouse and TallinnWarehouse, one consumer group, take the OrderPlaced of their cities (Tartu or Tapa,
+  Tallinn or Tapa) and discard the others. A warehouse packs an order in 1 h (Tartu) or 1.5 h (Tallinn), then
+  loads it on a Truck at its dock, up to 2 packed orders per truck, oldest first, and publishes a Shipment for
+  each; a truck for its dock with nothing packed stays pending.
+- Carrier sends trucks at 09:45 to Narva, a dock no warehouse has, at 10:30, 13:00 and 16:00 to Tartu, and at 12:00
+  to Tallinn (TRUCKS).
+"""
 from datetime import datetime, timedelta
 
 import pytz

@@ -1,43 +1,17 @@
 {
   "processes": [
-    {
-      "name": "Sales",
-      "bpmn_path": "sales.bpmn",
-      "json_path": "sales.json",
-      "arrivals": 20,
-      "object_type": "order"
-    },
-    {
-      "name": "Billing",
-      "bpmn_path": "billing.bpmn",
-      "json_path": "billing.json",
-      "object_type": "invoice"
-    },
-    {
-      "name": "TartuWarehouse",
-      "bpmn_path": "tartu_warehouse.bpmn",
-      "json_path": "tartu_warehouse.json",
-      "object_type": "shipment"
-    },
-    {
-      "name": "TallinnWarehouse",
-      "bpmn_path": "tallinn_warehouse.bpmn",
-      "json_path": "tallinn_warehouse.json",
-      "object_type": "shipment"
-    }
+    {"name": "Sales", "bpmn_path": "sales.bpmn", "json_path": "sales.json", "arrivals": 20, "object_type": "order"},
+    {"name": "Billing", "bpmn_path": "billing.bpmn", "json_path": "billing.json", "object_type": "invoice"},
+    {"name": "TartuWarehouse", "bpmn_path": "tartu_warehouse.bpmn", "json_path": "tartu_warehouse.json",
+     "object_type": "shipment"},
+    {"name": "TallinnWarehouse", "bpmn_path": "tallinn_warehouse.bpmn", "json_path": "tallinn_warehouse.json",
+     "object_type": "shipment"}
   ],
   "seed": 1,
   "start_time": "2024-01-01T09:00:00+00:00",
   "consumer_groups": {
-    "Sales": [
-      "Sales"
-    ],
-    "Billing": [
-      "Billing"
-    ],
-    "Warehouses": [
-      "TartuWarehouse",
-      "TallinnWarehouse"
-    ]
+    "Sales": ["Sales"],
+    "Billing": ["Billing"],
+    "Warehouses": ["TartuWarehouse", "TallinnWarehouse"]
   }
 }

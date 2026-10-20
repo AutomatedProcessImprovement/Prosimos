@@ -1,9 +1,12 @@
 """
 The start-orchestration command: a multi-process simulation from the command line, on the
-configuration of the all-real running example.
+configuration of the running example.
 """
 import dataclasses
 import json
+import re
+import shlex
+from pathlib import Path
 
 from click.testing import CliRunner
 
@@ -65,3 +68,20 @@ def test_without_output_paths_the_command_only_prints_the_summary(tmp_path):
 
     assert result.exit_code == 0, result.output
     assert result.output.startswith("Messages: ") and "Stalled cases:" in result.output
+
+
+def test_the_quick_start_runs_as_written(tmp_path):
+    # docs/orchestrator.md shows the running example's configuration, the command that runs it and what it prints
+    quick_start = Path("docs/orchestrator.md").read_text(encoding="utf-8").split("## Quick start")[1].split("\n## ")[0]
+    config, command, summary = re.findall(r"```(?:json)?\n(.*?)```", quick_start, re.DOTALL)[:3]
+    assert config == _text(Path(CONFIG))
+
+    words = shlex.split(command)
+    assert words[:3] == ["poetry", "run", "prosimos"] and words[words.index("--config") + 1] == CONFIG
+    # the output files go to tmp_path instead of the current folder
+    arguments = [str(tmp_path / word) if previous.endswith("_out_path") else word
+                 for previous, word in zip([""] + words[3:], words[3:])]
+    result = CliRunner().invoke(cli, arguments)
+    assert result.exit_code == 0, result.output
+    assert result.output == summary
+    assert all((tmp_path / name).exists() for name in ("merged_log.csv", "report.json", "running_example.json"))
