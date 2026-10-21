@@ -32,14 +32,13 @@ def order_management(tmp_path_factory):
 
 
 def test_orders_items_and_packages_are_objects_one_per_case(order_management):
-    report, log, ocel, _ = order_management
+    _, log, ocel, _ = order_management
 
     objects = Counter(obj["type"] for obj in ocel["objects"])
     cases_in_log = log.groupby("process")["case_id"].nunique()
-    never_took_an_item = sum(process == "Packaging" for process, _ in report.stalled)  # no rows in the log
+    # a packing round that never took an item has no events, so it is left out
     assert objects == Counter({"order": cases_in_log["Sales"], "item": cases_in_log["Warehouse"],
-                               "package": cases_in_log["Packaging"] + never_took_an_item,
-                               "customer": 15, "product": 20})  # the catalogue's
+                               "package": cases_in_log["Packaging"], "customer": 15, "product": 20})
     assert not any(obj["id"].startswith("Customer-") for obj in ocel["objects"])  # object_type: null
 
 
@@ -141,21 +140,47 @@ def test_objects_created_at_the_same_moment_go_by_process_order_then_case_number
         ("B", "x-1"): "x-0", ("B", "x-0"): "x-1", ("A", "x-0"): "x-2", ("A", "x-1"): "x-3"}
 
 
+def _row(process, case, end):
+    """A logged task of the case, so that the writer writes its object."""
+    return process, {"case_id": case, "activity": "a", "resource": "R", "end_time": end}
+
+
 def test_a_value_copied_at_a_catch_event_is_a_later_attribute_value(tmp_path):
     # orders wait at the dock; a truck at 09:30 takes the first two and copies its id into them
     orders = ProsimosEngine(ProcessSpec("Orders", "testing_scripts/assets/messaging/orders_and_trucks.bpmn",
-                                        "testing_scripts/assets/messaging/orders_and_trucks.json", 2), START, None,
-                            seed=1)
+                                        "testing_scripts/assets/messaging/orders_and_trucks.json", 2, "order"),
+                            START, None, seed=1)
     carrier = ScriptedEngine("Carrier")
     carrier.publish_at(START.replace(minute=30), "Truck", dock="Tartu", object_id="Carrier-0")
     report = run_engines({"Orders": orders, "Carrier": carrier}, None, 1)
 
-    write_ocel(tmp_path / "log.json", {"Orders": OcelProcess("order", attributes=("truck_id",))}, report.objects, [])
+    write_ocel(tmp_path / "log.json", {"Orders": OcelProcess("order", attributes=("truck_id",))}, report.objects,
+               [_row("Orders", 0, START.replace(minute=30))])
 
     with open(tmp_path / "log.json") as file:
         objects = {obj["id"]: obj["attributes"] for obj in json.load(file)["objects"]}
-    # the writer names the objects: Orders-0 is the first order
     assert objects["order-0"] == [{"name": "truck_id", "value": "Carrier-0", "time": "2024-01-01T09:30:00.000000Z"}]
+
+
+
+# objects without events
+
+def test_an_object_no_event_refers_to_is_left_out_with_its_links_but_catalogue_objects_are_written(tmp_path):
+    # p-0 has an event, which links q-1 through a message; p-1 and q-0 have no event and no message links them
+    objects = [("P", CaseObject(f"p-{case}", START)) for case in range(2)] + [
+        ("Q", CaseObject(f"q-{case}", START.replace(minute=case))) for case in range(2)]
+    write_ocel(tmp_path / "log.json", {"P": OcelProcess("p"), "Q": OcelProcess("q")}, objects,
+               [_row("P", 0, START.replace(minute=5))], None, {("P", 0): [(("Q", "q-1"), "item")]},
+               {("P", "p-0"): [(("Q", "q-0"), "waits for"), (("Q", "q-1"), "ships")],
+                ("P", "p-1"): [("c1", "placed by")], "c1": [(("P", "p-0"), "places"), (("P", "p-1"), "places")]},
+               [("customer", "c1", []), ("customer", "c2", [])])
+
+    with open(tmp_path / "log.json") as file:
+        ocel = json.load(file)
+    # the objects written are numbered without gaps: Q's case 1 is q-0
+    assert {obj["id"]: [(link["objectId"], link["qualifier"]) for link in obj["relationships"]]
+            for obj in ocel["objects"]} == {"p-0": [("q-0", "ships")], "q-0": [], "c1": [("p-0", "places")], "c2": []}
+    assert [[link["objectId"] for link in event["relationships"]] for event in ocel["events"]] == [["p-0", "q-0"]]
 
 
 # one value per attribute and moment
@@ -168,7 +193,7 @@ def test_of_several_values_at_one_moment_only_the_last_is_written_and_a_starting
         ("weight", 2.0, START), ("weight", 2.7, later)], only_started=("weight",))
 
     write_ocel(tmp_path / "log.json", {"Packaging": OcelProcess("package", attributes=("weight", "total"))},
-               [("Packaging", package)], [])
+               [("Packaging", package)], [_row("Packaging", 0, later)])
 
     with open(tmp_path / "log.json") as file:
         [written] = json.load(file)["objects"]

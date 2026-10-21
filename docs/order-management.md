@@ -45,8 +45,8 @@ package size.
 
 Rounds keep coming after the last item, and would wait forever, so their number is limited: 1,200 rounds last
 until a few days after the last order (the orders end on 2024-03-19, the last round starts on 2024-03-22).
-With seed 1, the last 6 rounds find no item left; they are still waiting when the run ends, and are reported
-in `stalled`. With fewer rounds, the last items could be left unpacked instead: 1,194 rounds are just enough for
+With seed 1, the last 6 rounds find no item left; they are still waiting when the run ends, are reported in
+`stalled`, and have no package in the OCEL file. With fewer rounds, the last items could be left unpacked instead: 1,194 rounds are just enough for
 seed 1, packing every item and leaving no round waiting, but another seed would need a different number.
 
 Not modeled, and where each goes:
@@ -180,9 +180,8 @@ moment, so its package gets one weight, the sum of its items', as in the log, wi
 between or the starting 0.
 
 Sales and Packaging have `carry_links`; Warehouse doesn't, so a reorder is linked only to its item and its
-product. A packing round that never took an item has no events and no links; its package object is in the
-file, with no items, but `pm4py.read_ocel2_json` leaves it out. The full 2,000-order run takes about 21 seconds
-(Apple M4 Pro).
+product. A packing round that never took an item has no events and no links, so the OCEL file leaves its package
+out; the run report still lists it as stalled. The full 2,000-order run takes about 21 seconds (Apple M4 Pro).
 
 The comparison script reads the real log and the simulated OCEL file the same way, from their objects,
 events and links. It counts object-to-object links from the files themselves, since pm4py leaves out objects
@@ -196,7 +195,7 @@ that no event refers to.
 |---------------------------------------------------------------------|-------------------------------:|-------------------------------:|
 | orders                                                              |                          2,000 |                          2,000 |
 | items                                                               |                          7,659 |                          7,735 |
-| packages (packing rounds that took no item)                         |                          1,128 |                      1,194 (6) |
+| packages                                                            |                          1,128 |                          1,194 |
 | customers / products                                                |                        15 / 20 |                        15 / 20 |
 | items per order: mean / median / max                                |                  3.83 / 3 / 16 |                  3.87 / 3 / 16 |
 | items per order: 1 / 2 / 3 / 4                                      |      8.0 / 18.0 / 24.4 / 18.4% |      8.1 / 17.4 / 24.9 / 17.8% |

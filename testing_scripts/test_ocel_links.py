@@ -273,12 +273,12 @@ def _row(case, activity, end):
 
 
 def _relationships(tmp_path, process):
-    """Case 0 of P logs A then B; A's message linked object q-1. Each event's (object, qualifier) links."""
+    """Case 0 of P logs A then B; A's message linked object q-0. Each event's (object, qualifier) links."""
     rows = [_row(0, "a", 1), _row(0, "b", 2), _row(1, "b", 3)]
     objects = [(name, CaseObject(f"{object_type}-{case}", START.replace(minute=case)))
                for name, object_type in (("P", "p"), ("Q", "q")) for case in range(2)]
     write_ocel(tmp_path / "log.json", {"P": process, "Q": OcelProcess("q")}, objects, rows, {"P": ["A", "B", "B"]},
-               {("P", 0): [(("Q", "q-1"), "item")]})
+               {("P", 0): [(("Q", "q-0"), "item")]})
     with open(tmp_path / "log.json") as file:
         return [[(link["objectId"], link["qualifier"]) for link in event["relationships"]]
                 for event in json.load(file)["events"]]
@@ -286,17 +286,17 @@ def _relationships(tmp_path, process):
 
 def test_carry_links_is_off_by_default(tmp_path):
     assert _relationships(tmp_path, OcelProcess("p")) == [
-        [("p-0", "p"), ("q-1", "item")], [("p-0", "p")], [("p-1", "p")]]
+        [("p-0", "p"), ("q-0", "item")], [("p-0", "p")], [("p-1", "p")]]
 
 
 def test_carry_links_passes_a_cases_links_to_its_later_events_only(tmp_path):
     assert _relationships(tmp_path, OcelProcess("p", carry_links=True)) == [
-        [("p-0", "p"), ("q-1", "item")], [("p-0", "p"), ("q-1", "item")], [("p-1", "p")]]
+        [("p-0", "p"), ("q-0", "item")], [("p-0", "p"), ("q-0", "item")], [("p-1", "p")]]
 
 
 def test_the_own_qualifier_defaults_to_the_object_type_and_can_be_set_per_activity(tmp_path):
     assert _relationships(tmp_path, OcelProcess("p", "case", {"B": "finishes"})) == [
-        [("p-0", "case"), ("q-1", "item")], [("p-0", "finishes")], [("p-1", "finishes")]]
+        [("p-0", "case"), ("q-0", "item")], [("p-0", "finishes")], [("p-1", "finishes")]]
 
 
 def test_qualifier_by_activity_must_name_tasks_of_the_model():

@@ -5,6 +5,10 @@ of its messages, and objects to each other where a message entry asks for it (o2
 objects, which have no events of their own, linked where a reference says a case attribute holds their ids, and,
 with tag_along, wherever an event of another case links that case's object.
 
+A case's object is written only when an event refers to it: its own, or one its messages link. A case with
+neither, e.g. a packing round still waiting for its first item when the run ends, is left out (the run report
+still lists it as stalled), as pm4py would leave it out on reading. Catalogue objects are always written.
+
 Engines number their cases each on their own, so two processes of one object type both have an item-0. The writer
 names the objects of the output: <object type>-0, <object type>-1, ... per object type across all its processes
 (object_ids). A case's object comes in named (process, its id in the engine), a catalogue object by its id.
@@ -52,7 +56,8 @@ def write_ocel(path, processes, objects, rows, logged_elements=None, message_lin
     processes: process -> OcelProcess, or its object type (None to leave the process out), in the order of the
     configuration;
     objects: (process, case object with its object_id in its engine, creation time and attributes as (attribute,
-    value, time)) for every case; only the attributes its process's OcelProcess lists are written (see _written);
+    value, time)) for every case; only those some event refers to are written (see _referred), and of those only
+    the attributes their process's OcelProcess lists (see _written);
     rows: (process, {column: value}) for every logged task, as in the merged CSV log, each process's in the
     order it logged them;
     logged_elements: process -> the element id of each of its rows, in order (for qualifier_by_activity);
@@ -69,17 +74,22 @@ def write_ocel(path, processes, objects, rows, logged_elements=None, message_lin
     through its messages or carry_links, also links the one named when the event completed, with that qualifier.
     """
     processes = {name: _settings(processes, name) for name in processes}
+    logged_elements, message_links = logged_elements or {}, message_links or {}
+    referred = _referred(processes, rows, message_links)
+    objects = [(process, case_object) for process, case_object in objects
+               if (process, case_object.object_id) in referred]
     ids = object_ids(processes, objects)
 
     def named(end):
         return ids[end] if isinstance(end, tuple) else end
 
-    logged_elements, message_links = logged_elements or {}, message_links or {}
     reference_links = reference_links or {}
     tagged = {ids[end]: timelines for end, timelines in (tag_along or {}).items() if end in ids}
     named_links = defaultdict(list)
     for source, targets in (object_links or {}).items():
-        named_links[named(source)].extend((named(target), qualifier) for target, qualifier in targets)
+        if source in ids or not isinstance(source, tuple):  # none from or to an object left out
+            named_links[named(source)].extend((named(target), qualifier) for target, qualifier in targets
+                                              if target in ids or not isinstance(target, tuple))
     case_objects = [(processes[process].object_type, ids[(process, case_object.object_id)],
                      _written(case_object, processes[process].attributes))
                     for process, case_object in objects
@@ -155,6 +165,19 @@ def write_ocel(path, processes, objects, rows, logged_elements=None, message_lin
     }
     with open(path, "w", encoding="utf-8") as ocel_file:
         json.dump(ocel, ocel_file, indent=1, ensure_ascii=False)
+
+
+def _referred(processes, rows, message_links):
+    """(process, object id) of every case's object some event refers to: the own object of each logged task of a
+    process with an object type, and the objects its messages link (carry_links only passes those on)."""
+    referred, rows_so_far = set(), {}
+    for process, row in rows:
+        number = rows_so_far[process] = rows_so_far.get(process, -1) + 1
+        settings = processes.get(process)
+        if settings is not None and settings.object_type is not None:
+            referred.add((process, f"{settings.object_type}-{row['case_id']}"))
+            referred.update(end for end, _ in message_links.get((process, number), []))
+    return referred
 
 
 def _written(case_object, listed):

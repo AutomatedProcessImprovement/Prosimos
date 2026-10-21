@@ -60,9 +60,7 @@ def metrics(ocel_path):
         if object_type.get(relation["objectId"]) == kind and qualifier in (None, relation["qualifier"])]
     objects = lambda kind: [obj for obj in ocel["objects"] if obj["type"] == kind]
     order_items = {obj["id"]: related(obj, "items", "comprises") for obj in objects("orders")}
-    # a packing round that never took an item is a package object without items or events
-    all_packages = {obj["id"]: related(obj, "items", "contains") for obj in objects("packages")}
-    package_items = {package: items for package, items in all_packages.items() if items}
+    package_items = {obj["id"]: related(obj, "items", "contains") for obj in objects("packages")}
     order_of = {item: order for order, items in order_items.items() for item in items}
     customer_of = {order: customer["id"] for customer in objects("customers")
                    for order in related(customer, "orders", "places")}
@@ -92,7 +90,6 @@ def metrics(ocel_path):
 
     return {
         "counts": {"orders": len(order_items), "items": len(items), "packages": len(package_items),
-                   "packing rounds that took no item": len(all_packages) - len(package_items),
                    "customers": len(objects("customers")), "products": len(objects("products"))},
         "items per order": _summary([len(order_items[order]) for order in order_items], ITEM_BUCKETS),
         "reminders per order": _summary([len(times[order]["payment reminder"]) for order in order_items],

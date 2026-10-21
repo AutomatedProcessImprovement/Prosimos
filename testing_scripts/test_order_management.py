@@ -211,10 +211,8 @@ def test_pm4py_reads_the_simulated_file(run):
     ocel = pm4py.read_ocel2_json(str(ocel_path))
 
     assert len(ocel.events) == len(written["events"])
-    # pm4py leaves out objects that no event refers to: here, the packing rounds that never took an item
-    referred_to = {relation["objectId"] for event in written["events"] for relation in event["relationships"]}
-    assert set(ocel.objects["ocel:oid"]) == referred_to
-    assert len(referred_to) < len(written["objects"])
+    # pm4py leaves out objects that no event refers to; the file has none, so both count the same objects
+    assert sorted(ocel.objects["ocel:oid"]) == sorted(obj["id"] for obj in written["objects"])
 
 
 def test_the_comparison_script_counts_from_the_simulated_file_what_the_engine_did(run):
@@ -225,7 +223,6 @@ def test_the_comparison_script_counts_from_the_simulated_file_what_the_engine_di
 
     picked = [message for message in report.published if message.type == "ItemPicked"]
     assert measured["counts"] == {"orders": ORDERS, "items": len(picked), "packages": len(packages),
-                                  "packing rounds that took no item": ROUNDS - len(packages),
                                   "customers": 15, "products": 20}
     assert measured["items per package"]["mean"] == statistics.mean(len(claimed) for claimed in packages.values())
     assert measured["object-to-object links"] == {"customers places orders": ORDERS, "items is a products": len(picked),

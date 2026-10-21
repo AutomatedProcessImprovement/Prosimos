@@ -113,8 +113,9 @@ doesn't produce. Extra engines get no log writer, so their events aren't in the 
 written as an OCEL 2.0 JSON file, the format of the OCEL 2.0 sample logs, readable with
 `pm4py.read_ocel2_json`:
 
-- **Objects:** one per case, typed by its process's `object_type`, with the id `<object type>-<number>`, numbered
-  from 0 per object type across all its processes, in the order the objects were created (objects created at the
+- **Objects:** one per case that some event refers to (see below), typed by its process's `object_type`, with the
+  id `<object type>-<number>`, numbered from 0 per object type across all its processes, in the order the objects
+  were created (objects created at the
   same moment go by the order of their processes in the configuration, and those of one process by its own case
   number), e.g. `order-7`, the eighth order. In messages and the run report, a case is named by its object type and
   its number in its own process (`object_id`, see [messaging.md](messaging.md); `Sales-7` for a process without an
@@ -145,8 +146,10 @@ written as an OCEL 2.0 JSON file, the format of the OCEL 2.0 sample logs, readab
 
 A case that has no task in the log yet, e.g. an order still collecting its items when the run ends, has no
 events of its own, but it can still be linked from other events through its messages: the still-collecting
-order is linked from the tasks that published the items it took (see below). `pm4py.read_ocel2_json`
-keeps such an object, and leaves out only an object that no event refers to.
+order is linked from the tasks that published the items it took (see below), so its object is written. A case
+that no event refers to, e.g. a packing round still waiting for its first item when the run ends, is left out,
+with the links from and to its object, as `pm4py.read_ocel2_json` would leave it out on reading; the run
+report still lists it as stalled. Catalogue objects have no events by design and are always written.
 
 **Objects without events: the catalogue.** Some objects never have events of their own: customers,
 products, suppliers. A process's `catalogues` declare them (each a list, a generated pool, or a growing
