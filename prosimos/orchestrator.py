@@ -102,7 +102,8 @@ class NewShare:
 class Reference:
     """Says that a case attribute's value of its process is the id of an object of one of its catalogues, and which OCEL
     links to write for it: from the case's object to it with o2o as qualifier (reverse turns it around), and
-    from the case's events named in link_events (task names or ids; None for every event, () for none).
+    from the case's events named in link_events (task names or ids; None for every event, () for none), and, with
+    tag_along, from every event of another case that links the case's object.
     With pick, the reference also assigns the value, when the case is created: "uniform" (every object
     equally likely) or, for a listed catalogue, weights as ((id, weight), ...) (ids left out are never picked);
     for a growing catalogue, "new" (every case creates its own object) or NewShare. Without it, the value comes
@@ -117,6 +118,7 @@ class Reference:
     link_events: Optional[Tuple[str, ...]] = None
     pick: Union[None, str, Tuple[Tuple[str, float], ...], NewShare] = None
     with_attributes: Tuple[str, ...] = ()
+    tag_along: bool = False
     process: str = ""
 
     @property
@@ -127,7 +129,7 @@ class Reference:
 CONFIG_KEYS = {"processes", "start_time", "seed", "consumer_groups"}
 PROCESS_KEYS = {"name", "bpmn_path", "json_path", "arrivals", "object_type", "qualifier", "qualifier_by_activity",
                 "carry_links", "ocel_attributes", "catalogues", "references"}
-REFERENCE_KEYS = {"object_attribute", "catalogue", "o2o", "reverse", "link_events", "pick", "with"}
+REFERENCE_KEYS = {"object_attribute", "catalogue", "o2o", "reverse", "link_events", "pick", "with", "tag_along"}
 
 
 def _catalogue_ids(name, entry) -> List[str]:
@@ -429,8 +431,9 @@ class SimulationConfig:
         A process's optional catalogues ({name: [{"id": ..., "attributes": {...}}]}, {name: {"count": ...,
         "attributes": [as in object_attributes]}} for a generated pool, or {name: {"attributes": [...]}} for a
         growing one) declare objects with no events of their own, and its references ([{"object_attribute",
-        "catalogue", "o2o", "reverse", "link_events", "pick", "with"}], the last five optional) say which of its
-        attributes hold the ids of its catalogues' objects, and may pick them and bring their attributes in.
+        "catalogue", "o2o", "reverse", "link_events", "pick", "with", "tag_along"}], the last six optional) say
+        which of its attributes hold the ids of its catalogues' objects, and may pick them and bring their
+        attributes in.
         """
         path = Path(path)
         with open(path) as f:
@@ -514,7 +517,8 @@ def _reference(path, where, entry):
     with_attributes = entry.get("with", ())
     return Reference(entry["object_attribute"], entry["catalogue"], entry.get("o2o"),
                      entry.get("reverse", False), None if link_events is None else tuple(link_events), pick,
-                     tuple(with_attributes) if isinstance(with_attributes, list) else with_attributes)
+                     tuple(with_attributes) if isinstance(with_attributes, list) else with_attributes,
+                     entry.get("tag_along", False))
 
 
 def _check_keys(path, where, mapping, allowed):
@@ -1329,7 +1333,7 @@ def run_orchestrator(config: SimulationConfig, log_out_path: Optional[str] = Non
             object_links.setdefault(source, []).extend(links)
         write_ocel(ocel_out_path, processes, report.objects, merged_log.rows, report.logged_elements,
                    _message_links(report.message_records, processes), object_links, static_objects,
-                   reference_event_links)
+                   reference_event_links, _tag_along(config, catalogue, report.objects))
 
     return report
 
@@ -1462,3 +1466,22 @@ def _reference_links(config: SimulationConfig, catalogue: Dict[str, List[Catalog
                       for name, catalogue_objects in catalogue.items() for obj in catalogue_objects
                       if isinstance(config.catalogue[name], list) or (name, obj.id) in referred]
     return static_objects, dict(object_links), dict(event_links)
+
+
+def _tag_along(config: SimulationConfig, catalogue: Dict[str, List[CatalogueObject]], objects):
+    """(process, object id) -> [(qualifier, [(time, catalogue object id)])]: for each reference with tag_along, the
+    catalogue objects its attribute named on the case's object, from when, with the attribute's name as qualifier.
+    The OCEL output links every event of another case that links the object to the one named when the event
+    completed (see write_ocel). Values not in the catalogue are left out; _reference_links warns about them."""
+    ids_of = {name: {obj.id for obj in catalogue_objects} for name, catalogue_objects in catalogue.items()}
+    tagged = defaultdict(list)
+    for reference in config.references:
+        if not reference.tag_along:
+            continue
+        for process, case_object in objects:
+            if process == reference.process:
+                timeline = [(time, str(value)) for name, value, time in case_object.attributes
+                            if name == reference.object_attribute and value is not None
+                            and str(value) in ids_of[reference.catalogue]]
+                tagged[(process, case_object.object_id)].append((reference.object_attribute, timeline))
+    return dict(tagged)

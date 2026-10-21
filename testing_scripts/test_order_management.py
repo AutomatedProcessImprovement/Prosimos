@@ -160,13 +160,13 @@ def test_the_ocel_file_links_items_to_products_and_packages_by_the_real_log_s_qu
                                 "package delivered": {"shipped package"}}
 
 
-# the object types each event type of the real log links to, apart from its employees (resources here) and products
+# the object types each event type of the real log links to, apart from its employees (resources here)
 REAL_LOG_LINKS = {
-    "place order": {"order", "item", "customer"}, "confirm order": {"order", "item", "customer"},
-    "payment reminder": {"order", "item"}, "pay order": {"order", "item"},
-    "item out of stock": {"item"}, "reorder item": {"item"}, "pick item": {"item"},
-    "create package": {"package", "item"}, "send package": {"package", "item"},
-    "failed delivery": {"package", "item"}, "package delivered": {"package", "item"},
+    "place order": {"order", "item", "product", "customer"}, "confirm order": {"order", "item", "product", "customer"},
+    "payment reminder": {"order", "item", "product"}, "pay order": {"order", "item", "product"},
+    "item out of stock": {"item", "product"}, "reorder item": {"item", "product"}, "pick item": {"item", "product"},
+    "create package": {"package", "item", "product"}, "send package": {"package", "item", "product"},
+    "failed delivery": {"package", "item", "product"}, "package delivered": {"package", "item", "product"},
 }
 
 
@@ -180,7 +180,27 @@ def test_each_event_type_links_the_object_types_the_real_log_links(run):
     for event in ocel["events"]:
         linked[event["type"]].update(object_type[relation["objectId"]] for relation in event["relationships"])
 
-    assert {activity: types - {"product"} for activity, types in linked.items()} == REAL_LOG_LINKS
+    assert dict(linked) == REAL_LOG_LINKS
+
+
+def test_every_event_that_links_an_item_links_its_product_and_only_its_order_s_events_link_a_customer(run):
+    # tag_along on the product reference; the customer reference has none, so pay order links no customer
+    _, _, ocel_path = run
+
+    with open(ocel_path) as file:
+        ocel = json.load(file)
+    object_type = {obj["id"]: obj["type"] for obj in ocel["objects"]}
+    product_of = {obj["id"]: link["objectId"] for obj in ocel["objects"] if obj["type"] == "item"
+                  for link in obj["relationships"] if link["qualifier"] == "is a"}
+    with_customer = set()
+    for event in ocel["events"]:
+        linked = [(link["objectId"], link["qualifier"]) for link in event["relationships"]]
+        items = {object_id for object_id, _ in linked if object_type[object_id] == "item"}
+        assert {(object_id, qualifier) for object_id, qualifier in linked if object_type[object_id] == "product"} == {
+            (product_of[item], "product") for item in items}
+        if any(object_type[object_id] == "customer" for object_id, _ in linked):
+            with_customer.add(event["type"])
+    assert with_customer == {"place order", "confirm order"}
 
 
 def test_pm4py_reads_the_simulated_file(run):

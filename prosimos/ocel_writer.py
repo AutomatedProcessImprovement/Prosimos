@@ -2,7 +2,8 @@
 Writes a multi-process run as an OCEL 2.0 JSON file (docs/orchestrator.md): one object per case, typed by its
 process's object type, and one event per task, linked to its case's object and to the objects on the other end
 of its messages, and objects to each other where a message entry asks for it (o2o); plus the catalogue's
-objects, which have no events of their own, linked where a reference says a case attribute holds their ids.
+objects, which have no events of their own, linked where a reference says a case attribute holds their ids, and,
+with tag_along, wherever an event of another case links that case's object.
 
 Engines number their cases each on their own, so two processes of one object type both have an item-0. The writer
 names the objects of the output: <object type>-0, <object type>-1, ... per object type across all its processes
@@ -46,7 +47,7 @@ def object_ids(processes, objects):
 
 
 def write_ocel(path, processes, objects, rows, logged_elements=None, message_links=None, object_links=None,
-               static_objects=None, reference_links=None):
+               static_objects=None, reference_links=None, tag_along=None):
     """
     processes: process -> OcelProcess, or its object type (None to leave the process out), in the order of the
     configuration;
@@ -62,7 +63,10 @@ def write_ocel(path, processes, objects, rows, logged_elements=None, message_lin
     static_objects: (object type, id, attributes as (attribute, value, time)) for every object with no events
     of its own, all its attributes written;
     reference_links: (process, row of that process) -> [(object id, qualifier)], the links the event of that
-    row gets to such objects (never carried by carry_links).
+    row gets to such objects (never carried by carry_links);
+    tag_along: (process, object id) -> [(qualifier, [(time, object id)])], the objects with no events of their own
+    that a case's object names, each from its time on: every event of another case that links the case's object,
+    through its messages or carry_links, also links the one named when the event completed, with that qualifier.
     """
     processes = {name: _settings(processes, name) for name in processes}
     ids = object_ids(processes, objects)
@@ -72,6 +76,7 @@ def write_ocel(path, processes, objects, rows, logged_elements=None, message_lin
 
     logged_elements, message_links = logged_elements or {}, message_links or {}
     reference_links = reference_links or {}
+    tagged = {ids[end]: timelines for end, timelines in (tag_along or {}).items() if end in ids}
     named_links = defaultdict(list)
     for source, targets in (object_links or {}).items():
         named_links[named(source)].extend((named(target), qualifier) for target, qualifier in targets)
@@ -117,8 +122,17 @@ def write_ocel(path, processes, objects, rows, logged_elements=None, message_lin
     # event at the time it was completed
     events = []
     for number, event in enumerate(sorted(logged, key=lambda event: (event["time"], event["process"])), start=1):
+        # with tag_along, an event linking another case's object also links what that object named then
+        tags = []
+        for object_id, _ in [*event["links"], *event["carried"]]:
+            if object_id == event["own"][0]:
+                continue
+            for qualifier, timeline in tagged.get(object_id, []):
+                named = [value for time, value in timeline if time <= event["time"]]
+                if named:
+                    tags.append((named[-1], qualifier))
         relationships = []
-        for object_id, qualifier in [event["own"], *event["links"], *event["carried"], *event["references"]]:
+        for object_id, qualifier in [event["own"], *event["links"], *event["carried"], *event["references"], *tags]:
             relationship = {"objectId": object_id, "qualifier": qualifier}
             if relationship not in relationships:
                 relationships.append(relationship)

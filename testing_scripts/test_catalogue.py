@@ -1,7 +1,8 @@
 """
 The catalogue of objects with no events of their own, and the references that link to it (docs/catalogue.md):
 a reference says a case attribute's value is the id of a catalogue object, and the OCEL output links the case's
-object and the events named in link_events to it.
+object and the events named in link_events to it, and, with tag_along, every event of another case that links
+the case's object.
 """
 import json
 from datetime import datetime, timedelta
@@ -10,9 +11,9 @@ from pathlib import Path
 import pytest
 import pytz
 
-from prosimos.ocel_writer import OcelProcess
+from prosimos.ocel_writer import OcelProcess, write_ocel
 from prosimos.orchestrator import (CaseObject, CatalogueObject, ProcessSpec, Reference, SimulationConfig,
-                                   _reference_links, run_orchestrator)
+                                   _reference_links, _tag_along, run_orchestrator)
 from testing_scripts.test_order_management import CONFIG, _config
 
 START = pytz.utc.localize(datetime(2024, 1, 1, 9))
@@ -172,6 +173,38 @@ def test_a_process_without_objects_links_nothing_but_the_catalogue_is_still_writ
 
     assert object_links == {} and event_links == {}
     assert static_objects == [("customer", "c1", [("segment", "retail", START)])]
+
+
+# tag_along: P's object p-0 names a product (tag_along, none of its own events) and a colour (every own event);
+# Q's case q-0 links p-0 through a message at its first event and, with carry_links, at its second
+
+def test_with_tag_along_every_event_of_another_case_that_links_the_object_links_its_catalogue_object(tmp_path):
+    config = SimulationConfig([
+        ProcessSpec("P", SALES, "p.json", 1,
+                    catalogues={"product": [CatalogueObject("phone"), CatalogueObject("tablet")],
+                                "colour": [CatalogueObject("red")]},
+                    references=(Reference("product", "product", link_events=(), tag_along=True),
+                                Reference("colour", "colour"))),
+        ProcessSpec("Q", SALES, "q.json", 1)], START)
+    processes = {"P": OcelProcess("p"), "Q": OcelProcess("q", carry_links=True)}
+    # the product changes from phone to tablet between Q's two events
+    objects = [("P", CaseObject("p-0", START, [("product", "phone", START), ("colour", "red", START),
+                                               ("product", "tablet", START + timedelta(minutes=15))])),
+               ("Q", CaseObject("q-0", START))]
+    rows = [(process, {"case_id": 0, "activity": activity, "resource": "R", "end_time": START + timedelta(minutes=end)})
+            for process, activity, end in (("P", "place order", 5), ("Q", "a", 10), ("Q", "b", 20))]
+    _, _, event_links = _reference_links(config, config.catalogue, processes, objects, rows, {}, [].append)
+
+    write_ocel(tmp_path / "log.json", processes, objects, rows, None, {("Q", 0): [(("P", "p-0"), "item")]}, None,
+               None, event_links, _tag_along(config, config.catalogue, objects))
+    with open(tmp_path / "log.json") as file:
+        events = [[(link["objectId"], link["qualifier"]) for link in event["relationships"]]
+                  for event in json.load(file)["events"]]
+
+    assert events == [
+        [("p-0", "p"), ("red", "colour")],  # its own event: link_events decides, not tag_along
+        [("q-0", "q"), ("p-0", "item"), ("phone", "product")],  # the product p-0 named when the event completed
+        [("q-0", "q"), ("p-0", "item"), ("tablet", "product")]]  # no colour: its reference has no tag_along
 
 
 # load errors

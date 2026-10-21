@@ -85,7 +85,7 @@ or the catalogues and references break one of the rules listed in [catalogue.md]
 It is also rejected for a key it doesn't know, at the top level, in a process entry, a catalogue (a listed
 object, a pool or a growing catalogue), a reference or its `pick`, since a misspelled key would otherwise
 be ignored and change the run without any message:
-`processes[0].references[0]: unknown key 'link_event'; allowed: catalogue, link_events, o2o, object_attribute, pick, reverse, with`.
+`processes[0].references[0]: unknown key 'link_event'; allowed: catalogue, link_events, o2o, object_attribute, pick, reverse, tag_along, with`.
 
 **A process's JSON file** (`json_path`) holds its Prosimos simulation settings, with the attributes drawn for each
 new object under `object_attributes`, in Prosimos's format for its case attributes, and the `messages` section
@@ -151,9 +151,9 @@ keeps such an object, and leaves out only an object that no event refers to.
 **Objects without events: the catalogue.** Some objects never have events of their own: customers,
 products, suppliers. A process's `catalogues` declare them (each a list, a generated pool, or a growing
 catalogue), and each of its `references` says that one of its attributes' value is the id of an object of one
-of its own catalogues, which OCEL links to write for it (`o2o`, `reverse`, `link_events`), and, with `pick`,
-chooses the value when a case is created. A process never refers to another's catalogue: what it knows of
-another's objects comes in messages.
+of its own catalogues, which OCEL links to write for it (`o2o`, `reverse`, `link_events`, `tag_along`), and,
+with `pick`, chooses the value when a case is created. A process never refers to another's catalogue: what it
+knows of another's objects comes in messages.
 The catalogue's objects are written with the catalogue name as type. All keys, with examples, the Order
 Management configuration as a worked example, and every error and warning are in
 [catalogue.md](catalogue.md).

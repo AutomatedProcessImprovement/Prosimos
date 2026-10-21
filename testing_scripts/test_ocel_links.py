@@ -68,6 +68,10 @@ def _items_of_orders(report):
     return items
 
 
+def _without_products(event):
+    return [link for link in event["relationships"] if link["qualifier"] != "product"]
+
+
 def test_every_place_order_is_linked_to_exactly_its_orders_items(order_management):
     report, ocel, _ = order_management
     items_of_order = _items_of_orders(report)
@@ -78,7 +82,8 @@ def test_every_place_order_is_linked_to_exactly_its_orders_items(order_managemen
         order, qualifier = _owner(event)
         assert qualifier == "order"
         assert _linked(event, "item") == items_of_order[order]
-        assert len(event["relationships"]) == 1 + len(items_of_order[order]) + 1  # and its customer, nothing else
+        # and its customer; the items' products (tag_along) are checked with the Order Management example
+        assert len(_without_products(event)) == 1 + len(items_of_order[order]) + 1
     assert sum(len(items) for items in items_of_order.values()) > 300  # with this seed, orders have items
 
 
@@ -91,7 +96,7 @@ def test_every_create_package_is_linked_to_exactly_the_items_its_package_collect
         package, qualifier = _owner(event)
         assert qualifier == "creates"
         assert _linked(event, "item") == items_of_package[package]
-        assert len(event["relationships"]) == 1 + len(items_of_package[package])
+        assert len(_without_products(event)) == 1 + len(items_of_package[package])
     assert any(len(items_of_package[_owner(event)[0]]) > 1 for event in events)
 
 

@@ -117,6 +117,7 @@ A reference, in a process's `references`, ties one of the process's attributes t
 | `link_events`      | no       | `["place order", "Confirm_Order"]` | which of the case's events link the catalogue object: task names or task ids; without it every event, `[]` none |
 | `pick`             | no       | `"uniform"`                        | the reference chooses the value itself (see "Pick")                                                             |
 | `with`             | no       | `["weight", "price"]`              | attributes of the picked object that the case also starts with (see "With")                                     |
+| `tag_along`        | no       | `true`                             | events of other cases that link the case's object link the catalogue object too (default `false`)               |
 
 ### Two modes: with and without pick
 
@@ -160,6 +161,12 @@ A value that isn't an id of the catalogue gets no link, and a warning (see "Erro
   `"link_events": ["place order", "confirm order"]`, place order and confirm order link `customer`, pay
   order doesn't. `"Confirm_Order"`, the task's id, works as well as its name. Without the key, every
   event of the case is linked; with `[]`, none.
+- **`tag_along`**: every event of another case, of any process, that links the case's object, through its
+  messages or `carry_links`, also links the catalogue object of the value the attribute had when the event
+  completed, with the attribute's name as qualifier. With `"tag_along": true` on the Warehouse's product
+  reference, place order, which links its items, links their products too. The case's own events follow
+  `link_events` alone. Only references tag along; links between two processes' objects are passed on by
+  `carry_links`.
 - A process without an `object_type` writes no objects and no events, so its references link nothing;
   their values still count as referred to, so the pool objects they name are written.
 
@@ -313,7 +320,7 @@ Warehouse, which picks one for each item as often as in the log. This is its ful
         ]
       },
       "references": [
-        {"object_attribute": "product", "catalogue": "product", "o2o": "is a",
+        {"object_attribute": "product", "catalogue": "product", "o2o": "is a", "tag_along": true,
          "pick": {"weights": {
            "iPhone X": 433, "iPhone 8": 408, "Fire Stick": 405, "iPad Air": 405, "Fire Stick 4K": 400,
            "iPad Pro": 394, "Echo Plus": 394, "Kindle Paperwhite": 393, "Echo Show 8": 383, "MacBook Pro": 382,
@@ -389,7 +396,10 @@ the product's `weight` and `price` into the item. `ItemPicked` carries the item'
 - **The 20 products**, type `product`, with `weight` and `price` as in the log. Each item **is a** product
   (`"o2o": "is a"`, from the item to the product), has `weight` and `price` as attributes (the Warehouse's
   `ocel_attributes`; `product` is linked rather than written), and every one of its events is linked to the
-  product with the qualifier `product` (no `link_events`):
+  product with the qualifier `product` (no `link_events`). With `tag_along`, so is every other event that
+  links the item, as in the log: place order, confirm order, payment reminder, pay order, create package, send
+  package, failed delivery and package delivered. Customers don't tag along: pay order links the order's items
+  and their products, but no customer.
 
   ```json
   {"id": "item-0", "type": "item",

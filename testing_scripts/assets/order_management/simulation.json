@@ -70,7 +70,7 @@
         ]
       },
       "references": [
-        {"object_attribute": "product", "catalogue": "product", "o2o": "is a",
+        {"object_attribute": "product", "catalogue": "product", "o2o": "is a", "tag_along": true,
          "pick": {"weights": {
            "iPhone X": 433, "iPhone 8": 408, "Fire Stick": 405, "iPad Air": 405, "Fire Stick 4K": 400,
            "iPad Pro": 394, "Echo Plus": 394, "Kindle Paperwhite": 393, "Echo Show 8": 383, "MacBook Pro": 382,

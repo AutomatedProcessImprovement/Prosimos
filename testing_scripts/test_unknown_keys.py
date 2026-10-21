@@ -81,7 +81,8 @@ def test_a_reference(tmp_path):
         reference["revers"] = reference.pop("reverse")
 
     _config_rejected(tmp_path, r"processes\[0\].references\[0\]: unknown keys 'link_event', 'revers'; allowed: "
-                               r"catalogue, link_events, o2o, object_attribute, pick, reverse, with$", misspelled)
+                               r"catalogue, link_events, o2o, object_attribute, pick, reverse, tag_along, with$",
+                     misspelled)
 
 
 def test_a_pick_object(tmp_path):
