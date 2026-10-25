@@ -111,6 +111,8 @@ After the collect, `item_ids = ["item-12", "item-17", "item-23"]`, in claim orde
   holding the list as JSON text, e.g. `["item-12", "item-17"]` (`[]` before the first claim). In the
   OCEL output it is an object attribute if the process lists it in `ocel_attributes`, also as JSON text since
   OCEL attribute values are single values, with one value per change.
+- If the list holds catalogue ids, a reference on it links each of them ([catalogue.md](catalogue.md), "A list
+  of ids").
 - An appended attribute can't also be in the entry's `copy`, in another entry's `copy` (which would
   overwrite the list), or in the process's `object_attributes` (whose value is drawn, not a list that starts
   empty).

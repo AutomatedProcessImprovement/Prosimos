@@ -69,9 +69,10 @@ def write_ocel(path, processes, objects, rows, logged_elements=None, message_lin
     of its own, all its attributes written;
     reference_links: (process, row of that process) -> [(object id, qualifier)], the links the event of that
     row gets to such objects (never carried by carry_links);
-    tag_along: (process, object id) -> [(qualifier, [(time, object id)])], the objects with no events of their own
-    that a case's object names, each from its time on: every event of another case that links the case's object,
-    through its messages or carry_links, also links the one named when the event completed, with that qualifier.
+    tag_along: (process, object id) -> [(qualifier, [(time, [object id, ...])])], the objects with no events of their
+    own that a case's object names, each list from its time on: every event of another case that links the case's
+    object, through its messages or carry_links, also links those named when the event completed, with that
+    qualifier.
     """
     processes = {name: _settings(processes, name) for name in processes}
     logged_elements, message_links = logged_elements or {}, message_links or {}
@@ -138,9 +139,9 @@ def write_ocel(path, processes, objects, rows, logged_elements=None, message_lin
             if object_id == event["own"][0]:
                 continue
             for qualifier, timeline in tagged.get(object_id, []):
-                named = [value for time, value in timeline if time <= event["time"]]
+                named = [values for time, values in timeline if time <= event["time"]]
                 if named:
-                    tags.append((named[-1], qualifier))
+                    tags.extend((value, qualifier) for value in named[-1])
         relationships = []
         for object_id, qualifier in [event["own"], *event["links"], *event["carried"], *event["references"], *tags]:
             relationship = {"objectId": object_id, "qualifier": qualifier}

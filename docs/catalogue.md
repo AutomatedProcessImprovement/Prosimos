@@ -9,8 +9,8 @@ Two keys of a process's entry in the configuration file (see [orchestrator.md](o
 process describes only itself, as a company holds its own master data:
 
 - its **catalogues** declare the objects: who exists, and with which attributes;
-- a **reference** says that one of its attributes' value *is* the id of an object of one of its catalogues,
-  which OCEL links to write for it, and, with `pick`, chooses that value when a case is created; with `with`,
+- a **reference** says that one of its attributes' value *is* the id of an object of one of its catalogues (or
+  a list of such ids), which OCEL links to write for it, and, with `pick`, chooses that value when a case is created; with `with`,
   the case also starts with attributes of the object it picked.
 
 A first example, with two customers and Sales choosing one for every order:
@@ -110,7 +110,7 @@ A reference, in a process's `references`, ties one of the process's attributes t
 
 | Key                | Required | Example                            | Meaning                                                                                                         |
 |--------------------|----------|------------------------------------|-----------------------------------------------------------------------------------------------------------------|
-| `object_attribute` | yes      | `"customer"`                       | the attribute whose value is a catalogue id                                                                     |
+| `object_attribute` | yes      | `"customer"`                       | the attribute whose value is a catalogue id, or a list of them (see "A list of ids")                            |
 | `catalogue`        | yes      | `"customer"`                       | the process's catalogue the id belongs to                                                                       |
 | `o2o`              | no       | `"places"`                         | qualifier of a link between the case's object and the catalogue object; without it, no such link                |
 | `reverse`          | no       | `true`                             | turns the `o2o` link around: from the catalogue object to the case's object (default `false`)                   |
@@ -169,6 +169,25 @@ A value that isn't an id of the catalogue gets no link, and a warning (see "Erro
   `carry_links`.
 - A process without an `object_type` writes no objects and no events, so its references link nothing;
   their values still count as referred to, so the pool objects they name are written.
+
+### A list of ids
+
+An attribute may hold a list of ids instead of one, such as a list that `append` builds from the messages a
+case collects ([messaging.md](messaging.md)). Each entry of the list is then a catalogue object, linked exactly
+as a single value is: by `o2o` to the case's object, from the events named in `link_events`, and with
+`tag_along`. An event links the entries of the list the attribute held when it completed, and an id the list
+repeats is linked once. An order that appends the ids of the items it collects into `item_ids`:
+
+```json
+{"object_attribute": "item_ids", "catalogue": "item", "o2o": "contains"}
+```
+
+```
+item_ids = ["i17", "i23", "i12"]  ->  order-0 contains i17, i23 and i12;
+                                      Pack, after the third item, links all three; Pick, before the first, none
+```
+
+An entry that isn't in the catalogue gets no link and a warning; the list's other entries are linked.
 
 ## Pick
 

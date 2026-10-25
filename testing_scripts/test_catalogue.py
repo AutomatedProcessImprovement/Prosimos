@@ -1,8 +1,8 @@
 """
 The catalogue of objects with no events of their own, and the references that link to it (docs/catalogue.md):
-a reference says a case attribute's value is the id of a catalogue object, and the OCEL output links the case's
-object and the events named in link_events to it, and, with tag_along, every event of another case that links
-the case's object.
+a reference says a case attribute's value is the id of a catalogue object, or a list of such ids, each linked as a
+single value is, and the OCEL output links the case's object and the events named in link_events to it, and, with
+tag_along, every event of another case that links the case's object.
 """
 import json
 from datetime import datetime, timedelta
@@ -14,6 +14,8 @@ import pytz
 from prosimos.ocel_writer import OcelProcess, write_ocel
 from prosimos.orchestrator import (CaseObject, CatalogueObject, ProcessSpec, Reference, SimulationConfig,
                                    _reference_links, _tag_along, run_orchestrator)
+from testing_scripts.scripted_engine import ScriptedEngine
+from testing_scripts.test_collect import ORDERS, _settings, at
 from testing_scripts.test_order_management import CONFIG, _config
 
 START = pytz.utc.localize(datetime(2024, 1, 1, 9))
@@ -176,6 +178,81 @@ def test_a_process_without_objects_links_nothing_but_the_catalogue_is_still_writ
     assert static_objects == [("customer", "c1", [("segment", "retail", START)])]
 
 
+# a list of ids: each entry links as a single value does
+
+THREE = {"customer": [CatalogueObject("c1"), CatalogueObject("c2"), CatalogueObject("c3")]}
+
+
+def test_a_list_links_each_of_its_ids_on_the_events_and_between_the_objects():
+    objects = [("P", CaseObject("p-0", START, [("customer", ["c1", "c2", "c3"], START)]))]
+
+    _, object_links, event_links, warnings = _links([Reference("customer", "customer", o2o="placed by")], objects,
+                                                    TWO_ROWS, catalogues=THREE)
+
+    assert event_links == {("P", n): [("c1", "customer"), ("c2", "customer"), ("c3", "customer")] for n in (0, 1)}
+    assert object_links == {("P", "p-0"): [("c1", "placed by"), ("c2", "placed by"), ("c3", "placed by")]}
+    assert warnings == []
+
+
+def test_an_id_a_list_repeats_is_linked_once_per_event_and_once_between_the_objects():
+    objects = [("P", CaseObject("p-0", START, [("customer", ["c2", "c1", "c2"], START)]))]
+
+    _, object_links, event_links, _ = _links([Reference("customer", "customer", o2o="placed by", reverse=True)],
+                                             objects, TWO_ROWS, catalogues=THREE)
+
+    assert event_links == {("P", n): [("c2", "customer"), ("c1", "customer")] for n in (0, 1)}
+    assert object_links == {"c2": [(("P", "p-0"), "placed by")], "c1": [(("P", "p-0"), "placed by")]}
+
+
+def test_an_event_links_the_ids_of_the_list_the_attribute_held_when_it_completed():
+    # the list grows from [c1] to [c1, c2] between the two events, as append grows it; an empty list links nothing
+    objects = [("P", CaseObject("p-0", START, [("customer", [], START), ("customer", ["c1"], START + timedelta(minutes=5)),
+                                               ("customer", ["c1", "c2"], START + timedelta(minutes=15))]))]
+
+    _, object_links, event_links, _ = _links([Reference("customer", "customer", o2o="placed by")], objects,
+                                             [_row(0, "place order", 2), *TWO_ROWS], catalogues=THREE)
+
+    assert event_links == {("P", 1): [("c1", "customer")], ("P", 2): [("c1", "customer"), ("c2", "customer")]}
+    assert object_links == {("P", "p-0"): [("c1", "placed by"), ("c2", "placed by")]}
+
+
+def test_an_id_of_a_list_not_in_the_catalogue_gets_no_link_and_one_warning_and_the_others_are_linked():
+    objects = [("P", CaseObject("p-0", START, [("customer", ["c1", "c9"], START)]))]
+
+    _, object_links, event_links, warnings = _links([Reference("customer", "customer", o2o="placed by")], objects,
+                                                    TWO_ROWS)
+
+    assert event_links == {("P", n): [("c1", "customer")] for n in (0, 1)}
+    assert object_links == {("P", "p-0"): [("c1", "placed by")]}
+    assert warnings == ["object attribute customer has the value 'c9', which is not in catalogue customer; "
+                        "no OCEL link is written for it"]
+
+
+def test_a_list_appended_from_messages_links_each_item_it_collected(tmp_path):
+    # an order collects three ItemReady messages and appends their item ids to item_ids, which a reference ties to
+    # a catalogue of items: Pick runs before any item came, Pack after the third
+    def appending(settings):
+        settings["messages"]["consume"][0]["append"] = {"item_ids": "item_id"}
+
+    picking = ScriptedEngine("Picking")
+    for minutes, item in zip((20, 30, 40), ("i17", "i23", "i12")):
+        picking.publish_at(at(f"09:{minutes}"), "ItemReady", order_id="order-0", item_id=item)
+    config = SimulationConfig([ProcessSpec(
+        "Orders", ORDERS, _settings(tmp_path, appending), 1, "order",
+        catalogues={"item": [CatalogueObject(item) for item in ("i12", "i17", "i23", "i99")]},
+        references=(Reference("item_ids", "item", o2o="contains"),))], START, 1, extra_processes=["Picking"])
+    run_orchestrator(config, None, {"Picking": picking}, ocel_out_path=tmp_path / "log.json")
+    with open(tmp_path / "log.json") as file:
+        ocel = json.load(file)
+
+    order = next(obj for obj in ocel["objects"] if obj["id"] == "order-0")
+    assert [(link["objectId"], link["qualifier"]) for link in order["relationships"]] == [
+        ("i17", "contains"), ("i23", "contains"), ("i12", "contains")]
+    linked = {event["type"]: [link["objectId"] for link in event["relationships"] if link["qualifier"] == "item_ids"]
+              for event in ocel["events"]}
+    assert linked == {"Pick": [], "Pack": ["i17", "i23", "i12"]}
+
+
 # tag_along: P's object p-0 names a product (tag_along, none of its own events) and a colour (every own event);
 # Q's case q-0 links p-0 through a message at its first event and, with carry_links, at its second
 
@@ -206,6 +283,27 @@ def test_with_tag_along_every_event_of_another_case_that_links_the_object_links_
         [("p-0", "p"), ("red", "colour")],  # its own event: link_events decides, not tag_along
         [("q-0", "q"), ("p-0", "item"), ("phone", "product")],  # the product p-0 named when the event completed
         [("q-0", "q"), ("p-0", "item"), ("tablet", "product")]]  # no colour: its reference has no tag_along
+
+
+def test_with_tag_along_an_event_links_each_id_of_the_list_the_object_held_once(tmp_path):
+    config = SimulationConfig([
+        ProcessSpec("P", SALES, "p.json", 1,
+                    catalogues={"product": [CatalogueObject("phone"), CatalogueObject("tablet")]},
+                    references=(Reference("products", "product", link_events=(), tag_along=True),)),
+        ProcessSpec("Q", SALES, "q.json", 1)], START)
+    processes = {"P": OcelProcess("p"), "Q": OcelProcess("q")}
+    objects = [("P", CaseObject("p-0", START, [("products", ["phone", "tablet", "phone"], START)])),
+               ("Q", CaseObject("q-0", START))]
+    rows = [(process, {"case_id": 0, "activity": activity, "resource": "R", "end_time": START + timedelta(minutes=end)})
+            for process, activity, end in (("P", "place order", 5), ("Q", "a", 10))]
+
+    write_ocel(tmp_path / "log.json", processes, objects, rows, None, {("Q", 0): [(("P", "p-0"), "item")]}, None,
+               None, None, _tag_along(config, config.catalogue, objects))
+    with open(tmp_path / "log.json") as file:
+        events = [[(link["objectId"], link["qualifier"]) for link in event["relationships"]]
+                  for event in json.load(file)["events"]]
+
+    assert events[1] == [("q-0", "q"), ("p-0", "item"), ("phone", "products"), ("tablet", "products")]
 
 
 # load errors

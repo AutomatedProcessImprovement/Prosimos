@@ -100,10 +100,11 @@ class NewShare:
 
 @dataclass(frozen=True)
 class Reference:
-    """Says that a case attribute's value of its process is the id of an object of one of its catalogues, and which OCEL
-    links to write for it: from the case's object to it with o2o as qualifier (reverse turns it around), and
-    from the case's events named in link_events (task names or ids; None for every event, () for none), and, with
-    tag_along, from every event of another case that links the case's object.
+    """Says that a case attribute's value of its process is the id of an object of one of its catalogues, or a list
+    of such ids (each one linked as a single value is), and which OCEL links to write for it: from the case's object
+    to it with o2o as qualifier (reverse turns it around), and from the case's events named in link_events (task
+    names or ids; None for every event, () for none), and, with tag_along, from every event of another case that
+    links the case's object.
     With pick, the reference also assigns the value, when the case is created: "uniform" (every object
     equally likely) or, for a listed catalogue, weights as ((id, weight), ...) (ids left out are never picked);
     for a growing catalogue, "new" (every case creates its own object) or NewShare. Without it, the value comes
@@ -1398,8 +1399,9 @@ def _reference_links(config: SimulationConfig, catalogue: Dict[str, List[Catalog
     - (process, row of that process) -> [(object id, qualifier)]: each event of those cases named in
       link_events (every event without the key) links the catalogue object of the value the attribute had when
       the event completed, with the attribute's name as qualifier.
-    A value that is not in its catalogue gets no link, and a warning, once per attribute and value. Processes
-    that write no objects link nothing.
+    A value that is a list (appended, or picked) stands for each of its entries, and an entry it repeats is linked
+    once. A value that is not in its catalogue gets no link, and a warning, once per attribute and value.
+    Processes that write no objects link nothing.
     """
     ids_of = {name: {obj.id for obj in catalogue_objects} for name, catalogue_objects in catalogue.items()}
     history = {(process, case_object.object_id): case_object.attributes for process, case_object in objects}
@@ -1416,10 +1418,12 @@ def _reference_links(config: SimulationConfig, catalogue: Dict[str, List[Catalog
         return False
 
     def values(case, attribute, until=None):
-        """The values the attribute of case, (process, object id), took, in order, or only the one it had at until."""
+        """The ids the attribute of case, (process, object id), named, in order and each once: all it ever named, or
+        only those of the value it had at until."""
         taken = [value for name, value, time in history.get(case, [])
                  if name == attribute and value is not None and (until is None or time <= until)]
-        return taken[-1:] if until is not None else list(dict.fromkeys(taken))
+        return list(dict.fromkeys(entry for value in (taken[-1:] if until is not None else taken)
+                                  for entry in _entries(value)))
 
     def link(source, target, qualifier):
         if (target, qualifier) not in object_links[source]:
@@ -1435,7 +1439,7 @@ def _reference_links(config: SimulationConfig, catalogue: Dict[str, List[Catalog
                 if in_catalogue(reference, value):
                     referred.add((reference.catalogue, str(value)))
                     taken = min(time for name, taken_value, time in history[case]
-                                if name == reference.object_attribute and taken_value == value)
+                                if name == reference.object_attribute and value in _entries(taken_value))
                     key = (reference.catalogue, str(value))
                     first_taken[key] = min(taken, first_taken.get(key, taken))
                     if has_objects and reference.o2o:
@@ -1469,10 +1473,11 @@ def _reference_links(config: SimulationConfig, catalogue: Dict[str, List[Catalog
 
 
 def _tag_along(config: SimulationConfig, catalogue: Dict[str, List[CatalogueObject]], objects):
-    """(process, object id) -> [(qualifier, [(time, catalogue object id)])]: for each reference with tag_along, the
-    catalogue objects its attribute named on the case's object, from when, with the attribute's name as qualifier.
-    The OCEL output links every event of another case that links the object to the one named when the event
-    completed (see write_ocel). Values not in the catalogue are left out; _reference_links warns about them."""
+    """(process, object id) -> [(qualifier, [(time, [catalogue object id, ...])])]: for each reference with
+    tag_along, the catalogue objects its attribute named on the case's object, from when, with the attribute's name
+    as qualifier: one for a single value, each entry once for a list. The OCEL output links every event of another
+    case that links the object to those named when the event completed (see write_ocel). Ids not in the catalogue
+    are left out, and a value with none at all; _reference_links warns about them."""
     ids_of = {name: {obj.id for obj in catalogue_objects} for name, catalogue_objects in catalogue.items()}
     tagged = defaultdict(list)
     for reference in config.references:
@@ -1480,8 +1485,18 @@ def _tag_along(config: SimulationConfig, catalogue: Dict[str, List[CatalogueObje
             continue
         for process, case_object in objects:
             if process == reference.process:
-                timeline = [(time, str(value)) for name, value, time in case_object.attributes
-                            if name == reference.object_attribute and value is not None
-                            and str(value) in ids_of[reference.catalogue]]
+                timeline = []
+                for name, value, time in case_object.attributes:
+                    if name == reference.object_attribute and value is not None:
+                        named = list(dict.fromkeys(str(entry) for entry in _entries(value)
+                                                   if str(entry) in ids_of[reference.catalogue]))
+                        if named:
+                            timeline.append((time, named))
                 tagged[(process, case_object.object_id)].append((reference.object_attribute, timeline))
     return dict(tagged)
+
+
+def _entries(value):
+    """The catalogue ids a referenced attribute's value names: a list's entries (an appended or picked list), or the
+    value itself."""
+    return [entry for entry in value if entry is not None] if isinstance(value, (list, tuple)) else [value]
