@@ -249,7 +249,7 @@ def test_ocel_attributes_naming_an_attribute_the_objects_never_have_are_rejected
     processes = [dataclasses.replace(spec, ocel_attributes=("weight", "colour")) if spec.name == "Warehouse" else spec
                  for spec in config.processes]
 
-    with pytest.raises(ValueError, match=r"Invalid ocel_attributes: processes\[2\].ocel_attributes names \['colour'\], "
+    with pytest.raises(ValueError, match=r"Invalid ocel_attributes: processes\[1\].ocel_attributes names \['colour'\], "
                                          r"which the objects of process Warehouse never have"):
         SimulationConfig(processes, config.start_datetime, config.seed)
 

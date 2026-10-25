@@ -29,8 +29,8 @@
           "id": "Payments",
           "name": "Payments",
           "cost_per_hour": 1,
-          "amount": 20,
-          "calendar": "Weekdays",
+          "amount": 100,
+          "calendar": "Generator",
           "assigned_tasks": [
             "Pay_Order"
           ]
@@ -60,7 +60,21 @@
       "endTime": "22:00:00"
     }
   ],
-  "gateway_branching_probabilities": [],
+  "gateway_branching_probabilities": [
+    {
+      "gateway_id": "Pays",
+      "probabilities": [
+        {
+          "path_id": "Flow_Pay",
+          "value": 0.8
+        },
+        {
+          "path_id": "Flow_Remind",
+          "value": 0.2
+        }
+      ]
+    }
+  ],
   "task_resource_distribution": [
     {
       "task_id": "Place_Order",
@@ -115,10 +129,16 @@
       "resources": [
         {
           "resource_id": "Payments",
-          "distribution_name": "fix",
+          "distribution_name": "expon",
           "distribution_params": [
             {
-              "value": 300
+              "value": 148608
+            },
+            {
+              "value": 0
+            },
+            {
+              "value": 424594
             }
           ]
         }
@@ -135,18 +155,6 @@
           "to": "SUNDAY",
           "beginTime": "00:00:00",
           "endTime": "23:59:59"
-        }
-      ]
-    },
-    {
-      "id": "Weekdays",
-      "name": "Weekdays",
-      "time_periods": [
-        {
-          "from": "MONDAY",
-          "to": "FRIDAY",
-          "beginTime": "06:00:00",
-          "endTime": "22:00:00"
         }
       ]
     },
@@ -272,28 +280,6 @@
         ],
         "qualifier": "item",
         "o2o": "comprises"
-      },
-      {
-        "event_id": "Throw_OrderConfirmed",
-        "type": "OrderConfirmed",
-        "attributes": [
-          "object_id"
-        ]
-      }
-    ],
-    "consume": [
-      {
-        "event_id": "Catch_Payment",
-        "type": "Payment",
-        "condition": [
-          [
-            {
-              "attribute": "order_id",
-              "comparison": "=",
-              "object_attribute": "object_id"
-            }
-          ]
-        ]
       }
     ]
   },

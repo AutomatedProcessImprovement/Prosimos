@@ -214,7 +214,7 @@ def test_a_pool_of_100000_passes_the_catalogue_check_well_under_a_second():
     assets = "testing_scripts/assets/order_management"
     specs = [ProcessSpec(name, f"{assets}/{name.lower()}.bpmn", f"{assets}/{name.lower()}.json",
                          catalogues={"customer": CataloguePool(100_000, ())} if name == "Sales" else {})
-             for name in ("Sales", "Customer", "Warehouse", "Packaging")]
+             for name in ("Sales", "Warehouse", "Packaging")]
 
     started = time.perf_counter()
     _checked_catalogue(specs)

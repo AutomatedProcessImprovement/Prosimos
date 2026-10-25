@@ -7,9 +7,8 @@ and shares with the real log. Its task durations follow the rules of the program
 `testing_scripts/test_order_management.py`.
 
 It uses most messaging features ([messaging.md](messaging.md)): one message per object with `count` and
-`index`, processes started by messages, `copy`, `append` and `aggregate`, conditions on case attributes, a race
-with a timer that repeats, and `collect` with `same`; and the catalogue ([catalogue.md](catalogue.md)) for its
-customers and products.
+`index`, processes started by messages, `copy`, `append` and `aggregate`, and `collect` with `same`; and the
+catalogue ([catalogue.md](catalogue.md)) for its customers and products.
 
 ## The processes
 
@@ -19,11 +18,9 @@ customers and products.
 Sales (order)        arrivals: weekdays 6:00-22:00, about one every 4.3 h, 2,000 orders
                      object attributes: customer (picked from c1..c15), items (1..16, as in the log)
                      place order -> (throw ItemOrdered x items: object_id, index, customer)
-                     -> confirm order (Sales, about a day) -> (throw OrderConfirmed: object_id)
-                     -> race: catch Payment (order_id = object_id) -> pay order -> end
-                            | timer 20 days -> payment reminder -> back to the race
-Customer             start OrderConfirmed (copy order_id) -> timer (confirm-to-pay delay)
-                     -> message end Payment{order_id}
+                     -> confirm order (Sales, about a day)
+                     -> XOR: 80% pay order (Payments, about 7 days) -> end
+                           | 20% timer 20 days -> payment reminder -> back to the XOR
 Warehouse (item)     start ItemOrdered (copy order_id, item_index from index, customer)
                      object attributes: product (picked from the log's 20, as often as in the log), and its
                         weight and price
@@ -58,8 +55,6 @@ Not modeled, and where each goes:
   confirms here): under discussion.
 - **The forwarder of a package** (the shipper sends it here): under discussion.
 
-The Customer process only models how long a customer takes to pay; its rows aren't compared with the log.
-
 ## Who talks to whom
 
 Every arrow goes through the orchestrator; processes never address each other. Each process is its own
@@ -68,13 +63,10 @@ consumer group, so every message goes to the one process that subscribes to its 
 ```mermaid
 flowchart LR
     Sales([Sales<br/>one case per order])
-    Customer([Customer<br/>one case per confirmed order])
     Warehouse([Warehouse<br/>one case per item])
     Packaging([Packaging<br/>one case per packing round])
 
     Sales -->|"ItemOrdered<br/>(one per item: count)"| Warehouse
-    Sales -->|"OrderConfirmed<br/>(starts a case)"| Customer
-    Customer -->|"Payment<br/>(same order)"| Sales
     Warehouse -->|"ItemPicked<br/>(a packing round takes all of one customer's)"| Packaging
 ```
 
@@ -82,8 +74,7 @@ flowchart LR
 
 | Process       | Publishes                                                                                 | Consumes                                                                                                                                                                   |
 |---------------|-------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Sales**     | `ItemOrdered{object_id, index, customer}`, `count` = `items`; `OrderConfirmed{object_id}` | `Payment` where `order_id == object_id`, in a race against the 20-day reminder timer                                                                                       |
-| **Customer**  | `Payment{order_id}`, at its message end event                                             | `OrderConfirmed` at its start event; copies `order_id` from `object_id`                                                                                                    |
+| **Sales**     | `ItemOrdered{object_id, index, customer}`, `count` = `items`                              | nothing                                                                                                                                                                    |
 | **Warehouse** | `ItemPicked{order_id, item_index, customer, object_id, weight}`, at its message end event | `ItemOrdered` at its start event; copies `order_id` from `object_id`, `item_index` from `index`, `customer` from `customer`                                                |
 | **Packaging** | nothing                                                                                   | `ItemPicked` at "items picked": `"collect": "all"` with `"same": ["customer"]`, copying `customer`, appending `object_id` to `item_ids` and summing `weight` into `weight` |
 
@@ -98,9 +89,9 @@ flowchart LR
 | object type **products**       | Warehouse | case attribute `product`   | the log's 20 in the catalogue; one picked for each item as often as in the log, and its weight and price with it |
 | object type **employees**      | all       | resources                  | Sales, Warehousing, `Packer` (Packaging) and Shipment, large enough that no task waits for a person              |
 | activity **place order**       | Sales     | task `Place_Order`         | done by the `Shop` resource; `ItemOrdered` is published right after it                                           |
-| activity **confirm order**     | Sales     | task `Confirm_Order`       | Sales; `OrderConfirmed` is published right after it                                                              |
-| activity **payment reminder**  | Sales     | task `Payment_Reminder`    | the timer branch of the race (20 days), then back to the race                                                    |
-| activity **pay order**         | Sales     | task `Pay_Order`           | after the message branch of the race (`Payment`); done by the `Payments` resource                                |
+| activity **confirm order**     | Sales     | task `Confirm_Order`       | Sales                                                                                                            |
+| activity **payment reminder**  | Sales     | task `Payment_Reminder`    | the 20% branch of an XOR, after a 20-day timer, then back to the XOR                                             |
+| activity **pay order**         | Sales     | task `Pay_Order`           | the 80% branch of that XOR; done by the `Payments` resource, its duration the delay before paying                |
 | activity **item out of stock** | Warehouse | task `Item_Out_Of_Stock`   | the 20% branch of an XOR                                                                                         |
 | activity **reorder item**      | Warehouse | task `Reorder_Item`        | after item out of stock                                                                                          |
 | activity **pick item**         | Warehouse | task `Pick_Item`           | Warehousing; `ItemPicked` is published at the message end event after it                                         |
@@ -109,7 +100,6 @@ flowchart LR
 | activity **send package**      | Packaging | task `Send_Package`        | Shipment                                                                                                         |
 | activity **failed delivery**   | Packaging | task `Failed_Delivery`     | the 20% branch after send package, then the 30% branch after each failure                                        |
 | activity **package delivered** | Packaging | task `Package_Delivered`   | the other branches: 80% after send package, 70% after a failure                                                  |
-| not in the log                 | Customer  | timer `Pay_Delay`          | how long the customer takes to pay; publishes `Payment`                                                          |
 
 ## Numbers from the log
 
@@ -119,8 +109,8 @@ flowchart LR
 | Customers         | 15, 103-152 orders each                                                                | `customer`: picked uniformly from the catalogue's c1..c15                         |
 | Items per order   | 1-16 (1: 159, 2: 360, 3: 489, 4: 367, 5: 275, 6: 164, 7: 100, 8+: 86)                  | `items`: these frequencies, 8+ as in the log                                      |
 | Out of stock      | 1,544 of 7,659 items (20%)                                                             | XOR 20 / 80                                                                       |
-| Confirm to pay    | median 7 days, quartiles 2.34 / 17.86, max 91; 23.5% after 20 days                     | Customer timer: log-normal with that median and quartiles, at most 91 days        |
-| Payment reminder  | exactly 20 days after confirm or the previous reminder; 0-4 per order                  | race timer, fixed 20 days                                                         |
+| Confirm to pay    | median 7 days, quartiles 2.34 / 17.86, max 91; 23.5% after 20 days                     | the generator's loop: XOR 80 / 20 after confirm and after every reminder          |
+| Payment reminder  | exactly 20 days after confirm or the previous reminder; 0-4 per order                  | timer, fixed 20 days on the clock                                                 |
 | Packing rounds    | 1,128 packages; gaps between create package: median 2.6 h; mostly 7-17                 | exponential gaps of 2.6 h mean within a weekday 7:00-17:00 calendar, 1,440 rounds |
 | Items per package | 1-20, median 6; always one customer: the oldest waiting item and all of its customer's | the same rule: `"collect": "all"` with `"same": ["customer"]`                     |
 | Products          | 20, 343-433 items each; weight 0.166-1.48 (an item weighs what its product weighs)     | picked with these frequencies; `with` gives each item its product's weight        |
@@ -130,7 +120,8 @@ flowchart LR
 | Task durations    | the generator's delays, in its working time                                            | see [Durations](#durations)                                                       |
 
 Place order, pay order and payment reminder have no employee in the log; here they are done by `Shop`
-(always available) and `Payments` (weekdays 6-22) resources.
+(always available) and `Payments` resources, a pool of 100 on the staff's calendar (see
+[Durations](#durations)).
 
 ## The log's generator
 
@@ -150,6 +141,9 @@ on the record, not in this repository. Its rules:
   product's price with it.
 - **Orders arrive at an even pace**, one every week / 50 of arrival time, whose speed changes by hour, weekday
   and month ([Arrivals](#arrivals)).
+- **Orders are paid in a loop.** After confirm order, 80% pay after `expb(7 days, 20)` and 20% get a reminder
+  after exactly 20 days on the clock; after every reminder, the same choice again. Here the same loop: an XOR
+  80 / 20, pay order taking the generator's delay as its duration, and a 20-day timer before the reminder.
 
 Where the model differs from the generator, and why:
 
@@ -158,7 +152,6 @@ Where the model differs from the generator, and why:
 | working time is a speed per hour (0.1 to 1), 0.9 on Mondays and Fridays, 0.7 in July and 0.5 in August, in German local time           | a weekly calendar working at full speed for as many hours, shorter on Mondays and Fridays, 1.5 hours earlier in UTC    | a Prosimos calendar has no speeds, months or summer time ([Durations](#durations))    |
 | a reordered item is picked when the supplier's delay, `expb(10 days, 40)`, ends                                                        | a restock timer of 8 days on the clock, then pick item's 2 days                                                        | pick item is one task on both paths; the same mean, an 11% higher median (accepted)   |
 | packing when more than 50 items wait, or every 5 days                                                                                  | packing rounds in working hours, about one every 2.6 h, each taking the oldest waiting item and its customer's         | future work ([Packing](#packing))                                                     |
-| payment: 80% pay after `expb(7 days, 20)`; 20% get a reminder after exactly 20 days, and the same again                                | the Customer process pays after a log-normal delay fitted to the log; Sales reminds every 20 days until paid           | future work                                                                           |
 | delivery: 80% at the first attempt, 70% after a failure                                                                                | the same odds, with a second gateway after failed delivery                                                             | a gateway has one set of odds                                                         |
 | confirm order by the customer's primary sales rep (86.4%), else 70% by the secondary, else by any                                      | any Sales person                                                                                                       | under discussion                                                                      |
 | send package by two people: a forwarder (90% a Warehousing employee, else 70% the package's shipper, else any shipper) and the shipper | one Shipment person                                                                                                    | a task has one resource, and resources aren't shared between processes                |
@@ -212,7 +205,7 @@ numbers first):
   6:00 UTC.
 - **Many orders between 6:00 and 7:00 UTC: 2.5% against 17.6%**; 245 of them (12%) are placed at 6:01, the
   calendar's opening plus place order's minute.
-- **Confirm order 11% and pick item 19% sooner** (medians 17.7 h against 15.7 h, and 32.5 h against 26.2 h).
+- **Confirm order 10% and pick item 19% sooner** (medians 17.7 h against 16.0 h, and 32.5 h against 26.2 h).
   An order placed at the opening, as the staff start work, crosses fewer nights before it is confirmed and its
   items are picked. From the log's own order times, the same durations and calendar give 18.0 h and 28.4 h
   (+2% and -13%). Pick item's median, like the Shipment's, falls in the night between the first and the second
@@ -233,14 +226,15 @@ working duration = generator value × (the calendar's 41.28 working hours a week
 | `Confirm_Order`                                        | 1 day, 10 days              | 21,230 s (5.9 h), 212,297 s (59.0 h)                   |
 | `Item_Out_Of_Stock`, `Reorder_Item`, `Pick_Item`       | 2 days, 10 days             | 42,459 s (11.8 h), 212,297 s (59.0 h)                  |
 | `Send_Package`, `Failed_Delivery`, `Package_Delivered` | 1 day, 2 days               | 21,230 s (5.9 h), 42,459 s (11.8 h)                    |
+| `Pay_Order`                                            | 7 days, 20 days             | 148,608 s (41.3 h), 424,594 s (117.9 h)                |
 | timer `Item_Restocked`, then `Pick_Item`               | 10 days, 40 days            | timer: 8 days, 30 days, on the clock; then pick item's |
 
 A reordered item is picked when the supplier's delay ends, with no delay of its own; here it goes through pick
 item like any other item. So the restocking timer takes 8 days and pick item's 2 days make up the generator's 10,
 with caps 30 and 10 for its 40. Timers run on the clock, so the timer isn't converted. This is an
 approximation: the sum of the two has the generator's mean, but not the shape of one exponential, and a higher
-median. Create package keeps its own duration (packing rounds are future work), as do the Customer's payment
-and the arrivals.
+median. The reminder's 20 days are a timer on the clock, as in the generator, which doesn't stretch them by its
+working time. Create package keeps its own duration (packing rounds are future work), as do the arrivals.
 
 The generator's working time is a speed per hour, in German local time: full from 9 to 12 and 14 to 17, half
 from 8 to 9, 12 to 14 and 17 to 18, 0.3 from 18 to 19, 0.1 from 19 to 22, none at night or at weekends;
@@ -271,7 +265,7 @@ poetry run python testing_scripts/order_management_compare.py <path to order-man
 The configuration names the object types in the singular, one kind of thing each: `order` (Sales), `item`
 (Warehouse) and `package` (Packaging), and the catalogue adds `customer` and `product`; objects are named
 `<object type>-<number>`, e.g. `order-7`. The comparison script reads them under the real log's plural names
-(`order` as `orders`). Customer has no object type, so the OCEL file has no objects or events for it. Each event
+(`order` as `orders`). Each event
 is linked to the objects on the other end of its messages ([orchestrator.md](orchestrator.md), "One event linked
 to many objects"), as the Order Management log links them. Like the log, only one end of the messages between
 the items and the others links: `ItemOrdered` from the order's place order, `ItemPicked` from the package's
@@ -333,9 +327,9 @@ that no event refers to.
 | items per order: mean / median / max                                |                  3.83 / 3 / 16 |                  3.87 / 3 / 16 |
 | items per order: 1 / 2 / 3 / 4                                      |      8.0 / 18.0 / 24.4 / 18.4% |      8.1 / 17.4 / 24.9 / 17.8% |
 | items per order: 5 / 6 / 7 / 8+                                     |        13.8 / 8.2 / 5.0 / 4.3% |        13.8 / 7.8 / 5.5 / 5.0% |
-| reminders per order: mean / max                                     |                       0.28 / 4 |                       0.32 / 4 |
-| reminders per order: 0 / 1 / 2 / 3 / 4+                             | 77.8 / 17.2 / 3.9 / 0.9 / 0.1% | 80.0 / 12.4 / 4.2 / 2.4 / 0.9% |
-| orders paid after 20 days                                           |                          23.5% |                          20.3% |
+| reminders per order: mean / max                                     |                       0.28 / 4 |                       0.24 / 5 |
+| reminders per order: 0 / 1 / 2 / 3 / 4+                             | 77.8 / 17.2 / 3.9 / 0.9 / 0.1% | 81.0 / 15.2 / 3.0 / 0.5 / 0.1% |
+| orders paid after 20 days                                           |                          23.5% |                          19.2% |
 | items out of stock                                                  |                          20.2% |                          20.0% |
 | items per package: mean / median / max                              |                  6.79 / 6 / 20 |                  6.23 / 6 / 24 |
 | customers per package                                               |                       always 1 |                       always 1 |
@@ -349,7 +343,9 @@ that no event refers to.
 | links: items is a products                                          |                          7,659 |                          7,735 |
 | links to employees (sales reps, packer, forwarder, shipper)         |                          3,414 |                              - |
 | price values per product: min / median / max                        |                      6 / 6 / 6 |                      1 / 1 / 1 |
-| place order → confirm order (h): median / in working hours          |                     17.7 / 4.2 |                     15.7 / 3.8 |
+| place order → confirm order (h): median / in working hours          |                     17.7 / 4.2 |                     16.0 / 3.9 |
+| confirm order → pay order (h)                                       |                   119.2 / 28.8 |                   115.4 / 25.4 |
+| payment reminder → pay order (h)                                    |                    98.1 / 27.0 |                    98.8 / 28.5 |
 | place order → item out of stock (h)                                 |                     28.0 / 8.4 |                     26.0 / 8.1 |
 | item out of stock → reorder item (h)                                |                     25.7 / 8.3 |                     25.2 / 8.1 |
 | place order → pick item (h)                                         |                     32.5 / 8.6 |                     26.2 / 7.9 |
@@ -362,8 +358,8 @@ that no event refers to.
 | out of order (FIFO displacement): pick item / send package (places) |                         21 / 1 |                         21 / 1 |
 | pick item to create package: quartiles (h)                          |             22.0 / 46.0 / 79.6 |             23.6 / 47.8 / 89.6 |
 | pick item to create package: mean (h)                               |                           56.4 |                           56.3 |
-| items picked before their order is confirmed                        |                          25.4% |                          26.6% |
-| orders paid after their first delivery                              |                          67.3% |                          65.8% |
+| items picked before their order is confirmed                        |                          25.4% |                          26.1% |
+| orders paid after their first delivery                              |                          67.3% |                          64.4% |
 
 The gaps are medians from the event that enables a task to the task, on the clock and counting only the
 calendar's working hours; the Shipments are compared by the share that ends the day it starts (UTC), since
@@ -378,7 +374,7 @@ generator's durations, the gaps to item out of stock and reorder item, how far i
 (21 places in both), and the share of items picked before their order is confirmed match the log too; the tasks wait for nobody, as in the
 log. What still differs comes from the generator's rules, or from parts of the model left as they are:
 
-- **Confirm order and pick item come about 11% and 19% sooner**, from the arrivals: no order comes at a
+- **Confirm order and pick item come about 10% and 19% sooner**, from the arrivals: no order comes at a
   weekend and 18% come between 6:00 and 7:00 UTC ([Arrivals](#arrivals)). From the log's own order times, the
   same durations and calendar give 18.0 h and 28.4 h, and the generator's own pick item median moves between
   28.7 and 33.4 h from seed to seed.
@@ -398,8 +394,14 @@ log. What still differs comes from the generator's rules, or from parts of the m
 - **Products have 6 prices each in the log**, the generator raising them for inflation about every 60 days;
   here each product keeps its first price.
 
-The fitted confirm-to-pay distribution pays a little earlier than the log, but has a longer tail, so more
-orders get 3 or 4 reminders. The packages, their sizes and how long items wait for them follow from the
+The payments follow the generator's loop: 19.1% of the 2,471 choices after a confirmation or a reminder lead to
+a reminder, 1.2 standard deviations below the 20% of its rule, and the confirm → pay order and
+reminder → pay order gaps are within 4% of the log's. The log's own draws give 22.1% of 2,566 choices, 2.6
+standard deviations above its rule, which happens about once in a hundred runs; so it has more orders with
+reminders (22.2% against 19.0%). Orders paid after 20 days are those with a reminder, and those whose capped
+delay still ran past 20 days on the clock: 1.35% in the log, 0.3% here, since the generator's slower July and
+August and its rounding of a delay's first, partial hour stretch some delays, which a weekly calendar can't.
+The packages, their sizes and how long items wait for them follow from the
 packing rounds ([Packing](#packing)). The log links packages and confirmations to employees; here employees
 are resources, not objects.
 
@@ -418,5 +420,3 @@ Found while building the example; no feature was added for them.
   rounds left over stall at the end (199 with seed 1).
 - **A calendar has no speeds.** The generator works at partial speed in some hours, months and weekdays; a
   calendar only works or doesn't ([Durations](#durations)).
-- **Reminders are 20 days and one microsecond apart.** A race timer's branch continues one microsecond after
-  the timer's time, so that a message at exactly that time wins ([messaging.md](messaging.md)). By design.

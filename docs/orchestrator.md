@@ -132,7 +132,7 @@ written as an OCEL 2.0 JSON file, the format of the OCEL 2.0 sample logs, readab
   the OCEL output does this; the CSV log and the run report are unchanged. `ocel_attributes` may name only
   attributes the objects have: drawn in `object_attributes`, picked or brought (`with`) by a reference, or copied,
   appended or aggregated from messages; any other name is a load error (`Invalid ocel_attributes:
-  processes[2].ocel_attributes names ['colour'], which the objects of process Warehouse never have (...)`). Its
+  processes[1].ocel_attributes names ['colour'], which the objects of process Warehouse never have (...)`). Its
   relationships are its links to other objects, from the `o2o` keys of message entries
   ([messaging.md](messaging.md)): e.g. an order comprises each item its ItemOrdered messages started. Without `o2o`
   keys, objects have no relationships. The catalogue's objects are written too, with all their attributes (see

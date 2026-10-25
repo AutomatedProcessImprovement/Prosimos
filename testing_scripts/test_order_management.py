@@ -22,9 +22,9 @@ CONFIG = "testing_scripts/assets/order_management/simulation.json"  # 2,000 orde
 ORDERS = 100
 # enough rounds to pack every item: restocked items are picked up to four weeks after the last order
 ROUNDS = 100
-# a race timer's branch continues one microsecond after its time, so each reminder comes 20 days and one
-# microsecond after the confirmation or the previous reminder (the reminder itself takes no time)
-REMINDER_GAP = timedelta(days=20, microseconds=1)
+# a reminder comes exactly 20 days on the clock after the confirmation or the previous reminder (the reminder
+# itself takes no time)
+REMINDER_GAP = timedelta(days=20)
 
 
 def _config(orders=ORDERS, rounds=ROUNDS):
@@ -281,19 +281,20 @@ def test_every_order_ends_paid(run):
     assert not any(process == "Sales" for process, _ in report.stalled)
 
 
-def test_reminders_come_exactly_20_days_apart_and_only_while_unpaid(run):
+def test_after_confirmation_and_each_reminder_an_order_either_pays_or_is_reminded_20_days_later(run):
     _, log, _ = run
 
     confirmed = _rows(log, "Sales", "confirm order").groupby("case_id")["end_time"].first()
-    paid = _rows(log, "Sales", "pay order").groupby("case_id")["enable_time"].first()  # when the payment came
+    paying = _rows(log, "Sales", "pay order").groupby("case_id")[["enable_time", "start_time"]].first()
     reminders = _rows(log, "Sales", "payment reminder").groupby("case_id")["enable_time"].apply(sorted)
-    assert len(reminders) > 0  # some orders were reminded
+    assert 0 < len(reminders) < len(confirmed)  # some orders were reminded, not all
     for order in _orders(log):
-        # the race starts when the order is confirmed, and again after each reminder
         times = [confirmed[order]] + reminders.get(order, [])
         assert all(later - earlier == REMINDER_GAP for earlier, later in zip(times, times[1:]))
-        # every reminder came before the payment, and the payment came before the next one was due
-        assert times[-1] < paid[order] < times[-1] + REMINDER_GAP
+        # paying is enabled at once after the confirmation or the last reminder, and starts as soon as the
+        # calendar is open: its delay, in working time, is pay order's duration
+        enabled, started = paying["enable_time"][order], paying["start_time"][order]
+        assert enabled == times[-1] and working_seconds(enabled.to_pydatetime(), started.to_pydatetime()) == 0
 
 
 def test_at_the_end_the_only_stalled_cases_are_packing_rounds_that_never_took_an_item(run):

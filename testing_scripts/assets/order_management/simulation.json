@@ -22,11 +22,6 @@
       ]
     },
     {
-      "name": "Customer",
-      "bpmn_path": "customer.bpmn",
-      "json_path": "customer.json"
-    },
-    {
       "name": "Warehouse",
       "bpmn_path": "warehouse.bpmn",
       "json_path": "warehouse.json",

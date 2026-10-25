@@ -1,0 +1,26 @@
+{
+  "resource_profiles": [],
+  "gateway_branching_probabilities": [],
+  "task_resource_distribution": [],
+  "resource_calendars": [],
+  "messages": {
+    "publish": [
+      {
+        "event_id": "End_Noted",
+        "type": "Noted",
+        "attributes": [
+          "item"
+        ]
+      }
+    ],
+    "consume": [
+      {
+        "event_id": "Start_Picked",
+        "type": "ItemPicked",
+        "copy": {
+          "item": "object_id"
+        }
+      }
+    ]
+  }
+}

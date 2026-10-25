@@ -3,6 +3,7 @@ One event linked to many objects (docs/orchestrator.md, "OCEL output"): the task
 catch event links the objects on the other end of the message, and with carry_links every later event of the
 case links them too.
 """
+import dataclasses
 import json
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -144,15 +145,20 @@ def test_an_items_events_link_neither_its_order_nor_its_package_as_in_the_real_l
     assert {object_type[link["objectId"]] for event in item_events for link in event["relationships"]} == {"item", "product"}
 
 
-def test_a_process_without_objects_attaches_nothing_and_warns_nothing(order_management):
-    # Customer (no object type) has no tasks at all: attached, every claim and publish would warn
-    report, _, _ = order_management
+def test_a_process_without_objects_attaches_nothing_and_warns_nothing():
+    # Relay, beside Order Management, has no object type and no tasks: it claims every ItemPicked and publishes
+    # Noted at once; attached, every claim and publish would warn
+    config = _config(20)
+    relay = ProcessSpec("Relay", f"{GATEWAYS}/relay.bpmn", f"{GATEWAYS}/relay.json", None)
+    report = run_orchestrator(dataclasses.replace(config, processes=[*config.processes, relay], consumer_groups=None),
+                              None)
 
-    customer = [element for record in report.message_records
-                for element in [record.publisher, *record.claimers] if element and element.process == "Customer"]
-    assert customer
-    assert all(element.task_rows == () for element in customer)
-    assert not any(process == "Customer" for process, _ in report.engine_warnings)
+    elements = [element for record in report.message_records
+                for element in [record.publisher, *record.claimers] if element and element.process == "Relay"]
+    assert any(record.publisher and record.publisher.process == "Relay" for record in report.message_records)
+    assert any(claimer.process == "Relay" for record in report.message_records for claimer in record.claimers)
+    assert all(element.task_rows == () for element in elements)
+    assert not any(process == "Relay" for process, _ in report.engine_warnings)
 
 
 def test_a_case_still_waiting_at_the_end_drops_its_links_with_a_warning(tmp_path):

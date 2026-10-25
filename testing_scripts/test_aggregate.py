@@ -235,6 +235,6 @@ def test_picking_an_attribute_the_process_aggregates_into_is_rejected(tmp_path):
     next(process for process in data["processes"] if process["name"] == "Packaging")["json_path"] = str(packaging)
     path.write_text(json.dumps(data))
 
-    with pytest.raises(ValueError, match=r"processes\[3\].references\[0\] picks segment, which process Packaging also aggregates "
+    with pytest.raises(ValueError, match=r"processes\[2\].references\[0\] picks segment, which process Packaging also aggregates "
                                          r"into from a message \(consume entries at \['Catch_Items'\]\)"):
         SimulationConfig.from_json(path)

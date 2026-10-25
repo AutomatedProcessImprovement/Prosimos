@@ -278,7 +278,7 @@ def test_picking_an_attribute_the_process_copies_from_a_message_is_rejected(tmp_
     path = _config_with(tmp_path, catalogues={"Warehouse": {"customer": CUSTOMERS}},
                         references={"Warehouse": [{**PICKING, "pick": "uniform"}]})
 
-    with pytest.raises(ValueError, match=r"processes\[2\].references\[0\] picks customer, which process Warehouse also "
+    with pytest.raises(ValueError, match=r"processes\[1\].references\[0\] picks customer, which process Warehouse also "
                                          r"copies from a message \(consume entries at \['Start_Item'\]\)"):
         SimulationConfig.from_json(path)
 
@@ -305,7 +305,7 @@ def test_two_references_picking_the_same_attribute_are_rejected(tmp_path):
 
 
 PRODUCTS = {"object_attribute": "product", "catalogue": "product", "pick": "uniform"}
-WAREHOUSE = r"processes\[2\].references"
+WAREHOUSE = r"processes\[1\].references"
 
 
 def _products_with(tmp_path, names, *other_references, attributes=None, process="Warehouse"):
@@ -410,9 +410,9 @@ def test_two_withs_bringing_the_same_attribute_to_a_process_are_rejected(tmp_pat
 
 
 @pytest.mark.parametrize("process, index, name, verb, event", [
-    ("Warehouse", 2, "customer", "copies", "Start_Item"),
-    ("Packaging", 3, "item_ids", "appends to", "Catch_Items"),
-    ("Packaging", 3, "weight", "aggregates into", "Catch_Items"),
+    ("Warehouse", 1, "customer", "copies", "Start_Item"),
+    ("Packaging", 2, "item_ids", "appends to", "Catch_Items"),
+    ("Packaging", 2, "weight", "aggregates into", "Catch_Items"),
 ])
 def test_bringing_an_attribute_the_process_sets_from_a_message_is_rejected(tmp_path, process, index, name, verb, event):
     path = _products_with(tmp_path, [name], attributes={name: "x"}, process=process)

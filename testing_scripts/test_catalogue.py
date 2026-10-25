@@ -341,7 +341,7 @@ def test_a_reference_to_another_processs_catalogue_is_rejected(tmp_path):
     # the items know their order's customer only from ItemOrdered, which copies it under any name they choose
     path = _config_with(tmp_path, references={"Warehouse": [{"object_attribute": "customer", "catalogue": "customer"}]})
 
-    with pytest.raises(ValueError, match=r"processes\[2\].references\[0\] names catalogue 'customer' of process Sales; "
+    with pytest.raises(ValueError, match=r"processes\[1\].references\[0\] names catalogue 'customer' of process Sales; "
                                          r"a reference names a catalogue of its own process"):
         SimulationConfig.from_json(path)
 

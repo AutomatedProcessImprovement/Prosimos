@@ -1,24 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1260" height="770" viewBox="0 0 1260 770" font-family="Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="1260" height="660" viewBox="0 0 1260 660" font-family="Helvetica, Arial, sans-serif">
 <defs>
 <marker id="seq" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#222"/></marker>
 <marker id="msgend" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#fff" stroke="#555"/></marker>
 <marker id="msgstart" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7"><circle cx="5" cy="5" r="4" fill="#fff" stroke="#555"/></marker>
 </defs>
-<rect width="1260" height="770" fill="#fff"/>
+<rect width="1260" height="660" fill="#fff"/>
 <rect x="20" y="20" width="1220" height="230" fill="#fff" stroke="#333" stroke-width="1.5"/>
 <line x1="50" y1="20" x2="50" y2="250" stroke="#333" stroke-width="1.5"/>
 <text x="39.0" y="135.0" font-size="12" font-weight="bold" text-anchor="middle" transform="rotate(-90 39.0 135.0)">Sales (order)</text>
-<rect x="20" y="260" width="1220" height="100" fill="#fff" stroke="#333" stroke-width="1.5"/>
-<line x1="50" y1="260" x2="50" y2="360" stroke="#333" stroke-width="1.5"/>
-<text x="39.0" y="310.0" font-size="12" font-weight="bold" text-anchor="middle" transform="rotate(-90 39.0 310.0)">Customer</text>
-<rect x="20" y="370" width="1220" height="170" fill="#fff" stroke="#333" stroke-width="1.5"/>
-<line x1="50" y1="370" x2="50" y2="540" stroke="#333" stroke-width="1.5"/>
-<text x="32.5" y="455.0" font-size="12" font-weight="bold" text-anchor="middle" transform="rotate(-90 32.5 455.0)">Warehouse</text>
-<text x="45.5" y="455.0" font-size="12" font-weight="bold" text-anchor="middle" transform="rotate(-90 45.5 455.0)">(item)</text>
-<rect x="20" y="550" width="1220" height="200" fill="#fff" stroke="#333" stroke-width="1.5"/>
-<line x1="50" y1="550" x2="50" y2="750" stroke="#333" stroke-width="1.5"/>
-<text x="32.5" y="650.0" font-size="12" font-weight="bold" text-anchor="middle" transform="rotate(-90 32.5 650.0)">Packaging</text>
-<text x="45.5" y="650.0" font-size="12" font-weight="bold" text-anchor="middle" transform="rotate(-90 45.5 650.0)">(package)</text>
 <circle cx="100" cy="180" r="18" fill="#fff" stroke="#222" stroke-width="1.5"/>
 <text x="100" y="212" font-size="11" text-anchor="middle">order</text>
 <text x="100" y="225" font-size="11" text-anchor="middle">received</text>
@@ -35,33 +24,22 @@
 <polyline points="318,180 348,180" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
 <rect x="348" y="155" width="104" height="50" rx="9" fill="#fdfdf3" stroke="#222" stroke-width="1.5"/>
 <text x="400.0" y="184" font-size="12" text-anchor="middle">confirm order</text>
-<polyline points="452,180 482,180" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
-<circle cx="500" cy="180" r="18" fill="#fff" stroke="#222" stroke-width="1.5"/>
-<circle cx="500" cy="180" r="14" fill="#fff" stroke="#222" stroke-width="1.5"/>
-<rect x="492" y="174.5" width="16" height="11" fill="#222" stroke="#222" stroke-width="1.2"/>
-<polyline points="492,174.5 500,181 508,174.5" fill="none" stroke="#fff" stroke-width="1.2"/>
-<text x="500" y="152" font-size="11" text-anchor="middle">OrderConfirmed</text>
-<polyline points="518,180 536,180" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
+<polyline points="452,180 536,180" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
 <polygon points="560,156 584,180 560,204 536,180" fill="#fff" stroke="#222" stroke-width="1.5"/>
 <polyline points="584,180 606,180" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
 <polygon points="630,156 654,180 630,204 606,180" fill="#fff" stroke="#222" stroke-width="1.5"/>
-<circle cx="630" cy="180" r="11" fill="none" stroke="#222" stroke-width="1"/>
-<circle cx="630" cy="180" r="8.5" fill="none" stroke="#222" stroke-width="1"/>
-<polygon points="630,174.5 635.2,178.3 633.2,184.4 626.8,184.4 624.8,178.3" fill="none" stroke="#222" stroke-width="1"/>
-<polyline points="654,180 702,180" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
-<circle cx="720" cy="180" r="18" fill="#fff" stroke="#222" stroke-width="1.5"/>
-<circle cx="720" cy="180" r="14" fill="#fff" stroke="#222" stroke-width="1.5"/>
-<rect x="712" y="174.5" width="16" height="11" fill="#fff" stroke="#222" stroke-width="1.2"/>
-<polyline points="712,174.5 720,181 728,174.5" fill="none" stroke="#222" stroke-width="1.2"/>
-<text x="720" y="143" font-size="11" text-anchor="middle">Payment</text>
-<text x="720" y="156" font-size="11" text-anchor="middle">(same order)</text>
-<polyline points="738,180 770,180" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
+<line x1="623" y1="173" x2="637" y2="187" stroke="#222" stroke-width="2.5"/>
+<line x1="623" y1="187" x2="637" y2="173" stroke="#222" stroke-width="2.5"/>
+<text x="630" y="222" font-size="11" text-anchor="middle">pays?</text>
+<text x="700" y="174" font-size="11" text-anchor="middle">80%</text>
+<polyline points="654,180 770,180" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
 <rect x="770" y="155" width="104" height="50" rx="9" fill="#fdfdf3" stroke="#222" stroke-width="1.5"/>
 <text x="822.0" y="184" font-size="12" text-anchor="middle">pay order</text>
 <polyline points="874,180 912,180" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
 <circle cx="930" cy="180" r="18" fill="#fff" stroke="#222" stroke-width="3.5"/>
 <text x="930" y="212" font-size="11" text-anchor="middle">order paid</text>
 <polyline points="630,156 630,80 702,80" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
+<text x="642" y="120" font-size="11" text-anchor="start">20%</text>
 <circle cx="720" cy="80" r="18" fill="#fff" stroke="#222" stroke-width="1.5"/>
 <circle cx="720" cy="80" r="14" fill="#fff" stroke="#222" stroke-width="1.5"/>
 <circle cx="720" cy="80" r="10" fill="#fff" stroke="#222" stroke-width="1.2"/>
@@ -73,22 +51,15 @@
 <text x="822.0" y="77" font-size="12" text-anchor="middle">payment</text>
 <text x="822.0" y="91" font-size="12" text-anchor="middle">reminder</text>
 <polyline points="822,55 822,34 560,34 560,156" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
-<circle cx="500" cy="310" r="18" fill="#fff" stroke="#222" stroke-width="1.5"/>
-<rect x="492" y="304.5" width="16" height="11" fill="#fff" stroke="#222" stroke-width="1.2"/>
-<polyline points="492,304.5 500,311 508,304.5" fill="none" stroke="#222" stroke-width="1.2"/>
-<text x="500" y="342" font-size="11" text-anchor="middle">OrderConfirmed</text>
-<polyline points="518,310 602,310" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
-<circle cx="620" cy="310" r="18" fill="#fff" stroke="#222" stroke-width="1.5"/>
-<circle cx="620" cy="310" r="14" fill="#fff" stroke="#222" stroke-width="1.5"/>
-<circle cx="620" cy="310" r="10" fill="#fff" stroke="#222" stroke-width="1.2"/>
-<line x1="620" y1="310" x2="620" y2="303" stroke="#222" stroke-width="1.2"/>
-<line x1="620" y1="310" x2="625" y2="310" stroke="#222" stroke-width="1.2"/>
-<text x="620" y="342" font-size="11" text-anchor="middle">time to pay</text>
-<polyline points="638,310 702,310" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
-<circle cx="720" cy="310" r="18" fill="#fff" stroke="#222" stroke-width="3.5"/>
-<rect x="712" y="304.5" width="16" height="11" fill="#222" stroke="#222" stroke-width="1.2"/>
-<polyline points="712,304.5 720,311 728,304.5" fill="none" stroke="#fff" stroke-width="1.2"/>
-<text x="745" y="314" font-size="11" text-anchor="start">Payment</text>
+<g transform="translate(0,-110)">
+<rect x="20" y="370" width="1220" height="170" fill="#fff" stroke="#333" stroke-width="1.5"/>
+<line x1="50" y1="370" x2="50" y2="540" stroke="#333" stroke-width="1.5"/>
+<text x="32.5" y="455.0" font-size="12" font-weight="bold" text-anchor="middle" transform="rotate(-90 32.5 455.0)">Warehouse</text>
+<text x="45.5" y="455.0" font-size="12" font-weight="bold" text-anchor="middle" transform="rotate(-90 45.5 455.0)">(item)</text>
+<rect x="20" y="550" width="1220" height="200" fill="#fff" stroke="#333" stroke-width="1.5"/>
+<line x1="50" y1="550" x2="50" y2="750" stroke="#333" stroke-width="1.5"/>
+<text x="32.5" y="650.0" font-size="12" font-weight="bold" text-anchor="middle" transform="rotate(-90 32.5 650.0)">Packaging</text>
+<text x="45.5" y="650.0" font-size="12" font-weight="bold" text-anchor="middle" transform="rotate(-90 45.5 650.0)">(package)</text>
 <circle cx="300" cy="420" r="18" fill="#fff" stroke="#222" stroke-width="1.5"/>
 <rect x="292" y="414.5" width="16" height="11" fill="#fff" stroke="#222" stroke-width="1.2"/>
 <polyline points="292,414.5 300,421 308,414.5" fill="none" stroke="#222" stroke-width="1.2"/>
@@ -175,12 +146,9 @@
 <text x="1002" y="655" font-size="11" text-anchor="start">70%</text>
 <polyline points="990,714 990,738 800,738 800,714" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
 <text x="1002" y="733" font-size="11" text-anchor="start">30%</text>
-<line x1="300" y1="198" x2="300" y2="402" stroke="#555" stroke-width="1.3" stroke-dasharray="6,4" marker-start="url(#msgstart)" marker-end="url(#msgend)"/>
-<text x="306" y="230" font-size="11" font-style="italic" fill="#555">ItemOrdered</text>
-<line x1="500" y1="198" x2="500" y2="292" stroke="#555" stroke-width="1.3" stroke-dasharray="6,4" marker-start="url(#msgstart)" marker-end="url(#msgend)"/>
-<text x="506" y="230" font-size="11" font-style="italic" fill="#555">OrderConfirmed</text>
-<line x1="720" y1="292" x2="720" y2="198" stroke="#555" stroke-width="1.3" stroke-dasharray="6,4" marker-start="url(#msgstart)" marker-end="url(#msgend)"/>
-<text x="726" y="230" font-size="11" font-style="italic" fill="#555">Payment</text>
 <text x="1000" y="564" font-size="11" font-style="italic" fill="#555">ItemPicked</text>
 <polyline points="990,438 990,545 380,545 380,592" fill="none" stroke="#555" stroke-width="1.3" stroke-dasharray="6,4" marker-start="url(#msgstart)" marker-end="url(#msgend)"/>
+</g>
+<line x1="300" y1="198" x2="300" y2="292" stroke="#555" stroke-width="1.3" stroke-dasharray="6,4" marker-start="url(#msgstart)" marker-end="url(#msgend)"/>
+<text x="306" y="230" font-size="11" font-style="italic" fill="#555">ItemOrdered</text>
 </svg>

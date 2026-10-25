@@ -25,16 +25,17 @@ CALENDAR = {0: _SHORT, 1: _FULL, 2: _FULL, 3: _FULL, 4: _SHORT}
 # the staff pools of the real log (its employees' roles) and the model's resources in each
 STAFF_POOLS = {"Sales": "Sales", "Warehousing": "Warehousing", "Packer": "Warehousing", "Shipment": "Shipment"}
 # the activities of each object type that enable one another
-ACTIVITIES = {"orders": {"place order", "confirm order"},
+ACTIVITIES = {"orders": {"place order", "confirm order", "payment reminder", "pay order"},
               "items": {"place order", "item out of stock", "reorder item", "pick item", "create package"},
               "packages": {"create package", "send package", "failed delivery", "package delivered"}}
-GAPS = [("place order", "confirm order"), ("place order", "item out of stock"), ("item out of stock", "reorder item"),
+GAPS = [("place order", "confirm order"), ("confirm order", "pay order"), ("payment reminder", "pay order"),
+        ("place order", "item out of stock"), ("item out of stock", "reorder item"),
         ("place order", "pick item"), ("reorder item", "pick item"), ("create package", "send package"),
         ("send package", "failed delivery"), ("failed delivery", "failed delivery"),
         ("send package", "package delivered"), ("failed delivery", "package delivered")]
 # the Shipment's gaps: about half end the day they start and half the next, so their median falls in the night
 # between the two and jumps between them from run to run; they are compared by the share that ends the same day
-SAME_DAY_GAPS = GAPS[5:]
+SAME_DAY_GAPS = GAPS[GAPS.index(("create package", "send package")):]
 
 
 def _shares(counts, buckets):

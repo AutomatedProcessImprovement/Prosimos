@@ -18,15 +18,15 @@ SALES = r"processes\[0\].references\[1\]"
 
 
 def _sales_picking(tmp_path, products, orders=100):
-    """Order Management's Sales, with 100 orders, and the Customer process that pays them: Sales picks its customer
-    and, with the reference products, its products from the log's 20. Without the Warehouse, which picks its own
-    products, ItemOrdered finds no recipient."""
+    """Order Management's Sales alone, with 100 orders: it picks its customer and, with the reference products, its
+    products from the log's 20. Without the Warehouse, which picks its own products, ItemOrdered finds no
+    recipient."""
     path = _config_with(tmp_path, catalogues={"Sales": {"customer": CUSTOMERS, "product": PRODUCTS_LIST}},
                         references={"Sales": [{**PICKING, "pick": "uniform"}, *([products] if products else [])]})
     config = SimulationConfig.from_json(path)
     return dataclasses.replace(config, processes=[
         dataclasses.replace(spec, arrivals=orders if spec.name == "Sales" else spec.arrivals)
-        for spec in config.processes if spec.name in ("Sales", "Customer")], consumer_groups=None)
+        for spec in config.processes if spec.name == "Sales"], consumer_groups=None)
 
 
 def _run(tmp_path, products, name="log"):
