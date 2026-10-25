@@ -148,8 +148,8 @@ on the record, not in this repository. Its rules:
   item of its customer are packed; otherwise, every 5 days, the same happens for whatever waits.
 - **Prices rise with inflation.** About every 60 days, inflation rises by 1-6 points, up to 15%, and every
   product's price with it.
-- **Orders arrive 50 a week** on average, a fixed gap in the arrivals' own working time, which is slower at
-  night, at weekends and in April.
+- **Orders arrive at an even pace**, one every week / 50 of arrival time, whose speed changes by hour, weekday
+  and month ([Arrivals](#arrivals)).
 
 Where the model differs from the generator, and why:
 
@@ -163,7 +163,7 @@ Where the model differs from the generator, and why:
 | confirm order by the customer's primary sales rep (86.4%), else 70% by the secondary, else by any                                      | any Sales person                                                                                                       | under discussion                                                                      |
 | send package by two people: a forwarder (90% a Warehousing employee, else 70% the package's shipper, else any shipper) and the shipper | one Shipment person                                                                                                    | a task has one resource, and resources aren't shared between processes                |
 | prices rise with inflation (6 prices per product)                                                                                      | each product keeps its first price                                                                                     | a catalogue's attributes are fixed                                                    |
-| arrivals: 50 a week, slower at night, at weekends and in April                                                                         | exponential gaps within a weekday 6:00-22:00 calendar                                                                  | future work                                                                           |
+| arrivals: one every week / 50 of arrival time, slower at night, at weekends and in April                                               | exponential gaps within a weekday 6:00-22:00 calendar                                                                  | an arrival calendar is on or off: future work ([Arrivals](#arrivals))                 |
 | employees are labels; nobody is ever busy                                                                                              | pools of 100 (Sales), 300 + 20 (Warehousing, `Packer`) and 100 (Shipment): at most 116 Warehousing people busy at once | a Prosimos resource is held while it works; enough of them, and no task waits for one |
 
 ### Packing
@@ -191,6 +191,33 @@ depend on how many items wait, and that shows in the comparison (seed 1; the log
   working hours only.
 
 These numbers are reported next to the log's as information, not as targets.
+
+### Arrivals
+
+The generator's orders arrive at an even pace: one every week / 50 of arrival time, with no randomness. Arrival
+time has its own speed per hour, in German local time like the working time: full from 9 to 19, half from 8 to
+9 and from 19 to 23, 0.1 at night; at weekends a tenth of that; in April 0.3 of it. As for the delays, its clock
+counts the first, partial hour of each gap as a whole one, so the orders come 39.5 a week rather than 50, and
+the 2,000 end on 2024-03-23 (at 50 a week they would end in January 2024). Replayed with these rules, the
+generator gives every one of the log's 2,000 order times, to the second.
+
+Here, orders arrive with exponential gaps of 2.3 h mean within a weekday 6:00-22:00 calendar (UTC). An arrival
+calendar is on or off, so it can't express the speeds, and the engine doesn't use it as working time: it draws
+each gap on the clock, and an arrival that falls outside the calendar moves to the next opening, from which the
+next gap counts. So every closed night ends with one order at the opening. Copying the generator needs arrival
+times computed from a speed profile and passed to the engine: future work. The effects (seed 1; the log's
+numbers first):
+
+- **No orders at weekends** (4.9% in the log) and almost none at night: 6.5% against 0.1% between 22:00 and
+  6:00 UTC.
+- **Many orders between 6:00 and 7:00 UTC: 2.5% against 17.6%**; 245 of them (12%) are placed at 6:01, the
+  calendar's opening plus place order's minute.
+- **Confirm order 11% and pick item 19% sooner** (medians 17.7 h against 15.7 h, and 32.5 h against 26.2 h).
+  An order placed at the opening, as the staff start work, crosses fewer nights before it is confirmed and its
+  items are picked. From the log's own order times, the same durations and calendar give 18.0 h and 28.4 h
+  (+2% and -13%). Pick item's median, like the Shipment's, falls in the night between the first and the second
+  day: the generator itself, run again from the log's own order times with ten seeds, gives 28.7 to 33.4 h
+  (confirm order 17.9 to 19.1 h), and the log's 32.5 h is near the top of that range.
 
 ## Durations
 
@@ -351,10 +378,10 @@ generator's durations, the gaps to item out of stock and reorder item, how far i
 (21 places in both), and the share of items picked before their order is confirmed match the log too; the tasks wait for nobody, as in the
 log. What still differs comes from the generator's rules, or from parts of the model left as they are:
 
-- **Confirm order and pick item come about 11% and 19% sooner.** The arrivals aren't the log's: no order comes
-  at a weekend (4.7% in the log) and 18% come between 6:00 and 7:00 UTC (3%), when the calendar is about to
-  open, so their gaps cross fewer nights. From the log's own order times, the same durations and calendar give
-  18.0 h and 28.4 h.
+- **Confirm order and pick item come about 11% and 19% sooner**, from the arrivals: no order comes at a
+  weekend and 18% come between 6:00 and 7:00 UTC ([Arrivals](#arrivals)). From the log's own order times, the
+  same durations and calendar give 18.0 h and 28.4 h, and the generator's own pick item median moves between
+  28.7 and 33.4 h from seed to seed.
 - **The Shipment's steps end the same day a little more often.** Their delays average a day on the clock, so
   about half end the day they start and half the next, with the night in between: send → package delivered
   has quartiles 3.1 / 14.4 / 22.9 h in the log, 1.9 / 5.9 / 21.8 h here. The median falls in that night, and a
