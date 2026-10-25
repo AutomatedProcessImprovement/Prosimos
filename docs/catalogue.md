@@ -116,6 +116,7 @@ A reference, in a process's `references`, ties one of the process's attributes t
 | `reverse`          | no       | `true`                             | turns the `o2o` link around: from the catalogue object to the case's object (default `false`)                   |
 | `link_events`      | no       | `["place order", "Confirm_Order"]` | which of the case's events link the catalogue object: task names or task ids; without it every event, `[]` none |
 | `pick`             | no       | `"uniform"`                        | the reference chooses the value itself (see "Pick")                                                             |
+| `count`            | no       | `{"object_attribute": "items"}`    | with `pick`, how many objects it chooses, into a list (see "Count")                                             |
 | `with`             | no       | `["weight", "price"]`              | attributes of the picked object that the case also starts with (see "With")                                     |
 | `tag_along`        | no       | `true`                             | events of other cases that link the case's object link the catalogue object too (default `false`)               |
 
@@ -173,7 +174,7 @@ A value that isn't an id of the catalogue gets no link, and a warning (see "Erro
 ### A list of ids
 
 An attribute may hold a list of ids instead of one, such as a list that `append` builds from the messages a
-case collects ([messaging.md](messaging.md)). Each entry of the list is then a catalogue object, linked exactly
+case collects ([messaging.md](messaging.md)), or a pick with `count` (see "Count"). Each entry of the list is then a catalogue object, linked exactly
 as a single value is: by `o2o` to the case's object, from the events named in `link_events`, and with
 `tag_along`. An event links the entries of the list the attribute held when it completed, and an id the list
 repeats is linked once. An order that appends the ids of the items it collects into `item_ids`:
@@ -237,6 +238,34 @@ and the attribute. The same seed therefore gives the same picks, and adding a pi
 the process's other draws. Engines stay black boxes: the orchestrator hands a pick to an engine when it
 builds it, as one more case attribute, and joins the links from the case objects and log rows after the
 run.
+
+### Count
+
+```json
+{"object_attribute": "products", "catalogue": "product",
+ "pick": {"weights": {"iPhone X": 433, "iPhone 8": 408, ...}}, "count": {"object_attribute": "items"}}
+```
+
+With `count`, a `"uniform"` or weights pick chooses that many objects when the case is created, and the
+attribute holds them as a list, which the reference links entry by entry (see "A list of ids"). Each choice is
+independent, by the same rule, so an object can come more than once, as `iPhone 8` does for `order-2` below. Picks
+of the first 4 orders of Order Management's Sales with seed 1, with the log's 20 products and their weights:
+
+| Order   | items | products                                                                         |
+|---------|-------|----------------------------------------------------------------------------------|
+| order-0 | 5     | Kindle, iPad, iPhone 11 Pro, Echo, MacBook Pro                                   |
+| order-1 | 3     | Fire Stick, Echo, iPhone 11                                                      |
+| order-2 | 7     | iPhone 11, iPhone X, Echo Show 5, iPad, iPad Air, iPhone 8, iPhone 8             |
+| order-3 | 1     | Echo                                                                             |
+
+- `count` is a whole number of at least 0 (0 gives an empty list), or `{"object_attribute": ...}`: an attribute
+  the process draws in its `object_attributes`, read when the case is created. A value it draws that isn't a
+  whole number of at least 0 picks one object, with one warning.
+- Without `count`, the pick chooses one object, a single value, as before.
+- `count` needs a `pick`, and not `"new"` or `new_share`, which create objects rather than choose among them.
+  A list pick brings no attributes, so `count` and `with` don't go together.
+- The list is a column of the log, as JSON text, and messages and `copy` carry it like any other value.
+  Choosing more objects draws more from the pick's own generator only, so the rest of the run stays the same.
 
 ### With
 
@@ -446,7 +475,7 @@ The messages, by the key they are about:
 | `id`                         | `catalogue ids are repeated: ['x']` (ids are unique across all catalogues)                                                                                     |
 | `id`                         | `catalogue ids look like object ids (<object type>-<number>): ['order-1']`                                                                                     |
 | catalogue name               | `catalogue 'order' is the object type of process Sales`                                                                                                        |
-| `count`                      | `catalogue 'customer': count must be a whole number of at least 1, got 0`                                                                                      |
+| `count` (pool)               | `catalogue 'customer': count must be a whole number of at least 1, got 0`                                                                                      |
 | `attributes` (pool, growing) | `catalogue 'customer': attributes[0]: InvalidCaseAttributeException: Case attribute segment: probabilities' sum should be equal to 1` (Prosimos's own message) |
 | growing catalogue            | `catalogue ids look like the ids growing catalogue 'customer' creates (customer-<number>): ['customer-2']`                                                     |
 | growing catalogue            | `growing catalogue 'customer' needs exactly one reference that creates its objects ("new" or new_share), got 0`                                                |
@@ -459,6 +488,11 @@ The messages, by the key they are about:
 | `pick`                       | `processes[2].references[0] picks customer, which process Warehouse also copies from a message (consume entries at ['Start_Item'])`                            |
 | `pick`                       | `processes[3].references[0] picks item_ids, which process Packaging also appends to from a message (consume entries at ['Catch_Items'])`                       |
 | `pick`                       | `more than one reference picks customer of process Sales`                                                                                                      |
+| `count` (pick)               | `processes[0].references[1] has count but no pick; count says how many objects the pick chooses`                                                               |
+| `count` (pick)               | `processes[0].references[1] count must be a whole number of at least 0 or {"object_attribute": <object attribute>}, got -1`                                    |
+| `count` (pick)               | `processes[0].references[1] count reads 'lines', which process Sales doesn't draw in its object_attributes; the count is read when the case is created`        |
+| `count` (pick)               | `processes[0].references[1] has count with "new" or new_share; count works with "uniform" or weights, which choose among the objects there are`                |
+| `count` (pick)               | `processes[0].references[1] has count and with; a list pick brings no attributes`                                                                              |
 | `weights`                    | `processes[0].references[0] weights name ['c99'], which are no ids of catalogue 'customer'`                                                                    |
 | `weights`                    | `processes[0].references[0] weights must be numbers of at least 0, not all 0, got {'c1': 0, 'c2': 0}`                                                          |
 | `weights`                    | `processes[0].references[0] has weights on pool 'customer'; a pool can only be picked from uniformly`                                                          |
@@ -477,17 +511,23 @@ The messages, by the key they are about:
 
 `link_events` is not checked for extra engines, which have no BPMN model.
 
-**Warning.** One kind, during the run, in the run report's `warnings`, once per attribute and value:
+**Warnings.** Two kinds, during the run, in the run report's `warnings`. A value not in the catalogue, once per
+attribute and value:
 
 ```
-case attribute customer has the value 'c99', which is not in catalogue customer; no OCEL link is written for it
+object attribute customer has the value 'c99', which is not in catalogue customer; no OCEL link is written for it
 ```
 
 A value is compared with the ids as text, so the number `7` matches the id `"7"`. The value keeps no link,
-but everything else about the case is written as usual.
+but everything else about the case is written as usual. And a count read from an attribute that isn't a whole
+number of at least 0, once per pick; the pick then chooses one object:
+
+```
+items is 2.5, no whole number of at least 0; the pick of products picks one
+```
 
 **Outside the configuration.** A process JSON whose messages publish a picked attribute fails on its own,
-when Prosimos reads its messages: `... 'customer' not declared as a case, global or event attribute`. Run
+when Prosimos reads its messages: `... 'customer' not declared as an object, global or event attribute`. Run
 it through its configuration, where the pick declares the attribute.
 
 ## Limitations

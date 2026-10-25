@@ -21,7 +21,7 @@ import pytz
 
 from prosimos.case_attributes import CaseAttribute
 from prosimos.control_flow_manager import BPMN
-from prosimos.messaging_parser import ConsumePoint, PublishPoint, unknown_keys
+from prosimos.messaging_parser import ConsumePoint, PublishPoint, is_whole_number, unknown_keys
 from prosimos.ocel_writer import OcelProcess, write_ocel
 from prosimos.simulation_engine import SimBPMEnv
 from prosimos.simulation_properties_parser import parse_datetime, parse_simulation_model
@@ -99,6 +99,13 @@ class NewShare:
 
 
 @dataclass(frozen=True)
+class CountFrom:
+    """A pick's count read from a case attribute when the case is created."""
+
+    object_attribute: str
+
+
+@dataclass(frozen=True)
 class Reference:
     """Says that a case attribute's value of its process is the id of an object of one of its catalogues, or a list
     of such ids (each one linked as a single value is), and which OCEL links to write for it: from the case's object
@@ -109,8 +116,9 @@ class Reference:
     equally likely) or, for a listed catalogue, weights as ((id, weight), ...) (ids left out are never picked);
     for a growing catalogue, "new" (every case creates its own object) or NewShare. Without it, the value comes
     from object_attributes or a message. with_attributes (JSON "with") names attributes of the picked object that
-    the case also starts with, under the same names. process is the process whose entry lists it, set by its
-    ProcessSpec."""
+    the case also starts with, under the same names. count, with "uniform" or weights, makes the pick choose that
+    many objects, each independently, into a list: a whole number, or CountFrom, an attribute the case draws in its
+    object_attributes. process is the process whose entry lists it, set by its ProcessSpec."""
 
     object_attribute: str
     catalogue: str
@@ -120,6 +128,7 @@ class Reference:
     pick: Union[None, str, Tuple[Tuple[str, float], ...], NewShare] = None
     with_attributes: Tuple[str, ...] = ()
     tag_along: bool = False
+    count: Union[None, int, CountFrom] = None
     process: str = ""
 
     @property
@@ -130,7 +139,8 @@ class Reference:
 CONFIG_KEYS = {"processes", "start_time", "seed", "consumer_groups"}
 PROCESS_KEYS = {"name", "bpmn_path", "json_path", "arrivals", "object_type", "qualifier", "qualifier_by_activity",
                 "carry_links", "ocel_attributes", "catalogues", "references"}
-REFERENCE_KEYS = {"object_attribute", "catalogue", "o2o", "reverse", "link_events", "pick", "with", "tag_along"}
+REFERENCE_KEYS = {"object_attribute", "catalogue", "o2o", "reverse", "link_events", "pick", "count", "with",
+                  "tag_along"}
 
 
 def _catalogue_ids(name, entry) -> List[str]:
@@ -230,6 +240,8 @@ def _checked_catalogue(processes):
         if reference.pick is not None:
             problems.extend(f"{where} {problem}"
                             for problem in _pick_problems(reference, catalogue[reference.catalogue], specs))
+        if reference.count is not None:
+            problems.extend(f"{where} {problem}" for problem in _count_problems(reference, specs))
     picked = [(reference.process, reference.object_attribute) for _, reference in references if reference.pick is not None]
     for process, attribute in sorted({pair for pair in picked if picked.count(pair) > 1}):
         problems.append(f"more than one reference picks {attribute} of process {process}")
@@ -265,6 +277,28 @@ def _pick_problems(reference, entry, specs):
                    for weight in weights) or sum(weights) <= 0:
             return [f"weights must be numbers of at least 0, not all 0, got {dict(reference.pick)}"]
     return _settings_problems("picks", reference.object_attribute, reference.process, specs)
+
+
+def _count_problems(reference, specs):
+    count = reference.count
+    if reference.pick is None:
+        return ["has count but no pick; count says how many objects the pick chooses"]
+    if reference.creates:
+        return ['has count with "new" or new_share; count works with "uniform" or weights, which choose among the '
+                'objects there are']
+    if reference.with_attributes:
+        return ["has count and with; a list pick brings no attributes"]
+    if isinstance(count, CountFrom):
+        with open(specs[reference.process].json_path) as file:
+            declared = {entry.get("name") for entry in json.load(file).get("object_attributes", [])}
+        if count.object_attribute not in declared:
+            return [f"count reads {count.object_attribute!r}, which process {reference.process} doesn't draw in its "
+                    f"object_attributes; the count is read when the case is created"]
+        return []
+    if not is_whole_number(count, minimum=0):
+        return [f'count must be a whole number of at least 0 or {{"object_attribute": <object attribute>}}, '
+                f"got {count!r}"]
+    return []
 
 
 def _settings_problems(verb, attribute, process, specs):
@@ -515,11 +549,15 @@ def _reference(path, where, entry):
         pick = tuple(pick["weights"].items())
     elif isinstance(pick, dict) and list(pick) == ["new_share"]:
         pick = NewShare(pick["new_share"])
+    count = entry.get("count")
+    if isinstance(count, dict):
+        _check_keys(path, f"{where}.count", count, {"object_attribute"})
+        count = CountFrom(count["object_attribute"]) if isinstance(count.get("object_attribute"), str) else count
     with_attributes = entry.get("with", ())
     return Reference(entry["object_attribute"], entry["catalogue"], entry.get("o2o"),
                      entry.get("reverse", False), None if link_events is None else tuple(link_events), pick,
                      tuple(with_attributes) if isinstance(with_attributes, list) else with_attributes,
-                     entry.get("tag_along", False))
+                     entry.get("tag_along", False), count)
 
 
 def _check_keys(path, where, mapping, allowed):
@@ -764,6 +802,10 @@ class ProsimosEngine(SimulationEngine):
             # picked attributes join the declared ones: every case gets one when it is created, the log has a
             # column for it, and messages may carry it
             sim_setup = load_process(spec.bpmn_path, spec.json_path, spec.arrivals, start_datetime, picks)
+            for pick in picks:
+                if isinstance(pick, _Pick) and isinstance(pick.count, CountFrom):
+                    pick.read_count_from(next(attribute for attribute in sim_setup.case_attributes.attributes
+                                              if attribute.name == pick.count.object_attribute))
             self._env = SimBPMEnv(sim_setup, None, log_writer, id_prefix=spec.id_prefix)
         tasks = {element_id for element_id, element in sim_setup.bpmn_graph.element_info.items()
                  if element.type is BPMN.TASK}
@@ -895,17 +937,48 @@ class _Pick:
     """A case attribute that a reference picks (pick) from its catalogue's ids. It has what the engine uses of
     Prosimos's CaseAttribute, name and get_next_value(), so it is drawn with the case's other attributes, when
     the case is created; its generator is its own, seeded from the seed, the process and the attribute, so it
-    doesn't change the engine's other draws."""
+    doesn't change the engine's other draws. With count, it picks that many ids, each independently, into a
+    list."""
 
-    def __init__(self, name: str, ids: List[str], weights: Optional[List[float]], seed: Optional[int], process: str):
-        self.name, self._ids, self._weights = name, ids, weights
+    def __init__(self, name: str, ids: List[str], weights: Optional[List[float]], seed: Optional[int], process: str,
+                 count: Union[None, int, CountFrom] = None):
+        self.name, self._ids, self._weights, self.count = name, ids, weights, count
         self.last = None  # the id picked for the latest case
+        self._counted = None  # the value of count's attribute drawn for the latest case
+        self._warned = False
         self._generator = random.Random()
         self._generator.setstate(_engine_random_states(seed, f"pick/{process}/{name}")[0])
 
+    def read_count_from(self, attribute):
+        """Has the case attribute that holds the count, one the engine draws before its picks, tell this pick the
+        value it draws for each case. The attribute keeps its own draws."""
+        draw = attribute.get_next_value
+
+        def drawn():
+            self._counted = draw()
+            return self._counted
+
+        attribute.get_next_value = drawn
+
     def get_next_value(self):
-        self.last = self._generator.choices(self._ids, self._weights)[0]
+        if self.count is None:
+            self.last = self._generator.choices(self._ids, self._weights)[0]
+        else:
+            self.last = self._generator.choices(self._ids, self._weights, k=self._how_many())
         return self.last
+
+    def _how_many(self):
+        """count, or the value its attribute drew for this case; one that isn't a whole number of at least 0 picks
+        one, with one warning."""
+        if not isinstance(self.count, CountFrom):
+            return int(self.count)
+        if is_whole_number(self._counted, minimum=0):
+            return int(self._counted)
+        if not self._warned:
+            self._warned = True
+            warning_logger.add_warning(f"{self.count.object_attribute} is {self._counted!r}, no whole number of at "
+                                       f"least 0; the pick of {self.name} picks one")
+        return 1
 
 
 class _Brought:
@@ -949,7 +1022,7 @@ def _picks(spec: ProcessSpec, seed: Optional[int], catalogues: Dict[str, List[Ca
         elif reference.pick is not None:
             ids = [obj.id for obj in catalogues[reference.catalogue]]
             weights = None if reference.pick == "uniform" else [dict(reference.pick).get(object_id, 0) for object_id in ids]
-            pick = _Pick(reference.object_attribute, ids, weights, seed, spec.name)
+            pick = _Pick(reference.object_attribute, ids, weights, seed, spec.name, reference.count)
             picks.append(pick)
             picks.extend(_Brought(name, pick, {obj.id: dict(obj.attributes)[name] for obj in catalogues[reference.catalogue]})
                          for name in reference.with_attributes)
