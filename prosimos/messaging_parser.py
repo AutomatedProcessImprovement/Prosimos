@@ -70,9 +70,10 @@ class ConsumePoint:
     # (case attribute, message attribute): the message attribute's value is added to a list in the case, which
     # starts empty
     append: Tuple[Tuple[str, str], ...] = ()
-    # (case attribute, function, message attribute): the function over the message attribute's values of every
-    # message claimed, at this entry and any other aggregating into the same case attribute
-    aggregate: Tuple[Tuple[str, str, str], ...] = ()
+    # (case attribute, function, message attribute, initial): the function over the message attribute's values of
+    # every message claimed, at this entry and any other aggregating into the same case attribute, and over initial,
+    # a number already among them, if not None
+    aggregate: Tuple[Tuple[str, str, str, Optional[float]], ...] = ()
     # max: how many messages a case may claim here in all; once it has min, it also takes every other matching
     # message offered at that instant, up to max. None means the same as min, math.inf no limit; unless read from
     # the case attribute collect_max_attribute
@@ -314,6 +315,10 @@ def _check_collect_has_its_own_event(collecting, consume):
                   f"catch event per type")
 
 
+def is_number(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
 def is_whole_number(value, minimum):
     return not isinstance(value, bool) and isinstance(value, (int, float)) and value >= minimum and float(value).is_integer()
 
@@ -354,18 +359,22 @@ def _aggregate(entry, where, case_attributes):
         _fail(f"{where}: 'aggregate' can't set object_id, which is reserved for the object's own id")
     result = []
     for target, spec in aggregate.items():
-        _check_keys(f"{where}.aggregate.{target}", spec, AGGREGATE_FUNCTIONS)
-        if len(spec) != 1 or not all(isinstance(source, str) and source for source in spec.values()):
+        _check_keys(f"{where}.aggregate.{target}", spec, AGGREGATE_FUNCTIONS | {"initial"})
+        functions = {key: source for key, source in spec.items() if key != "initial"}
+        if len(functions) != 1 or not all(isinstance(source, str) and source for source in functions.values()):
             _fail(f"{where}: aggregate {target!r} must be one function and a message attribute, e.g. "
                   f"{{\"sum\": \"weight\"}}")
-        (function, source), = spec.items()
-        result.append((target, function, source))
+        initial = spec.get("initial")
+        if "initial" in spec and not is_number(initial):
+            _fail(f"{where}: aggregate {target!r} initial must be a number, got {initial!r}")
+        (function, source), = functions.items()
+        result.append((target, function, source, initial))
     for key in ("copy", "append"):
-        both = [target for target, _, _ in result if isinstance(entry.get(key), dict) and target in entry[key]]
+        both = [target for target, *_ in result if isinstance(entry.get(key), dict) and target in entry[key]]
         if both:
             _fail(f"{where}: {', '.join(map(repr, both))} is in both {key} and aggregate: an aggregated attribute is "
                   f"computed over the messages claimed, which {key} would overwrite")
-    drawn = [target for target, _, _ in result if target in case_attributes]
+    drawn = [target for target, *_ in result if target in case_attributes]
     if drawn:
         _fail(f"{where}: aggregate writes {', '.join(map(repr, drawn))}, which object_attributes declares: an "
               f"aggregated attribute is computed over the messages claimed, not a drawn value")
@@ -374,15 +383,15 @@ def _aggregate(entry, where, case_attributes):
 
 def _check_aggregated_only(consume):
     """An attribute some entry aggregates into is computed over the messages claimed, so no other entry may copy or
-    append into it, and every entry aggregating into it uses the same function."""
+    append into it, and every entry aggregating into it uses the same function and the same initial."""
     written_at = {}
     for index, point in enumerate(consume):
         for key, pairs in (("copies", point.copy), ("appends to", point.append)):
             for target, _ in pairs:
                 written_at.setdefault(target, (index, key))
-    function_at = {}
+    function_at, initial_at = {}, {}
     for index, point in enumerate(consume):
-        for target, function, _ in point.aggregate:
+        for target, function, _, initial in point.aggregate:
             if target in written_at:
                 other, verb = written_at[target]
                 _fail(f"messages.consume[{index}]: aggregate writes {target!r}, which messages.consume[{other}] "
@@ -393,6 +402,11 @@ def _check_aggregated_only(consume):
                 _fail(f"messages.consume[{index}]: aggregate writes {target!r} with {function}, but "
                       f"messages.consume[{first}] with {first_function}: an attribute is one function over all the "
                       f"messages claimed into it")
+            first, first_initial = initial_at.setdefault(target, (index, initial))
+            if initial != first_initial:
+                _fail(f"messages.consume[{index}]: aggregate writes {target!r} with initial {initial!r}, but "
+                      f"messages.consume[{first}] with initial {first_initial!r}: an attribute starts from one "
+                      f"value")
 
 
 def _check_appended_only(consume):

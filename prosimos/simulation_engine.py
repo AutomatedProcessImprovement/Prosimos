@@ -58,10 +58,10 @@ class SimBPMEnv:
         self.stat_fwriter = stat_fwriter
         self.additional_columns = self.sim_setup.all_attributes.get_all_columns_generated()
         # attributes copied, appended or aggregated from messages get a column too; it stays empty until a value is
-        # copied, an appended list starts empty, and a sum or count starts at 0
+        # copied, an appended list starts empty, and a sum or count starts at 0, or at its initial
         self._appended = sorted({target for point in self.sim_setup.messaging.consume for target, _ in point.append})
-        self._aggregated = {target: function for point in self.sim_setup.messaging.consume
-                            for target, function, _ in point.aggregate}
+        self._aggregated = {target: (function, initial) for point in self.sim_setup.messaging.consume
+                            for target, function, _, initial in point.aggregate}
         self.additional_columns.extend(sorted({target for point in self.sim_setup.messaging.consume
                                                for target, _ in point.copy} | set(self._appended)
                                               | set(self._aggregated) - set(self.additional_columns)))
@@ -569,8 +569,9 @@ class SimBPMEnv:
         return {p_case: createdAt for p_case, (createdAt, _) in self._case_created.items()}
 
     def only_started_values(self):
-        """Case id -> the sums and counts whose value when it was created is only their starting 0: no message had
-        written them yet (a message that starts a case writes its own aggregates into the new case)."""
+        """Case id -> the aggregated attributes whose value when it was created is only their start, 0 or their
+        initial: no message had written them yet (a message that starts a case writes its own aggregates into the
+        new case)."""
         return dict(self._only_started)
 
     def stalled_at(self, parked_event):
@@ -652,10 +653,11 @@ class SimBPMEnv:
         return p_case
 
     def _starting_values(self):
-        """What a case's appended and aggregated attributes start with: an empty list, and 0 for a sum or count (a
-        min or max has no value until the first message)."""
+        """What a case's appended and aggregated attributes start with: an empty list, and an aggregate's initial,
+        else 0 for a sum or count (a min or max without initial has no value until the first message)."""
         values = {target: [] for target in self._appended}
-        values.update((target, 0) for target, function in self._aggregated.items() if function in ("sum", "count"))
+        values.update((target, initial if initial is not None else 0) for target, (function, initial)
+                      in self._aggregated.items() if initial is not None or function in ("sum", "count"))
         return values
 
     def _apply_aggregate(self, point, values, p_case, case_values):
@@ -664,7 +666,7 @@ class SimBPMEnv:
         of them, or for sum, min and max with one that isn't a number, is skipped, with one warning per event and
         attribute."""
         written = []
-        for target, function, source_name in point.aggregate:
+        for target, function, source_name, initial in point.aggregate:
             if source_name not in values:
                 if (point.event_id, source_name) not in self._warned_missing_aggregates:
                     self._warned_missing_aggregates.add((point.event_id, source_name))
@@ -682,7 +684,7 @@ class SimBPMEnv:
                 continue
             aggregated = self._aggregated_values.setdefault((p_case, target), [])
             aggregated.append(value)
-            case_values[target] = _aggregated(function, aggregated)
+            case_values[target] = _aggregated(function, aggregated, initial)
             written.append(target)
         return written
 
@@ -1517,12 +1519,15 @@ def _is_number(value):
     return isinstance(value, numbers.Real) and not isinstance(value, bool)
 
 
-def _aggregated(function, values):
-    """function over values: count, sum, min or max. A sum of whole numbers is a whole number; any other is
-    rounded once, at the end (math.fsum), so it doesn't depend on the order of the messages: 1.2, 0.8 and 2.1 add
-    up to 4.1 in any order, where adding them one by one may give 4.1000000000000005."""
+def _aggregated(function, values, initial=None):
+    """function over values: count, sum, min or max, and over initial, if given, a number already among them: a
+    count adds the values to it, a sum, min or max takes it as one more value. A sum of whole numbers is a whole
+    number; any other is rounded once, at the end (math.fsum), so it doesn't depend on the order of the messages:
+    1.2, 0.8 and 2.1 add up to 4.1 in any order, where adding them one by one may give 4.1000000000000005."""
     if function == "count":
-        return len(values)
+        return len(values) + (initial if initial is not None else 0)
+    if initial is not None:
+        values = [initial, *values]
     if function == "sum":
         return sum(values) if all(isinstance(value, numbers.Integral) for value in values) else math.fsum(values)
     return min(values) if function == "min" else max(values)

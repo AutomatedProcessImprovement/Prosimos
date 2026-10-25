@@ -133,6 +133,25 @@ With items weighing 1.2, 0.8 and 2.1, the package weighs 1.2 after the first cla
 - A sum or count starts at 0 when the case is created; a min or max has no value until the first message. The
   OCEL output leaves the starting 0 out, and writes only the last of several values at the same moment
   ([orchestrator.md](orchestrator.md), "Output").
+- **initial** (optional, next to the function) is a number already in the pile before any message: the case
+  starts with it, and the function works over it and the messages claimed. A count adds the messages to it; a
+  sum, min or max takes it as one more value, so for a min it works as a ceiling, for a max as a floor. A
+  package that weighs 0.5 empty:
+
+  ```
+  "aggregate": {"weight": {"sum": "weight", "initial": 0.5}}
+  ```
+
+  With items weighing 1.2, 0.8 and 2.1, it weighs 0.5 when created, then 1.7, 2.5 and 4.6. It is still a
+  starting value no message wrote, so the OCEL output leaves it out until the first message, as the starting 0.
+  Any number, negative too; every entry aggregating into one attribute gives the same initial, or none.
+
+  | Function | `"initial": 5`, messages 476 and 99.99         | `"initial": 5`, no messages |
+  |----------|------------------------------------------------|-----------------------------|
+  | `sum`    | 580.99                                         | 5                           |
+  | `count`  | 7                                              | 5                           |
+  | `min`    | 5 (initial takes part: it works as a ceiling)  | 5                           |
+  | `max`    | 476 (initial takes part: it works as a floor)  | 5                           |
 - `count` counts the messages that have the attribute; `sum`, `min` and `max` take numbers. A message
   without the attribute, or with a value that isn't a number (for `sum`, `min` and `max`), is skipped, with
   one warning per event and attribute.
@@ -319,8 +338,9 @@ The section is checked when the model is loaded. An invalid section stops loadin
 - `copy` maps object attribute names to message attribute names, and doesn't set `object_id`.
 - `append` does the same; its attributes are in no entry's `copy` and not in `object_attributes`.
 - `aggregate` maps case attribute names to one function (`sum`, `count`, `min` or `max`) and a message
-  attribute, and doesn't set `object_id`; its attributes are in no entry's `copy` or `append`, not in
-  `object_attributes`, and every entry aggregating into one attribute uses the same function.
+  attribute, with `initial`, if given, a number, and doesn't set `object_id`; its attributes are in no entry's
+  `copy` or `append`, not in `object_attributes`, and every entry aggregating into one attribute uses the same
+  function and the same initial.
 - `capacity` is a whole number of at least 1, `{"attribute": <name>}`, or `{"min": <bound>, "max":
   <bound>}` (max optional) with each bound a whole number of at least 1 or `{"attribute": <name>}`; a fixed
   min isn't above a fixed max. It is only on a catch event: a start message starts exactly one case.

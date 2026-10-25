@@ -173,7 +173,7 @@ def _rejected(tmp_path, aggregate, message, change=lambda settings: None):
 @pytest.mark.parametrize("aggregate, message", [
     (["weight"], r"'aggregate' must map object attribute names to \{<function>: <message attribute>\}"),
     ({"weight": "weight"}, r"'aggregate' must map object attribute names to"),
-    ({"weight": {"avg": "weight"}}, r"\.aggregate\.weight: unknown key 'avg'; allowed: count, max, min, sum"),
+    ({"weight": {"avg": "weight"}}, r"\.aggregate\.weight: unknown key 'avg'; allowed: count, initial, max, min, sum"),
     ({"weight": {}}, r"aggregate 'weight' must be one function and a message attribute"),
     ({"weight": {"sum": "weight", "max": "weight"}}, r"aggregate 'weight' must be one function and a message attribute"),
     ({"weight": {"sum": 3}}, r"aggregate 'weight' must be one function and a message attribute"),

@@ -21,7 +21,8 @@ import pytz
 
 from prosimos.case_attributes import CaseAttribute
 from prosimos.control_flow_manager import BPMN
-from prosimos.messaging_parser import AGGREGATE_FUNCTIONS, ConsumePoint, PublishPoint, is_whole_number, unknown_keys
+from prosimos.messaging_parser import (AGGREGATE_FUNCTIONS, ConsumePoint, PublishPoint, is_number, is_whole_number,
+                                       unknown_keys)
 from prosimos.ocel_writer import OcelProcess, write_ocel
 from prosimos.simulation_engine import SimBPMEnv, _aggregated, _is_number
 from prosimos.simulation_properties_parser import parse_datetime, parse_simulation_model
@@ -101,10 +102,12 @@ class NewShare:
 @dataclass(frozen=True)
 class Computed:
     """A with value computed over the objects a reference picked, as aggregate computes over messages: function
-    ("sum", "count", "min" or "max") of their attribute source."""
+    ("sum", "count", "min" or "max") of their attribute source, and of initial, if not None, a number already
+    among them."""
 
     function: str
     source: str
+    initial: Optional[float] = None
 
 
 @dataclass(frozen=True)
@@ -314,8 +317,12 @@ def _with_json(pairs):
     """with as the configuration wrote it, for messages."""
     if not isinstance(pairs, tuple):
         return pairs
-    return {pair[0]: {pair[1].function: pair[1].source} if isinstance(pair[1], Computed) else pair[1]
-            for pair in pairs if isinstance(pair, tuple) and len(pair) == 2}
+    def written(source):
+        if not isinstance(source, Computed):
+            return source
+        return {source.function: source.source, **({} if source.initial is None else {"initial": source.initial})}
+
+    return {pair[0]: written(pair[1]) for pair in pairs if isinstance(pair, tuple) and len(pair) == 2}
 
 
 def _drawn_as_numbers(attribute):
@@ -357,6 +364,15 @@ def _brought_names(reference):
 def _with_problems(reference, entry, specs, picked, brought):
     """picked: (process, attribute) of every pick; brought: (process, attribute) of every attribute a with gives."""
     pairs = reference.with_attributes
+    if isinstance(pairs, tuple):
+        for name, source in (pair for pair in pairs if isinstance(pair, tuple) and len(pair) == 2):
+            if isinstance(source, dict) and set(source) == {"initial"}:
+                return [f"with {name!r} has initial but no function; initial is the first value a sum, count, min "
+                        f"or max works over, and a plain copy has none"]
+            initial = source.get("initial") if isinstance(source, dict) else getattr(source, "initial", None)
+            if (isinstance(source, Computed) and initial is not None or isinstance(source, dict) and "initial" in source) \
+                    and not is_number(initial):
+                return [f"with {name!r} initial must be a number, got {initial!r}"]
     if not (isinstance(pairs, tuple) and all(
             isinstance(pair, tuple) and len(pair) == 2 and isinstance(pair[0], str) and pair[0]
             and (isinstance(pair[1], str) and pair[1]
@@ -606,13 +622,23 @@ def _reference(path, where, entry):
         count = CountFrom(count["object_attribute"]) if isinstance(count.get("object_attribute"), str) else count
     with_attributes = entry.get("with", ())
     if isinstance(with_attributes, dict):  # anything else is rejected when the configuration is checked
-        with_attributes = tuple((name, Computed(*next(iter(source.items())))
-                                 if isinstance(source, dict) and len(source) == 1 else source)
-                                for name, source in with_attributes.items())
+        with_attributes = tuple((name, _computed(source)) for name, source in with_attributes.items())
     return Reference(entry["object_attribute"], entry["catalogue"], entry.get("o2o"),
                      entry.get("reverse", False), None if link_events is None else tuple(link_events), pick,
                      with_attributes,
                      entry.get("tag_along", False), count)
+
+
+def _computed(source):
+    """A with source as JSON gives it: {function: attribute}, with initial if given, as Computed; anything else as
+    it is, a plain name or a form _with_problems rejects."""
+    if not isinstance(source, dict):
+        return source
+    functions = [key for key in source if key != "initial"]
+    if len(functions) != 1 or functions[0] not in AGGREGATE_FUNCTIONS or "initial" in source and not is_number(
+            source["initial"]):
+        return source
+    return Computed(functions[0], source[functions[0]], source.get("initial"))
 
 
 def _check_keys(path, where, mapping, allowed):
@@ -1039,20 +1065,22 @@ class _Pick:
 class _Brought:
     """A value a _Pick's objects give the case it has just picked them for: an attribute of the picked object,
     copied, or, with function, the function over that attribute of every object it picked, each as often as it
-    was picked (a single pick is a list of one), as aggregate computes over messages. It comes right after its
-    pick in the case's attributes, which are drawn in order, so it reads the pick's last value; it draws nothing.
-    Over no objects, a sum and a count are 0 and a min or max has no value (None)."""
+    was picked (a single pick is a list of one), and over initial, if given, as aggregate computes over messages.
+    It comes right after its pick in the case's attributes, which are drawn in order, so it reads the pick's last
+    value; it draws nothing. Over no objects, a sum and a count are 0 and a min or max has no value (None), unless
+    initial gives them one."""
 
-    def __init__(self, name: str, pick: _Pick, values: Dict[str, Any], function: Optional[str] = None):
-        self.name, self._pick, self._values, self._function = name, pick, values, function
+    def __init__(self, name: str, pick: _Pick, values: Dict[str, Any], function: Optional[str] = None,
+                 initial: Optional[float] = None):
+        self.name, self._pick, self._values, self._function, self._initial = name, pick, values, function, initial
 
     def get_next_value(self):
         if self._function is None:
             return self._values[self._pick.last]
         picked = self._pick.last if isinstance(self._pick.last, list) else [self._pick.last]
-        if not picked and self._function in ("min", "max"):
+        if not picked and self._function in ("min", "max") and self._initial is None:
             return None
-        return _aggregated(self._function, [self._values[object_id] for object_id in picked])
+        return _aggregated(self._function, [self._values[object_id] for object_id in picked], self._initial)
 
 
 class _NewPick:
@@ -1087,9 +1115,10 @@ def _picks(spec: ProcessSpec, seed: Optional[int], catalogues: Dict[str, List[Ca
             pick = _Pick(reference.object_attribute, ids, weights, seed, spec.name, reference.count)
             picks.append(pick)
             for name, source in reference.with_attributes:
-                function, attribute = (source.function, source.source) if isinstance(source, Computed) else (None, source)
+                function, attribute, initial = ((source.function, source.source, source.initial)
+                                                if isinstance(source, Computed) else (None, source, None))
                 values = {obj.id: dict(obj.attributes)[attribute] for obj in catalogues[reference.catalogue]}
-                picks.append(_Brought(name, pick, values, function))
+                picks.append(_Brought(name, pick, values, function, initial))
     return picks
 
 

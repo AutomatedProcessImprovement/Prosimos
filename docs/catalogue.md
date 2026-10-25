@@ -302,6 +302,21 @@ left, to where the value comes from, on the right, in the shape of `copy` and `a
   A sum of whole numbers is a whole number, any other is rounded once, at the end, so it doesn't depend on the
   order of the picks. Over no objects (a count of 0), a sum and a count are 0, and a min or a max has no value.
 
+  `initial`, next to the function, is a number already among the values, as for `aggregate`
+  ([messaging.md](messaging.md)): a count adds the objects to it, a sum, min or max takes it as one more value.
+  The generator of the Order Management log prices an order at its products' prices plus a fee of 5.00:
+
+  ```json
+  "with": {"price": {"sum": "price", "initial": 5.00}}
+  ```
+
+  ```
+  order-1 picks Fire Stick, Echo, iPhone 11  ->  price = 5.00 + 39.99 + 99.99 + 799 = 943.98
+  ```
+
+  Over no objects, each function gives `initial`. `with` computes everything when the case is created, so its
+  value is written to the OCEL output as it is.
+
 The values are case values like those drawn in `object_attributes` from then on: columns of the log, attributes
 of the case's OCEL object if the process lists them in `ocel_attributes`, and usable in conditions, `copy`,
 published messages and `aggregate`.
@@ -311,6 +326,7 @@ published messages and `aggregate`.
   (on a pool: a continuous attribute, or a discrete one whose keys are numbers).
 - On a pick with `count`, a plain name is a load error: say what to compute over the objects. On a single pick
   a function is allowed, over the one object: a sum is its value, a count is 1.
+- `initial` is a number, negative too, and only next to a function: a plain copy has none.
 - `with` draws nothing: adding it changes neither the picks nor any other draw.
 
 ## Worked example: Order Management
@@ -526,6 +542,8 @@ The messages, by the key they are about:
 | `with`                       | `processes[2].references[0] with must map attribute names to an attribute of the picked object or to one function of one, {"sum" \| "count" \| "min" \| "max": <attribute>}, got ['weight', 'price']` |
 | `with`                       | `processes[0].references[1] copies ['price'] on a pick with count; a list pick needs a function over the picked objects, e.g. {"sum": "price"}`                                                       |
 | `with`                       | `processes[0].references[1] with sums, or takes the min or max of, ['price'], which not every object of catalogue 'product' has as a number`                                                          |
+| `with`                       | `processes[0].references[1] with 'price' initial must be a number, got '5'`                                                                                                                           |
+| `with`                       | `processes[0].references[1] with 'price' has initial but no function; initial is the first value a sum, count, min or max works over, and a plain copy has none`                                      |
 | `with`                       | `processes[2].references[0] has with but no pick; a catalogue object brings its attributes only when the reference picks it`                                                                          |
 | `with`                       | `processes[2].references[0] has with on growing catalogue 'product', whose objects don't exist yet when a case is created`                                                                            |
 | `with`                       | `processes[2].references[0] with names ['volume'], which not every object of catalogue 'product' has`                                                                                                 |
