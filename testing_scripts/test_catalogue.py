@@ -44,8 +44,9 @@ def test_the_run_writes_every_customer_of_the_catalogue(order_management):
     customers = _of_type(ocel, "customer")
 
     assert sorted(customers) == sorted(f"c{n}" for n in range(1, 16))
-    assert customers["c3"]["attributes"] == [{"name": "segment", "value": "business", "time": "2023-04-03T06:00:00.000000Z"}]
-    assert {"name": "customer", "attributes": [{"name": "segment", "type": "string"}]} in ocel["objectTypes"]
+    # without attributes, as in the real log
+    assert all(customer["attributes"] == [] for customer in customers.values())
+    assert {"name": "customer", "attributes": []} in ocel["objectTypes"]
 
 
 def test_every_customer_places_exactly_its_orders(order_management):

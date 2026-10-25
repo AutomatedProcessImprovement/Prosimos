@@ -51,7 +51,7 @@ def test_a_process_entry(tmp_path):
 def test_an_object_of_a_listed_catalogue(tmp_path):
     def misspelled(data):
         customers = data["processes"][0]["catalogues"]["customer"]
-        customers[2]["attribute"] = customers[2].pop("attributes")
+        customers[2]["attribute"] = {}
 
     _config_rejected(tmp_path, r"processes\[0\].catalogues.customer\[2\]: unknown key 'attribute'; allowed: attributes, id$",
                      misspelled)

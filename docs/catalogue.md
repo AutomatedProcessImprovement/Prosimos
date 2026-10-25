@@ -260,21 +260,9 @@ Warehouse, which picks one for each item as often as in the log. This is its ful
       "carry_links": true,
       "catalogues": {
         "customer": [
-          {"id": "c1", "attributes": {"segment": "retail"}},
-          {"id": "c2", "attributes": {"segment": "retail"}},
-          {"id": "c3", "attributes": {"segment": "business"}},
-          {"id": "c4", "attributes": {"segment": "retail"}},
-          {"id": "c5", "attributes": {"segment": "retail"}},
-          {"id": "c6", "attributes": {"segment": "business"}},
-          {"id": "c7", "attributes": {"segment": "retail"}},
-          {"id": "c8", "attributes": {"segment": "retail"}},
-          {"id": "c9", "attributes": {"segment": "business"}},
-          {"id": "c10", "attributes": {"segment": "retail"}},
-          {"id": "c11", "attributes": {"segment": "retail"}},
-          {"id": "c12", "attributes": {"segment": "business"}},
-          {"id": "c13", "attributes": {"segment": "retail"}},
-          {"id": "c14", "attributes": {"segment": "retail"}},
-          {"id": "c15", "attributes": {"segment": "business"}}
+          {"id": "c1"}, {"id": "c2"}, {"id": "c3"}, {"id": "c4"}, {"id": "c5"},
+          {"id": "c6"}, {"id": "c7"}, {"id": "c8"}, {"id": "c9"}, {"id": "c10"},
+          {"id": "c11"}, {"id": "c12"}, {"id": "c13"}, {"id": "c14"}, {"id": "c15"}
         ]
       },
       "references": [
@@ -364,13 +352,13 @@ the product's `weight` and `price` into the item. `ItemPicked` carries the item'
 
 **What appears in the OCEL file** (excerpts of that run, 2,000 orders):
 
-- **The 15 customers**, type `customer`, with `segment` timed at the start of the run, and `objectTypes`
-  lists `{"name": "customer", "attributes": [{"name": "segment", "type": "string"}]}`. Each is linked by
-  `places` to its orders, 109 to 154 per customer, 2,000 in all:
+- **The 15 customers**, type `customer`, without attributes, as in the log, and `objectTypes` lists
+  `{"name": "customer", "attributes": []}`. Each is linked by `places` to its orders, 109 to 154 per
+  customer, 2,000 in all:
 
   ```json
   {"id": "c3", "type": "customer",
-   "attributes": [{"name": "segment", "value": "business", "time": "2023-04-03T06:00:00.000000Z"}],
+   "attributes": [],
    "relationships": [{"objectId": "order-25", "qualifier": "places"},
                      {"objectId": "order-29", "qualifier": "places"}, ...]}
   ```
