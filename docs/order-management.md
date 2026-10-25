@@ -301,7 +301,7 @@ picked `customer`, `sales.json` only runs inside this configuration, not on its 
 of the Warehouse: the log's 20, each with its `weight` and first `price`. A reference of the Warehouse picks one
 for each item, with the number of items of each product in the log as weights, links the item to it (**is a**),
 links every event of the item to it and, with `"tag_along": true`, every other event that links the item, and, with
-`"with": ["weight", "price"]`, gives the item its product's weight and price when it is created. They are the
+`"with": {"weight": "weight", "price": "price"}`, gives the item its product's weight and price when it is created. They are the
 item's own attributes from then on: written on its OCEL object (the Warehouse's `ocel_attributes`), and `weight`
 travels on `ItemPicked` to be summed into the package's.
 

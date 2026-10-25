@@ -21,9 +21,9 @@ import pytz
 
 from prosimos.case_attributes import CaseAttribute
 from prosimos.control_flow_manager import BPMN
-from prosimos.messaging_parser import ConsumePoint, PublishPoint, is_whole_number, unknown_keys
+from prosimos.messaging_parser import AGGREGATE_FUNCTIONS, ConsumePoint, PublishPoint, is_whole_number, unknown_keys
 from prosimos.ocel_writer import OcelProcess, write_ocel
-from prosimos.simulation_engine import SimBPMEnv
+from prosimos.simulation_engine import SimBPMEnv, _aggregated, _is_number
 from prosimos.simulation_properties_parser import parse_datetime, parse_simulation_model
 from prosimos.simulation_setup import SimDiffSetup
 from prosimos.warning_logger import warning_logger
@@ -99,6 +99,15 @@ class NewShare:
 
 
 @dataclass(frozen=True)
+class Computed:
+    """A with value computed over the objects a reference picked, as aggregate computes over messages: function
+    ("sum", "count", "min" or "max") of their attribute source."""
+
+    function: str
+    source: str
+
+
+@dataclass(frozen=True)
 class CountFrom:
     """A pick's count read from a case attribute when the case is created."""
 
@@ -115,10 +124,11 @@ class Reference:
     With pick, the reference also assigns the value, when the case is created: "uniform" (every object
     equally likely) or, for a listed catalogue, weights as ((id, weight), ...) (ids left out are never picked);
     for a growing catalogue, "new" (every case creates its own object) or NewShare. Without it, the value comes
-    from object_attributes or a message. with_attributes (JSON "with") names attributes of the picked object that
-    the case also starts with, under the same names. count, with "uniform" or weights, makes the pick choose that
-    many objects, each independently, into a list: a whole number, or CountFrom, an attribute the case draws in its
-    object_attributes. process is the process whose entry lists it, set by its ProcessSpec."""
+    from object_attributes or a message. with_attributes (JSON "with") gives the case starting values from the
+    picked objects, as ((attribute, source), ...): source is an attribute of the picked object, copied, or Computed
+    over the picked objects (a single pick is a list of one). count, with "uniform" or weights, makes the pick
+    choose that many objects, each independently, into a list: a whole number, or CountFrom, an attribute the case
+    draws in its object_attributes. process is the process whose entry lists it, set by its ProcessSpec."""
 
     object_attribute: str
     catalogue: str
@@ -126,7 +136,7 @@ class Reference:
     reverse: bool = False
     link_events: Optional[Tuple[str, ...]] = None
     pick: Union[None, str, Tuple[Tuple[str, float], ...], NewShare] = None
-    with_attributes: Tuple[str, ...] = ()
+    with_attributes: Tuple[Tuple[str, Union[str, Computed]], ...] = ()
     tag_along: bool = False
     count: Union[None, int, CountFrom] = None
     process: str = ""
@@ -172,8 +182,9 @@ def _checked_catalogue(processes):
     pick is "uniform" or weights on known ids of a listed catalogue, "uniform" on a pool, or "new" or new_share on
     a growing catalogue, for an attribute that the process's object_attributes don't have and its consume entries
     don't copy, append or aggregate into, and at most one per process and attribute. A growing catalogue's objects are created by exactly one reference, and no other id looks like
-    them (<catalogue name>-<number>). with names attributes that every object of the picked listed catalogue or
-    pool has, which the process doesn't otherwise pick, draw, copy, append or aggregate into, and not object_id."""
+    them (<catalogue name>-<number>). with gives attributes that the process doesn't otherwise pick, draw, copy,
+    append or aggregate into, and not object_id, from attributes that every object of the picked listed catalogue
+    or pool has, as numbers for a sum, min or max; a pick with count only computes them."""
     problems = []
     owners = defaultdict(list)  # catalogue name -> the processes declaring it
     for spec in processes:
@@ -245,7 +256,7 @@ def _checked_catalogue(processes):
     picked = [(reference.process, reference.object_attribute) for _, reference in references if reference.pick is not None]
     for process, attribute in sorted({pair for pair in picked if picked.count(pair) > 1}):
         problems.append(f"more than one reference picks {attribute} of process {process}")
-    brought = [(reference.process, name) for _, reference in references for name in reference.with_attributes]
+    brought = [(reference.process, name) for _, reference in references for name in _brought_names(reference)]
     for where, reference in references:
         if reference.with_attributes and reference.catalogue in specs[reference.process].catalogues:
             problems.extend(f"{where} {problem}" for problem in _with_problems(
@@ -286,8 +297,6 @@ def _count_problems(reference, specs):
     if reference.creates:
         return ['has count with "new" or new_share; count works with "uniform" or weights, which choose among the '
                 'objects there are']
-    if reference.with_attributes:
-        return ["has count and with; a list pick brings no attributes"]
     if isinstance(count, CountFrom):
         with open(specs[reference.process].json_path) as file:
             declared = {entry.get("name") for entry in json.load(file).get("object_attributes", [])}
@@ -299,6 +308,23 @@ def _count_problems(reference, specs):
         return [f'count must be a whole number of at least 0 or {{"object_attribute": <object attribute>}}, '
                 f"got {count!r}"]
     return []
+
+
+def _with_json(pairs):
+    """with as the configuration wrote it, for messages."""
+    if not isinstance(pairs, tuple):
+        return pairs
+    return {pair[0]: {pair[1].function: pair[1].source} if isinstance(pair[1], Computed) else pair[1]
+            for pair in pairs if isinstance(pair, tuple) and len(pair) == 2}
+
+
+def _drawn_as_numbers(attribute):
+    """Whether a pool attribute, in the format of object_attributes, always draws a number: a continuous one, or a
+    discrete one whose keys are all numbers."""
+    if attribute.get("type") == "continuous":
+        return True
+    values = attribute.get("values")
+    return isinstance(values, list) and all(isinstance(value, dict) and _is_number(value.get("key")) for value in values)
 
 
 def _settings_problems(verb, attribute, process, specs):
@@ -322,25 +348,50 @@ def _settings_problems(verb, attribute, process, specs):
     return []
 
 
+def _brought_names(reference):
+    """The attributes a reference's with gives its cases (none if with is malformed, which _with_problems reports)."""
+    pairs = reference.with_attributes
+    return [pair[0] for pair in pairs if isinstance(pair, tuple) and len(pair) == 2] if isinstance(pairs, tuple) else []
+
+
 def _with_problems(reference, entry, specs, picked, brought):
-    """picked: (process, attribute) of every pick; brought: (process, attribute) of every name in a with."""
-    names = reference.with_attributes
-    if not isinstance(names, tuple) or not all(isinstance(name, str) and name for name in names):
-        return [f"with must be a list of attribute names, got {names!r}"]
+    """picked: (process, attribute) of every pick; brought: (process, attribute) of every attribute a with gives."""
+    pairs = reference.with_attributes
+    if not (isinstance(pairs, tuple) and all(
+            isinstance(pair, tuple) and len(pair) == 2 and isinstance(pair[0], str) and pair[0]
+            and (isinstance(pair[1], str) and pair[1]
+                 or isinstance(pair[1], Computed) and pair[1].function in AGGREGATE_FUNCTIONS
+                 and isinstance(pair[1].source, str) and pair[1].source) for pair in pairs)):
+        return ['with must map attribute names to an attribute of the picked object or to one function of one, '
+                f'{{"sum" | "count" | "min" | "max": <attribute>}}, got {_with_json(pairs)!r}']
     if reference.pick is None:
         return ["has with but no pick; a catalogue object brings its attributes only when the reference picks it"]
     if isinstance(entry, GrowingCatalogue):
         return [f"has with on growing catalogue {reference.catalogue!r}, whose objects don't exist yet when a "
                 f"case is created"]
+    copied = [name for name, source in pairs if isinstance(source, str)]
+    if reference.count is not None and copied:
+        return [f"copies {copied} on a pick with count; a list pick needs a function over the picked objects, "
+                f'e.g. {{"sum": "price"}}']
+    sources = list(dict.fromkeys(source.source if isinstance(source, Computed) else source for _, source in pairs))
+    numeric = list(dict.fromkeys(source.source for _, source in pairs
+                                 if isinstance(source, Computed) and source.function != "count"))
     if entry is not None:
         if isinstance(entry, CataloguePool):
-            missing = [name for name in names if name not in {attribute.get("name") for attribute in entry.attributes}]
+            specs_of = {attribute.get("name"): attribute for attribute in entry.attributes}
+            missing = [name for name in sources if name not in specs_of]
+            not_numbers = [name for name in numeric if name in specs_of and not _drawn_as_numbers(specs_of[name])]
         else:
-            missing = [name for name in names if not all(name in dict(obj.attributes) for obj in entry)]
+            missing = [name for name in sources if not all(name in dict(obj.attributes) for obj in entry)]
+            not_numbers = [name for name in numeric if name not in missing
+                           and not all(_is_number(dict(obj.attributes)[name]) for obj in entry)]
         if missing:
             return [f"with names {missing}, which not every object of catalogue {reference.catalogue!r} has"]
+        if not_numbers:
+            return [f"with sums, or takes the min or max of, {not_numbers}, which not every object of catalogue "
+                    f"{reference.catalogue!r} has as a number"]
     problems = []
-    for name in names:
+    for name, _ in pairs:
         if name == "object_id":
             problems.append("brings object_id, which is reserved for the object's own id")
         elif (reference.process, name) in picked:
@@ -364,7 +415,7 @@ def _checked_ocel_attributes(processes):
             settings = json.load(file)
         has = {entry.get("name") for entry in settings.get("object_attributes", [])}
         has.update(reference.object_attribute for reference in spec.references if reference.pick is not None)
-        has.update(name for reference in spec.references for name in reference.with_attributes)
+        has.update(name for reference in spec.references for name in _brought_names(reference))
         messages = settings.get("messages")
         for entry in messages.get("consume", []) if isinstance(messages, dict) else []:
             for key in ("copy", "append", "aggregate"):
@@ -554,9 +605,13 @@ def _reference(path, where, entry):
         _check_keys(path, f"{where}.count", count, {"object_attribute"})
         count = CountFrom(count["object_attribute"]) if isinstance(count.get("object_attribute"), str) else count
     with_attributes = entry.get("with", ())
+    if isinstance(with_attributes, dict):  # anything else is rejected when the configuration is checked
+        with_attributes = tuple((name, Computed(*next(iter(source.items())))
+                                 if isinstance(source, dict) and len(source) == 1 else source)
+                                for name, source in with_attributes.items())
     return Reference(entry["object_attribute"], entry["catalogue"], entry.get("o2o"),
                      entry.get("reverse", False), None if link_events is None else tuple(link_events), pick,
-                     tuple(with_attributes) if isinstance(with_attributes, list) else with_attributes,
+                     with_attributes,
                      entry.get("tag_along", False), count)
 
 
@@ -982,15 +1037,22 @@ class _Pick:
 
 
 class _Brought:
-    """An attribute of the object a _Pick has just picked, given to the case under the same name. It comes right
-    after its pick in the case's attributes, which are drawn in order, so it reads the pick's last value; it
-    draws nothing."""
+    """A value a _Pick's objects give the case it has just picked them for: an attribute of the picked object,
+    copied, or, with function, the function over that attribute of every object it picked, each as often as it
+    was picked (a single pick is a list of one), as aggregate computes over messages. It comes right after its
+    pick in the case's attributes, which are drawn in order, so it reads the pick's last value; it draws nothing.
+    Over no objects, a sum and a count are 0 and a min or max has no value (None)."""
 
-    def __init__(self, name: str, pick: _Pick, values: Dict[str, Any]):
-        self.name, self._pick, self._values = name, pick, values
+    def __init__(self, name: str, pick: _Pick, values: Dict[str, Any], function: Optional[str] = None):
+        self.name, self._pick, self._values, self._function = name, pick, values, function
 
     def get_next_value(self):
-        return self._values[self._pick.last]
+        if self._function is None:
+            return self._values[self._pick.last]
+        picked = self._pick.last if isinstance(self._pick.last, list) else [self._pick.last]
+        if not picked and self._function in ("min", "max"):
+            return None
+        return _aggregated(self._function, [self._values[object_id] for object_id in picked])
 
 
 class _NewPick:
@@ -1024,8 +1086,10 @@ def _picks(spec: ProcessSpec, seed: Optional[int], catalogues: Dict[str, List[Ca
             weights = None if reference.pick == "uniform" else [dict(reference.pick).get(object_id, 0) for object_id in ids]
             pick = _Pick(reference.object_attribute, ids, weights, seed, spec.name, reference.count)
             picks.append(pick)
-            picks.extend(_Brought(name, pick, {obj.id: dict(obj.attributes)[name] for obj in catalogues[reference.catalogue]})
-                         for name in reference.with_attributes)
+            for name, source in reference.with_attributes:
+                function, attribute = (source.function, source.source) if isinstance(source, Computed) else (None, source)
+                values = {obj.id: dict(obj.attributes)[attribute] for obj in catalogues[reference.catalogue]}
+                picks.append(_Brought(name, pick, values, function))
     return picks
 
 

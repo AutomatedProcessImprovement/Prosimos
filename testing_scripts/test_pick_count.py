@@ -170,7 +170,6 @@ def test_a_count_pick_doesnt_change_the_rest_of_the_run(tmp_path, picking_run):
     ({**PRODUCTS, "count": {"object_attribute": "lines"}},
      "count reads 'lines', which process Sales doesn't draw in its object_attributes; the count is read when the "
      "case is created"),
-    ({**PRODUCTS, "count": 3, "with": ["price"]}, "has count and with; a list pick brings no attributes"),
 ])
 def test_an_invalid_count_is_rejected(tmp_path, products, problem):
     with pytest.raises(ValueError, match=rf"{SALES} {problem}"):

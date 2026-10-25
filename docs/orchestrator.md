@@ -85,7 +85,7 @@ or the catalogues and references break one of the rules listed in [catalogue.md]
 It is also rejected for a key it doesn't know, at the top level, in a process entry, a catalogue (a listed
 object, a pool or a growing catalogue), a reference or its `pick`, since a misspelled key would otherwise
 be ignored and change the run without any message:
-`processes[0].references[0]: unknown key 'link_event'; allowed: catalogue, link_events, o2o, object_attribute, pick, reverse, tag_along, with`.
+`processes[0].references[0]: unknown key 'link_event'; allowed: catalogue, count, link_events, o2o, object_attribute, pick, reverse, tag_along, with`.
 
 **A process's JSON file** (`json_path`) holds its Prosimos simulation settings, with the attributes drawn for each
 new object under `object_attributes`, in Prosimos's format for its case attributes, and the `messages` section

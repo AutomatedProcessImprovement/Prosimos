@@ -117,7 +117,7 @@ A reference, in a process's `references`, ties one of the process's attributes t
 | `link_events`      | no       | `["place order", "Confirm_Order"]` | which of the case's events link the catalogue object: task names or task ids; without it every event, `[]` none |
 | `pick`             | no       | `"uniform"`                        | the reference chooses the value itself (see "Pick")                                                             |
 | `count`            | no       | `{"object_attribute": "items"}`    | with `pick`, how many objects it chooses, into a list (see "Count")                                             |
-| `with`             | no       | `["weight", "price"]`              | attributes of the picked object that the case also starts with (see "With")                                     |
+| `with`             | no       | `{"weight": "weight"}`             | values the case starts with, copied from the picked object or computed over the picked objects (see "With")     |
 | `tag_along`        | no       | `true`                             | events of other cases that link the case's object link the catalogue object too (default `false`)               |
 
 ### Two modes: with and without pick
@@ -263,30 +263,55 @@ of the first 4 orders of Order Management's Sales with seed 1, with the log's 20
   whole number of at least 0 picks one object, with one warning.
 - Without `count`, the pick chooses one object, a single value, as before.
 - `count` needs a `pick`, and not `"new"` or `new_share`, which create objects rather than choose among them.
-  A list pick brings no attributes, so `count` and `with` don't go together.
+  With `with`, a list pick computes values over the objects it chose (see "With").
 - The list is a column of the log, as JSON text, and messages and `copy` carry it like any other value.
   Choosing more objects draws more from the pick's own generator only, so the rest of the run stays the same.
 
 ### With
 
-```json
-{"object_attribute": "product", "catalogue": "product",
- "pick": {"weights": {...}}, "with": ["weight", "price"]}
-```
+`with` gives the case starting values from the objects its reference picks. It maps the case's attribute, on the
+left, to where the value comes from, on the right, in the shape of `copy` and `aggregate`
+([messaging.md](messaging.md)):
 
-```
-item item-0 picks "iPad Air"  ->  product = "iPad Air", weight = 0.44, price = 476
-```
+- **a plain name copies** that attribute of the picked object, under the case's name for it:
 
-`with` lists attributes of the catalogue object. When the reference picks an object, the case also gets each
-listed attribute, under the same name, as one of its starting values. From then on they are case values like
-those drawn in `object_attributes`: columns of the log, attributes of the case's OCEL object if the process lists
-them in `ocel_attributes`, and usable in
-conditions, `copy`, published messages and `aggregate`.
+  ```json
+  {"object_attribute": "product", "catalogue": "product",
+   "pick": {"weights": {...}}, "with": {"weight": "weight", "price": "price"}}
+  ```
 
-`with` needs a `pick` on a list or a pool, whose objects and attributes exist when the case is created, and
-every object of the catalogue must have each listed attribute. A listed attribute draws nothing: adding
-`with` changes neither the picks nor any other draw.
+  ```
+  item item-0 picks "iPad Air"  ->  product = "iPad Air", weight = 0.44, price = 476
+  ```
+
+  With `"with": {"list_price": "price"}`, the case gets `list_price = 476` instead.
+
+- **`{"sum" | "count" | "min" | "max": attribute}` computes** over the picked objects, as `aggregate` does over
+  the messages a case claims. On a pick with `count` (see "Count"), an object picked twice counts twice:
+
+  ```json
+  {"object_attribute": "products", "catalogue": "product",
+   "pick": {"weights": {...}}, "count": {"object_attribute": "items"}, "with": {"price": {"sum": "price"}}}
+  ```
+
+  | Order   | products                                                             | price                                               |
+  |---------|----------------------------------------------------------------------|-----------------------------------------------------|
+  | order-1 | Fire Stick, Echo, iPhone 11                                          | 39.99 + 99.99 + 799 = 938.98                        |
+  | order-2 | iPhone 11, iPhone X, Echo Show 5, iPad, iPad Air, iPhone 8, iPhone 8 | 799 + 699 + 89.99 + 495 + 476 + 529 + 529 = 3616.99 |
+
+  A sum of whole numbers is a whole number, any other is rounded once, at the end, so it doesn't depend on the
+  order of the picks. Over no objects (a count of 0), a sum and a count are 0, and a min or a max has no value.
+
+The values are case values like those drawn in `object_attributes` from then on: columns of the log, attributes
+of the case's OCEL object if the process lists them in `ocel_attributes`, and usable in conditions, `copy`,
+published messages and `aggregate`.
+
+- `with` needs a `pick` on a list or a pool, whose objects and attributes exist when the case is created, and
+  every object of the catalogue must have each attribute it names; a sum, a min or a max needs it as a number
+  (on a pool: a continuous attribute, or a discrete one whose keys are numbers).
+- On a pick with `count`, a plain name is a load error: say what to compute over the objects. On a single pick
+  a function is allowed, over the one object: a sum is its value, a count is 1.
+- `with` draws nothing: adding it changes neither the picks nor any other draw.
 
 ## Worked example: Order Management
 
@@ -362,7 +387,7 @@ Warehouse, which picks one for each item as often as in the log. This is its ful
            "iPad Pro": 394, "Echo Plus": 394, "Kindle Paperwhite": 393, "Echo Show 8": 383, "MacBook Pro": 382,
            "iPad mini": 382, "Echo Studio": 379, "Echo Dot": 375, "iPhone 11 Pro": 373, "MacBook Air": 369,
            "Echo Show 5": 368, "Echo": 365, "iPad": 362, "Kindle": 346, "iPhone 11": 343}},
-         "with": ["weight", "price"]}
+         "with": {"weight": "weight", "price": "price"}}
       ]
     },
     {
@@ -470,44 +495,45 @@ Invalid catalogue: growing catalogue 'customer' needs exactly one reference that
 
 The messages, by the key they are about:
 
-| Key                          | Message                                                                                                                                                        |
-|------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `id`                         | `catalogue ids are repeated: ['x']` (ids are unique across all catalogues)                                                                                     |
-| `id`                         | `catalogue ids look like object ids (<object type>-<number>): ['order-1']`                                                                                     |
-| catalogue name               | `catalogue 'order' is the object type of process Sales`                                                                                                        |
-| `count` (pool)               | `catalogue 'customer': count must be a whole number of at least 1, got 0`                                                                                      |
-| `attributes` (pool, growing) | `catalogue 'customer': attributes[0]: InvalidCaseAttributeException: Case attribute segment: probabilities' sum should be equal to 1` (Prosimos's own message) |
-| growing catalogue            | `catalogue ids look like the ids growing catalogue 'customer' creates (customer-<number>): ['customer-2']`                                                     |
-| growing catalogue            | `growing catalogue 'customer' needs exactly one reference that creates its objects ("new" or new_share), got 0`                                                |
-| `catalogue`                  | `processes[0].references[0] names unknown catalogue 'clients'`                                                                                                 |
-| `catalogue`                  | `processes[2].references[0] names catalogue 'customer' of process Sales; a reference names a catalogue of its own process`                                     |
-| catalogue name               | `catalogue 'customer' is declared by more than one process: Sales, Warehouse`                                                                                  |
-| `link_events`                | `processes[0].references[0] link_events names ['confrim order'], which are no tasks of process Sales`                                                          |
-| `pick`                       | `processes[0].references[0] pick must be "uniform", {"weights": {id: weight, ...}}, "new" or {"new_share": share}`                                             |
-| `pick`                       | `processes[0].references[0] picks customer, which process Sales also draws in its object_attributes`                                                           |
-| `pick`                       | `processes[2].references[0] picks customer, which process Warehouse also copies from a message (consume entries at ['Start_Item'])`                            |
-| `pick`                       | `processes[3].references[0] picks item_ids, which process Packaging also appends to from a message (consume entries at ['Catch_Items'])`                       |
-| `pick`                       | `more than one reference picks customer of process Sales`                                                                                                      |
-| `count` (pick)               | `processes[0].references[1] has count but no pick; count says how many objects the pick chooses`                                                               |
-| `count` (pick)               | `processes[0].references[1] count must be a whole number of at least 0 or {"object_attribute": <object attribute>}, got -1`                                    |
-| `count` (pick)               | `processes[0].references[1] count reads 'lines', which process Sales doesn't draw in its object_attributes; the count is read when the case is created`        |
-| `count` (pick)               | `processes[0].references[1] has count with "new" or new_share; count works with "uniform" or weights, which choose among the objects there are`                |
-| `count` (pick)               | `processes[0].references[1] has count and with; a list pick brings no attributes`                                                                              |
-| `weights`                    | `processes[0].references[0] weights name ['c99'], which are no ids of catalogue 'customer'`                                                                    |
-| `weights`                    | `processes[0].references[0] weights must be numbers of at least 0, not all 0, got {'c1': 0, 'c2': 0}`                                                          |
-| `weights`                    | `processes[0].references[0] has weights on pool 'customer'; a pool can only be picked from uniformly`                                                          |
-| `"new"`, `new_share`         | `processes[0].references[0] picks "new" or new_share from catalogue 'customer', which is no growing catalogue`                                                 |
-| `"new"`, `new_share`         | `processes[0].references[0] picks from growing catalogue 'customer', which only takes "new" or {"new_share": ...}`                                             |
-| `new_share`                  | `processes[0].references[0] new_share must be a number above 0 and at most 1, got 1.5`                                                                         |
-| `with`                       | `processes[2].references[0] with must be a list of attribute names, got 'weight'`                                                                              |
-| `with`                       | `processes[2].references[0] has with but no pick; a catalogue object brings its attributes only when the reference picks it`                                   |
-| `with`                       | `processes[2].references[0] has with on growing catalogue 'product', whose objects don't exist yet when a case is created`                                     |
-| `with`                       | `processes[2].references[0] with names ['volume'], which not every object of catalogue 'product' has`                                                          |
-| `with`                       | `processes[2].references[0] brings price, which process Warehouse also draws in its object_attributes`                                                         |
-| `with`                       | `processes[2].references[0] brings customer, which process Warehouse also copies from a message (consume entries at ['Start_Item'])`                           |
-| `with`                       | `processes[2].references[0] brings product, which process Warehouse also picks`                                                                                |
-| `with`                       | `processes[2].references[0] brings weight, which another with also brings to process Warehouse`                                                                |
-| `with`                       | `processes[2].references[0] brings object_id, which is reserved for the object's own id`                                                                       |
+| Key                          | Message                                                                                                                                                                                               |
+|------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `id`                         | `catalogue ids are repeated: ['x']` (ids are unique across all catalogues)                                                                                                                            |
+| `id`                         | `catalogue ids look like object ids (<object type>-<number>): ['order-1']`                                                                                                                            |
+| catalogue name               | `catalogue 'order' is the object type of process Sales`                                                                                                                                               |
+| `count` (pool)               | `catalogue 'customer': count must be a whole number of at least 1, got 0`                                                                                                                             |
+| `attributes` (pool, growing) | `catalogue 'customer': attributes[0]: InvalidCaseAttributeException: Case attribute segment: probabilities' sum should be equal to 1` (Prosimos's own message)                                        |
+| growing catalogue            | `catalogue ids look like the ids growing catalogue 'customer' creates (customer-<number>): ['customer-2']`                                                                                            |
+| growing catalogue            | `growing catalogue 'customer' needs exactly one reference that creates its objects ("new" or new_share), got 0`                                                                                       |
+| `catalogue`                  | `processes[0].references[0] names unknown catalogue 'clients'`                                                                                                                                        |
+| `catalogue`                  | `processes[2].references[0] names catalogue 'customer' of process Sales; a reference names a catalogue of its own process`                                                                            |
+| catalogue name               | `catalogue 'customer' is declared by more than one process: Sales, Warehouse`                                                                                                                         |
+| `link_events`                | `processes[0].references[0] link_events names ['confrim order'], which are no tasks of process Sales`                                                                                                 |
+| `pick`                       | `processes[0].references[0] pick must be "uniform", {"weights": {id: weight, ...}}, "new" or {"new_share": share}`                                                                                    |
+| `pick`                       | `processes[0].references[0] picks customer, which process Sales also draws in its object_attributes`                                                                                                  |
+| `pick`                       | `processes[2].references[0] picks customer, which process Warehouse also copies from a message (consume entries at ['Start_Item'])`                                                                   |
+| `pick`                       | `processes[3].references[0] picks item_ids, which process Packaging also appends to from a message (consume entries at ['Catch_Items'])`                                                              |
+| `pick`                       | `more than one reference picks customer of process Sales`                                                                                                                                             |
+| `count` (pick)               | `processes[0].references[1] has count but no pick; count says how many objects the pick chooses`                                                                                                      |
+| `count` (pick)               | `processes[0].references[1] count must be a whole number of at least 0 or {"object_attribute": <object attribute>}, got -1`                                                                           |
+| `count` (pick)               | `processes[0].references[1] count reads 'lines', which process Sales doesn't draw in its object_attributes; the count is read when the case is created`                                               |
+| `count` (pick)               | `processes[0].references[1] has count with "new" or new_share; count works with "uniform" or weights, which choose among the objects there are`                                                       |
+| `weights`                    | `processes[0].references[0] weights name ['c99'], which are no ids of catalogue 'customer'`                                                                                                           |
+| `weights`                    | `processes[0].references[0] weights must be numbers of at least 0, not all 0, got {'c1': 0, 'c2': 0}`                                                                                                 |
+| `weights`                    | `processes[0].references[0] has weights on pool 'customer'; a pool can only be picked from uniformly`                                                                                                 |
+| `"new"`, `new_share`         | `processes[0].references[0] picks "new" or new_share from catalogue 'customer', which is no growing catalogue`                                                                                        |
+| `"new"`, `new_share`         | `processes[0].references[0] picks from growing catalogue 'customer', which only takes "new" or {"new_share": ...}`                                                                                    |
+| `new_share`                  | `processes[0].references[0] new_share must be a number above 0 and at most 1, got 1.5`                                                                                                                |
+| `with`                       | `processes[2].references[0] with must map attribute names to an attribute of the picked object or to one function of one, {"sum" \| "count" \| "min" \| "max": <attribute>}, got ['weight', 'price']` |
+| `with`                       | `processes[0].references[1] copies ['price'] on a pick with count; a list pick needs a function over the picked objects, e.g. {"sum": "price"}`                                                       |
+| `with`                       | `processes[0].references[1] with sums, or takes the min or max of, ['price'], which not every object of catalogue 'product' has as a number`                                                          |
+| `with`                       | `processes[2].references[0] has with but no pick; a catalogue object brings its attributes only when the reference picks it`                                                                          |
+| `with`                       | `processes[2].references[0] has with on growing catalogue 'product', whose objects don't exist yet when a case is created`                                                                            |
+| `with`                       | `processes[2].references[0] with names ['volume'], which not every object of catalogue 'product' has`                                                                                                 |
+| `with`                       | `processes[2].references[0] brings price, which process Warehouse also draws in its object_attributes`                                                                                                |
+| `with`                       | `processes[2].references[0] brings customer, which process Warehouse also copies from a message (consume entries at ['Start_Item'])`                                                                  |
+| `with`                       | `processes[2].references[0] brings product, which process Warehouse also picks`                                                                                                                       |
+| `with`                       | `processes[2].references[0] brings weight, which another with also brings to process Warehouse`                                                                                                       |
+| `with`                       | `processes[2].references[0] brings object_id, which is reserved for the object's own id`                                                                                                              |
 
 `link_events` is not checked for extra engines, which have no BPMN model.
 

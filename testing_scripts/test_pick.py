@@ -36,7 +36,9 @@ def _loans(cases, catalogue, pick, seed=1, with_attributes=()):
                                          catalogues={"customer": catalogue},
                                          references=(Reference("customer", "customer", o2o="applies for", reverse=True,
                                                                link_events=(), pick=pick,
-                                                               with_attributes=with_attributes),))], START, seed)
+                                                               with_attributes=tuple((name, name) for name in
+                                                                                     with_attributes)),))],
+                            START, seed)
 
 
 def _run(config, tmp_path, name="log"):
@@ -308,8 +310,10 @@ WAREHOUSE = r"processes\[2\].references"
 
 def _products_with(tmp_path, names, *other_references, attributes=None, process="Warehouse"):
     """The Order Management configuration whose only catalogue is the products, with weight and price and
-    attributes if given, and whose only references are a product pick with these with names and the other
-    references, all in process."""
+    attributes if given, and whose only references are a product pick with this with (a list of names: each copied
+    under its own name) and the other references, all in process."""
+    if isinstance(names, list):
+        names = {name: name for name in names}
     products = json.loads(json.dumps(PRODUCTS_LIST))
     if attributes is not None:
         for product in products:
@@ -320,7 +324,7 @@ def _products_with(tmp_path, names, *other_references, attributes=None, process=
 
 def test_with_without_a_pick_is_rejected(tmp_path):
     path = _config_with(tmp_path, references={"Warehouse": [{"object_attribute": "product", "catalogue": "product",
-                                                             "with": ["weight"]}]})
+                                                             "with": {"weight": "weight"}}]})
 
     with pytest.raises(ValueError, match=rf"{WAREHOUSE}\[0\] has with but no pick; a catalogue object brings its "
                                          r"attributes only when the reference picks it"):
@@ -330,7 +334,7 @@ def test_with_without_a_pick_is_rejected(tmp_path):
 def test_with_on_a_growing_catalogue_is_rejected(tmp_path):
     path = _config_with(tmp_path, catalogues={"Warehouse": {"product": {"attributes": [
         {"name": "weight", "type": "discrete", "values": [{"key": 1, "value": 1}]}]}}},
-                        references={"Warehouse": [{**PRODUCTS, "pick": "new", "with": ["weight"]}]})
+                        references={"Warehouse": [{**PRODUCTS, "pick": "new", "with": {"weight": "weight"}}]})
 
     with pytest.raises(ValueError, match=rf"{WAREHOUSE}\[0\] has with on growing catalogue 'product', whose objects "
                                          r"don't exist yet when a case is created"):
@@ -341,7 +345,8 @@ def test_with_naming_an_attribute_not_every_object_has_is_rejected(tmp_path):
     products = json.loads(json.dumps(PRODUCTS_LIST))
     products[3]["attributes"]["volume"] = 2.5  # only one product has a volume
     path = _config_with(tmp_path, catalogues={"Warehouse": {"product": products}},
-                        references={"Warehouse": [{**PRODUCTS, "with": ["weight", "volume", "colour"]}]})
+                        references={"Warehouse": [{**PRODUCTS, "with": {"weight": "weight", "volume": "volume",
+                                                                        "colour": "colour"}}]})
 
     with pytest.raises(ValueError, match=rf"{WAREHOUSE}\[0\] with names \['volume', 'colour'\], which not every object "
                                          r"of catalogue 'product' has"):
@@ -351,18 +356,24 @@ def test_with_naming_an_attribute_not_every_object_has_is_rejected(tmp_path):
 def test_with_naming_an_attribute_a_pool_doesnt_draw_is_rejected(tmp_path):
     path = _config_with(tmp_path, catalogues={"Warehouse": {"product": {"count": 5, "attributes": [
         {"name": "weight", "type": "discrete", "values": [{"key": 1, "value": 1}]}]}}},
-                        references={"Warehouse": [{**PRODUCTS, "with": ["weight", "price"]}]})
+                        references={"Warehouse": [{**PRODUCTS, "with": {"weight": "weight", "price": "price"}}]})
 
     with pytest.raises(ValueError, match=rf"{WAREHOUSE}\[0\] with names \['price'\], which not every object of "
                                          r"catalogue 'product' has"):
         SimulationConfig.from_json(path)
 
 
-@pytest.mark.parametrize("names", ["weight", ["weight", 3], [""]])
-def test_with_that_isnt_a_list_of_names_is_rejected(tmp_path, names):
-    path = _products_with(tmp_path, names)
+@pytest.mark.parametrize("names", [
+    ["weight", "price"],  # a list, which with no longer is
+    "weight", {"weight": 3}, {"": "weight"}, {"weight": ""},
+    {"price": {"avg": "price"}}, {"price": {"sum": "price", "max": "price"}}, {"price": {"sum": 3}}])
+def test_with_that_doesnt_map_names_to_an_attribute_or_a_function_of_one_is_rejected(tmp_path, names):
+    path = _config_with(tmp_path, catalogues={"Warehouse": {"product": PRODUCTS_LIST}},
+                        references={"Warehouse": [{**PRODUCTS, "with": names}]})
 
-    with pytest.raises(ValueError, match=rf"{WAREHOUSE}\[0\] with must be a list of attribute names"):
+    with pytest.raises(ValueError, match=rf"{WAREHOUSE}\[0\] with must map attribute names to an attribute of the "
+                                         r'picked object or to one function of one, \{"sum" \| "count" \| "min" \| '
+                                         r'"max": <attribute>\}, got'):
         SimulationConfig.from_json(path)
 
 
@@ -390,7 +401,7 @@ def test_bringing_an_attribute_the_process_picks_is_rejected(tmp_path):
 
 
 def test_two_withs_bringing_the_same_attribute_to_a_process_are_rejected(tmp_path):
-    gift = {"object_attribute": "gift", "catalogue": "product", "pick": "uniform", "with": ["weight"]}
+    gift = {"object_attribute": "gift", "catalogue": "product", "pick": "uniform", "with": {"weight": "weight"}}
     path = _products_with(tmp_path, ["weight"], gift)
 
     with pytest.raises(ValueError, match=rf"{WAREHOUSE}\[0\] brings weight, which another with also brings to process "
