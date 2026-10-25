@@ -69,7 +69,7 @@ gives every object an id of its own.
 messages"), the message `type` it accepts, and an optional `condition`; without one, any message of
 that type is accepted. The process subscribes to every type listed under `consume`.
 
-**copy** (optional, on any `consume` entry) maps case attributes to message attributes: when the
+**copy** (optional, on any `consume` entry) maps object attributes to message attributes: when the
 entry accepts a message, the listed message attributes are written into the case.
 `"copy": {"order_id": "object_id"}` sets the case's `order_id` to the message's `object_id`; `source`
 can be copied too. A copied name counts as declared, so the process can publish it later (e.g.
@@ -240,7 +240,7 @@ objects. A loop publishing one message per round would put N extra events and a 
 the log, and would be discovered as a loop rather than as one event creating N objects. The fan-out
 stays on the sending side: a start event still starts exactly one case per message.
 
-The third form, `{"list": <case attribute>, "as": <attribute name>}`, is the mirror of `append`: it
+The third form, `{"list": <object attribute>, "as": <attribute name>}`, is the mirror of `append`: it
 publishes one message per entry of a list in the publishing case, each carrying its own entry under the
 name `as`. The list is one that `append` filled, or one copied from a message that carried a list. For
 example, a package telling each of its items that it was packed, while each item waits for its own:
@@ -337,7 +337,7 @@ The section is checked when the model is loaded. An invalid section stops loadin
   `collect` of 0.
 - `copy` maps object attribute names to message attribute names, and doesn't set `object_id`.
 - `append` does the same; its attributes are in no entry's `copy` and not in `object_attributes`.
-- `aggregate` maps case attribute names to one function (`sum`, `count`, `min` or `max`) and a message
+- `aggregate` maps object attribute names to one function (`sum`, `count`, `min` or `max`) and a message
   attribute, with `initial`, if given, a number, and doesn't set `object_id`; its attributes are in no entry's
   `copy` or `append`, not in `object_attributes`, and every entry aggregating into one attribute uses the same
   function and the same initial.

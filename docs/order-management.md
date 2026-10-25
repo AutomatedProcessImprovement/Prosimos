@@ -82,11 +82,11 @@ flowchart LR
 
 | In the log                     | Process   | BPMN element               | Feature                                                                                                          |
 |--------------------------------|-----------|----------------------------|------------------------------------------------------------------------------------------------------------------|
-| object type **orders**         | Sales     | one case per order         | arrivals on a weekday calendar; case attribute `items`; `customer` picked from the catalogue                     |
+| object type **orders**         | Sales     | one case per order         | arrivals on a weekday calendar; object attribute `items`; `customer` picked from the catalogue                   |
 | object type **items**          | Warehouse | one case per item          | a message start event on `ItemOrdered`, published once per item with `count`; `index` → `item_index`             |
 | object type **packages**       | Packaging | one case per packing round | arrivals in working hours; `collect` `"all"` with `same` customer; `weight` the sum of its items'                |
-| object type **customers**      | all       | case attribute `customer`  | 15 in the catalogue; picked for the order, copied to items and packages; what a package's items share            |
-| object type **products**       | Warehouse | case attribute `product`   | the log's 20 in the catalogue; one picked for each item as often as in the log, and its weight and price with it |
+| object type **customers**      | all       | attribute `customer`       | 15 in the catalogue; picked for the order, copied to items and packages; what a package's items share            |
+| object type **products**       | Warehouse | attribute `product`        | the log's 20 in the catalogue; one picked for each item as often as in the log, and its weight and price with it |
 | object type **employees**      | all       | resources                  | Sales, Warehousing, `Packer` (Packaging) and Shipment, large enough that no task waits for a person              |
 | activity **place order**       | Sales     | task `Place_Order`         | done by the `Shop` resource; `ItemOrdered` is published right after it                                           |
 | activity **confirm order**     | Sales     | task `Confirm_Order`       | Sales                                                                                                            |
@@ -141,6 +141,10 @@ on the record, not in this repository. Its rules:
   product's price with it.
 - **Orders arrive at an even pace**, one every week / 50 of arrival time, whose speed changes by hour, weekday
   and month ([Arrivals](#arrivals)).
+- **An order's items and price.** An order gets `poisson(2 × (1 − inflation/100)) + 1` items, each of one of the
+  20 products, all equally likely; the net can keep adding items until it prices the order, which gives the
+  log's 1 to 16 (mean 3.83, where the Poisson part alone averages at most 3). The order's price is the sum of
+  its items' prices plus 5.00. Place order and create package happen at once, at the end of the step before.
 - **Orders are paid in a loop.** After confirm order, 80% pay after `expb(7 days, 20)` and 20% get a reminder
   after exactly 20 days on the clock; after every reminder, the same choice again. Here the same loop: an XOR
   80 / 20, pay order taking the generator's delay as its duration, and a 20-day timer before the reminder.
@@ -156,6 +160,10 @@ Where the model differs from the generator, and why:
 | confirm order by the customer's primary sales rep (86.4%), else 70% by the secondary, else by any                                      | any Sales person                                                                                                       | under discussion                                                                      |
 | send package by two people: a forwarder (90% a Warehousing employee, else 70% the package's shipper, else any shipper) and the shipper | one Shipment person                                                                                                    | a task has one resource, and resources aren't shared between processes                |
 | prices rise with inflation (6 prices per product)                                                                                      | each product keeps its first price                                                                                     | a catalogue's attributes are fixed                                                    |
+| items per order: `poisson(2 × (1 − inflation/100)) + 1`, and more while the net keeps adding items                                     | drawn with the log's frequencies of 1 to 16                                                                            | an object attribute's distribution doesn't change during the run                      |
+| each item's product: one of the 20, all equally likely (the log's counts, 343 to 433, fit that: chi-square p = 0.21)                   | weights from the log's counts                                                                                          | under discussion                                                                      |
+| an order's price: its items' prices plus 5.00                                                                                          | orders have no price                                                                                                   | future work: the order choosing its products                                          |
+| place order and create package happen at once                                                                                          | place order takes a minute, create package about an hour                                                               | kept from the first version of the model; create package changes with the packing     |
 | arrivals: one every week / 50 of arrival time, slower at night, at weekends and in April                                               | exponential gaps within a weekday 6:00-22:00 calendar                                                                  | an arrival calendar is on or off: future work ([Arrivals](#arrivals))                 |
 | employees are labels; nobody is ever busy                                                                                              | pools of 100 (Sales), 300 + 20 (Warehousing, `Packer`) and 100 (Shipment): at most 116 Warehousing people busy at once | a Prosimos resource is held while it works; enough of them, and no task waits for one |
 

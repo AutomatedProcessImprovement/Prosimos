@@ -121,7 +121,7 @@ Before the messaging work, every catch event, whatever its kind, completed after
 The cases that haven't finished, those still holding a token, are kept in `SimBPMEnv._unfinished` as their
 tokens move (`_tokens_moved`: when a case is created, after every event it executes, and when it wins a
 race), rather than found by going through every case at each offer. Waiting messages are offered again
-after every step of their process: in the Order Management example about 236,000 offers, and going through
+after every step of their process: in the Order Management example about 288,000 offers, and going through
 every case at each of them was the largest cost of the run.
 
 **Races.** An event-based gateway with a branch listed under `consume` is a race gateway
