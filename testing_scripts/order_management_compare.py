@@ -247,7 +247,9 @@ def metrics(ocel_path):
 
     return {
         "counts": {"orders": len(order_items), "items": len(items), "packages": len(package_items),
-                   "customers": len(objects("customers")), "products": len(objects("products"))},
+                   "customers": len(objects("customers")), "products": len(objects("products")),
+                   "picked items left unpacked": sum(bool(times[item]["pick item"]) and item not in packaged
+                                                     for item in items)},
         "items per order": _summary([len(order_items[order]) for order in order_items], ITEM_BUCKETS),
         "reminders per order": _summary([len(times[order]["payment reminder"]) for order in order_items],
                                         REMINDER_BUCKETS),

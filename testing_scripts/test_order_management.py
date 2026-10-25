@@ -18,10 +18,9 @@ from cli.diff_res_bpsim import cli
 from prosimos.orchestrator import SimulationConfig, run_orchestrator
 from testing_scripts.order_management_compare import CALENDAR, STAFF_POOLS, gaps, metrics, working_seconds
 
-CONFIG = "testing_scripts/assets/order_management/simulation.json"  # 2,000 orders, 1,200 packing rounds; seed 1
+CONFIG = "testing_scripts/assets/order_management/simulation.json"  # 2,000 orders, 1,440 packing rounds; seed 1
 ORDERS = 100
-# enough rounds to pack every item: restocked items are picked weeks after the last order, and the committed
-# configuration's rounds, as many per order as 60 here, end before them
+# enough rounds to pack every item: restocked items are picked up to four weeks after the last order
 ROUNDS = 100
 # a race timer's branch continues one microsecond after its time, so each reminder comes 20 days and one
 # microsecond after the confirmation or the previous reminder (the reminder itself takes no time)
@@ -225,7 +224,7 @@ def test_the_comparison_script_counts_from_the_simulated_file_what_the_engine_di
 
     picked = [message for message in report.published if message.type == "ItemPicked"]
     assert measured["counts"] == {"orders": ORDERS, "items": len(picked), "packages": len(packages),
-                                  "customers": 15, "products": 20}
+                                  "customers": 15, "products": 20, "picked items left unpacked": 0}
     assert measured["items per package"]["mean"] == statistics.mean(len(claimed) for claimed in packages.values())
     assert measured["object-to-object links"] == {"customers places orders": ORDERS, "items is a products": len(picked),
                                                   "orders comprises items": len(picked),

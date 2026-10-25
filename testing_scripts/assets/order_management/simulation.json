@@ -83,7 +83,7 @@
       "name": "Packaging",
       "bpmn_path": "packaging.bpmn",
       "json_path": "packaging.json",
-      "arrivals": 1200,
+      "arrivals": 1440,
       "object_type": "package",
       "qualifier": "package",
       "ocel_attributes": ["weight"],
