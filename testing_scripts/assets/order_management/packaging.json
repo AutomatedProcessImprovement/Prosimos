@@ -5,11 +5,11 @@
       "name": "Logistics",
       "resource_list": [
         {
-          "id": "Warehousing",
-          "name": "Warehousing",
+          "id": "Packer",
+          "name": "Packer",
           "cost_per_hour": 1,
-          "amount": 2,
-          "calendar": "Weekdays",
+          "amount": 20,
+          "calendar": "Generator",
           "assigned_tasks": [
             "Create_Package"
           ]
@@ -18,8 +18,8 @@
           "id": "Shipment",
           "name": "Shipment",
           "cost_per_hour": 1,
-          "amount": 6,
-          "calendar": "Weekdays",
+          "amount": 100,
+          "calendar": "Generator",
           "assigned_tasks": [
             "Send_Package",
             "Failed_Delivery",
@@ -53,15 +53,28 @@
   ],
   "gateway_branching_probabilities": [
     {
-      "gateway_id": "Delivered",
+      "gateway_id": "First_Attempt",
       "probabilities": [
         {
-          "path_id": "Flow_Failed",
-          "value": 0.22
+          "path_id": "Flow_First_Failed",
+          "value": 0.2
         },
         {
-          "path_id": "Flow_Delivered",
-          "value": 0.78
+          "path_id": "Flow_First_Delivered",
+          "value": 0.8
+        }
+      ]
+    },
+    {
+      "gateway_id": "Next_Attempt",
+      "probabilities": [
+        {
+          "path_id": "Flow_Again_Failed",
+          "value": 0.3
+        },
+        {
+          "path_id": "Flow_Again_Delivered",
+          "value": 0.7
         }
       ]
     }
@@ -71,7 +84,7 @@
       "task_id": "Create_Package",
       "resources": [
         {
-          "resource_id": "Warehousing",
+          "resource_id": "Packer",
           "distribution_name": "expon",
           "distribution_params": [
             {
@@ -95,13 +108,13 @@
           "distribution_name": "expon",
           "distribution_params": [
             {
-              "value": 28800
+              "value": 21230
             },
             {
               "value": 0
             },
             {
-              "value": 259200
+              "value": 42459
             }
           ]
         }
@@ -115,13 +128,13 @@
           "distribution_name": "expon",
           "distribution_params": [
             {
-              "value": 25200
+              "value": 21230
             },
             {
               "value": 0
             },
             {
-              "value": 259200
+              "value": 42459
             }
           ]
         }
@@ -135,13 +148,13 @@
           "distribution_name": "expon",
           "distribution_params": [
             {
-              "value": 25200
+              "value": 21230
             },
             {
               "value": 0
             },
             {
-              "value": 259200
+              "value": 42459
             }
           ]
         }
@@ -150,14 +163,44 @@
   ],
   "resource_calendars": [
     {
-      "id": "Weekdays",
-      "name": "Weekdays",
+      "id": "Generator",
+      "name": "Generator",
       "time_periods": [
         {
           "from": "MONDAY",
+          "to": "MONDAY",
+          "beginTime": "07:12:00",
+          "endTime": "10:48:00"
+        },
+        {
+          "from": "MONDAY",
+          "to": "MONDAY",
+          "beginTime": "12:13:48",
+          "endTime": "16:22:12"
+        },
+        {
+          "from": "TUESDAY",
+          "to": "THURSDAY",
+          "beginTime": "07:00:00",
+          "endTime": "11:00:00"
+        },
+        {
+          "from": "TUESDAY",
+          "to": "THURSDAY",
+          "beginTime": "12:00:00",
+          "endTime": "16:36:00"
+        },
+        {
+          "from": "FRIDAY",
           "to": "FRIDAY",
-          "beginTime": "06:00:00",
-          "endTime": "22:00:00"
+          "beginTime": "07:12:00",
+          "endTime": "10:48:00"
+        },
+        {
+          "from": "FRIDAY",
+          "to": "FRIDAY",
+          "beginTime": "12:13:48",
+          "endTime": "16:22:12"
         }
       ]
     }
