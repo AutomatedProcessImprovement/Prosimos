@@ -84,7 +84,7 @@
           "distribution_name": "fix",
           "distribution_params": [
             {
-              "value": 60
+              "value": 0
             }
           ]
         }

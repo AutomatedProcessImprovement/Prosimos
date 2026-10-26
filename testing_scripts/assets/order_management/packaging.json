@@ -9,7 +9,7 @@
           "name": "Packer",
           "cost_per_hour": 1,
           "amount": 20,
-          "calendar": "Generator",
+          "calendar": "Always",
           "assigned_tasks": [
             "Create_Package"
           ]
@@ -85,16 +85,10 @@
       "resources": [
         {
           "resource_id": "Packer",
-          "distribution_name": "expon",
+          "distribution_name": "fix",
           "distribution_params": [
             {
-              "value": 3600
-            },
-            {
               "value": 0
-            },
-            {
-              "value": 86400
             }
           ]
         }
@@ -162,6 +156,18 @@
     }
   ],
   "resource_calendars": [
+    {
+      "id": "Always",
+      "name": "Always",
+      "time_periods": [
+        {
+          "from": "MONDAY",
+          "to": "SUNDAY",
+          "beginTime": "00:00:00",
+          "endTime": "23:59:59"
+        }
+      ]
+    },
     {
       "id": "Generator",
       "name": "Generator",

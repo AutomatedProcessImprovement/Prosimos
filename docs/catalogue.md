@@ -277,14 +277,14 @@ left, to where the value comes from, on the right, in the shape of `copy` and `a
 
   ```json
   {"object_attribute": "product", "catalogue": "product",
-   "pick": {"weights": {...}}, "with": {"weight": "weight", "price": "price"}}
+   "pick": "uniform", "with": {"weight": "weight", "price": "price"}}
   ```
 
   ```
-  item item-0 picks "iPad Air"  ->  product = "iPad Air", weight = 0.44, price = 476
+  item item-0 picks "Fire Stick 4K"  ->  product = "Fire Stick 4K", weight = 0.28, price = 89.99
   ```
 
-  With `"with": {"list_price": "price"}`, the case gets `list_price = 476` instead.
+  With `"with": {"list_price": "price"}`, the case gets `list_price = 89.99` instead.
 
 - **`{"sum" | "count" | "min" | "max": attribute}` computes** over the picked objects, as `aggregate` does over
   the messages a case claims. On a pick with `count` (see "Count"), an object picked twice counts twice:
@@ -333,7 +333,7 @@ published messages and `aggregate`.
 
 The Order Management example ([order-management.md](order-management.md)) has 15 customers in a catalogue of
 Sales, which picks one uniformly for each order, and the real log's 20 products in a catalogue of the
-Warehouse, which picks one for each item as often as in the log. This is its full configuration,
+Warehouse, which picks one for each item uniformly, as the log's generator does. This is its full configuration,
 `testing_scripts/assets/order_management/simulation.json`:
 
 ```json
@@ -393,11 +393,7 @@ Warehouse, which picks one for each item as often as in the log. This is its ful
       },
       "references": [
         {"object_attribute": "product", "catalogue": "product", "o2o": "is a", "tag_along": true,
-         "pick": {"weights": {
-           "iPhone X": 433, "iPhone 8": 408, "Fire Stick": 405, "iPad Air": 405, "Fire Stick 4K": 400,
-           "iPad Pro": 394, "Echo Plus": 394, "Kindle Paperwhite": 393, "Echo Show 8": 383, "MacBook Pro": 382,
-           "iPad mini": 382, "Echo Studio": 379, "Echo Dot": 375, "iPhone 11 Pro": 373, "MacBook Air": 369,
-           "Echo Show 5": 368, "Echo": 365, "iPad": 362, "Kindle": 346, "iPhone 11": 343}},
+         "pick": "uniform",
          "with": {"weight": "weight", "price": "price"}}
       ]
     },
@@ -431,7 +427,7 @@ poetry run prosimos start-orchestration --config testing_scripts/assets/order_ma
 
 `sales.json` has no `customer` in its `object_attributes`: the reference picks it. Its `ItemOrdered` message
 then carries it to the items, and `ItemPicked` to the packages. Likewise, `warehouse.json` has no `product`:
-the Warehouse's reference picks it, with the number of items of each product in the log as weights, and brings
+the Warehouse's reference picks it, uniformly, and brings
 the product's `weight` and `price` into the item. `ItemPicked` carries the item's `weight` to the package.
 
 **What appears in the OCEL file** (excerpts of that run, 2,000 orders):
@@ -454,14 +450,14 @@ the product's `weight` and `price` into the item. `ItemPicked` carries the item'
   (4,000 links: 2,000 of each); **pay order** isn't, since it isn't in `link_events`:
 
   ```json
-  {"id": "e1", "type": "place order", "time": "2023-04-03T06:01:00.000000Z",
+  {"id": "e1", "type": "place order", "time": "2023-04-03T06:00:00.000000Z",
    "relationships": [{"objectId": "order-0", "qualifier": "order"},
                      {"objectId": "item-0", "qualifier": "item"}, ...,
                      {"objectId": "c9", "qualifier": "customer"}]}
-  {"id": "e10", "type": "confirm order", "time": "2023-04-03T09:54:40.029853Z",
+  {"id": "e11", "type": "confirm order", "time": "2023-04-03T09:54:40.029853Z",
    "relationships": [{"objectId": "order-0", "qualifier": "order"}, ...,
                      {"objectId": "c9", "qualifier": "customer"}]}
-  {"id": "e193", "type": "pay order", "time": "2023-04-06T08:33:52.123310Z",
+  {"id": "e197", "type": "pay order", "time": "2023-04-06T08:33:52.123310Z",
    "relationships": [{"objectId": "order-0", "qualifier": "order"}, ...]}
   ```
 
@@ -475,12 +471,12 @@ the product's `weight` and `price` into the item. `ItemPicked` carries the item'
 
   ```json
   {"id": "item-0", "type": "item",
-   "attributes": [{"name": "weight", "value": 0.44, "time": "2023-04-03T06:01:00.000000Z"},
-                  {"name": "price", "value": 476, "time": "2023-04-03T06:01:00.000000Z"}],
-   "relationships": [{"objectId": "iPad Air", "qualifier": "is a"}]}
+   "attributes": [{"name": "weight", "value": 0.28, "time": "2023-04-03T06:00:00.000000Z"},
+                  {"name": "price", "value": 89.99, "time": "2023-04-03T06:00:00.000000Z"}],
+   "relationships": [{"objectId": "Fire Stick 4K", "qualifier": "is a"}]}
   {"id": "e128", "type": "pick item", "time": "2023-04-05T09:06:49.398070Z",
    "relationships": [{"objectId": "item-0", "qualifier": "item"}, ...,
-                     {"objectId": "iPad Air", "qualifier": "product"}]}
+                     {"objectId": "Fire Stick 4K", "qualifier": "product"}]}
   ```
 
 Items and packages carry `customer` too, but only as a case attribute: the customers are a catalogue of Sales,

@@ -24,10 +24,11 @@ _FULL = [(time(7), time(11)), (time(12), time(16, 36))]
 CALENDAR = {0: _SHORT, 1: _FULL, 2: _FULL, 3: _FULL, 4: _SHORT}
 # the staff pools of the real log (its employees' roles) and the model's resources in each
 STAFF_POOLS = {"Sales": "Sales", "Warehousing": "Warehousing", "Packer": "Warehousing", "Shipment": "Shipment"}
-# the activities of each object type that enable one another
-ACTIVITIES = {"orders": {"place order", "confirm order", "payment reminder", "pay order"},
-              "items": {"place order", "item out of stock", "reorder item", "pick item", "create package"},
-              "packages": {"create package", "send package", "failed delivery", "package delivered"}}
+# the activities of each object type that enable one another, in the order they do: events at the same moment
+# go in this order (a package can be created the moment its item is picked)
+ACTIVITIES = {"orders": ("place order", "confirm order", "payment reminder", "pay order"),
+              "items": ("place order", "item out of stock", "reorder item", "pick item", "create package"),
+              "packages": ("create package", "send package", "failed delivery", "package delivered")}
 GAPS = [("place order", "confirm order"), ("confirm order", "pay order"), ("payment reminder", "pay order"),
         ("place order", "item out of stock"), ("item out of stock", "reorder item"),
         ("place order", "pick item"), ("reorder item", "pick item"), ("create package", "send package"),
@@ -93,15 +94,19 @@ def _read(ocel_path):
 
 
 def _timelines(ocel):
-    """object -> [(time, activity, event id)]: its events of its type's ACTIVITIES, in time order."""
+    """object -> [(time, activity, event id)]: its events of its type's ACTIVITIES, in time order, and those at the
+    same moment in the order of ACTIVITIES."""
     object_type = {obj["id"]: obj["type"] for obj in ocel["objects"]}
     timelines = defaultdict(list)
+    rank = {}
     for event in ocel["events"]:
         for relation in event["relationships"]:
-            if event["type"] in ACTIVITIES.get(object_type.get(relation["objectId"]), ()):
+            activities = ACTIVITIES.get(object_type.get(relation["objectId"]), ())
+            if event["type"] in activities:
                 timelines[relation["objectId"]].append((_time(event), event["type"], event["id"]))
-    for timeline in timelines.values():
-        timeline.sort()
+                rank[(relation["objectId"], event["id"])] = activities.index(event["type"])
+    for obj, timeline in timelines.items():
+        timeline.sort(key=lambda entry: (entry[0], rank[(obj, entry[2])], entry[2]))
     return timelines
 
 

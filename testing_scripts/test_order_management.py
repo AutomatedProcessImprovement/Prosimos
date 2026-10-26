@@ -269,8 +269,9 @@ def test_the_comparison_script_counts_working_hours_in_the_model_s_calendar():
             for day in range(days.index(period["from"]), days.index(period["to"]) + 1):
                 periods[day].append((time.fromisoformat(period["beginTime"]), time.fromisoformat(period["endTime"])))
         assert dict(periods) == CALENDAR
+        # Packer creates a package the moment its round has taken its items, as the generator does
         staff = [resource for profile in settings["resource_profiles"] for resource in profile["resource_list"]
-                 if resource["id"] in STAFF_POOLS]
+                 if resource["id"] in STAFF_POOLS and resource["id"] != "Packer"]
         assert staff and all(resource["calendar"] == "Generator" for resource in staff)
 
 

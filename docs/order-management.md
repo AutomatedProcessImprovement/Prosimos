@@ -22,7 +22,7 @@ Sales (order)        arrivals: weekdays 6:00-22:00, about one every 4.3 h, 2,000
                      -> XOR: 80% pay order (Payments, about 7 days) -> end
                            | 20% timer 20 days -> payment reminder -> back to the XOR
 Warehouse (item)     start ItemOrdered (copy order_id, item_index from index, customer)
-                     object attributes: product (picked from the log's 20, as often as in the log), and its
+                     object attributes: product (picked uniformly from the log's 20, as in the generator), and its
                         weight and price
                      -> XOR: 20% item out of stock -> reorder item -> timer: item restocked | 80% straight on
                      -> pick item (Warehousing; about two days, as are out of stock and reorder)
@@ -86,7 +86,7 @@ flowchart LR
 | object type **items**          | Warehouse | one case per item          | a message start event on `ItemOrdered`, published once per item with `count`; `index` → `item_index`             |
 | object type **packages**       | Packaging | one case per packing round | arrivals in working hours; `collect` `"all"` with `same` customer; `weight` the sum of its items'                |
 | object type **customers**      | all       | attribute `customer`       | 15 in the catalogue; picked for the order, copied to items and packages; what a package's items share            |
-| object type **products**       | Warehouse | attribute `product`        | the log's 20 in the catalogue; one picked for each item as often as in the log, and its weight and price with it |
+| object type **products**       | Warehouse | attribute `product`        | the log's 20 in the catalogue; one picked uniformly for each item, and its weight and price with it              |
 | object type **employees**      | all       | resources                  | Sales, Warehousing, `Packer` (Packaging) and Shipment, large enough that no task waits for a person              |
 | activity **place order**       | Sales     | task `Place_Order`         | done by the `Shop` resource; `ItemOrdered` is published right after it                                           |
 | activity **confirm order**     | Sales     | task `Confirm_Order`       | Sales                                                                                                            |
@@ -113,7 +113,7 @@ flowchart LR
 | Payment reminder  | exactly 20 days after confirm or the previous reminder; 0-4 per order                  | timer, fixed 20 days on the clock                                                 |
 | Packing rounds    | 1,128 packages; gaps between create package: median 2.6 h; mostly 7-17                 | exponential gaps of 2.6 h mean within a weekday 7:00-17:00 calendar, 1,440 rounds |
 | Items per package | 1-20, median 6; always one customer: the oldest waiting item and all of its customer's | the same rule: `"collect": "all"` with `"same": ["customer"]`                     |
-| Products          | 20, 343-433 items each; weight 0.166-1.48 (an item weighs what its product weighs)     | picked with these frequencies; `with` gives each item its product's weight        |
+| Products          | 20, 343-433 items each; weight 0.166-1.48 (an item weighs what its product weighs)     | picked uniformly, as in the generator; `with` gives each item its weight          |
 | Package weight    | the sum of its items' weights                                                          | `"aggregate": {"weight": {"sum": "weight"}}`                                      |
 | Failed delivery   | 311 failures in 1,439 attempts; 0 / 1 / 2 / 3+ per package: 81.0 / 13.2 / 4.0 / 1.8%   | the generator's odds: 20% at the first attempt, 30% after a failure               |
 | Employees         | Sales 5, Warehousing 7, Shipment 6, each task's picked at random                       | pools of 100 (Sales), 300 + 20 (Warehousing, `Packer`), 100 (Shipment)            |
@@ -144,7 +144,8 @@ on the record, not in this repository. Its rules:
 - **An order's items and price.** An order gets `poisson(2 × (1 − inflation/100)) + 1` items, each of one of the
   20 products, all equally likely; the net can keep adding items until it prices the order, which gives the
   log's 1 to 16 (mean 3.83, where the Poisson part alone averages at most 3). The order's price is the sum of
-  its items' prices plus 5.00. Place order and create package happen at once, at the end of the step before.
+  its items' prices plus 5.00. Place order and create package happen at once, at the end of the step before;
+  here too: they take no time, and create package is done by a pool that is always available.
 - **Orders are paid in a loop.** After confirm order, 80% pay after `expb(7 days, 20)` and 20% get a reminder
   after exactly 20 days on the clock; after every reminder, the same choice again. Here the same loop: an XOR
   80 / 20, pay order taking the generator's delay as its duration, and a 20-day timer before the reminder.
@@ -161,9 +162,7 @@ Where the model differs from the generator, and why:
 | send package by two people: a forwarder (90% a Warehousing employee, else 70% the package's shipper, else any shipper) and the shipper | one Shipment person                                                                                                    | a task has one resource, and resources aren't shared between processes                |
 | prices rise with inflation (6 prices per product)                                                                                      | each product keeps its first price                                                                                     | a catalogue's attributes are fixed                                                    |
 | items per order: `poisson(2 × (1 − inflation/100)) + 1`, and more while the net keeps adding items                                     | drawn with the log's frequencies of 1 to 16                                                                            | an object attribute's distribution doesn't change during the run                      |
-| each item's product: one of the 20, all equally likely (the log's counts, 343 to 433, fit that: chi-square p = 0.21)                   | weights from the log's counts                                                                                          | under discussion                                                                      |
 | an order's price: its items' prices plus 5.00                                                                                          | orders have no price                                                                                                   | future work: the order choosing its products                                          |
-| place order and create package happen at once                                                                                          | place order takes a minute, create package about an hour                                                               | kept from the first version of the model; create package changes with the packing     |
 | arrivals: one every week / 50 of arrival time, slower at night, at weekends and in April                                               | exponential gaps within a weekday 6:00-22:00 calendar                                                                  | an arrival calendar is on or off: future work ([Arrivals](#arrivals))                 |
 | employees are labels; nobody is ever busy                                                                                              | pools of 100 (Sales), 300 + 20 (Warehousing, `Packer`) and 100 (Shipment): at most 116 Warehousing people busy at once | a Prosimos resource is held while it works; enough of them, and no task waits for one |
 
@@ -180,14 +179,14 @@ messages wait: future work. Until then, packing rounds start at a fixed rate in 
 oldest waiting item and all of its customer's ([The processes](#the-processes)). How often they come doesn't
 depend on how many items wait, and that shows in the comparison (seed 1; the log's numbers first):
 
-- **Packages: 1,241 against 1,128.** Up to the last order, 1,186 against 1,107. After it, the backlog stays
+- **Packages: 1,246 against 1,128.** Up to the last order, 1,188 against 1,107. After it, the backlog stays
   small: the log has 21 packages, 14 of them by the 5-day timer, of 5.3 items on average; here the rounds keep
-  coming at the same rate, and the 55 packages after the last order hold 132 items, 33 of them a single item.
-- **Items per package: 6.79 / 6 / 20 against 6.23 / 6 / 24** (mean / median / max), from the same small
+  coming at the same rate, and the 58 packages after the last order hold 136 items, 36 of them a single item.
+- **Items per package: 6.79 / 6 / 20 against 6.21 / 5 / 26** (mean / median / max), from the same small
   packages, and from rounds that come when one customer has more than 20 items waiting.
-- **Pick item to create package: median 46.0 h against 47.8 h**, third quartile 79.6 h against 89.6 h: how
+- **Pick item to create package: median 46.0 h against 45.7 h**, third quartile 79.6 h against 74.7 h: how
   long an item waits depends on the backlog in the generator, on the rounds' rate here.
-- **Create package → send package ends the same day for 45.5% against 60.8%.** The log creates 85 packages
+- **Create package → send package ends the same day for 45.5% against 60.0%.** The log creates 85 packages
   (7.5%) at 23:00, by the 5-day timer, and those are all sent the next day; the rounds create packages in
   working hours only.
 
@@ -211,14 +210,14 @@ numbers first):
 
 - **No orders at weekends** (4.9% in the log) and almost none at night: 6.5% against 0.1% between 22:00 and
   6:00 UTC.
-- **Many orders between 6:00 and 7:00 UTC: 2.5% against 17.6%**; 245 of them (12%) are placed at 6:01, the
-  calendar's opening plus place order's minute.
-- **Confirm order 10% and pick item 19% sooner** (medians 17.7 h against 16.0 h, and 32.5 h against 26.2 h).
+- **Many orders at the calendar's opening: 2.5% against 16.1% between 6:00 and 7:00 UTC**; 245 of them (12%)
+  are placed at the opening itself, 6:00, 30 of those a microsecond before it, from rounding.
+- **Confirm order 12% and pick item 18% sooner** (medians 17.7 h against 15.5 h, and 32.6 h against 26.7 h).
   An order placed at the opening, as the staff start work, crosses fewer nights before it is confirmed and its
   items are picked. From the log's own order times, the same durations and calendar give 18.0 h and 28.4 h
   (+2% and -13%). Pick item's median, like the Shipment's, falls in the night between the first and the second
   day: the generator itself, run again from the log's own order times with ten seeds, gives 28.7 to 33.4 h
-  (confirm order 17.9 to 19.1 h), and the log's 32.5 h is near the top of that range.
+  (confirm order 17.9 to 19.1 h), and the log's 32.6 h is near the top of that range.
 
 ## Durations
 
@@ -242,7 +241,9 @@ item like any other item. So the restocking timer takes 8 days and pick item's 2
 with caps 30 and 10 for its 40. Timers run on the clock, so the timer isn't converted. This is an
 approximation: the sum of the two has the generator's mean, but not the shape of one exponential, and a higher
 median. The reminder's 20 days are a timer on the clock, as in the generator, which doesn't stretch them by its
-working time. Create package keeps its own duration (packing rounds are future work), as do the arrivals.
+working time. Place order and create package take no time, as in the generator, by the `Shop` and `Packer`
+pools, which are always available: an order is placed when it arrives, and a package is created when its round
+has taken its items. The arrivals keep their own rule ([Arrivals](#arrivals)).
 
 The generator's working time is a speed per hour, in German local time: full from 9 to 12 and 14 to 17, half
 from 8 to 9, 12 to 14 and 17 to 18, 0.3 from 18 to 19, 0.1 from 19 to 22, none at night or at weekends;
@@ -301,7 +302,7 @@ draw it), links each customer to the orders it **places** (`"reverse": true`, fr
 links place order and confirm order to their customer; pay order isn't linked. Since `ItemOrdered` carries the
 picked `customer`, `sales.json` only runs inside this configuration, not on its own. Products come from a catalogue
 of the Warehouse: the log's 20, each with its `weight` and first `price`. A reference of the Warehouse picks one
-for each item, with the number of items of each product in the log as weights, links the item to it (**is a**),
+for each item, uniformly, as the generator does, links the item to it (**is a**),
 links every event of the item to it and, with `"tag_along": true`, every other event that links the item, and, with
 `"with": {"weight": "weight", "price": "price"}`, gives the item its product's weight and price when it is created. They are the
 item's own attributes from then on: written on its OCEL object (the Warehouse's `ocel_attributes`), and `weight`
@@ -329,49 +330,50 @@ that no event refers to.
 |---------------------------------------------------------------------|-------------------------------:|-------------------------------:|
 | orders                                                              |                          2,000 |                          2,000 |
 | items                                                               |                          7,659 |                          7,735 |
-| packages                                                            |                          1,128 |                          1,241 |
+| packages                                                            |                          1,128 |                          1,246 |
 | customers / products                                                |                        15 / 20 |                        15 / 20 |
 | picked items left unpacked                                          |                              0 |                              0 |
 | items per order: mean / median / max                                |                  3.83 / 3 / 16 |                  3.87 / 3 / 16 |
 | items per order: 1 / 2 / 3 / 4                                      |      8.0 / 18.0 / 24.4 / 18.4% |      8.1 / 17.4 / 24.9 / 17.8% |
 | items per order: 5 / 6 / 7 / 8+                                     |        13.8 / 8.2 / 5.0 / 4.3% |        13.8 / 7.8 / 5.5 / 5.0% |
-| reminders per order: mean / max                                     |                       0.28 / 4 |                       0.24 / 5 |
-| reminders per order: 0 / 1 / 2 / 3 / 4+                             | 77.8 / 17.2 / 3.9 / 0.9 / 0.1% | 81.0 / 15.2 / 3.0 / 0.5 / 0.1% |
-| orders paid after 20 days                                           |                          23.5% |                          19.2% |
+| reminders per order: mean / max                                     |                       0.28 / 4 |                       0.24 / 4 |
+| reminders per order: 0 / 1 / 2 / 3 / 4+                             | 77.8 / 17.2 / 3.9 / 0.9 / 0.1% | 80.5 / 16.0 / 2.9 / 0.5 / 0.1% |
+| orders paid after 20 days                                           |                          23.5% |                          20.0% |
 | items out of stock                                                  |                          20.2% |                          20.0% |
-| items per package: mean / median / max                              |                  6.79 / 6 / 20 |                  6.23 / 6 / 24 |
+| items per package: mean / median / max                              |                  6.79 / 6 / 20 |                  6.21 / 5 / 26 |
 | customers per package                                               |                       always 1 |                       always 1 |
-| packages per customer: mean / median / max                          |                 75.2 / 76 / 80 |                 82.7 / 82 / 88 |
-| failed deliveries per package: mean / max                           |                       0.28 / 7 |                       0.25 / 6 |
-| failed deliveries per package: 0 / 1 / 2 / 3+                       |       81.0 / 13.2 / 4.0 / 1.8% |       81.7 / 13.3 / 3.8 / 1.2% |
-| items per event: place order / create package / send package (mean) |             3.83 / 6.79 / 6.79 |             3.87 / 6.23 / 6.23 |
+| packages per customer: mean / median / max                          |                 75.2 / 76 / 80 |                 83.1 / 83 / 89 |
+| failed deliveries per package: mean / max                           |                       0.28 / 7 |                       0.24 / 5 |
+| failed deliveries per package: 0 / 1 / 2 / 3+                       |       81.0 / 13.2 / 4.0 / 1.8% |       82.7 / 12.0 / 3.7 / 1.5% |
+| items per event: place order / create package / send package (mean) |             3.83 / 6.79 / 6.79 |             3.87 / 6.21 / 6.21 |
 | links: customers places orders                                      |                          2,000 |                          2,000 |
 | links: orders comprises items                                       |                          7,659 |                          7,735 |
 | links: packages contains items                                      |                          7,659 |                          7,735 |
 | links: items is a products                                          |                          7,659 |                          7,735 |
 | links to employees (sales reps, packer, forwarder, shipper)         |                          3,414 |                              - |
 | price values per product: min / median / max                        |                      6 / 6 / 6 |                      1 / 1 / 1 |
-| place order → confirm order (h): median / in working hours          |                     17.7 / 4.2 |                     16.0 / 3.9 |
-| confirm order → pay order (h)                                       |                   119.2 / 28.8 |                   115.4 / 25.4 |
-| payment reminder → pay order (h)                                    |                    98.1 / 27.0 |                    98.8 / 28.5 |
-| place order → item out of stock (h)                                 |                     28.0 / 8.4 |                     26.0 / 8.1 |
-| item out of stock → reorder item (h)                                |                     25.7 / 8.3 |                     25.2 / 8.1 |
-| place order → pick item (h)                                         |                     32.5 / 8.6 |                     26.2 / 7.9 |
-| reorder item → pick item (h)                                        |                   166.9 / 40.7 |                   185.3 / 45.0 |
-| create package → send package: the same day                         |                          45.5% |                          60.8% |
-| send package → failed delivery: the same day                        |                          51.9% |                          57.3% |
-| failed delivery → failed delivery: the same day                     |                          47.4% |                          47.6% |
-| send package → package delivered: the same day                      |                          48.4% |                          56.9% |
-| failed delivery → package delivered: the same day                   |                          43.5% |                          48.9% |
+| place order → confirm order (h): median / in working hours          |                     17.7 / 4.2 |                     15.5 / 3.9 |
+| confirm order → pay order (h)                                       |                   119.2 / 28.8 |                   114.2 / 25.7 |
+| payment reminder → pay order (h)                                    |                    98.1 / 27.0 |                    96.2 / 25.6 |
+| place order → item out of stock (h)                                 |                     28.0 / 8.4 |                     26.6 / 8.0 |
+| item out of stock → reorder item (h)                                |                     25.7 / 8.3 |                     25.0 / 8.1 |
+| place order → pick item (h)                                         |                     32.6 / 8.6 |                     26.7 / 8.2 |
+| reorder item → pick item (h)                                        |                   167.0 / 40.7 |                   186.2 / 45.2 |
+| create package → send package: the same day                         |                          45.5% |                          60.0% |
+| send package → failed delivery: the same day                        |                          51.9% |                          54.4% |
+| failed delivery → failed delivery: the same day                     |                          47.4% |                          57.3% |
+| send package → package delivered: the same day                      |                          48.4% |                          57.1% |
+| failed delivery → package delivered: the same day                   |                          43.5% |                          51.6% |
 | out of order (FIFO displacement): pick item / send package (places) |                         21 / 1 |                         21 / 1 |
-| pick item to create package: quartiles (h)                          |             22.0 / 46.0 / 79.6 |             23.6 / 47.8 / 89.6 |
-| pick item to create package: mean (h)                               |                           56.4 |                           56.3 |
-| items picked before their order is confirmed                        |                          25.4% |                          26.1% |
-| orders paid after their first delivery                              |                          67.3% |                          64.4% |
+| pick item to create package: quartiles (h)                          |             22.0 / 46.0 / 79.6 |             22.0 / 45.7 / 74.7 |
+| pick item to create package: mean (h)                               |                           56.4 |                           51.3 |
+| items picked before their order is confirmed                        |                          25.4% |                          25.5% |
+| orders paid after their first delivery                              |                          67.3% |                          65.8% |
 
 The gaps are medians from the event that enables a task to the task, on the clock and counting only the
 calendar's working hours; the Shipments are compared by the share that ends the day it starts (UTC), since
-their medians flip (below). The FIFO displacement ranks the in-stock items by when they were ordered and by when
+their medians flip (below). An object's events at the same moment count in the order their activities enable
+each other: a package can be created the moment its item is picked, in the log as here. The FIFO displacement ranks the in-stock items by when they were ordered and by when
 they were picked (the packages by when they were created and sent), and is the median of how many places each
 moves.
 
@@ -382,35 +384,41 @@ generator's durations, the gaps to item out of stock and reorder item, how far i
 (21 places in both), and the share of items picked before their order is confirmed match the log too; the tasks wait for nobody, as in the
 log. What still differs comes from the generator's rules, or from parts of the model left as they are:
 
-- **Confirm order and pick item come about 10% and 19% sooner**, from the arrivals: no order comes at a
-  weekend and 18% come between 6:00 and 7:00 UTC ([Arrivals](#arrivals)). From the log's own order times, the
+- **Confirm order and pick item come about 12% and 18% sooner**, from the arrivals: no order comes at a
+  weekend and 12% come at the calendar's opening, 6:00 UTC ([Arrivals](#arrivals)). From the log's own order times, the
   same durations and calendar give 18.0 h and 28.4 h, and the generator's own pick item median moves between
   28.7 and 33.4 h from seed to seed.
 - **The Shipment's steps end the same day a little more often.** Their delays average a day on the clock, so
   about half end the day they start and half the next, with the night in between: send → package delivered
-  has quartiles 3.1 / 14.4 / 22.9 h in the log, 1.9 / 5.9 / 21.8 h here. The median falls in that night, and a
+  has quartiles 3.1 / 14.4 / 22.9 h in the log, 1.6 / 5.7 / 22.0 h here. The median falls in that night, and a
   few points more on either side move it from the afternoon to the next morning: the generator itself, run
   again from the log's own send events with ten seeds, gives medians from 7.7 to 14.5 h (send → failed
   delivery 6.1 to 15.9 h), but same-day shares within a few points (48.5 to 52.2% for send → package
-  delivered). Ours are up to 9 points higher than the log's, from two generator rules a weekly calendar can't
+  delivered). Ours are up to 10 points higher than the log's, from two generator rules a weekly calendar can't
   follow, which push its steps into the next day: the slower July and August, and its clock counting a
   delay's first, partial hour as a whole one (0 to 60 minutes more per delay). Create package → send package
-  (61% against 46%) also depends on the packing ([Packing](#packing)).
-- **Reorder item → pick item is 11% longer.** The restock timer plus pick item has the generator's mean but a
+  (60% against 46%) also depends on the packing ([Packing](#packing)).
+- **Reorder item → pick item is 12% longer** (2 to 12% with seeds 1 to 6). The restock timer plus pick item has the generator's mean but a
   higher median (from the log's own reorders, 172.5 h against the generator's 167.7 h), and the reorders come
   at other times than the log's.
 - **Products have 6 prices each in the log**, the generator raising them for inflation about every 60 days;
   here each product keeps its first price.
 
-The payments follow the generator's loop: 19.1% of the 2,471 choices after a confirmation or a reminder lead to
-a reminder, 1.2 standard deviations below the 20% of its rule, and the confirm → pay order and
-reminder → pay order gaps are within 4% of the log's. The log's own draws give 22.1% of 2,566 choices, 2.6
+The payments follow the generator's loop: 19.2% of the 2,476 choices after a confirmation or a reminder lead to
+a reminder, a standard deviation below the 20% of its rule, and the confirm → pay order and
+reminder → pay order gaps are within 5% of the log's. The log's own draws give 22.1% of 2,566 choices, 2.6
 standard deviations above its rule, which happens about once in a hundred runs; so it has more orders with
-reminders (22.2% against 19.0%). Orders paid after 20 days are those with a reminder, and those whose capped
-delay still ran past 20 days on the clock: 1.35% in the log, 0.3% here, since the generator's slower July and
+reminders (22.2% against 19.6%). Orders paid after 20 days are those with a reminder, and those whose capped
+delay still ran past 20 days on the clock: 1.35% in the log, 0.45% here, since the generator's slower July and
 August and its rounding of a delay's first, partial hour stretch some delays, which a weekly calendar can't.
 The packages, their sizes and how long items wait for them follow from the
-packing rounds ([Packing](#packing)). The log links packages and confirmations to employees; here employees
+packing rounds ([Packing](#packing)).
+
+Numbers that hang on the order of the random draws move from seed to seed; with seeds 1 to 6 the model gives
+1,218 to 1,338 packages, 15.5 to 16.7 h from place order to confirm order, 114 to 121 h from confirm order to
+pay order, 171 to 187 h from reorder item to pick item, 79.3 to 80.9% of orders without a reminder, and 46 to
+57% of failed deliveries followed by another the same day. Small changes to the model, such as one that shifts
+every order by a minute, move them within these ranges. The log links packages and confirmations to employees; here employees
 are resources, not objects.
 
 ## Gaps found
