@@ -8,20 +8,30 @@
           "id": "Packer",
           "name": "Packer",
           "cost_per_hour": 1,
-          "amount": 20,
-          "calendar": "Always",
+          "amount": 1,
+          "calendar": "Staff",
           "assigned_tasks": [
             "Create_Package"
           ]
         },
         {
-          "id": "Shipment",
-          "name": "Shipment",
+          "id": "Courier",
+          "name": "Courier",
           "cost_per_hour": 1,
-          "amount": 100,
-          "calendar": "Generator",
+          "amount": 3,
+          "calendar": "Staff",
           "assigned_tasks": [
             "Send_Package",
+            "Resend_Package"
+          ]
+        },
+        {
+          "id": "System",
+          "name": "System",
+          "cost_per_hour": 1,
+          "amount": 1,
+          "calendar": "Around the clock",
+          "assigned_tasks": [
             "Failed_Delivery",
             "Package_Delivered"
           ]
@@ -33,7 +43,7 @@
     "distribution_name": "expon",
     "distribution_params": [
       {
-        "value": 9360.0
+        "value": 7200
       },
       {
         "value": 0
@@ -47,7 +57,7 @@
     {
       "from": "MONDAY",
       "to": "FRIDAY",
-      "beginTime": "07:00:00",
+      "beginTime": "09:00:00",
       "endTime": "17:00:00"
     }
   ],
@@ -85,6 +95,57 @@
       "resources": [
         {
           "resource_id": "Packer",
+          "distribution_name": "uniform",
+          "distribution_params": [
+            {
+              "value": 600
+            },
+            {
+              "value": 1200
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Send_Package",
+      "resources": [
+        {
+          "resource_id": "Courier",
+          "distribution_name": "uniform",
+          "distribution_params": [
+            {
+              "value": 3600
+            },
+            {
+              "value": 14400
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Resend_Package",
+      "resources": [
+        {
+          "resource_id": "Courier",
+          "distribution_name": "uniform",
+          "distribution_params": [
+            {
+              "value": 3600
+            },
+            {
+              "value": 14400
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Failed_Delivery",
+      "resources": [
+        {
+          "resource_id": "System",
           "distribution_name": "fix",
           "distribution_params": [
             {
@@ -95,60 +156,14 @@
       ]
     },
     {
-      "task_id": "Send_Package",
-      "resources": [
-        {
-          "resource_id": "Shipment",
-          "distribution_name": "expon",
-          "distribution_params": [
-            {
-              "value": 21230
-            },
-            {
-              "value": 0
-            },
-            {
-              "value": 42459
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "task_id": "Failed_Delivery",
-      "resources": [
-        {
-          "resource_id": "Shipment",
-          "distribution_name": "expon",
-          "distribution_params": [
-            {
-              "value": 21230
-            },
-            {
-              "value": 0
-            },
-            {
-              "value": 42459
-            }
-          ]
-        }
-      ]
-    },
-    {
       "task_id": "Package_Delivered",
       "resources": [
         {
-          "resource_id": "Shipment",
-          "distribution_name": "expon",
+          "resource_id": "System",
+          "distribution_name": "fix",
           "distribution_params": [
             {
-              "value": 21230
-            },
-            {
               "value": 0
-            },
-            {
-              "value": 42459
             }
           ]
         }
@@ -157,56 +172,26 @@
   ],
   "resource_calendars": [
     {
-      "id": "Always",
-      "name": "Always",
+      "id": "Staff",
+      "name": "Staff",
+      "time_periods": [
+        {
+          "from": "MONDAY",
+          "to": "FRIDAY",
+          "beginTime": "09:00:00",
+          "endTime": "17:00:00"
+        }
+      ]
+    },
+    {
+      "id": "Around the clock",
+      "name": "Around the clock",
       "time_periods": [
         {
           "from": "MONDAY",
           "to": "SUNDAY",
           "beginTime": "00:00:00",
           "endTime": "23:59:59"
-        }
-      ]
-    },
-    {
-      "id": "Generator",
-      "name": "Generator",
-      "time_periods": [
-        {
-          "from": "MONDAY",
-          "to": "MONDAY",
-          "beginTime": "07:12:00",
-          "endTime": "10:48:00"
-        },
-        {
-          "from": "MONDAY",
-          "to": "MONDAY",
-          "beginTime": "12:13:48",
-          "endTime": "16:22:12"
-        },
-        {
-          "from": "TUESDAY",
-          "to": "THURSDAY",
-          "beginTime": "07:00:00",
-          "endTime": "11:00:00"
-        },
-        {
-          "from": "TUESDAY",
-          "to": "THURSDAY",
-          "beginTime": "12:00:00",
-          "endTime": "16:36:00"
-        },
-        {
-          "from": "FRIDAY",
-          "to": "FRIDAY",
-          "beginTime": "07:12:00",
-          "endTime": "10:48:00"
-        },
-        {
-          "from": "FRIDAY",
-          "to": "FRIDAY",
-          "beginTime": "12:13:48",
-          "endTime": "16:22:12"
         }
       ]
     }

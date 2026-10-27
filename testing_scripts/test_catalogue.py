@@ -46,7 +46,7 @@ def test_the_run_writes_every_customer_of_the_catalogue(order_management):
     customers = _of_type(ocel, "customer")
 
     assert sorted(customers) == sorted(f"c{n}" for n in range(1, 16))
-    # without attributes, as in the real log
+    # without attributes
     assert all(customer["attributes"] == [] for customer in customers.values())
     assert {"name": "customer", "attributes": []} in ocel["objectTypes"]
 

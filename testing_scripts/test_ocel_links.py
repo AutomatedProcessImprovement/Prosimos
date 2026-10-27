@@ -134,7 +134,7 @@ def test_without_carry_links_an_event_links_only_what_its_own_messages_linked(or
                for event in events)
 
 
-def test_an_items_events_link_neither_its_order_nor_its_package_as_in_the_real_log(order_management):
+def test_an_items_events_link_neither_its_order_nor_its_package(order_management):
     # the order links its items from place order and the package from create package; the Warehouse's ItemOrdered
     # and ItemPicked entries have no qualifier, so the item's end of those messages writes no link
     _, ocel, _ = order_management

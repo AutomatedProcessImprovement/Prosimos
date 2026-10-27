@@ -249,7 +249,7 @@ run.
 With `count`, a `"uniform"` or weights pick chooses that many objects when the case is created, and the
 attribute holds them as a list, which the reference links entry by entry (see "A list of ids"). Each choice is
 independent, by the same rule, so an object can come more than once, as `iPhone 8` does for `order-2` below. Picks
-of the first 4 orders of Order Management's Sales with seed 1, with the log's 20 products and their weights:
+of the first 4 orders of Order Management's Sales with seed 1, with its 20 products and weights per product:
 
 | Order   | items | products                                                                         |
 |---------|-------|----------------------------------------------------------------------------------|
@@ -304,7 +304,7 @@ left, to where the value comes from, on the right, in the shape of `copy` and `a
 
   `initial`, next to the function, is a number already among the values, as for `aggregate`
   ([messaging.md](messaging.md)): a count adds the objects to it, a sum, min or max takes it as one more value.
-  The generator of the Order Management log prices an order at its products' prices plus a fee of 5.00:
+  An order priced at its products' prices plus a fee of 5.00:
 
   ```json
   "with": {"price": {"sum": "price", "initial": 5.00}}
@@ -332,8 +332,8 @@ published messages and `aggregate`.
 ## Worked example: Order Management
 
 The Order Management example ([order-management.md](order-management.md)) has 15 customers in a catalogue of
-Sales, which picks one uniformly for each order, and the real log's 20 products in a catalogue of the
-Warehouse, which picks one for each item uniformly, as the log's generator does. This is its full configuration,
+Sales, which picks one uniformly for each order, and 20 products in a catalogue of the Warehouse, which picks
+one uniformly for each item. This is its full configuration,
 `testing_scripts/assets/order_management/simulation.json`:
 
 ```json
@@ -401,13 +401,14 @@ Warehouse, which picks one for each item uniformly, as the log's generator does.
       "name": "Packaging",
       "bpmn_path": "packaging.bpmn",
       "json_path": "packaging.json",
-      "arrivals": 1440,
+      "arrivals": 1450,
       "object_type": "package",
       "qualifier": "package",
       "ocel_attributes": ["weight"],
       "qualifier_by_activity": {
         "Create_Package": "creates",
         "Send_Package": "shipped package",
+        "Resend_Package": "shipped package",
         "Failed_Delivery": "shipped package",
         "Package_Delivered": "shipped package"
       },
@@ -432,7 +433,7 @@ the product's `weight` and `price` into the item. `ItemPicked` carries the item'
 
 **What appears in the OCEL file** (excerpts of that run, 2,000 orders):
 
-- **The 15 customers**, type `customer`, without attributes, as in the log, and `objectTypes` lists
+- **The 15 customers**, type `customer`, without attributes, and `objectTypes` lists
   `{"name": "customer", "attributes": []}`. Each is linked by `places` to its orders, 109 to 154 per
   customer, 2,000 in all:
 
@@ -454,18 +455,18 @@ the product's `weight` and `price` into the item. `ItemPicked` carries the item'
    "relationships": [{"objectId": "order-0", "qualifier": "order"},
                      {"objectId": "item-0", "qualifier": "item"}, ...,
                      {"objectId": "c9", "qualifier": "customer"}]}
-  {"id": "e11", "type": "confirm order", "time": "2023-04-03T09:54:40.029853Z",
+  {"id": "e6", "type": "confirm order", "time": "2023-04-03T09:08:41.126852Z",
    "relationships": [{"objectId": "order-0", "qualifier": "order"}, ...,
                      {"objectId": "c9", "qualifier": "customer"}]}
-  {"id": "e197", "type": "pay order", "time": "2023-04-06T08:33:52.123310Z",
+  {"id": "e99", "type": "pay order", "time": "2023-04-05T09:04:17.505695Z",
    "relationships": [{"objectId": "order-0", "qualifier": "order"}, ...]}
   ```
 
-- **The 20 products**, type `product`, with `weight` and `price` as in the log. Each item **is a** product
+- **The 20 products**, type `product`, with `weight` and `price`. Each item **is a** product
   (`"o2o": "is a"`, from the item to the product), has `weight` and `price` as attributes (the Warehouse's
   `ocel_attributes`; `product` is linked rather than written), and every one of its events is linked to the
   product with the qualifier `product` (no `link_events`). With `tag_along`, so is every other event that
-  links the item, as in the log: place order, confirm order, payment reminder, pay order, create package, send
+  links the item: place order, confirm order, payment reminder, pay order, create package, send
   package, failed delivery and package delivered. Customers don't tag along: pay order links the order's items
   and their products, but no customer.
 
@@ -474,7 +475,7 @@ the product's `weight` and `price` into the item. `ItemPicked` carries the item'
    "attributes": [{"name": "weight", "value": 0.28, "time": "2023-04-03T06:00:00.000000Z"},
                   {"name": "price", "value": 89.99, "time": "2023-04-03T06:00:00.000000Z"}],
    "relationships": [{"objectId": "Fire Stick 4K", "qualifier": "is a"}]}
-  {"id": "e128", "type": "pick item", "time": "2023-04-05T09:06:49.398070Z",
+  {"id": "e5", "type": "pick item", "time": "2023-04-03T09:08:32.152135Z",
    "relationships": [{"objectId": "item-0", "qualifier": "item"}, ...,
                      {"objectId": "Fire Stick 4K", "qualifier": "product"}]}
   ```

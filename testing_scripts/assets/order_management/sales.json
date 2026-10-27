@@ -5,34 +5,25 @@
       "name": "Sales_team",
       "resource_list": [
         {
-          "id": "Sales",
-          "name": "Sales",
+          "id": "Sales clerk",
+          "name": "Sales clerk",
           "cost_per_hour": 1,
-          "amount": 100,
-          "calendar": "Generator",
+          "amount": 1,
+          "calendar": "Staff",
           "assigned_tasks": [
-            "Confirm_Order"
-          ]
-        },
-        {
-          "id": "Shop",
-          "name": "Shop",
-          "cost_per_hour": 1,
-          "amount": 20,
-          "calendar": "Always",
-          "assigned_tasks": [
-            "Place_Order",
-            "Payment_Reminder"
-          ]
-        },
-        {
-          "id": "Payments",
-          "name": "Payments",
-          "cost_per_hour": 1,
-          "amount": 100,
-          "calendar": "Generator",
-          "assigned_tasks": [
+            "Confirm_Order",
+            "Payment_Reminder",
             "Pay_Order"
+          ]
+        },
+        {
+          "id": "System",
+          "name": "System",
+          "cost_per_hour": 1,
+          "amount": 1,
+          "calendar": "Around the clock",
+          "assigned_tasks": [
+            "Place_Order"
           ]
         }
       ]
@@ -42,7 +33,7 @@
     "distribution_name": "expon",
     "distribution_params": [
       {
-        "value": 8280.0
+        "value": 17280
       },
       {
         "value": 0
@@ -55,9 +46,9 @@
   "arrival_time_calendar": [
     {
       "from": "MONDAY",
-      "to": "FRIDAY",
-      "beginTime": "06:00:00",
-      "endTime": "22:00:00"
+      "to": "SUNDAY",
+      "beginTime": "00:00:00",
+      "endTime": "23:59:59"
     }
   ],
   "gateway_branching_probabilities": [
@@ -80,7 +71,7 @@
       "task_id": "Place_Order",
       "resources": [
         {
-          "resource_id": "Shop",
+          "resource_id": "System",
           "distribution_name": "fix",
           "distribution_params": [
             {
@@ -94,17 +85,14 @@
       "task_id": "Confirm_Order",
       "resources": [
         {
-          "resource_id": "Sales",
-          "distribution_name": "expon",
+          "resource_id": "Sales clerk",
+          "distribution_name": "uniform",
           "distribution_params": [
             {
-              "value": 21230
+              "value": 300
             },
             {
-              "value": 0
-            },
-            {
-              "value": 212297
+              "value": 900
             }
           ]
         }
@@ -114,11 +102,14 @@
       "task_id": "Payment_Reminder",
       "resources": [
         {
-          "resource_id": "Shop",
-          "distribution_name": "fix",
+          "resource_id": "Sales clerk",
+          "distribution_name": "uniform",
           "distribution_params": [
             {
-              "value": 0
+              "value": 120
+            },
+            {
+              "value": 300
             }
           ]
         }
@@ -128,17 +119,14 @@
       "task_id": "Pay_Order",
       "resources": [
         {
-          "resource_id": "Payments",
-          "distribution_name": "expon",
+          "resource_id": "Sales clerk",
+          "distribution_name": "uniform",
           "distribution_params": [
             {
-              "value": 148608
+              "value": 120
             },
             {
-              "value": 0
-            },
-            {
-              "value": 424594
+              "value": 300
             }
           ]
         }
@@ -147,56 +135,26 @@
   ],
   "resource_calendars": [
     {
-      "id": "Always",
-      "name": "Always",
+      "id": "Staff",
+      "name": "Staff",
+      "time_periods": [
+        {
+          "from": "MONDAY",
+          "to": "FRIDAY",
+          "beginTime": "09:00:00",
+          "endTime": "17:00:00"
+        }
+      ]
+    },
+    {
+      "id": "Around the clock",
+      "name": "Around the clock",
       "time_periods": [
         {
           "from": "MONDAY",
           "to": "SUNDAY",
           "beginTime": "00:00:00",
           "endTime": "23:59:59"
-        }
-      ]
-    },
-    {
-      "id": "Generator",
-      "name": "Generator",
-      "time_periods": [
-        {
-          "from": "MONDAY",
-          "to": "MONDAY",
-          "beginTime": "07:12:00",
-          "endTime": "10:48:00"
-        },
-        {
-          "from": "MONDAY",
-          "to": "MONDAY",
-          "beginTime": "12:13:48",
-          "endTime": "16:22:12"
-        },
-        {
-          "from": "TUESDAY",
-          "to": "THURSDAY",
-          "beginTime": "07:00:00",
-          "endTime": "11:00:00"
-        },
-        {
-          "from": "TUESDAY",
-          "to": "THURSDAY",
-          "beginTime": "12:00:00",
-          "endTime": "16:36:00"
-        },
-        {
-          "from": "FRIDAY",
-          "to": "FRIDAY",
-          "beginTime": "07:12:00",
-          "endTime": "10:48:00"
-        },
-        {
-          "from": "FRIDAY",
-          "to": "FRIDAY",
-          "beginTime": "12:13:48",
-          "endTime": "16:22:12"
         }
       ]
     }
@@ -284,6 +242,21 @@
     ]
   },
   "event_distribution": [
+    {
+      "event_id": "Customer_Pays",
+      "distribution_name": "expon",
+      "distribution_params": [
+        {
+          "value": 259200
+        },
+        {
+          "value": 0
+        },
+        {
+          "value": 1728000
+        }
+      ]
+    },
     {
       "event_id": "Reminder_Due",
       "distribution_name": "fix",

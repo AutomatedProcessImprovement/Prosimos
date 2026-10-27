@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Sales" targetNamespace="http://bpmn.io/schema/bpmn">
   <!-- an order: placed by its customer, announced item by item (one ItemOrdered per item), confirmed by
-       Sales, then paid: 80% pay, 20% get a reminder after 20 days and the same choice again -->
+       the sales clerk, then paid: 80% pay after a while (the customer's delay), and the clerk records it; 20%
+       get a reminder after 20 days and the same choice again -->
   <bpmn:process id="Sales" isExecutable="false">
     <bpmn:startEvent id="Start" name="order received"><bpmn:outgoing>Flow_1</bpmn:outgoing></bpmn:startEvent>
     <bpmn:task id="Place_Order" name="place order"><bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing></bpmn:task>
@@ -11,14 +12,16 @@
     <bpmn:exclusiveGateway id="Pays" name="pays?"><bpmn:incoming>Flow_6</bpmn:incoming><bpmn:outgoing>Flow_Pay</bpmn:outgoing><bpmn:outgoing>Flow_Remind</bpmn:outgoing></bpmn:exclusiveGateway>
     <bpmn:intermediateCatchEvent id="Reminder_Due" name="20 days"><bpmn:incoming>Flow_Remind</bpmn:incoming><bpmn:outgoing>Flow_11</bpmn:outgoing><bpmn:timerEventDefinition /></bpmn:intermediateCatchEvent>
     <bpmn:task id="Payment_Reminder" name="payment reminder"><bpmn:incoming>Flow_11</bpmn:incoming><bpmn:outgoing>Flow_12</bpmn:outgoing></bpmn:task>
-    <bpmn:task id="Pay_Order" name="pay order"><bpmn:incoming>Flow_Pay</bpmn:incoming><bpmn:outgoing>Flow_10</bpmn:outgoing></bpmn:task>
+    <bpmn:intermediateCatchEvent id="Customer_Pays" name="customer pays"><bpmn:incoming>Flow_Pay</bpmn:incoming><bpmn:outgoing>Flow_Paid</bpmn:outgoing><bpmn:timerEventDefinition /></bpmn:intermediateCatchEvent>
+    <bpmn:task id="Pay_Order" name="pay order"><bpmn:incoming>Flow_Paid</bpmn:incoming><bpmn:outgoing>Flow_10</bpmn:outgoing></bpmn:task>
     <bpmn:endEvent id="End" name="order paid"><bpmn:incoming>Flow_10</bpmn:incoming></bpmn:endEvent>
     <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Place_Order" />
     <bpmn:sequenceFlow id="Flow_2" sourceRef="Place_Order" targetRef="Throw_ItemOrdered" />
     <bpmn:sequenceFlow id="Flow_3" sourceRef="Throw_ItemOrdered" targetRef="Confirm_Order" />
     <bpmn:sequenceFlow id="Flow_4" sourceRef="Confirm_Order" targetRef="Await_Payment" />
     <bpmn:sequenceFlow id="Flow_6" sourceRef="Await_Payment" targetRef="Pays" />
-    <bpmn:sequenceFlow id="Flow_Pay" sourceRef="Pays" targetRef="Pay_Order" />
+    <bpmn:sequenceFlow id="Flow_Pay" sourceRef="Pays" targetRef="Customer_Pays" />
+    <bpmn:sequenceFlow id="Flow_Paid" sourceRef="Customer_Pays" targetRef="Pay_Order" />
     <bpmn:sequenceFlow id="Flow_Remind" sourceRef="Pays" targetRef="Reminder_Due" />
     <bpmn:sequenceFlow id="Flow_10" sourceRef="Pay_Order" targetRef="End" />
     <bpmn:sequenceFlow id="Flow_11" sourceRef="Reminder_Due" targetRef="Payment_Reminder" />

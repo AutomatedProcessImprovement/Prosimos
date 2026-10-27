@@ -5,11 +5,11 @@
       "name": "Warehousing_team",
       "resource_list": [
         {
-          "id": "Warehousing",
-          "name": "Warehousing",
+          "id": "Warehouse worker",
+          "name": "Warehouse worker",
           "cost_per_hour": 1,
-          "amount": 300,
-          "calendar": "Generator",
+          "amount": 2,
+          "calendar": "Staff",
           "assigned_tasks": [
             "Item_Out_Of_Stock",
             "Reorder_Item",
@@ -39,17 +39,14 @@
       "task_id": "Item_Out_Of_Stock",
       "resources": [
         {
-          "resource_id": "Warehousing",
-          "distribution_name": "expon",
+          "resource_id": "Warehouse worker",
+          "distribution_name": "uniform",
           "distribution_params": [
             {
-              "value": 42459
+              "value": 60
             },
             {
-              "value": 0
-            },
-            {
-              "value": 212297
+              "value": 180
             }
           ]
         }
@@ -59,17 +56,14 @@
       "task_id": "Reorder_Item",
       "resources": [
         {
-          "resource_id": "Warehousing",
-          "distribution_name": "expon",
+          "resource_id": "Warehouse worker",
+          "distribution_name": "uniform",
           "distribution_params": [
             {
-              "value": 42459
+              "value": 300
             },
             {
-              "value": 0
-            },
-            {
-              "value": 212297
+              "value": 600
             }
           ]
         }
@@ -79,17 +73,14 @@
       "task_id": "Pick_Item",
       "resources": [
         {
-          "resource_id": "Warehousing",
-          "distribution_name": "expon",
+          "resource_id": "Warehouse worker",
+          "distribution_name": "uniform",
           "distribution_params": [
             {
-              "value": 42459
+              "value": 180
             },
             {
-              "value": 0
-            },
-            {
-              "value": 212297
+              "value": 600
             }
           ]
         }
@@ -98,44 +89,14 @@
   ],
   "resource_calendars": [
     {
-      "id": "Generator",
-      "name": "Generator",
+      "id": "Staff",
+      "name": "Staff",
       "time_periods": [
         {
           "from": "MONDAY",
-          "to": "MONDAY",
-          "beginTime": "07:12:00",
-          "endTime": "10:48:00"
-        },
-        {
-          "from": "MONDAY",
-          "to": "MONDAY",
-          "beginTime": "12:13:48",
-          "endTime": "16:22:12"
-        },
-        {
-          "from": "TUESDAY",
-          "to": "THURSDAY",
-          "beginTime": "07:00:00",
-          "endTime": "11:00:00"
-        },
-        {
-          "from": "TUESDAY",
-          "to": "THURSDAY",
-          "beginTime": "12:00:00",
-          "endTime": "16:36:00"
-        },
-        {
-          "from": "FRIDAY",
           "to": "FRIDAY",
-          "beginTime": "07:12:00",
-          "endTime": "10:48:00"
-        },
-        {
-          "from": "FRIDAY",
-          "to": "FRIDAY",
-          "beginTime": "12:13:48",
-          "endTime": "16:22:12"
+          "beginTime": "09:00:00",
+          "endTime": "17:00:00"
         }
       ]
     }
@@ -169,16 +130,13 @@
   "event_distribution": [
     {
       "event_id": "Item_Restocked",
-      "distribution_name": "expon",
+      "distribution_name": "uniform",
       "distribution_params": [
         {
-          "value": 691200
+          "value": 259200
         },
         {
-          "value": 0
-        },
-        {
-          "value": 2592000
+          "value": 604800
         }
       ]
     }

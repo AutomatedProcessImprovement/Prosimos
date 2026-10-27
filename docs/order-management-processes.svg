@@ -1,11 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1260" height="660" viewBox="0 0 1260 660" font-family="Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="1380" height="660" viewBox="0 0 1380 660" font-family="Helvetica, Arial, sans-serif">
 <defs>
 <marker id="seq" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#222"/></marker>
 <marker id="msgend" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#fff" stroke="#555"/></marker>
 <marker id="msgstart" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7"><circle cx="5" cy="5" r="4" fill="#fff" stroke="#555"/></marker>
 </defs>
-<rect width="1260" height="660" fill="#fff"/>
-<rect x="20" y="20" width="1220" height="230" fill="#fff" stroke="#333" stroke-width="1.5"/>
+<rect width="1380" height="660" fill="#fff"/>
+<rect x="20" y="20" width="1340" height="230" fill="#fff" stroke="#333" stroke-width="1.5"/>
 <line x1="50" y1="20" x2="50" y2="250" stroke="#333" stroke-width="1.5"/>
 <text x="39.0" y="135.0" font-size="12" font-weight="bold" text-anchor="middle" transform="rotate(-90 39.0 135.0)">Sales (order)</text>
 <circle cx="100" cy="180" r="18" fill="#fff" stroke="#222" stroke-width="1.5"/>
@@ -31,8 +31,16 @@
 <line x1="623" y1="173" x2="637" y2="187" stroke="#222" stroke-width="2.5"/>
 <line x1="623" y1="187" x2="637" y2="173" stroke="#222" stroke-width="2.5"/>
 <text x="630" y="222" font-size="11" text-anchor="middle">pays?</text>
-<text x="700" y="174" font-size="11" text-anchor="middle">80%</text>
-<polyline points="654,180 770,180" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
+<text x="678" y="174" font-size="11" text-anchor="middle">80%</text>
+<polyline points="654,180 702,180" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
+<circle cx="720" cy="180" r="18" fill="#fff" stroke="#222" stroke-width="1.5"/>
+<circle cx="720" cy="180" r="14" fill="#fff" stroke="#222" stroke-width="1.5"/>
+<circle cx="720" cy="180" r="10" fill="#fff" stroke="#222" stroke-width="1.2"/>
+<line x1="720" y1="180" x2="720" y2="173" stroke="#222" stroke-width="1.2"/>
+<line x1="720" y1="180" x2="725" y2="180" stroke="#222" stroke-width="1.2"/>
+<text x="720" y="212" font-size="11" text-anchor="middle">customer</text>
+<text x="720" y="225" font-size="11" text-anchor="middle">pays</text>
+<polyline points="738,180 770,180" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
 <rect x="770" y="155" width="104" height="50" rx="9" fill="#fdfdf3" stroke="#222" stroke-width="1.5"/>
 <text x="822.0" y="184" font-size="12" text-anchor="middle">pay order</text>
 <polyline points="874,180 912,180" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
@@ -52,11 +60,11 @@
 <text x="822.0" y="91" font-size="12" text-anchor="middle">reminder</text>
 <polyline points="822,55 822,34 560,34 560,156" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
 <g transform="translate(0,-110)">
-<rect x="20" y="370" width="1220" height="170" fill="#fff" stroke="#333" stroke-width="1.5"/>
+<rect x="20" y="370" width="1340" height="170" fill="#fff" stroke="#333" stroke-width="1.5"/>
 <line x1="50" y1="370" x2="50" y2="540" stroke="#333" stroke-width="1.5"/>
 <text x="32.5" y="455.0" font-size="12" font-weight="bold" text-anchor="middle" transform="rotate(-90 32.5 455.0)">Warehouse</text>
 <text x="45.5" y="455.0" font-size="12" font-weight="bold" text-anchor="middle" transform="rotate(-90 45.5 455.0)">(item)</text>
-<rect x="20" y="550" width="1220" height="200" fill="#fff" stroke="#333" stroke-width="1.5"/>
+<rect x="20" y="550" width="1340" height="200" fill="#fff" stroke="#333" stroke-width="1.5"/>
 <line x1="50" y1="550" x2="50" y2="750" stroke="#333" stroke-width="1.5"/>
 <text x="32.5" y="650.0" font-size="12" font-weight="bold" text-anchor="middle" transform="rotate(-90 32.5 650.0)">Packaging</text>
 <text x="45.5" y="650.0" font-size="12" font-weight="bold" text-anchor="middle" transform="rotate(-90 45.5 650.0)">(package)</text>
@@ -99,7 +107,7 @@
 <circle cx="300" cy="610" r="18" fill="#fff" stroke="#222" stroke-width="1.5"/>
 <text x="300" y="642" font-size="11" text-anchor="middle">packing round</text>
 <text x="300" y="655" font-size="11" text-anchor="middle">(weekdays,</text>
-<text x="300" y="668" font-size="11" text-anchor="middle">7:00-17:00)</text>
+<text x="300" y="668" font-size="11" text-anchor="middle">9:00-17:00)</text>
 <polyline points="318,610 362,610" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
 <circle cx="380" cy="610" r="18" fill="#fff" stroke="#222" stroke-width="1.5"/>
 <circle cx="380" cy="610" r="14" fill="#fff" stroke="#222" stroke-width="1.5"/>
@@ -120,32 +128,35 @@
 <line x1="713" y1="617" x2="727" y2="603" stroke="#222" stroke-width="2.5"/>
 <text x="720" y="578" font-size="11" text-anchor="middle">delivered?</text>
 <text x="742" y="604" font-size="11" text-anchor="start">80%</text>
-<polyline points="744,610 966,610" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
-<polygon points="990,586 1014,610 990,634 966,610" fill="#fff" stroke="#222" stroke-width="1.5"/>
-<polyline points="1014,610 1040,610" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
-<rect x="1040" y="585" width="104" height="50" rx="9" fill="#fdfdf3" stroke="#222" stroke-width="1.5"/>
-<text x="1092.0" y="607" font-size="12" text-anchor="middle">package</text>
-<text x="1092.0" y="621" font-size="12" text-anchor="middle">delivered</text>
-<polyline points="1144,610 1182,610" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
-<circle cx="1200" cy="610" r="18" fill="#fff" stroke="#222" stroke-width="3.5"/>
-<text x="1200" y="642" font-size="11" text-anchor="middle">package</text>
-<text x="1200" y="655" font-size="11" text-anchor="middle">done</text>
+<polyline points="744,610 1086,610" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
+<polygon points="1110,586 1134,610 1110,634 1086,610" fill="#fff" stroke="#222" stroke-width="1.5"/>
+<polyline points="1134,610 1160,610" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
+<rect x="1160" y="585" width="104" height="50" rx="9" fill="#fdfdf3" stroke="#222" stroke-width="1.5"/>
+<text x="1212.0" y="607" font-size="12" text-anchor="middle">package</text>
+<text x="1212.0" y="621" font-size="12" text-anchor="middle">delivered</text>
+<polyline points="1264,610 1302,610" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
+<circle cx="1320" cy="610" r="18" fill="#fff" stroke="#222" stroke-width="3.5"/>
+<text x="1320" y="642" font-size="11" text-anchor="middle">package</text>
+<text x="1320" y="655" font-size="11" text-anchor="middle">done</text>
 <polyline points="720,634 720,690 776,690" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
 <text x="732" y="670" font-size="11" text-anchor="start">20%</text>
 <polygon points="800,666 824,690 800,714 776,690" fill="#fff" stroke="#222" stroke-width="1.5"/>
 <polyline points="824,690 850,690" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
 <rect x="850" y="665" width="104" height="50" rx="9" fill="#fdfdf3" stroke="#222" stroke-width="1.5"/>
 <text x="902.0" y="694" font-size="12" text-anchor="middle">failed delivery</text>
-<polyline points="954,690 966,690" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
-<polygon points="990,666 1014,690 990,714 966,690" fill="#fff" stroke="#222" stroke-width="1.5"/>
-<line x1="983" y1="683" x2="997" y2="697" stroke="#222" stroke-width="2.5"/>
-<line x1="983" y1="697" x2="997" y2="683" stroke="#222" stroke-width="2.5"/>
-<text x="1020" y="686" font-size="11" text-anchor="start">delivered</text>
-<text x="1020" y="699" font-size="11" text-anchor="start">now?</text>
-<polyline points="990,666 990,634" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
-<text x="1002" y="655" font-size="11" text-anchor="start">70%</text>
-<polyline points="990,714 990,738 800,738 800,714" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
-<text x="1002" y="733" font-size="11" text-anchor="start">30%</text>
+<polyline points="954,690 974,690" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
+<rect x="974" y="665" width="104" height="50" rx="9" fill="#fdfdf3" stroke="#222" stroke-width="1.5"/>
+<text x="1026.0" y="694" font-size="12" text-anchor="middle">send package</text>
+<polyline points="1078,690 1086,690" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
+<polygon points="1110,666 1134,690 1110,714 1086,690" fill="#fff" stroke="#222" stroke-width="1.5"/>
+<line x1="1103" y1="683" x2="1117" y2="697" stroke="#222" stroke-width="2.5"/>
+<line x1="1103" y1="697" x2="1117" y2="683" stroke="#222" stroke-width="2.5"/>
+<text x="1140" y="686" font-size="11" text-anchor="start">delivered</text>
+<text x="1140" y="699" font-size="11" text-anchor="start">now?</text>
+<polyline points="1110,666 1110,634" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
+<text x="1122" y="655" font-size="11" text-anchor="start">70%</text>
+<polyline points="1110,714 1110,738 800,738 800,714" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
+<text x="1122" y="733" font-size="11" text-anchor="start">30%</text>
 <text x="1000" y="564" font-size="11" font-style="italic" fill="#555">ItemPicked</text>
 <polyline points="990,438 990,545 380,545 380,592" fill="none" stroke="#555" stroke-width="1.3" stroke-dasharray="6,4" marker-start="url(#msgstart)" marker-end="url(#msgend)"/>
 </g>

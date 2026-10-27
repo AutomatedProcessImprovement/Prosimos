@@ -19,7 +19,7 @@ SALES = r"processes\[0\].references\[1\]"
 
 def _sales_picking(tmp_path, products, orders=100):
     """Order Management's Sales alone, with 100 orders: it picks its customer and, with the reference products, its
-    products from the log's 20. Without the Warehouse, which picks its own products, ItemOrdered finds no
+    products from the 20. Without the Warehouse, which picks its own products, ItemOrdered finds no
     recipient."""
     path = _config_with(tmp_path, catalogues={"Sales": {"customer": CUSTOMERS, "product": PRODUCTS_LIST}},
                         references={"Sales": [{**PICKING, "pick": "uniform"}, *([products] if products else [])]})

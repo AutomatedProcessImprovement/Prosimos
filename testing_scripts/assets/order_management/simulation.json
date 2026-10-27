@@ -62,13 +62,14 @@
       "name": "Packaging",
       "bpmn_path": "packaging.bpmn",
       "json_path": "packaging.json",
-      "arrivals": 1440,
+      "arrivals": 1450,
       "object_type": "package",
       "qualifier": "package",
       "ocel_attributes": ["weight"],
       "qualifier_by_activity": {
         "Create_Package": "creates",
         "Send_Package": "shipped package",
+        "Resend_Package": "shipped package",
         "Failed_Delivery": "shipped package",
         "Package_Delivered": "shipped package"
       },

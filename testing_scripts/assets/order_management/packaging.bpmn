@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Packaging" targetNamespace="http://bpmn.io/schema/bpmn">
   <!-- a packing round: it takes the oldest waiting item and every other waiting item of the same customer,
-       creates the package and sends it; it is delivered, possibly after failed attempts. The first attempt and
-       the ones after a failure have their own odds -->
+       creates the package and sends it; it is delivered, possibly after failed attempts, each followed by
+       another trip. The first attempt and the ones after a failure have their own odds -->
   <bpmn:process id="Packaging" isExecutable="false">
     <bpmn:startEvent id="Start_Round" name="packing round"><bpmn:outgoing>Flow_1</bpmn:outgoing></bpmn:startEvent>
     <bpmn:intermediateCatchEvent id="Catch_Items" name="items picked"><bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:intermediateCatchEvent>
@@ -10,7 +10,8 @@
     <bpmn:task id="Send_Package" name="send package"><bpmn:incoming>Flow_3</bpmn:incoming><bpmn:outgoing>Flow_4</bpmn:outgoing></bpmn:task>
     <bpmn:exclusiveGateway id="First_Attempt" name="delivered?"><bpmn:incoming>Flow_4</bpmn:incoming><bpmn:outgoing>Flow_First_Failed</bpmn:outgoing><bpmn:outgoing>Flow_First_Delivered</bpmn:outgoing></bpmn:exclusiveGateway>
     <bpmn:exclusiveGateway id="To_Failed"><bpmn:incoming>Flow_First_Failed</bpmn:incoming><bpmn:incoming>Flow_Again_Failed</bpmn:incoming><bpmn:outgoing>Flow_5</bpmn:outgoing></bpmn:exclusiveGateway>
-    <bpmn:task id="Failed_Delivery" name="failed delivery"><bpmn:incoming>Flow_5</bpmn:incoming><bpmn:outgoing>Flow_6</bpmn:outgoing></bpmn:task>
+    <bpmn:task id="Failed_Delivery" name="failed delivery"><bpmn:incoming>Flow_5</bpmn:incoming><bpmn:outgoing>Flow_Retry</bpmn:outgoing></bpmn:task>
+    <bpmn:task id="Resend_Package" name="send package"><bpmn:incoming>Flow_Retry</bpmn:incoming><bpmn:outgoing>Flow_6</bpmn:outgoing></bpmn:task>
     <bpmn:exclusiveGateway id="Next_Attempt" name="delivered now?"><bpmn:incoming>Flow_6</bpmn:incoming><bpmn:outgoing>Flow_Again_Failed</bpmn:outgoing><bpmn:outgoing>Flow_Again_Delivered</bpmn:outgoing></bpmn:exclusiveGateway>
     <bpmn:exclusiveGateway id="To_Delivered"><bpmn:incoming>Flow_First_Delivered</bpmn:incoming><bpmn:incoming>Flow_Again_Delivered</bpmn:incoming><bpmn:outgoing>Flow_7</bpmn:outgoing></bpmn:exclusiveGateway>
     <bpmn:task id="Package_Delivered" name="package delivered"><bpmn:incoming>Flow_7</bpmn:incoming><bpmn:outgoing>Flow_8</bpmn:outgoing></bpmn:task>
@@ -22,7 +23,8 @@
     <bpmn:sequenceFlow id="Flow_First_Failed" sourceRef="First_Attempt" targetRef="To_Failed" />
     <bpmn:sequenceFlow id="Flow_First_Delivered" sourceRef="First_Attempt" targetRef="To_Delivered" />
     <bpmn:sequenceFlow id="Flow_5" sourceRef="To_Failed" targetRef="Failed_Delivery" />
-    <bpmn:sequenceFlow id="Flow_6" sourceRef="Failed_Delivery" targetRef="Next_Attempt" />
+    <bpmn:sequenceFlow id="Flow_Retry" sourceRef="Failed_Delivery" targetRef="Resend_Package" />
+    <bpmn:sequenceFlow id="Flow_6" sourceRef="Resend_Package" targetRef="Next_Attempt" />
     <bpmn:sequenceFlow id="Flow_Again_Failed" sourceRef="Next_Attempt" targetRef="To_Failed" />
     <bpmn:sequenceFlow id="Flow_Again_Delivered" sourceRef="Next_Attempt" targetRef="To_Delivered" />
     <bpmn:sequenceFlow id="Flow_7" sourceRef="To_Delivered" targetRef="Package_Delivered" />

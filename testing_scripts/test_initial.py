@@ -53,7 +53,7 @@ def test_without_initial_with_stays_as_before():
 
 
 def test_every_order_costs_its_products_prices_plus_a_fee(tmp_path):
-    # the generator's order price: the sum of its items' prices plus 5.00
+    # an order's price: the sum of its items' prices plus a fee of 5.00
     report, _, _ = _run_picking(_sales_picking(tmp_path, {**PRODUCTS, "count": {"object_attribute": "items"},
                                                           "with": {"price": {"sum": "price", "initial": 5.0}}}),
                                 tmp_path)

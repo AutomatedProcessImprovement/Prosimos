@@ -84,8 +84,7 @@ events of their own, such as customers and products, come from a catalogue in th
   products, and how cases refer to them;
 - [docs/running-example.md](docs/running-example.md): the running example, with orders, invoices and
   shipments;
-- [docs/order-management.md](docs/order-management.md): an example after the OCEL 2.0 Order Management log,
-  with a comparison against the real log;
+- [docs/order-management.md](docs/order-management.md): an example with orders, items and packages;
 - [docs/engine-internals.md](docs/engine-internals.md): how Prosimos runs a case, for developers.
 
 

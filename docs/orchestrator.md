@@ -214,8 +214,8 @@ Three settings shape the links:
 | `qualifier` (publish or consume entry) | qualifier of the links this end of the message makes, in the JSON file ([messaging.md](messaging.md)); without one, this end makes no links                                                   |
 
 So with a `"qualifier": "item"` on the ItemOrdered publish entry, place order's links to the items are
-qualified `item`; the Warehouse's consume entry has none, so the item's first task doesn't link its order, as
-in the real log. The link of every event to its own case's object is always written.
+qualified `item`; the Warehouse's consume entry has none, so the item's first task doesn't link its order. The
+link of every event to its own case's object is always written.
 
 **Run report.** `run_orchestrator` (and `run_engines`) return a `RunReport`; `RunReport.to_dict()`
 gives it as plain lists and dicts with times as ISO strings, which is what `--report_out_path` saves:
