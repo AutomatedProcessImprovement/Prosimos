@@ -5,7 +5,8 @@ as the first message it claimed there, e.g. the oldest waiting item and then all
 import pytest
 
 from prosimos.exceptions import InvalidSimScenarioException
-from prosimos.orchestrator import Message, Verdict, run_engines
+from prosimos.orchestration.protocol import Message
+from prosimos.orchestrator import Verdict, run_engines
 from testing_scripts.scripted_engine import ScriptedEngine
 from testing_scripts.test_collect import _orders, _run_until_idle, _settings, at
 from testing_scripts.test_race import ELEVEN, QUOTE_JSON, _quote, _run_until

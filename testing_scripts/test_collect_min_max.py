@@ -7,7 +7,8 @@ import pytest
 
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.messaging_parser import parse_messages
-from prosimos.orchestrator import Message, Verdict, run_engines
+from prosimos.orchestration.protocol import Message
+from prosimos.orchestrator import Verdict, run_engines
 from testing_scripts.scripted_engine import ScriptedEngine
 from testing_scripts.test_collect import _orders, _settings, at
 from testing_scripts.test_race import ITEMS_RACE, ITEMS_RACE_JSON, _race_orders

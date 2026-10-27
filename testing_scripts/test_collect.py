@@ -11,7 +11,8 @@ import pytz
 
 from cli.diff_res_bpsim import run_summary
 from prosimos.exceptions import InvalidSimScenarioException
-from prosimos.orchestrator import Message, ProcessSpec, ProsimosEngine, Verdict, run_engines
+from prosimos.orchestration.protocol import Message
+from prosimos.orchestrator import ProcessSpec, ProsimosEngine, Verdict, run_engines
 from prosimos.simulation_engine import run_simulation
 from testing_scripts.orchestrator_settings import prosimos_settings
 from prosimos.orchestrator import load_process

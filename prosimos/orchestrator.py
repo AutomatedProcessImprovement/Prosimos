@@ -24,6 +24,7 @@ from prosimos.control_flow_manager import BPMN
 from prosimos.messaging_parser import (AGGREGATE_FUNCTIONS, ConsumePoint, PublishPoint, is_number, is_whole_number,
                                        unknown_keys)
 from prosimos.ocel_writer import OcelProcess, write_ocel
+from prosimos.orchestration.protocol import Message
 from prosimos.simulation_engine import SimBPMEnv, _aggregated, _is_number
 from prosimos.simulation_properties_parser import parse_datetime, parse_simulation_model
 from prosimos.simulation_setup import SimDiffSetup
@@ -163,18 +164,6 @@ def _catalogue_ids(name, entry) -> List[str]:
     if isinstance(entry, CataloguePool):
         return [f"{name}-{number}" for number in range(1, entry.count + 1)] if isinstance(entry.count, int) else []
     return [obj.id for obj in entry]
-
-
-@dataclass
-class Message:
-    """One object passed between processes. The publishing process sets type and attributes;
-    the orchestrator sets id, source and time when it stamps the message."""
-
-    type: str
-    attributes: Dict[str, Any] = field(default_factory=dict)
-    id: Optional[str] = None
-    source: Optional[str] = None
-    time: Optional[datetime] = None
 
 
 def _checked_catalogue(processes):
