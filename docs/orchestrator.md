@@ -294,8 +294,8 @@ it with an `id` (`m1`, `m2`, ...), its `source` process and the `time` of the st
 
 Everything the orchestrator may ask of an engine; nothing else crosses that boundary. It follows the
 Orchestrator Protocol (kept outside this repository). In code it is the `SimulationEngine` class in
-`prosimos/orchestrator.py`, and `ProsimosEngine` implements it for a Prosimos simulation. To add
-another kind of engine, implement these five methods.
+`prosimos/orchestration/protocol.py`, and `ProsimosEngine` implements it for a Prosimos simulation. To
+add another kind of engine, implement these five methods.
 
 Each engine is a black box: no process may read or change another process's cases, queues,
 resources, attributes or logs, and the orchestrator doesn't look inside engines either. Anything

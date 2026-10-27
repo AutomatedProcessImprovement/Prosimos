@@ -6,10 +6,8 @@ from datetime import datetime
 import pytest
 import pytz
 
-from prosimos.orchestration.protocol import Message, Verdict
-from prosimos.orchestrator import (
-    ProcessSpec, ProsimosEngine, SimulationConfig, SimulationEngine, run_orchestrator,
-)
+from prosimos.orchestration.protocol import Message, SimulationEngine, Verdict
+from prosimos.orchestrator import ProcessSpec, ProsimosEngine, SimulationConfig, run_orchestrator
 from testing_scripts.orchestrator_settings import orchestrator_settings
 from testing_scripts.test_batching_stats import get_path
 

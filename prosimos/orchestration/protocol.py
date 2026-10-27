@@ -3,6 +3,7 @@ The contract between the engines and the orchestrator (docs/orchestrator.md, "En
 is, what an engine answers when it is offered one, what it records for the output, and the interface an engine
 implements. It doesn't depend on Prosimos: another engine can implement it.
 """
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -120,3 +121,43 @@ class MessageRecord:
     type: str
     publisher: Optional[CaseElement]
     claimers: List[CaseElement] = field(default_factory=list)
+
+
+class SimulationEngine(ABC):
+    """
+    The complete set of methods the orchestrator may call on an engine, as defined by the
+    Orchestrator Protocol; nothing else may cross that boundary, and no process may read another
+    process's data by any other route. Engines never call the orchestrator. See
+    docs/orchestrator.md.
+    """
+
+    @abstractmethod
+    def subscriptions(self) -> List[str]:
+        """The message types this process consumes, from its model configuration. Called once, at setup."""
+
+    @abstractmethod
+    def next_event_time(self) -> Optional[datetime]:
+        """When is your next event due? None when there is nothing to do right now (cases waiting
+        for a message don't count)."""
+
+    @abstractmethod
+    def step(self) -> List[Message]:
+        """Perform exactly one event and return the messages it published; the only way to publish."""
+
+    @abstractmethod
+    def deliver(self, message: Message, now: datetime) -> Verdict:
+        """
+        Offer the engine one pending message at time now.
+        CLAIMED is a commitment: the message is already bound to one case, taking effect at now,
+        and the orchestrator never offers this copy to anyone again (other groups keep their own).
+        DISCARDED is permanent: the engine will never want this message, even after its state
+        changes, so the orchestrator never offers it to this engine again.
+        PENDING: not now; the message may be offered again later. An engine that isn't sure
+        must answer PENDING.
+        """
+
+    @abstractmethod
+    def finish(self) -> EngineReport:
+        """Called once, after the loop stops: the cases still waiting for a message, the warnings this
+        engine raised, and its records of which cases and elements published and took each message. A
+        lifecycle call, not a messaging one: nothing is published or delivered."""

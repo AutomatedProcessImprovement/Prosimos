@@ -7,7 +7,6 @@ import json
 import random
 import re
 import tempfile
-from abc import ABC, abstractmethod
 from collections import Counter, defaultdict
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
@@ -24,7 +23,7 @@ from prosimos.messaging_parser import (AGGREGATE_FUNCTIONS, ConsumePoint, Publis
                                        unknown_keys)
 from prosimos.ocel_writer import OcelProcess, write_ocel
 from prosimos.orchestration.protocol import (CaseElement, CaseObject, ClaimRecord, EngineReport, Message,
-                                           MessageRecord, PublishRecord, StalledCase, Verdict)
+                                           MessageRecord, PublishRecord, SimulationEngine, StalledCase, Verdict)
 from prosimos.simulation_engine import SimBPMEnv, _aggregated, _is_number
 from prosimos.simulation_properties_parser import parse_datetime, parse_simulation_model
 from prosimos.simulation_setup import SimDiffSetup
@@ -634,46 +633,6 @@ def _check_keys(path, where, mapping, allowed):
     problem = unknown_keys(where, mapping, allowed)
     if problem:
         raise ValueError(f"{path}: {problem}")
-
-
-class SimulationEngine(ABC):
-    """
-    The complete set of methods the orchestrator may call on an engine, as defined by the
-    Orchestrator Protocol; nothing else may cross that boundary, and no process may read another
-    process's data by any other route. Engines never call the orchestrator. See
-    docs/orchestrator.md.
-    """
-
-    @abstractmethod
-    def subscriptions(self) -> List[str]:
-        """The message types this process consumes, from its model configuration. Called once, at setup."""
-
-    @abstractmethod
-    def next_event_time(self) -> Optional[datetime]:
-        """When is your next event due? None when there is nothing to do right now (cases waiting
-        for a message don't count)."""
-
-    @abstractmethod
-    def step(self) -> List[Message]:
-        """Perform exactly one event and return the messages it published; the only way to publish."""
-
-    @abstractmethod
-    def deliver(self, message: Message, now: datetime) -> Verdict:
-        """
-        Offer the engine one pending message at time now.
-        CLAIMED is a commitment: the message is already bound to one case, taking effect at now,
-        and the orchestrator never offers this copy to anyone again (other groups keep their own).
-        DISCARDED is permanent: the engine will never want this message, even after its state
-        changes, so the orchestrator never offers it to this engine again.
-        PENDING: not now; the message may be offered again later. An engine that isn't sure
-        must answer PENDING.
-        """
-
-    @abstractmethod
-    def finish(self) -> EngineReport:
-        """Called once, after the loop stops: the cases still waiting for a message, the warnings this
-        engine raised, and its records of which cases and elements published and took each message. A
-        lifecycle call, not a messaging one: nothing is published or delivered."""
 
 
 # the top-level sections of a process's JSON settings: Prosimos's own, with object_attributes in place of its
