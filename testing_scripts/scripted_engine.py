@@ -1,8 +1,8 @@
 import itertools
 from heapq import heappop, heappush
 
-from prosimos.orchestration.protocol import Message, Verdict
-from prosimos.orchestrator import EngineReport, SimulationEngine
+from prosimos.orchestration.protocol import EngineReport, Message, Verdict
+from prosimos.orchestrator import SimulationEngine
 
 
 class ScriptedEngine(SimulationEngine):

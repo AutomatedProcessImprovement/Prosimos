@@ -23,8 +23,8 @@ from prosimos.control_flow_manager import BPMN
 from prosimos.messaging_parser import (AGGREGATE_FUNCTIONS, ConsumePoint, PublishPoint, is_number, is_whole_number,
                                        unknown_keys)
 from prosimos.ocel_writer import OcelProcess, write_ocel
-from prosimos.orchestration.protocol import (CaseElement, CaseObject, ClaimRecord, Message, MessageRecord,
-                                           PublishRecord, Verdict)
+from prosimos.orchestration.protocol import (CaseElement, CaseObject, ClaimRecord, EngineReport, Message,
+                                           MessageRecord, PublishRecord, StalledCase, Verdict)
 from prosimos.simulation_engine import SimBPMEnv, _aggregated, _is_number
 from prosimos.simulation_properties_parser import parse_datetime, parse_simulation_model
 from prosimos.simulation_setup import SimDiffSetup
@@ -634,31 +634,6 @@ def _check_keys(path, where, mapping, allowed):
     problem = unknown_keys(where, mapping, allowed)
     if problem:
         raise ValueError(f"{path}: {problem}")
-
-
-@dataclass
-class StalledCase:
-    """A case still waiting for a message when the run ended."""
-
-    object_id: str
-    event_id: str
-    message_types: List[str]  # the types it waits for: any one of them resumes it (several in a race)
-    waiting_since: datetime
-    collected: int = 0  # messages it had claimed at that event...
-    needed: int = 1  # ...of the ones it needed (more than 1 with collect)
-
-
-@dataclass
-class EngineReport:
-    """What one engine has to report when the run is over."""
-
-    stalled: List[StalledCase] = field(default_factory=list)
-    warnings: List[str] = field(default_factory=list)  # raised inside this engine during the run
-    # which of its cases and elements published and took each message, kept by the engine during the run
-    published: List[PublishRecord] = field(default_factory=list)
-    claimed: List[ClaimRecord] = field(default_factory=list)
-    objects: List[CaseObject] = field(default_factory=list)  # every case it created
-    logged_elements: List[str] = field(default_factory=list)  # the element id of each row of its log, in order
 
 
 class SimulationEngine(ABC):

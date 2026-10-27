@@ -10,7 +10,8 @@ import numpy as np
 import pytest
 import pytz
 
-from prosimos.orchestrator import ProcessSpec, ProsimosEngine, StalledCase, run_engines
+from prosimos.orchestration.protocol import StalledCase
+from prosimos.orchestrator import ProcessSpec, ProsimosEngine, run_engines
 from prosimos.warning_logger import warning_logger
 from testing_scripts.scripted_engine import ScriptedEngine
 

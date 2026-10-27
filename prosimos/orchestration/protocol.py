@@ -29,6 +29,18 @@ class Verdict(Enum):
     PENDING = "pending"
 
 
+@dataclass
+class StalledCase:
+    """A case still waiting for a message when the run ended."""
+
+    object_id: str
+    event_id: str
+    message_types: List[str]  # the types it waits for: any one of them resumes it (several in a race)
+    waiting_since: datetime
+    collected: int = 0  # messages it had claimed at that event...
+    needed: int = 1  # ...of the ones it needed (more than 1 with collect)
+
+
 @dataclass(frozen=True)
 class PublishRecord:
     """An engine's record that one of its cases published a message, at one of its elements. task_rows are the
@@ -70,6 +82,19 @@ class CaseObject:
     attributes: List[Tuple[str, Any, datetime]] = field(default_factory=list)
     # its sums and counts whose value at creation is only their starting 0, no message having written them yet
     only_started: Tuple[str, ...] = ()
+
+
+@dataclass
+class EngineReport:
+    """What one engine has to report when the run is over."""
+
+    stalled: List[StalledCase] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)  # raised inside this engine during the run
+    # which of its cases and elements published and took each message, kept by the engine during the run
+    published: List[PublishRecord] = field(default_factory=list)
+    claimed: List[ClaimRecord] = field(default_factory=list)
+    objects: List[CaseObject] = field(default_factory=list)  # every case it created
+    logged_elements: List[str] = field(default_factory=list)  # the element id of each row of its log, in order
 
 
 @dataclass(frozen=True)
