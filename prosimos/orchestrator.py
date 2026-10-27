@@ -12,7 +12,6 @@ from collections import Counter, defaultdict
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
@@ -24,7 +23,7 @@ from prosimos.control_flow_manager import BPMN
 from prosimos.messaging_parser import (AGGREGATE_FUNCTIONS, ConsumePoint, PublishPoint, is_number, is_whole_number,
                                        unknown_keys)
 from prosimos.ocel_writer import OcelProcess, write_ocel
-from prosimos.orchestration.protocol import Message
+from prosimos.orchestration.protocol import Message, Verdict
 from prosimos.simulation_engine import SimBPMEnv, _aggregated, _is_number
 from prosimos.simulation_properties_parser import parse_datetime, parse_simulation_model
 from prosimos.simulation_setup import SimDiffSetup
@@ -634,14 +633,6 @@ def _check_keys(path, where, mapping, allowed):
     problem = unknown_keys(where, mapping, allowed)
     if problem:
         raise ValueError(f"{path}: {problem}")
-
-
-class Verdict(Enum):
-    """An engine's answer to one offered message."""
-
-    CLAIMED = "claimed"
-    DISCARDED = "discarded"
-    PENDING = "pending"
 
 
 @dataclass

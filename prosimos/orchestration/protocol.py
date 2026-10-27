@@ -5,6 +5,7 @@ implements. It doesn't depend on Prosimos: another engine can implement it.
 """
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
 from typing import Any, Dict, Optional
 
 
@@ -18,3 +19,11 @@ class Message:
     id: Optional[str] = None
     source: Optional[str] = None
     time: Optional[datetime] = None
+
+
+class Verdict(Enum):
+    """An engine's answer to one offered message."""
+
+    CLAIMED = "claimed"
+    DISCARDED = "discarded"
+    PENDING = "pending"

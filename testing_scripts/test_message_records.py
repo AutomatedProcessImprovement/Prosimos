@@ -6,7 +6,8 @@ from datetime import datetime
 
 import pytz
 
-from prosimos.orchestrator import ProcessSpec, ProsimosEngine, SimulationConfig, Verdict, run_engines, run_orchestrator
+from prosimos.orchestration.protocol import Verdict
+from prosimos.orchestrator import ProcessSpec, ProsimosEngine, SimulationConfig, run_engines, run_orchestrator
 from testing_scripts.orchestrator_settings import with_qualifiers
 from testing_scripts.scripted_engine import ScriptedEngine
 

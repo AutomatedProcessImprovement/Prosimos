@@ -8,7 +8,8 @@ import json
 import pytest
 
 from prosimos.exceptions import InvalidSimScenarioException
-from prosimos.orchestrator import Verdict, run_engines
+from prosimos.orchestration.protocol import Verdict
+from prosimos.orchestrator import run_engines
 from prosimos.orchestrator import load_process
 from testing_scripts.scripted_engine import ScriptedEngine
 from testing_scripts.test_capacity import (ASSETS, ORDERS, START, _orders, _run_until_idle, _settings, _truck_ids, at,

@@ -8,8 +8,8 @@ from datetime import datetime
 import pytest
 import pytz
 
-from prosimos.orchestration.protocol import Message
-from prosimos.orchestrator import ProcessSpec, ProsimosEngine, Verdict, run_engines
+from prosimos.orchestration.protocol import Message, Verdict
+from prosimos.orchestrator import ProcessSpec, ProsimosEngine, run_engines
 from testing_scripts.scripted_engine import ScriptedEngine
 
 ASSETS = "testing_scripts/assets/messaging"
