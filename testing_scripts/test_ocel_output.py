@@ -11,8 +11,8 @@ import pandas as pd
 import pytest
 import pytz
 
-from prosimos.orchestrator import (CaseObject, ProcessSpec, ProsimosEngine, SimulationConfig, run_engines,
-                                   run_orchestrator)
+from prosimos.orchestration.protocol import CaseObject
+from prosimos.orchestrator import ProcessSpec, ProsimosEngine, SimulationConfig, run_engines, run_orchestrator
 from prosimos.ocel_writer import OcelProcess, object_ids, write_ocel
 from testing_scripts.scripted_engine import ScriptedEngine
 from testing_scripts.test_order_management import _config

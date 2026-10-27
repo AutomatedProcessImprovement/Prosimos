@@ -15,9 +15,9 @@ import pytz
 
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.ocel_writer import OcelProcess, write_ocel
-from prosimos.orchestration.protocol import Verdict
-from prosimos.orchestrator import (CaseElement, CaseObject, MessageRecord, ProcessSpec, ProsimosEngine,
-                                   SimulationConfig, _message_links, run_engines, run_orchestrator)
+from prosimos.orchestration.protocol import CaseElement, CaseObject, MessageRecord, Verdict
+from prosimos.orchestrator import (ProcessSpec, ProsimosEngine, SimulationConfig, _message_links, run_engines,
+                                   run_orchestrator)
 from testing_scripts.orchestrator_settings import with_qualifiers
 from testing_scripts.scripted_engine import ScriptedEngine
 from testing_scripts.test_item_verdicts import PICKING, PICKING_JSON, SALES, SALES_JSON, _picking_in

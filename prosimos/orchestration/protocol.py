@@ -6,7 +6,7 @@ implements. It doesn't depend on Prosimos: another engine can implement it.
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 
 @dataclass
@@ -27,3 +27,71 @@ class Verdict(Enum):
     CLAIMED = "claimed"
     DISCARDED = "discarded"
     PENDING = "pending"
+
+
+@dataclass(frozen=True)
+class PublishRecord:
+    """An engine's record that one of its cases published a message, at one of its elements. task_rows are the
+    rows of its log (0 for the first) that the message's OCEL links attach to: the last task before the
+    element, and through a parallel or inclusive join the last task of every branch that came in; empty if
+    there is none. qualifier qualifies those links."""
+
+    message_id: str
+    object_id: str
+    element_id: str
+    qualifier: str = ""
+    task_rows: Tuple[int, ...] = ()
+    o2o: Optional[str] = None  # qualifier of the OCEL link from its case's object to the other end's, if any
+
+
+@dataclass(frozen=True)
+class ClaimRecord:
+    """An engine's record that one of its cases took a message, at one of its elements. task_rows are the rows
+    of its log that the message's OCEL links attach to: the next task after the element, and after a
+    parallel or inclusive split the first run of every task on the branches taken; empty if there is none. qualifier
+    qualifies those links."""
+
+    message_id: str
+    object_id: str
+    element_id: str
+    qualifier: str = ""
+    task_rows: Tuple[int, ...] = ()
+    o2o: Optional[str] = None  # qualifier of the OCEL link from its case's object to the other end's, if any
+
+
+@dataclass
+class CaseObject:
+    """One case of an engine, as an object of the OCEL output: its id in the engine, when it was created, and its
+    case attributes over time, as (attribute, value, time): the values it had when it was created, then every
+    later change. All of them are kept here; the OCEL output leaves some out (see ocel_writer._written)."""
+
+    object_id: str
+    created: datetime
+    attributes: List[Tuple[str, Any, datetime]] = field(default_factory=list)
+    # its sums and counts whose value at creation is only their starting 0, no message having written them yet
+    only_started: Tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class CaseElement:
+    """One element of one case of one process; for a message, also the qualifier of its OCEL links and the
+    rows of the process's log they attach to (none if there is no such task)."""
+
+    process: str
+    object_id: str
+    element_id: str
+    qualifier: str = ""
+    task_rows: Tuple[int, ...] = ()
+    o2o: Optional[str] = None  # qualifier of the OCEL link from its case's object to the other end's, if any
+
+
+@dataclass
+class MessageRecord:
+    """Who published a message and who took it, joined from the engines' records after the run. No
+    claimers for a message that was discarded or never claimed; several with capacity; no publisher
+    if the publishing engine keeps no records."""
+
+    message_id: str
+    type: str
+    publisher: Optional[CaseElement]
+    claimers: List[CaseElement] = field(default_factory=list)
