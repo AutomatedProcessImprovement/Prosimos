@@ -2,17 +2,27 @@
 Catalogues and picks (docs/catalogue.md): objects with no events of their own, a process's references to them, and
 the picks that assign them to its cases.
 """
+from __future__ import annotations
+
 import json
+import random
 import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+
+import numpy as np
 
 from prosimos.case_attributes import CaseAttribute
 from prosimos.control_flow_manager import BPMN
 from prosimos.messaging_parser import AGGREGATE_FUNCTIONS, is_number, is_whole_number
-from prosimos.simulation_engine import _is_number
+from prosimos.orchestration.random_states import _engine_random_states
+from prosimos.simulation_engine import _aggregated, _is_number
 from prosimos.simulation_properties_parser import parse_simulation_model
+from prosimos.warning_logger import warning_logger
+
+if TYPE_CHECKING:
+    from prosimos.orchestrator import ProcessSpec
 
 
 @dataclass(frozen=True)
@@ -349,3 +359,153 @@ def _with_problems(reference, entry, specs, picked, brought):
         else:
             problems.extend(_settings_problems("brings", name, reference.process, specs))
     return problems
+
+
+class _Pick:
+    """A case attribute that a reference picks (pick) from its catalogue's ids. It has what the engine uses of
+    Prosimos's CaseAttribute, name and get_next_value(), so it is drawn with the case's other attributes, when
+    the case is created; its generator is its own, seeded from the seed, the process and the attribute, so it
+    doesn't change the engine's other draws. With count, it picks that many ids, each independently, into a
+    list."""
+
+    def __init__(self, name: str, ids: List[str], weights: Optional[List[float]], seed: Optional[int], process: str,
+                 count: Union[None, int, CountFrom] = None):
+        self.name, self._ids, self._weights, self.count = name, ids, weights, count
+        self.last = None  # the id picked for the latest case
+        self._counted = None  # the value of count's attribute drawn for the latest case
+        self._warned = False
+        self._generator = random.Random()
+        self._generator.setstate(_engine_random_states(seed, f"pick/{process}/{name}")[0])
+
+    def read_count_from(self, attribute):
+        """Has the case attribute that holds the count, one the engine draws before its picks, tell this pick the
+        value it draws for each case. The attribute keeps its own draws."""
+        draw = attribute.get_next_value
+
+        def drawn():
+            self._counted = draw()
+            return self._counted
+
+        attribute.get_next_value = drawn
+
+    def get_next_value(self):
+        if self.count is None:
+            self.last = self._generator.choices(self._ids, self._weights)[0]
+        else:
+            self.last = self._generator.choices(self._ids, self._weights, k=self._how_many())
+        return self.last
+
+    def _how_many(self):
+        """count, or the value its attribute drew for this case; one that isn't a whole number of at least 0 picks
+        one, with one warning."""
+        if not isinstance(self.count, CountFrom):
+            return int(self.count)
+        if is_whole_number(self._counted, minimum=0):
+            return int(self._counted)
+        if not self._warned:
+            self._warned = True
+            warning_logger.add_warning(f"{self.count.object_attribute} is {self._counted!r}, no whole number of at "
+                                       f"least 0; the pick of {self.name} picks one")
+        return 1
+
+
+class _Brought:
+    """A value a _Pick's objects give the case it has just picked them for: an attribute of the picked object,
+    copied, or, with function, the function over that attribute of every object it picked, each as often as it
+    was picked (a single pick is a list of one), and over initial, if given, as aggregate computes over messages.
+    It comes right after its pick in the case's attributes, which are drawn in order, so it reads the pick's last
+    value; it draws nothing. Over no objects, a sum and a count are 0 and a min or max has no value (None), unless
+    initial gives them one."""
+
+    def __init__(self, name: str, pick: _Pick, values: Dict[str, Any], function: Optional[str] = None,
+                 initial: Optional[float] = None):
+        self.name, self._pick, self._values, self._function, self._initial = name, pick, values, function, initial
+
+    def get_next_value(self):
+        if self._function is None:
+            return self._values[self._pick.last]
+        picked = self._pick.last if isinstance(self._pick.last, list) else [self._pick.last]
+        if not picked and self._function in ("min", "max") and self._initial is None:
+            return None
+        return _aggregated(self._function, [self._values[object_id] for object_id in picked], self._initial)
+
+
+class _NewPick:
+    """A case attribute that a reference picks from a growing catalogue: a new id, <catalogue name>-<number> in
+    creation order, for every case ("new") or for share of them, the rest reusing one created so far, uniformly.
+    Like _Pick, it is drawn with the case's other attributes, from a generator of its own."""
+
+    def __init__(self, name: str, catalogue: str, share: float, seed: Optional[int], process: str):
+        self.name, self.catalogue, self._share = name, catalogue, share
+        self.created = 0
+        self._generator = random.Random()
+        self._generator.setstate(_engine_random_states(seed, f"pick/{process}/{name}")[0])
+
+    def get_next_value(self):
+        if self.created == 0 or self._share == 1 or self._generator.random() < self._share:
+            self.created += 1
+            return f"{self.catalogue}-{self.created}"
+        return f"{self.catalogue}-{self._generator.randint(1, self.created)}"
+
+
+def _picks(spec: ProcessSpec, seed: Optional[int], catalogues: Dict[str, List[CatalogueObject]]) -> List[_Pick]:
+    """The attributes a process's references pick, from its own catalogues as the run starts (see
+    _drawn_catalogues)."""
+    picks = []
+    for reference in spec.references:
+        if reference.creates:
+            share = reference.pick.share if isinstance(reference.pick, NewShare) else 1
+            picks.append(_NewPick(reference.object_attribute, reference.catalogue, share, seed, spec.name))
+        elif reference.pick is not None:
+            ids = [obj.id for obj in catalogues[reference.catalogue]]
+            weights = None if reference.pick == "uniform" else [dict(reference.pick).get(object_id, 0) for object_id in ids]
+            pick = _Pick(reference.object_attribute, ids, weights, seed, spec.name, reference.count)
+            picks.append(pick)
+            for name, source in reference.with_attributes:
+                function, attribute, initial = ((source.function, source.source, source.initial)
+                                                if isinstance(source, Computed) else (None, source, None))
+                values = {obj.id: dict(obj.attributes)[attribute] for obj in catalogues[reference.catalogue]}
+                picks.append(_Brought(name, pick, values, function, initial))
+    return picks
+
+
+def _drawn_catalogues(spec: ProcessSpec, seed: Optional[int]) -> Dict[str, List[CatalogueObject]]:
+    """A process's catalogues, name -> their objects when the run starts: a listed catalogue's as given, a pool's
+    with their attributes drawn (see _drawn_objects), none yet for a growing catalogue."""
+    return {name: list(entry) if isinstance(entry, list) else _drawn_objects(seed, name, entry.attributes,
+                                                                            _catalogue_ids(name, entry))
+            for name, entry in spec.catalogues.items()}
+
+
+def _grown_catalogues(spec: ProcessSpec, seed: Optional[int], catalogues: Dict[str, List[CatalogueObject]],
+                      picks: List[_Pick]) -> Dict[str, List[CatalogueObject]]:
+    """A process's catalogues after the run: each growing catalogue with the objects its pick created, <name>-1 to
+    <name>-<created>, their attributes drawn in creation order (see _drawn_objects). Drawing them now rather
+    than when each was created gives the same values, since nothing else draws from their generators."""
+    grown = dict(catalogues)
+    for pick in picks:
+        if isinstance(pick, _NewPick):
+            grown[pick.catalogue] = _drawn_objects(seed, pick.catalogue, spec.catalogues[pick.catalogue].attributes,
+                                                   [f"{pick.catalogue}-{number}" for number in range(1, pick.created + 1)])
+    return grown
+
+
+def _drawn_objects(seed, name, attribute_specs, ids) -> List[CatalogueObject]:
+    """The objects with these ids, their attributes drawn object after object by Prosimos's case attribute code,
+    from generators seeded from the seed and the catalogue's name."""
+    attributes = [CaseAttribute(attribute["name"], attribute["type"], attribute["values"]) for attribute in attribute_specs]
+    python_state, numpy_state = _engine_random_states(seed, f"catalogue/{name}")
+    shared_python, shared_numpy = random.getstate(), np.random.get_state()
+    random.setstate(python_state)
+    np.random.set_state(numpy_state)
+    try:
+        return [CatalogueObject(object_id, tuple((attribute.name, _plain_value(attribute.get_next_value()))
+                                                 for attribute in attributes))
+                for object_id in ids]
+    finally:
+        random.setstate(shared_python)
+        np.random.set_state(shared_numpy)
+
+
+def _plain_value(value):
+    return value.item() if hasattr(value, "item") else value  # a NumPy number, from a continuous attribute
