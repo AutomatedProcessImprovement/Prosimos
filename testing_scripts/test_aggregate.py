@@ -9,8 +9,9 @@ import pytest
 
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.messaging_parser import declared_attributes
+from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.protocol import Message
-from prosimos.orchestrator import ProcessSpec, ProsimosEngine, SimulationConfig, run_orchestrator
+from prosimos.orchestrator import ProsimosEngine, run_orchestrator
 from testing_scripts.scripted_engine import ScriptedEngine
 from testing_scripts.test_append import _run as _run_orders
 from testing_scripts.test_catalogue import _config_with

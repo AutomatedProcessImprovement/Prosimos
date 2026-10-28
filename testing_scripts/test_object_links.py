@@ -11,8 +11,9 @@ import pytz
 
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.ocel_writer import OcelProcess
+from prosimos.orchestration.config import ProcessSpec
 from prosimos.orchestration.protocol import CaseElement, MessageRecord
-from prosimos.orchestrator import ProcessSpec, ProsimosEngine, _object_links, run_orchestrator
+from prosimos.orchestrator import ProsimosEngine, _object_links, run_orchestrator
 from testing_scripts.test_message_records import _verdicts_run
 from testing_scripts.test_ocel_links import _items, _items_of_orders
 from testing_scripts.test_order_management import _config, package_items

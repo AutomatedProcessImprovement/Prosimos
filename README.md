@@ -64,7 +64,8 @@ JSON settings list which message events publish or wait for which messages. A co
 lists the processes, and one command (`start-orchestration`, above) or one call runs them together:
 
 ```python
-from prosimos.orchestrator import SimulationConfig, run_orchestrator
+from prosimos.orchestration.config import SimulationConfig
+from prosimos.orchestrator import run_orchestrator
 
 config = SimulationConfig.from_json("config.json")
 report = run_orchestrator(config, log_out_path="merged_log.csv", ocel_out_path="ocel.json")

@@ -11,7 +11,8 @@ import numpy as np
 import pytest
 import pytz
 
-from prosimos.orchestrator import ProcessSpec, ProsimosEngine
+from prosimos.orchestration.config import ProcessSpec
+from prosimos.orchestrator import ProsimosEngine
 from prosimos.simulation_engine import run_simulation
 from testing_scripts.orchestrator_settings import prosimos_settings
 

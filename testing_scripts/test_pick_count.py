@@ -10,7 +10,8 @@ import pandas as pd
 import pytest
 
 from prosimos.orchestration.catalogue import CountFrom, _Pick
-from prosimos.orchestrator import SimulationConfig, run_orchestrator
+from prosimos.orchestration.config import SimulationConfig
+from prosimos.orchestrator import run_orchestrator
 from testing_scripts.test_catalogue import _config_with
 from testing_scripts.test_pick import CUSTOMERS, PICKING, PRODUCTS_LIST
 

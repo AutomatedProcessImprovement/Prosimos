@@ -8,7 +8,8 @@ from pathlib import Path
 
 import pytz
 
-from prosimos.orchestrator import ProcessSpec, SimulationConfig, run_orchestrator
+from prosimos.orchestration.config import ProcessSpec, SimulationConfig
+from prosimos.orchestrator import run_orchestrator
 from testing_scripts.orchestrator_settings import orchestrator_settings
 
 REPO_ROOT = Path(__file__).resolve().parent.parent

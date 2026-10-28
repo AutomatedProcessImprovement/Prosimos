@@ -13,8 +13,9 @@ import pytz
 
 from prosimos.ocel_writer import OcelProcess, write_ocel
 from prosimos.orchestration.catalogue import CatalogueObject, Reference
+from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.protocol import CaseObject
-from prosimos.orchestrator import ProcessSpec, SimulationConfig, _reference_links, _tag_along, run_orchestrator
+from prosimos.orchestrator import _reference_links, _tag_along, run_orchestrator
 from testing_scripts.scripted_engine import ScriptedEngine
 from testing_scripts.test_collect import ORDERS, _settings, at
 from testing_scripts.test_order_management import CONFIG, _config

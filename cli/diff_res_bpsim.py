@@ -9,7 +9,8 @@ import click
 import numpy as np
 
 from bpdfr_discovery.log_parser import preprocess_xes_log
-from prosimos.orchestrator import SimulationConfig, run_orchestrator
+from prosimos.orchestration.config import SimulationConfig
+from prosimos.orchestrator import run_orchestrator
 from prosimos.simulation_engine import run_simulation
 
 

@@ -22,7 +22,7 @@ from prosimos.simulation_properties_parser import parse_simulation_model
 from prosimos.warning_logger import warning_logger
 
 if TYPE_CHECKING:
-    from prosimos.orchestrator import ProcessSpec
+    from prosimos.orchestration.config import ProcessSpec
 
 
 @dataclass(frozen=True)

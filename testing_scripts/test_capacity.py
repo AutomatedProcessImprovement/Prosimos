@@ -9,8 +9,9 @@ import pytest
 import pytz
 
 from prosimos.exceptions import InvalidSimScenarioException
+from prosimos.orchestration.config import ProcessSpec
 from prosimos.orchestration.protocol import Message, Verdict
-from prosimos.orchestrator import ProcessSpec, ProsimosEngine, run_engines
+from prosimos.orchestrator import ProsimosEngine, run_engines
 from prosimos.orchestrator import load_process
 from testing_scripts.scripted_engine import ScriptedEngine
 

@@ -8,7 +8,8 @@ from datetime import datetime, timedelta
 
 import pytz
 
-from prosimos.orchestrator import ProcessSpec, ProsimosEngine, run_engines
+from prosimos.orchestration.config import ProcessSpec
+from prosimos.orchestrator import ProsimosEngine, run_engines
 
 ASSETS = "testing_scripts/assets/messaging"
 # Sales: an order (one a day from 09:00, Place order 10 minutes) publishes one ItemOrdered per item (3), then

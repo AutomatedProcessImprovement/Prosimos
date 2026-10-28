@@ -7,8 +7,9 @@ import pytest
 
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.orchestration.catalogue import _Brought
+from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.protocol import Message
-from prosimos.orchestrator import ProcessSpec, ProsimosEngine, SimulationConfig
+from prosimos.orchestrator import ProsimosEngine
 from testing_scripts.test_aggregate import WEIGHTS, _history, _ocel_history, _rejected, _run, _settings
 from testing_scripts.test_append import _run as _run_orders
 from testing_scripts.test_catalogue import _config_with

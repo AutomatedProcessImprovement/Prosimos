@@ -11,7 +11,8 @@ from pathlib import Path
 from click.testing import CliRunner
 
 from cli.diff_res_bpsim import cli, run_summary
-from prosimos.orchestrator import SimulationConfig, run_orchestrator
+from prosimos.orchestration.config import SimulationConfig
+from prosimos.orchestrator import run_orchestrator
 
 CONFIG = "testing_scripts/assets/running_example/simulation.json"  # its seed is 1
 

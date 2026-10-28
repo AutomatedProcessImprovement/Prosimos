@@ -73,7 +73,8 @@ poetry run prosimos start-orchestration --config testing_scripts/assets/running_
 or from Python:
 
 ```python
-from prosimos.orchestrator import SimulationConfig, run_orchestrator
+from prosimos.orchestration.config import SimulationConfig
+from prosimos.orchestrator import run_orchestrator
 
 config = SimulationConfig.from_json("testing_scripts/assets/running_example/simulation.json")
 report = run_orchestrator(config, log_out_path="merged_log.csv", ocel_out_path="running_example.json")

@@ -10,7 +10,7 @@ import pytz
 
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.messaging_parser import ConditionTerm, ConsumePoint
-from prosimos.orchestrator import ProcessSpec, SimulationConfig
+from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestrator import load_process
 
 ASSETS = "testing_scripts/assets/messaging"

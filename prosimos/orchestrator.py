@@ -1,5 +1,4 @@
 import copy
-import dataclasses
 import csv
 import itertools
 import json
@@ -10,160 +9,22 @@ from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import numpy as np
-import pytz
 
 from prosimos.control_flow_manager import BPMN
 from prosimos.messaging_parser import ConsumePoint, PublishPoint, unknown_keys
 from prosimos.ocel_writer import OcelProcess, write_ocel
-from prosimos.orchestration.catalogue import (CatalogueObject, CataloguePool, CountFrom, GrowingCatalogue, Reference,
-                                            _Pick, _checked_catalogue, _drawn_catalogues, _grown_catalogues, _picks)
-from prosimos.orchestration.config import (CONFIG_KEYS, PROCESS_KEYS, _catalogue, _check_keys, _checked_consumer_groups,
-                                         _checked_ocel_attributes, _object_type, _ocel_attributes, _reference)
+from prosimos.orchestration.catalogue import (CatalogueObject, CountFrom, GrowingCatalogue, _Pick, _drawn_catalogues,
+                                            _grown_catalogues, _picks)
+from prosimos.orchestration.config import ProcessSpec, SimulationConfig, _checked_consumer_groups
 from prosimos.orchestration.protocol import (CaseElement, CaseObject, ClaimRecord, EngineReport, Message,
                                            MessageRecord, PublishRecord, SimulationEngine, StalledCase, Verdict)
 from prosimos.orchestration.random_states import _engine_random_states
 from prosimos.simulation_engine import SimBPMEnv
-from prosimos.simulation_properties_parser import parse_datetime
 from prosimos.simulation_setup import SimDiffSetup
 from prosimos.warning_logger import warning_logger
-
-
-@dataclass(frozen=True)
-class ProcessSpec:
-    name: str
-    bpmn_path: str
-    json_path: str
-    arrivals: Optional[int] = None  # how many cases arrive; None for a process started by messages
-    # the OCEL object type of its cases, one kind of thing, in the singular; without one, the process writes no
-    # objects and no events in the OCEL output
-    object_type: Optional[str] = None
-    # the qualifier of each event's link to its own case's object: None means the object type; per task id,
-    # qualifier_by_activity overrides it, e.g. (("Create_Package", "creates"),)
-    qualifier: Optional[str] = None
-    qualifier_by_activity: Tuple[Tuple[str, str], ...] = ()
-    # every later event of a case also links the objects the case is linked to through its messages
-    carry_links: bool = False
-    # the attributes written to its objects in the OCEL output; the others, e.g. those only routing messages, aren't
-    ocel_attributes: Tuple[str, ...] = ()
-    # its catalogues, name -> objects with no events of their own (see SimulationConfig), and its references, each
-    # naming one of its own catalogues
-    catalogues: Dict[str, Union[List["CatalogueObject"], "CataloguePool", "GrowingCatalogue"]] = field(
-        default_factory=dict, hash=False)
-    references: Tuple["Reference", ...] = ()
-
-    def __post_init__(self):
-        # each reference knows the process whose entry lists it
-        object.__setattr__(self, "references", tuple(dataclasses.replace(reference, process=self.name)
-                                                     for reference in self.references))
-
-    @property
-    def id_prefix(self) -> str:
-        """Its objects' ids are <id prefix>-<number>: the object type, or the name of a process without one."""
-        return self.object_type or self.name
-
-
-@dataclass(frozen=True)
-class SimulationConfig:
-    """
-    Everything needed for one multi-process run. Each consumer group maps a group name to the
-    processes in it; without consumer_groups, every process is its own group. Every process must
-    be in exactly one group, and groups may only name known processes. extra_processes names the
-    processes that run_orchestrator receives as ready-made engines instead of building them from a
-    ProcessSpec (e.g. scripted test engines), so that groups can name them too. Each process's catalogues map a
-    name (the OCEL object type) to the objects with no events of their own, a list of CatalogueObject, a
-    CataloguePool or a GrowingCatalogue, and its references say which of its attributes hold their ids, and may
-    pick them (see _checked_catalogue for what is rejected).
-    """
-
-    processes: List[ProcessSpec]
-    start_datetime: datetime
-    seed: Optional[int] = None
-    consumer_groups: Optional[Dict[str, List[str]]] = None
-    extra_processes: Tuple[str, ...] = ()
-
-    @property
-    def catalogue(self) -> Dict[str, Union[List[CatalogueObject], CataloguePool, GrowingCatalogue]]:
-        """Every process's catalogues, name -> objects; the names are unique across the processes. Only for the
-        OCEL output at the end of the run, which writes and links the objects of all of them: building a process
-        uses its own entry (ProcessSpec.catalogues)."""
-        return {name: entry for spec in self.processes for name, entry in spec.catalogues.items()}
-
-    @property
-    def references(self) -> Tuple[Reference, ...]:
-        """Every process's references, in the order of the processes. Only for the OCEL output at the end of the
-        run, which joins the links of all of them: building a process uses its own entry (ProcessSpec.references)."""
-        return tuple(reference for spec in self.processes for reference in spec.references)
-
-    def __post_init__(self):
-        object.__setattr__(self, "extra_processes", tuple(self.extra_processes))
-        names = [spec.name for spec in self.processes] + list(self.extra_processes)
-        duplicates = sorted({name for name in names if names.count(name) > 1})
-        if duplicates:
-            raise ValueError(f"Process names must be unique, repeated: {duplicates}")
-
-        object.__setattr__(self, "consumer_groups", _checked_consumer_groups(names, self.consumer_groups))
-        _checked_catalogue(self.processes)
-        _checked_ocel_attributes(self.processes)
-
-    @classmethod
-    def from_json(cls, path) -> "SimulationConfig":
-        """
-        Load a configuration file such as
-            {"processes": [{"name": "Sales", "bpmn_path": "sales.bpmn",
-                            "json_path": "sales.json", "arrivals": 100}, ...],
-             "seed": 42, "start_time": "2024-01-01T09:00:00+00:00",
-             "consumer_groups": {"Sales": ["Sales"], ...}}
-        BPMN and JSON paths are relative to the configuration file's folder. seed and
-        consumer_groups are optional; a start time without a time zone is taken as UTC. A process
-        started by messages has no arrivals. A process's optional object_type names the OCEL object
-        type of its cases; without one, it writes no objects and no events. Its
-        optional qualifier (by default the object type) and qualifier_by_activity ({task id: qualifier})
-        qualify each event's link to its own case's object, and carry_links (false by default) makes every
-        later event of a case also link the objects the case is linked to through its messages. Its optional
-        ocel_attributes list the attributes written to its objects; without it, none.
-        A process's optional catalogues ({name: [{"id": ..., "attributes": {...}}]}, {name: {"count": ...,
-        "attributes": [as in object_attributes]}} for a generated pool, or {name: {"attributes": [...]}} for a
-        growing one) declare objects with no events of their own, and its references ([{"object_attribute",
-        "catalogue", "o2o", "reverse", "link_events", "pick", "with", "tag_along"}], the last six optional) say
-        which of its attributes hold the ids of its catalogues' objects, and may pick them and bring their
-        attributes in.
-        """
-        path = Path(path)
-        with open(path) as f:
-            data = json.load(f)
-
-        _check_keys(path, "top level", data, CONFIG_KEYS)
-        missing = [key for key in ("processes", "start_time") if key not in data]
-        if missing:
-            raise ValueError(f"{path}: missing {missing}")
-
-        folder = path.parent
-        processes = []
-        for number, entry in enumerate(data["processes"]):
-            _check_keys(path, f"processes[{number}]", entry, PROCESS_KEYS)
-            missing = [key for key in ("name", "bpmn_path", "json_path") if key not in entry]
-            if missing:
-                raise ValueError(f"{path}: process {entry.get('name', '?')} is missing {missing}")
-            where = f"processes[{number}]"
-            catalogues = {name: _catalogue(path, f"{where}.catalogues.{name}", entries)
-                          for name, entries in entry.get("catalogues", {}).items()}
-            references = [_reference(path, f"{where}.references[{index}]", reference)
-                          for index, reference in enumerate(entry.get("references", []))]
-            processes.append(ProcessSpec(
-                entry["name"], str(folder / entry["bpmn_path"]), str(folder / entry["json_path"]), entry.get("arrivals"),
-                _object_type(path, f"processes[{number}]", entry), entry.get("qualifier"),
-                tuple(sorted(entry.get("qualifier_by_activity", {}).items())), entry.get("carry_links", False),
-                _ocel_attributes(path, where, entry), catalogues, tuple(references)
-            ))
-
-        start = parse_datetime(data["start_time"], True)
-        if start.tzinfo is None:
-            start = pytz.utc.localize(start)
-
-        return cls(processes, start, data.get("seed"), data.get("consumer_groups"))
 
 
 # the top-level sections of a process's JSON settings: Prosimos's own, with object_attributes in place of its
