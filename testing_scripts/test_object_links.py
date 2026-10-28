@@ -13,8 +13,9 @@ from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.orchestration.config import ProcessSpec
 from prosimos.orchestration.ocel_writer import OcelProcess
 from prosimos.orchestration.output import _object_links
+from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import CaseElement, MessageRecord
-from prosimos.orchestrator import ProsimosEngine, run_orchestrator
+from prosimos.orchestrator import run_orchestrator
 from testing_scripts.test_message_records import _verdicts_run
 from testing_scripts.test_ocel_links import _items, _items_of_orders
 from testing_scripts.test_order_management import _config, package_items

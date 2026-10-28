@@ -101,7 +101,7 @@ def test_a_count_read_from_an_attribute_takes_the_value_drawn_for_the_same_case(
 
 def test_a_count_attribute_without_a_whole_number_picks_one_with_one_warning(monkeypatch):
     warnings = []
-    monkeypatch.setattr("prosimos.orchestrator.warning_logger.add_warning", warnings.append)
+    monkeypatch.setattr("prosimos.orchestration.catalogue.warning_logger.add_warning", warnings.append)
     items = _Drawn("items", [2.5, -1])
     pick = _Pick("products", ["a", "b"], None, seed=1, process="P", count=CountFrom("items"))
     pick.read_count_from(items)

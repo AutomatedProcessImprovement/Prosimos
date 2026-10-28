@@ -10,7 +10,8 @@ import pytz
 
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
-from prosimos.orchestrator import ProsimosEngine, run_orchestrator
+from prosimos.orchestration.prosimos_engine import ProsimosEngine
+from prosimos.orchestrator import run_orchestrator
 from testing_scripts.scripted_engine import ScriptedEngine
 
 ASSETS = "testing_scripts/assets/messaging"

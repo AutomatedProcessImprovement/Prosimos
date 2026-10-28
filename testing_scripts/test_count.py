@@ -10,8 +10,8 @@ import pytz
 
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.orchestration.config import ProcessSpec
-from prosimos.orchestration.prosimos_engine import load_process
-from prosimos.orchestrator import ProsimosEngine, run_engines
+from prosimos.orchestration.prosimos_engine import ProsimosEngine, load_process
+from prosimos.orchestrator import run_engines
 
 ASSETS = "testing_scripts/assets/messaging"
 # an order arrives every hour from 09:00; after Take order (10 minutes) it publishes one ItemOrdered per item

@@ -9,8 +9,9 @@ from datetime import datetime
 import pytz
 
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
+from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import Message, Verdict
-from prosimos.orchestrator import ProsimosEngine, run_orchestrator
+from prosimos.orchestrator import run_orchestrator
 
 ASSETS = "testing_scripts/assets/messaging"
 START = pytz.utc.localize(datetime(2024, 1, 1, 9))

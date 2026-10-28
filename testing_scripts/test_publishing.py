@@ -12,7 +12,7 @@ import pytest
 import pytz
 
 from prosimos.orchestration.config import ProcessSpec
-from prosimos.orchestrator import ProsimosEngine
+from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.simulation_engine import run_simulation
 from testing_scripts.orchestrator_settings import prosimos_settings
 
