@@ -16,7 +16,7 @@ import numpy as np
 from prosimos.case_attributes import CaseAttribute
 from prosimos.control_flow_manager import BPMN
 from prosimos.messaging_parser import AGGREGATE_FUNCTIONS, is_number, is_whole_number
-from prosimos.orchestration.random_states import _engine_random_states
+from prosimos.orchestration.random_generators import _engine_random_states
 from prosimos.simulation_engine import _aggregated, _is_number
 from prosimos.simulation_properties_parser import parse_simulation_model
 from prosimos.warning_logger import warning_logger

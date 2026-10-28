@@ -19,45 +19,9 @@ from prosimos.orchestration.output import (_MergedLog, _message_links, _object_l
 from prosimos.orchestration.prosimos_engine import load_process
 from prosimos.orchestration.protocol import (CaseElement, CaseObject, ClaimRecord, EngineReport, Message,
                                            MessageRecord, PublishRecord, SimulationEngine, StalledCase, Verdict)
-from prosimos.orchestration.random_states import _engine_random_states
+from prosimos.orchestration.random_generators import _engine_random_states, _generators
 from prosimos.simulation_engine import SimBPMEnv
 from prosimos.warning_logger import warning_logger
-
-
-class _GlobalGenerators:
-    """Whose states the global Python and NumPy generators hold: the caller's (holder None) or a ProsimosEngine's.
-    Swapping them copies both states, which costs more than many engine calls themselves, so while keep is set
-    an engine leaves its states there after a call, and its next call finds them in place: they are swapped only
-    when another engine is called. Each engine still draws from its own states only, so nothing it draws
-    changes. keep is only for code that draws nothing from the global generators between engine calls, like
-    the orchestrator loop."""
-
-    def __init__(self):
-        self.holder, self.keep, self._callers = None, False, None
-
-    def take(self, engine):
-        if self.holder is engine:
-            return
-        states = random.getstate(), np.random.get_state()
-        if self.holder is None:
-            self._callers = states
-        else:
-            self.holder._python_state, self.holder._numpy_state = states
-        random.setstate(engine._python_state)
-        np.random.set_state(engine._numpy_state)
-        self.holder = engine
-
-    def give_back(self):
-        """Puts the caller's states back, keeping the holder's for its next call."""
-        if self.holder is None:
-            return
-        self.holder._python_state, self.holder._numpy_state = random.getstate(), np.random.get_state()
-        random.setstate(self._callers[0])
-        np.random.set_state(self._callers[1])
-        self.holder, self._callers = None, None
-
-
-_generators = _GlobalGenerators()
 
 
 class ProsimosEngine(SimulationEngine):
