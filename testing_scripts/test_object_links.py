@@ -10,8 +10,8 @@ import pytest
 import pytz
 
 from prosimos.exceptions import InvalidSimScenarioException
-from prosimos.ocel_writer import OcelProcess
 from prosimos.orchestration.config import ProcessSpec
+from prosimos.orchestration.ocel_writer import OcelProcess
 from prosimos.orchestration.output import _object_links
 from prosimos.orchestration.protocol import CaseElement, MessageRecord
 from prosimos.orchestrator import ProsimosEngine, run_orchestrator

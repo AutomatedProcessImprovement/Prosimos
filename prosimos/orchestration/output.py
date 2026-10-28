@@ -8,9 +8,9 @@ from dataclasses import asdict
 from datetime import datetime
 from typing import Any, Dict, List
 
-from prosimos.ocel_writer import OcelProcess
 from prosimos.orchestration.catalogue import CatalogueObject, GrowingCatalogue
 from prosimos.orchestration.config import SimulationConfig
+from prosimos.orchestration.ocel_writer import OcelProcess
 from prosimos.orchestration.protocol import CaseElement, MessageRecord
 
 

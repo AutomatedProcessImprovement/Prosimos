@@ -11,9 +11,9 @@ from pathlib import Path
 import pytest
 import pytz
 
-from prosimos.ocel_writer import OcelProcess, write_ocel
 from prosimos.orchestration.catalogue import CatalogueObject, Reference
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
+from prosimos.orchestration.ocel_writer import OcelProcess, write_ocel
 from prosimos.orchestration.output import _reference_links, _tag_along
 from prosimos.orchestration.protocol import CaseObject
 from prosimos.orchestrator import run_orchestrator

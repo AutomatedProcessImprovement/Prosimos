@@ -14,9 +14,9 @@ import numpy as np
 
 from prosimos.control_flow_manager import BPMN
 from prosimos.messaging_parser import ConsumePoint, PublishPoint, unknown_keys
-from prosimos.ocel_writer import OcelProcess, write_ocel
 from prosimos.orchestration.catalogue import CountFrom, _Pick, _drawn_catalogues, _grown_catalogues, _picks
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig, _checked_consumer_groups
+from prosimos.orchestration.ocel_writer import OcelProcess, write_ocel
 from prosimos.orchestration.output import (_MergedLog, _message_links, _object_links, _plain, _reference_links,
                                          _tag_along)
 from prosimos.orchestration.protocol import (CaseElement, CaseObject, ClaimRecord, EngineReport, Message,
@@ -462,7 +462,7 @@ def run_orchestrator(config: SimulationConfig, log_out_path: Optional[str] = Non
     and one event per task, linked to its case's object and to the objects on the other end of its
     messages; objects are linked to each other where a message entry has an o2o key, and the catalogue's
     objects are written and linked where references say a case attribute holds their ids (see
-    prosimos/ocel_writer.py).
+    prosimos/orchestration/ocel_writer.py).
     extra_engines are ready-made engines, keyed by process name, that run alongside the ones built
     from config.processes; their names must be exactly config.extra_processes. They get no log
     writer, so the merged log holds only the configured processes.
