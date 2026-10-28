@@ -2,8 +2,17 @@
 Catalogues and picks (docs/catalogue.md): objects with no events of their own, a process's references to them, and
 the picks that assign them to its cases.
 """
+import json
+import re
+from collections import Counter, defaultdict
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Union
+
+from prosimos.case_attributes import CaseAttribute
+from prosimos.control_flow_manager import BPMN
+from prosimos.messaging_parser import AGGREGATE_FUNCTIONS, is_number, is_whole_number
+from prosimos.simulation_engine import _is_number
+from prosimos.simulation_properties_parser import parse_simulation_model
 
 
 @dataclass(frozen=True)
@@ -98,3 +107,245 @@ def _catalogue_ids(name, entry) -> List[str]:
     if isinstance(entry, CataloguePool):
         return [f"{name}-{number}" for number in range(1, entry.count + 1)] if isinstance(entry.count, int) else []
     return [obj.id for obj in entry]
+
+
+def _checked_catalogue(processes):
+    """Catalogue names unique across the processes and unlike their object types, since both are OCEL object types;
+    ids unique across all catalogues and unlike the processes' object ids (<object type>-<number>), since both are
+    OCEL object ids; pools with a count of at least 1 and attributes in the format of object_attributes; and
+    references only naming catalogues of their own process and, in link_events, tasks of it (by name or id). A
+    pick is "uniform" or weights on known ids of a listed catalogue, "uniform" on a pool, or "new" or new_share on
+    a growing catalogue, for an attribute that the process's object_attributes don't have and its consume entries
+    don't copy, append or aggregate into, and at most one per process and attribute. A growing catalogue's objects are created by exactly one reference, and no other id looks like
+    them (<catalogue name>-<number>). with gives attributes that the process doesn't otherwise pick, draw, copy,
+    append or aggregate into, and not object_id, from attributes that every object of the picked listed catalogue
+    or pool has, as numbers for a sum, min or max; a pick with count only computes them."""
+    problems = []
+    owners = defaultdict(list)  # catalogue name -> the processes declaring it
+    for spec in processes:
+        for name in spec.catalogues:
+            owners[name].append(spec.name)
+    for name, declaring in owners.items():
+        if len(declaring) > 1:
+            problems.append(f"catalogue {name!r} is declared by more than one process: {', '.join(declaring)}")
+    catalogue = {name: entry for spec in processes for name, entry in spec.catalogues.items()}
+    # (where it is in the configuration, reference)
+    references = [(f"processes[{index}].references[{number}]", reference)
+                  for index, spec in enumerate(processes) for number, reference in enumerate(spec.references)]
+    for name, entry in catalogue.items():
+        if not isinstance(entry, (CataloguePool, GrowingCatalogue)):
+            continue
+        if isinstance(entry, CataloguePool) and (not isinstance(entry.count, int) or isinstance(entry.count, bool)
+                                                 or entry.count < 1):
+            problems.append(f"catalogue {name!r}: count must be a whole number of at least 1, got {entry.count!r}")
+        for number, attribute in enumerate(entry.attributes):
+            try:
+                CaseAttribute(attribute["name"], attribute["type"], attribute["values"])
+            except Exception as error:  # Prosimos's own messages, as for object_attributes
+                problems.append(f"catalogue {name!r}: attributes[{number}]: {type(error).__name__}: {error}")
+    ids = [object_id for name, entry in catalogue.items() for object_id in _catalogue_ids(name, entry)]
+    repeated = sorted(object_id for object_id, times in Counter(ids).items() if times > 1)
+    if repeated:
+        problems.append(f"catalogue ids are repeated: {repeated}")
+    object_types = {spec.object_type: spec.name for spec in processes if spec.object_type is not None}
+    object_id = re.compile("|".join(rf"{re.escape(object_type)}-\d+" for object_type in object_types))
+    like_object_ids = sorted({obj for obj in ids if object_types and object_id.fullmatch(obj)})
+    if like_object_ids:
+        problems.append(f"catalogue ids look like object ids (<object type>-<number>): {like_object_ids}")
+    growing = [name for name, entry in catalogue.items() if isinstance(entry, GrowingCatalogue)]
+    for name in growing:
+        created_id = re.compile(rf"{re.escape(name)}-\d+")
+        like_created = sorted({object_id for object_id in ids if created_id.fullmatch(object_id)})
+        if like_created:
+            problems.append(f"catalogue ids look like the ids growing catalogue {name!r} creates "
+                            f"({name}-<number>): {like_created}")
+        creators = [reference for _, reference in references if reference.catalogue == name and reference.creates]
+        if len(creators) != 1:
+            problems.append(f"growing catalogue {name!r} needs exactly one reference that creates its objects "
+                            f'("new" or new_share), got {len(creators)}')
+    for name in catalogue:
+        if name in object_types:
+            problems.append(f"catalogue {name!r} is the object type of process {object_types[name]}")
+    specs = {spec.name: spec for spec in processes}
+    tasks_of = {}
+    for where, reference in references:
+        if reference.catalogue not in specs[reference.process].catalogues:
+            # what another process knows reaches this one only in messages
+            problems.append(f"{where} names catalogue {reference.catalogue!r} of process "
+                            f"{', '.join(owners[reference.catalogue])}; a reference names a catalogue of its own process"
+                            if reference.catalogue in owners else f"{where} names unknown catalogue {reference.catalogue!r}")
+            continue
+        if reference.link_events:
+            if reference.process not in tasks_of:
+                graph = parse_simulation_model(specs[reference.process].bpmn_path)
+                tasks_of[reference.process] = {key for info in graph.element_info.values() if info.type == BPMN.TASK
+                                               for key in (info.id, info.name)}
+            unknown = [task for task in reference.link_events if task not in tasks_of[reference.process]]
+            if unknown:
+                problems.append(f"{where} link_events names {unknown}, which are no tasks of process {reference.process}")
+        if reference.pick is not None:
+            problems.extend(f"{where} {problem}"
+                            for problem in _pick_problems(reference, catalogue[reference.catalogue], specs))
+        if reference.count is not None:
+            problems.extend(f"{where} {problem}" for problem in _count_problems(reference, specs))
+    picked = [(reference.process, reference.object_attribute) for _, reference in references if reference.pick is not None]
+    for process, attribute in sorted({pair for pair in picked if picked.count(pair) > 1}):
+        problems.append(f"more than one reference picks {attribute} of process {process}")
+    brought = [(reference.process, name) for _, reference in references for name in _brought_names(reference)]
+    for where, reference in references:
+        if reference.with_attributes and reference.catalogue in specs[reference.process].catalogues:
+            problems.extend(f"{where} {problem}" for problem in _with_problems(
+                reference, catalogue[reference.catalogue], specs, set(picked), brought))
+    if problems:
+        raise ValueError("Invalid catalogue: " + "; ".join(problems))
+
+
+def _pick_problems(reference, entry, specs):
+    if isinstance(entry, GrowingCatalogue) and not reference.creates:
+        return [f'picks from growing catalogue {reference.catalogue!r}, which only takes "new" or {{"new_share": ...}}']
+    if reference.creates:
+        if entry is not None and not isinstance(entry, GrowingCatalogue):
+            return [f'picks "new" or new_share from catalogue {reference.catalogue!r}, which is no growing catalogue']
+        share = reference.pick.share if isinstance(reference.pick, NewShare) else 1
+        if not isinstance(share, (int, float)) or isinstance(share, bool) or not 0 < share <= 1:
+            return [f"new_share must be a number above 0 and at most 1, got {share!r}"]
+    elif reference.pick != "uniform":
+        if not isinstance(reference.pick, tuple):
+            return ['pick must be "uniform", {"weights": {id: weight, ...}}, "new" or {"new_share": share}']
+        if isinstance(entry, CataloguePool):
+            return [f"has weights on pool {reference.catalogue!r}; a pool can only be picked from uniformly"]
+        if entry is not None:
+            unknown = [object_id for object_id, _ in reference.pick if object_id not in {obj.id for obj in entry}]
+            if unknown:
+                return [f"weights name {unknown}, which are no ids of catalogue {reference.catalogue!r}"]
+        weights = [weight for _, weight in reference.pick]
+        if not all(isinstance(weight, (int, float)) and not isinstance(weight, bool) and weight >= 0
+                   for weight in weights) or sum(weights) <= 0:
+            return [f"weights must be numbers of at least 0, not all 0, got {dict(reference.pick)}"]
+    return _settings_problems("picks", reference.object_attribute, reference.process, specs)
+
+
+def _count_problems(reference, specs):
+    count = reference.count
+    if reference.pick is None:
+        return ["has count but no pick; count says how many objects the pick chooses"]
+    if reference.creates:
+        return ['has count with "new" or new_share; count works with "uniform" or weights, which choose among the '
+                'objects there are']
+    if isinstance(count, CountFrom):
+        with open(specs[reference.process].json_path) as file:
+            declared = {entry.get("name") for entry in json.load(file).get("object_attributes", [])}
+        if count.object_attribute not in declared:
+            return [f"count reads {count.object_attribute!r}, which process {reference.process} doesn't draw in its "
+                    f"object_attributes; the count is read when the case is created"]
+        return []
+    if not is_whole_number(count, minimum=0):
+        return [f'count must be a whole number of at least 0 or {{"object_attribute": <object attribute>}}, '
+                f"got {count!r}"]
+    return []
+
+
+def _with_json(pairs):
+    """with as the configuration wrote it, for messages."""
+    if not isinstance(pairs, tuple):
+        return pairs
+    def written(source):
+        if not isinstance(source, Computed):
+            return source
+        return {source.function: source.source, **({} if source.initial is None else {"initial": source.initial})}
+
+    return {pair[0]: written(pair[1]) for pair in pairs if isinstance(pair, tuple) and len(pair) == 2}
+
+
+def _drawn_as_numbers(attribute):
+    """Whether a pool attribute, in the format of object_attributes, always draws a number: a continuous one, or a
+    discrete one whose keys are all numbers."""
+    if attribute.get("type") == "continuous":
+        return True
+    values = attribute.get("values")
+    return isinstance(values, list) and all(isinstance(value, dict) and _is_number(value.get("key")) for value in values)
+
+
+def _settings_problems(verb, attribute, process, specs):
+    """An attribute that the orchestrator gives a process's cases when they are created, which its JSON settings
+    also set: drawn in object_attributes, or set from a message."""
+    with open(specs[process].json_path) as file:
+        settings = json.load(file)
+    declared = {entry.get("name") for entry in settings.get("object_attributes", [])}
+    if attribute in declared:
+        return [f"{verb} {attribute}, which process {process} also draws in its object_attributes"]
+    # a copied value would replace the given one (with "new", the replaced object is never written), an
+    # appended attribute is a list, and an aggregated one is computed over the messages claimed
+    messages = settings.get("messages")
+    consume = messages.get("consume", []) if isinstance(messages, dict) else []
+    for key, also in (("copy", "copies"), ("append", "appends to"), ("aggregate", "aggregates into")):
+        found_at = [entry.get("event_id") for entry in consume if isinstance(entry, dict)
+                    and isinstance(entry.get(key), dict) and attribute in entry[key]]
+        if found_at:
+            return [f"{verb} {attribute}, which process {process} also {also} from a message (consume entries at "
+                    f"{found_at})"]
+    return []
+
+
+def _brought_names(reference):
+    """The attributes a reference's with gives its cases (none if with is malformed, which _with_problems reports)."""
+    pairs = reference.with_attributes
+    return [pair[0] for pair in pairs if isinstance(pair, tuple) and len(pair) == 2] if isinstance(pairs, tuple) else []
+
+
+def _with_problems(reference, entry, specs, picked, brought):
+    """picked: (process, attribute) of every pick; brought: (process, attribute) of every attribute a with gives."""
+    pairs = reference.with_attributes
+    if isinstance(pairs, tuple):
+        for name, source in (pair for pair in pairs if isinstance(pair, tuple) and len(pair) == 2):
+            if isinstance(source, dict) and set(source) == {"initial"}:
+                return [f"with {name!r} has initial but no function; initial is the first value a sum, count, min "
+                        f"or max works over, and a plain copy has none"]
+            initial = source.get("initial") if isinstance(source, dict) else getattr(source, "initial", None)
+            if (isinstance(source, Computed) and initial is not None or isinstance(source, dict) and "initial" in source) \
+                    and not is_number(initial):
+                return [f"with {name!r} initial must be a number, got {initial!r}"]
+    if not (isinstance(pairs, tuple) and all(
+            isinstance(pair, tuple) and len(pair) == 2 and isinstance(pair[0], str) and pair[0]
+            and (isinstance(pair[1], str) and pair[1]
+                 or isinstance(pair[1], Computed) and pair[1].function in AGGREGATE_FUNCTIONS
+                 and isinstance(pair[1].source, str) and pair[1].source) for pair in pairs)):
+        return ['with must map attribute names to an attribute of the picked object or to one function of one, '
+                f'{{"sum" | "count" | "min" | "max": <attribute>}}, got {_with_json(pairs)!r}']
+    if reference.pick is None:
+        return ["has with but no pick; a catalogue object brings its attributes only when the reference picks it"]
+    if isinstance(entry, GrowingCatalogue):
+        return [f"has with on growing catalogue {reference.catalogue!r}, whose objects don't exist yet when a "
+                f"case is created"]
+    copied = [name for name, source in pairs if isinstance(source, str)]
+    if reference.count is not None and copied:
+        return [f"copies {copied} on a pick with count; a list pick needs a function over the picked objects, "
+                f'e.g. {{"sum": "price"}}']
+    sources = list(dict.fromkeys(source.source if isinstance(source, Computed) else source for _, source in pairs))
+    numeric = list(dict.fromkeys(source.source for _, source in pairs
+                                 if isinstance(source, Computed) and source.function != "count"))
+    if entry is not None:
+        if isinstance(entry, CataloguePool):
+            specs_of = {attribute.get("name"): attribute for attribute in entry.attributes}
+            missing = [name for name in sources if name not in specs_of]
+            not_numbers = [name for name in numeric if name in specs_of and not _drawn_as_numbers(specs_of[name])]
+        else:
+            missing = [name for name in sources if not all(name in dict(obj.attributes) for obj in entry)]
+            not_numbers = [name for name in numeric if name not in missing
+                           and not all(_is_number(dict(obj.attributes)[name]) for obj in entry)]
+        if missing:
+            return [f"with names {missing}, which not every object of catalogue {reference.catalogue!r} has"]
+        if not_numbers:
+            return [f"with sums, or takes the min or max of, {not_numbers}, which not every object of catalogue "
+                    f"{reference.catalogue!r} has as a number"]
+    problems = []
+    for name, _ in pairs:
+        if name == "object_id":
+            problems.append("brings object_id, which is reserved for the object's own id")
+        elif (reference.process, name) in picked:
+            problems.append(f"brings {name}, which process {reference.process} also picks")
+        elif brought.count((reference.process, name)) > 1:
+            problems.append(f"brings {name}, which another with also brings to process {reference.process}")
+        else:
+            problems.extend(_settings_problems("brings", name, reference.process, specs))
+    return problems
