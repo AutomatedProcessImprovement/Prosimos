@@ -20,7 +20,7 @@ from prosimos.orchestration.orchestrator import run_engines
 from prosimos.orchestration.output import _message_links
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import CaseElement, CaseObject, MessageRecord, Verdict
-from prosimos.orchestrator import run_orchestrator
+from prosimos.orchestration.simulation import run_orchestrator
 from testing_scripts.orchestrator_settings import with_qualifiers
 from testing_scripts.scripted_engine import ScriptedEngine
 from testing_scripts.test_item_verdicts import PICKING, PICKING_JSON, SALES, SALES_JSON, _picking_in

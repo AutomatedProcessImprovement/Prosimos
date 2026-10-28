@@ -9,7 +9,7 @@ import pytz
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import Message, SimulationEngine, Verdict
-from prosimos.orchestrator import run_orchestrator
+from prosimos.orchestration.simulation import run_orchestrator
 from testing_scripts.orchestrator_settings import orchestrator_settings
 from testing_scripts.test_batching_stats import get_path
 

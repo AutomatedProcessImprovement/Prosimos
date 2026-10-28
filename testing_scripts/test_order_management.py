@@ -16,7 +16,7 @@ from click.testing import CliRunner
 
 from cli.diff_res_bpsim import cli
 from prosimos.orchestration.config import SimulationConfig
-from prosimos.orchestrator import run_orchestrator
+from prosimos.orchestration.simulation import run_orchestrator
 CONFIG = "testing_scripts/assets/order_management/simulation.json"  # 2,000 orders, 1,450 packing rounds; seed 1
 ORDERS = 100
 # enough rounds to pack every item: restocked items are picked up to a week after the last order

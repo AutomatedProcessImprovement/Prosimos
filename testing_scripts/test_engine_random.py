@@ -14,7 +14,7 @@ import pytest
 import pytz
 
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
-from prosimos.orchestrator import run_orchestrator
+from prosimos.orchestration.simulation import run_orchestrator
 from prosimos.simulation_engine import SimBPMEnv, run_simulation
 from testing_scripts.scripted_engine import ScriptedEngine
 

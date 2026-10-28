@@ -12,7 +12,7 @@ from prosimos.messaging_parser import declared_attributes
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import Message
-from prosimos.orchestrator import run_orchestrator
+from prosimos.orchestration.simulation import run_orchestrator
 from testing_scripts.scripted_engine import ScriptedEngine
 from testing_scripts.test_append import _run as _run_orders
 from testing_scripts.test_catalogue import _config_with

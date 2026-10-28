@@ -10,7 +10,7 @@ from datetime import datetime
 import pytest
 
 from prosimos.orchestration.config import SimulationConfig
-from prosimos.orchestrator import run_orchestrator
+from prosimos.orchestration.simulation import run_orchestrator
 
 CONFIG = "testing_scripts/assets/running_example/simulation.json"  # seed 1, 20 orders
 SERVES = {"TartuWarehouse": {"Tartu", "Tapa"}, "TallinnWarehouse": {"Tallinn", "Tapa"}}

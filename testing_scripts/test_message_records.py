@@ -10,7 +10,7 @@ from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.orchestrator import run_engines
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import Verdict
-from prosimos.orchestrator import run_orchestrator
+from prosimos.orchestration.simulation import run_orchestrator
 from testing_scripts.orchestrator_settings import with_qualifiers
 from testing_scripts.scripted_engine import ScriptedEngine
 
