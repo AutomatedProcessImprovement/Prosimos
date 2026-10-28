@@ -13,9 +13,10 @@ import pytz
 
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.ocel_writer import OcelProcess, object_ids, write_ocel
+from prosimos.orchestration.orchestrator import run_engines
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import CaseObject
-from prosimos.orchestrator import run_engines, run_orchestrator
+from prosimos.orchestrator import run_orchestrator
 from testing_scripts.scripted_engine import ScriptedEngine
 from testing_scripts.test_order_management import _config
 

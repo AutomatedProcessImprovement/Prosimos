@@ -18,8 +18,8 @@ from datetime import datetime, timedelta
 
 import pytz
 
+from prosimos.orchestration.orchestrator import run_engines
 from prosimos.orchestration.protocol import Message, Verdict
-from prosimos.orchestrator import run_engines
 from testing_scripts.scripted_engine import ScriptedEngine
 
 DAY = pytz.utc.localize(datetime(2024, 1, 1))

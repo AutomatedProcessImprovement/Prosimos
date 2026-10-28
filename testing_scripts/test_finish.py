@@ -11,9 +11,9 @@ import pytest
 import pytz
 
 from prosimos.orchestration.config import ProcessSpec
+from prosimos.orchestration.orchestrator import run_engines
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import StalledCase
-from prosimos.orchestrator import run_engines
 from prosimos.warning_logger import warning_logger
 from testing_scripts.scripted_engine import ScriptedEngine
 

@@ -13,8 +13,8 @@ from collections import Counter
 
 import pytest
 
+from prosimos.orchestration.orchestrator import run_engines
 from prosimos.orchestration.protocol import Verdict
-from prosimos.orchestrator import run_engines
 from testing_scripts.protocol_scenario import at, run_scenario
 from testing_scripts.scripted_engine import ScriptedEngine
 
