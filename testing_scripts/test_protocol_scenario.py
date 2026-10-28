@@ -13,7 +13,7 @@ from collections import Counter
 
 import pytest
 
-from prosimos.orchestration.orchestrator import run_engines
+from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.protocol import Verdict
 from testing_scripts.protocol_scenario import at, run_scenario
 from testing_scripts.scripted_engine import ScriptedEngine
@@ -225,7 +225,7 @@ def test_a_member_that_discarded_a_copy_is_not_offered_it_again():
     b.consume("X", lambda message, now: Verdict.PENDING)
     b.at(at("10:00"), lambda now: None)
 
-    report = run_engines({"P": publisher, "A": a, "B": b}, {"P": ["P"], "Pair": ["A", "B"]}, FIXED_SEED)
+    report = orchestrate({"P": publisher, "A": a, "B": b}, {"P": ["P"], "Pair": ["A", "B"]}, FIXED_SEED)
 
     assert [time for _, time in a.offered] == [at("09:00")]
     assert [time for _, time in b.offered] == [at("09:00"), at("10:00")]
@@ -241,7 +241,7 @@ def test_pooled_copies_are_offered_oldest_first_even_when_the_stepping_engine_pu
     for engine in (b, c):
         engine.consume("X", lambda message, now: Verdict.PENDING)
 
-    run_engines({"P": publisher, "B": b, "C": c}, {"P": ["P"], "Shop": ["B", "C"]}, FIXED_SEED)
+    orchestrate({"P": publisher, "B": b, "C": c}, {"P": ["P"], "Shop": ["B", "C"]}, FIXED_SEED)
 
     assert [(message.attributes["number"], time) for message, time in c.offered] == [
         (1, at("09:00")), (1, at("10:00")), (2, at("10:00"))]
@@ -256,4 +256,4 @@ def test_an_engine_answering_with_something_other_than_a_verdict_is_rejected():
     old_style.deliver = lambda message, now: ([], [])
 
     with pytest.raises(TypeError, match="must return a Verdict"):
-        run_engines({"P": publisher, "Old": old_style}, None, FIXED_SEED)
+        orchestrate({"P": publisher, "Old": old_style}, None, FIXED_SEED)

@@ -10,7 +10,7 @@ import pytz
 
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.orchestration.config import ProcessSpec
-from prosimos.orchestration.orchestrator import run_engines
+from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.prosimos_engine import ProsimosEngine, load_process
 from prosimos.orchestration.protocol import Message, Verdict
 from testing_scripts.scripted_engine import ScriptedEngine
@@ -102,7 +102,7 @@ def test_a_truck_that_finds_none_is_pending_and_resumes_the_first_order_to_arriv
     carrier = ScriptedEngine("Carrier")
     carrier.publish_at(START.replace(hour=8, minute=30), "Truck", object_id="Carrier-0", dock="Tartu")
 
-    report = run_engines({"Carrier": carrier, "Orders": orders}, None, 1)
+    report = orchestrate({"Carrier": carrier, "Orders": orders}, None, 1)
 
     assert [(process, time) for _, process, time in report.claims] == [("Orders", at("09:01"))]
     assert log.loaded() == {0: at("09:01")}

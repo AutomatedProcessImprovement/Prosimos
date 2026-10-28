@@ -10,7 +10,7 @@ import pytz
 
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.orchestration.config import ProcessSpec
-from prosimos.orchestration.orchestrator import run_engines
+from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.prosimos_engine import ProsimosEngine, load_process
 
 ASSETS = "testing_scripts/assets/messaging"
@@ -55,7 +55,7 @@ def _run(sales_json=SALES_JSON, orders=1):
     sales = ProsimosEngine(ProcessSpec("Sales", SALES, sales_json, orders), START, _Log(), seed=1)
     picking_log = _Log()
     picking = ProsimosEngine(ProcessSpec("Picking", PICKING, PICKING_JSON, None), START, picking_log, seed=1)
-    report = run_engines({"Sales": sales, "Picking": picking}, None, 1)
+    report = orchestrate({"Sales": sales, "Picking": picking}, None, 1)
     return report, picking, picking_log
 
 

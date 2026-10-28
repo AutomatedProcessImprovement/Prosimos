@@ -11,7 +11,7 @@ import pytz
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
-from prosimos.orchestration.simulation import run_orchestrator
+from prosimos.orchestration.simulation import run_multiprocess_simulation
 from testing_scripts.scripted_engine import ScriptedEngine
 
 ASSETS = "testing_scripts/assets/messaging"
@@ -49,7 +49,7 @@ def test_a_package_of_3_items_publishes_packed_to_each_and_each_item_gets_exactl
     config = SimulationConfig([ProcessSpec("Items", ITEMS, ITEMS_JSON, 6, "item"),
                                ProcessSpec("Packages", PACKAGES, PACKAGES_JSON, None, "package")], START, 1)
 
-    report = run_orchestrator(config, None)
+    report = run_multiprocess_simulation(config, None)
 
     assert _packed(report) == [
         ("09:30", {"object_id": "package-0", "index": 1, "item_id": "item-0"}),
@@ -73,7 +73,7 @@ def _run(tmp_path, sent, change=lambda settings: None):
         picking.publish_at(at(f"09:{minutes:02}"), "ItemPicked", **attributes)
     config = SimulationConfig([ProcessSpec("Packages", PACKAGES, _settings(tmp_path, change), None)], START, 1,
                               extra_processes=["Picking"])
-    return run_orchestrator(config, None, {"Picking": picking})
+    return run_multiprocess_simulation(config, None, {"Picking": picking})
 
 
 def test_the_messages_follow_the_list_in_claim_order(tmp_path):

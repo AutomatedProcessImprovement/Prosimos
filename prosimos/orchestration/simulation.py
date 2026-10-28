@@ -8,17 +8,17 @@ from typing import Dict, Optional
 from prosimos.orchestration.catalogue import _drawn_catalogues, _grown_catalogues, _picks
 from prosimos.orchestration.config import SimulationConfig
 from prosimos.orchestration.ocel_writer import OcelProcess, write_ocel
-from prosimos.orchestration.orchestrator import RunReport, run_engines
+from prosimos.orchestration.orchestrator import RunReport, orchestrate
 from prosimos.orchestration.output import _MergedLog, _message_links, _object_links, _reference_links, _tag_along
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import SimulationEngine
 
 
-def run_orchestrator(config: SimulationConfig, log_out_path: Optional[str] = None,
-                     extra_engines: Optional[Dict[str, SimulationEngine]] = None,
-                     ocel_out_path: Optional[str] = None) -> RunReport:
+def run_multiprocess_simulation(config: SimulationConfig, log_out_path: Optional[str] = None,
+                                extra_engines: Optional[Dict[str, SimulationEngine]] = None,
+                                ocel_out_path: Optional[str] = None) -> RunReport:
     """
-    Simulate the configured processes side by side on one shared clock (see run_engines),
+    Simulate the configured processes side by side on one shared clock (see orchestrate),
     stepping the engine whose next_event_time() is earliest, ties broken by process name, so runs
     given the same seed are repeatable; without a seed each run draws different random values.
     When log_out_path is given, every process's events are written to that one CSV, sorted
@@ -53,7 +53,7 @@ def run_orchestrator(config: SimulationConfig, log_out_path: Optional[str] = Non
                                             tuple(picks[spec.name]))
     engines.update(extra_engines)
 
-    report = run_engines(engines, config.consumer_groups, config.seed)
+    report = orchestrate(engines, config.consumer_groups, config.seed)
     # the OCEL output needs every process's catalogue objects, the growing ones as the run left them
     catalogue = {name: objects for spec in config.processes
                  for name, objects in _grown_catalogues(spec, config.seed, drawn[spec.name], picks[spec.name]).items()}

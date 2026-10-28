@@ -13,10 +13,10 @@ import pytz
 
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.ocel_writer import OcelProcess, object_ids, write_ocel
-from prosimos.orchestration.orchestrator import run_engines
+from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import CaseObject
-from prosimos.orchestration.simulation import run_orchestrator
+from prosimos.orchestration.simulation import run_multiprocess_simulation
 from testing_scripts.scripted_engine import ScriptedEngine
 from testing_scripts.test_order_management import _config
 
@@ -27,7 +27,7 @@ START = pytz.utc.localize(datetime(2024, 1, 1, 9))
 def order_management(tmp_path_factory):
     """A 100-order run of the Order Management example, written as CSV and as OCEL."""
     folder = tmp_path_factory.mktemp("ocel")
-    report = run_orchestrator(_config(100), folder / "log.csv", ocel_out_path=folder / "log.json")
+    report = run_multiprocess_simulation(_config(100), folder / "log.csv", ocel_out_path=folder / "log.json")
     log = pd.read_csv(folder / "log.csv", parse_dates=["end_time"])
     with open(folder / "log.json") as file:
         ocel = json.load(file)
@@ -116,7 +116,7 @@ def test_processes_of_one_object_type_get_ids_numbered_across_them_by_creation_t
     config = SimulationConfig([ProcessSpec(name, "testing_scripts/assets/messaging/sales.bpmn",
                                            "testing_scripts/assets/messaging/sales.json", 4, "order")
                                for name in ("Sales", "Returns")], START, 1)
-    report = run_orchestrator(config, tmp_path / "log.csv", ocel_out_path=tmp_path / "log.json")
+    report = run_multiprocess_simulation(config, tmp_path / "log.csv", ocel_out_path=tmp_path / "log.json")
 
     assert sorted(case.object_id for _, case in report.objects) == [f"order-{case}" for case in range(4) for _ in "SR"]
     in_creation_order = sorted(report.objects, key=lambda pair: (pair[1].created, pair[0] != "Sales"))
@@ -155,7 +155,7 @@ def test_a_value_copied_at_a_catch_event_is_a_later_attribute_value(tmp_path):
                             START, None, seed=1)
     carrier = ScriptedEngine("Carrier")
     carrier.publish_at(START.replace(minute=30), "Truck", dock="Tartu", object_id="Carrier-0")
-    report = run_engines({"Orders": orders, "Carrier": carrier}, None, 1)
+    report = orchestrate({"Orders": orders, "Carrier": carrier}, None, 1)
 
     write_ocel(tmp_path / "log.json", {"Orders": OcelProcess("order", attributes=("truck_id",))}, report.objects,
                [_row("Orders", 0, START.replace(minute=30))])
@@ -224,7 +224,7 @@ def test_only_the_listed_attributes_become_object_attributes(tmp_path, listed, w
     config = SimulationConfig([ProcessSpec("Sales", "testing_scripts/assets/messaging/sales.bpmn",
                                            "testing_scripts/assets/messaging/sales.json", 3, "order",
                                            ocel_attributes=listed)], START, 1)
-    run_orchestrator(config, None, ocel_out_path=tmp_path / "log.json")
+    run_multiprocess_simulation(config, None, ocel_out_path=tmp_path / "log.json")
 
     with open(tmp_path / "log.json") as file:
         orders = [obj for obj in json.load(file)["objects"] if obj["type"] == "order"]

@@ -11,7 +11,7 @@ import pytz
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import Message, Verdict
-from prosimos.orchestration.simulation import run_orchestrator
+from prosimos.orchestration.simulation import run_multiprocess_simulation
 
 ASSETS = "testing_scripts/assets/messaging"
 START = pytz.utc.localize(datetime(2024, 1, 1, 9))
@@ -97,7 +97,7 @@ def test_the_warehouses_copied_order_id_appears_in_the_merged_log(tmp_path):
     sales = ProcessSpec("Sales", "testing_scripts/assets/running_example/sales.bpmn",
                         "testing_scripts/assets/running_example/sales.json", 10)
     warehouse = ProcessSpec("TartuWarehouse", f"{ASSETS}/tartu_warehouse.bpmn", f"{ASSETS}/tartu_warehouse.json")
-    run_orchestrator(SimulationConfig([sales, warehouse], START, seed=1), tmp_path / "merged_log.csv")
+    run_multiprocess_simulation(SimulationConfig([sales, warehouse], START, seed=1), tmp_path / "merged_log.csv")
 
     with open(tmp_path / "merged_log.csv", encoding="utf-8") as file:
         rows = list(csv.DictReader(file))

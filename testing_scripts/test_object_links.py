@@ -15,7 +15,7 @@ from prosimos.orchestration.ocel_writer import OcelProcess
 from prosimos.orchestration.output import _object_links
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import CaseElement, MessageRecord
-from prosimos.orchestration.simulation import run_orchestrator
+from prosimos.orchestration.simulation import run_multiprocess_simulation
 from testing_scripts.test_message_records import _verdicts_run
 from testing_scripts.test_ocel_links import _items, _items_of_orders
 from testing_scripts.test_order_management import _config, package_items
@@ -28,7 +28,7 @@ START = pytz.utc.localize(datetime(2024, 1, 1, 9))
 def order_management(tmp_path_factory):
     """A 100-order run of the Order Management example written as OCEL, and the items each package took."""
     path = tmp_path_factory.mktemp("object_links") / "log.json"
-    report = run_orchestrator(_config(100), None, ocel_out_path=path)
+    report = run_multiprocess_simulation(_config(100), None, ocel_out_path=path)
     with open(path) as file:
         ocel = json.load(file)
     return ocel, package_items(report), path, report

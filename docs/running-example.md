@@ -74,10 +74,10 @@ or from Python:
 
 ```python
 from prosimos.orchestration.config import SimulationConfig
-from prosimos.orchestration.simulation import run_orchestrator
+from prosimos.orchestration.simulation import run_multiprocess_simulation
 
 config = SimulationConfig.from_json("testing_scripts/assets/running_example/simulation.json")
-report = run_orchestrator(config, log_out_path="merged_log.csv", ocel_out_path="running_example.json")
+report = run_multiprocess_simulation(config, log_out_path="merged_log.csv", ocel_out_path="running_example.json")
 ```
 
 ## What a run shows

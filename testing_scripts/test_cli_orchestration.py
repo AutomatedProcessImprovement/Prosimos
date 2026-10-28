@@ -12,7 +12,7 @@ from click.testing import CliRunner
 
 from cli.diff_res_bpsim import cli, run_summary
 from prosimos.orchestration.config import SimulationConfig
-from prosimos.orchestration.simulation import run_orchestrator
+from prosimos.orchestration.simulation import run_multiprocess_simulation
 
 CONFIG = "testing_scripts/assets/running_example/simulation.json"  # its seed is 1
 
@@ -29,7 +29,7 @@ def _in_python(tmp_path, seed=None):
     config = SimulationConfig.from_json(CONFIG)
     if seed is not None:
         config = dataclasses.replace(config, seed=seed)
-    return run_orchestrator(config, tmp_path / "python_log.csv")
+    return run_multiprocess_simulation(config, tmp_path / "python_log.csv")
 
 
 def _text(path):

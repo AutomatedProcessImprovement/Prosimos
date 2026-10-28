@@ -11,7 +11,7 @@ import pytz
 
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.orchestration.config import ProcessSpec
-from prosimos.orchestration.orchestrator import run_engines
+from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.prosimos_engine import ProsimosEngine, load_process
 from prosimos.orchestration.protocol import Message, StalledCase, Verdict
 from prosimos.simulation_engine import run_simulation
@@ -81,7 +81,7 @@ def test_a_shipment_before_the_deadline_closes_the_order_and_the_timer_never_fir
     warehouse = ScriptedEngine("Warehouse")
     warehouse.publish_at(START.replace(hour=11), "Shipment", order_id="Sales-0")
 
-    report = run_engines({"Sales": sales, "Warehouse": warehouse}, None, 1)
+    report = orchestrate({"Sales": sales, "Warehouse": warehouse}, None, 1)
 
     assert log.times("Close order") == {0: START.replace(hour=11)}
     assert log.times("Cancel order") == {}
@@ -167,7 +167,7 @@ def test_a_shipment_at_exactly_the_deadline_wins(tmp_path, warehouse_name):
     warehouse = ScriptedEngine(warehouse_name)
     warehouse.publish_at(EXACT_DEADLINE, "Shipment", order_id="Sales-0")
 
-    report = run_engines({"Sales": sales, warehouse_name: warehouse}, None, 1)
+    report = orchestrate({"Sales": sales, warehouse_name: warehouse}, None, 1)
 
     assert [(process, time) for _, process, time in report.claims] == [("Sales", EXACT_DEADLINE)]
     assert log.times("Close order") == {0: EXACT_DEADLINE}
@@ -192,7 +192,7 @@ def test_the_same_seed_gives_the_same_race(tmp_path):
         sales, _ = _sales(cases=3)
         warehouse = ScriptedEngine("Warehouse")
         warehouse.publish_at(START.replace(hour=12), "Shipment", order_id="Sales-1")
-        return run_engines({"Sales": sales, "Warehouse": warehouse}, None, 1)
+        return orchestrate({"Sales": sales, "Warehouse": warehouse}, None, 1)
 
     assert race() == race()
 
@@ -251,7 +251,7 @@ def test_with_two_message_branches_the_first_claim_wins_and_a_later_message_of_t
     customer = ScriptedEngine("Customer")
     customer.publish_at(ELEVEN, first, quote_id="Quote-0")
 
-    report = run_engines({"Quote": quote, "Customer": customer}, None, 1)
+    report = orchestrate({"Quote": quote, "Customer": customer}, None, 1)
 
     assert log.times(taken) == {0: ELEVEN}
     assert log.times(not_taken) == {}
@@ -266,7 +266,7 @@ def test_two_answers_at_the_same_instant_go_to_the_one_the_orchestrator_offers_f
         customer = ScriptedEngine("Customer")
         customer.publish_at(ELEVEN, "QuoteRejected", quote_id="Quote-0")
         customer.publish_at(ELEVEN, "QuoteAccepted", quote_id="Quote-0")
-        return run_engines({"Quote": quote, "Customer": customer}, None, 1), log
+        return orchestrate({"Quote": quote, "Customer": customer}, None, 1), log
 
     report, log = race()
 
@@ -359,7 +359,7 @@ def test_a_truck_of_capacity_2_wins_the_races_of_the_two_orders_it_picks_up_whil
     carrier = ScriptedEngine("Carrier")
     carrier.publish_at(START.replace(minute=30), "Truck", dock="Tartu", object_id="Carrier-0")
 
-    report = run_engines({"Orders": orders, "Carrier": carrier}, None, 1)
+    report = orchestrate({"Orders": orders, "Carrier": carrier}, None, 1)
 
     assert log.times("Load") == {0: START.replace(minute=30), 1: START.replace(minute=30)}
     # their timers never fire; order 2 didn't fit, so its race went on and its timer won 4 hours after 09:21
@@ -382,7 +382,7 @@ def test_an_order_whose_timer_fires_after_1_of_3_items_takes_the_timer_branch_an
         three_items_per_order):
     orders, log = _race_orders(ITEMS_RACE, ITEMS_RACE_JSON, 2)
 
-    report = run_engines({"Orders": orders, "Shelf": three_items_per_order}, None, 1)
+    report = orchestrate({"Orders": orders, "Shelf": three_items_per_order}, None, 1)
 
     assert log.times("Cancel order") == {0: START.replace(hour=11, minute=10) + AFTER_TIES}
     assert 0 not in log.times("Pack")
@@ -396,7 +396,7 @@ def test_an_order_whose_timer_fires_after_1_of_3_items_takes_the_timer_branch_an
 def test_an_order_that_gets_all_3_items_before_its_timer_takes_the_message_branch(three_items_per_order):
     orders, log = _race_orders(ITEMS_RACE, ITEMS_RACE_JSON, 2)
 
-    report = run_engines({"Orders": orders, "Shelf": three_items_per_order}, None, 1)
+    report = orchestrate({"Orders": orders, "Shelf": three_items_per_order}, None, 1)
 
     assert log.times("Pack") == {1: START.replace(hour=10, minute=40)}
     assert 1 not in log.times("Cancel order")

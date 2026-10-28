@@ -5,7 +5,7 @@ gets no copy.
 """
 import pytest
 
-from prosimos.orchestration.orchestrator import run_engines
+from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.protocol import Verdict
 from testing_scripts.protocol_scenario import at
 from testing_scripts.scripted_engine import ScriptedEngine
@@ -32,7 +32,7 @@ def _warehouse(name, order):
 def test_a_workshop_alone_never_claims_its_own_message_and_gets_a_warning():
     workshop = _workshop()
 
-    report = run_engines({"Workshop": workshop}, None, SEED)
+    report = orchestrate({"Workshop": workshop}, None, SEED)
 
     assert workshop.offered == [] and report.claims == []
     assert report.copies == [] and report.unclaimed == []
@@ -44,7 +44,7 @@ def test_a_workshop_s_copy_goes_only_to_the_other_members_of_its_group_and_ends_
     workshop, other = _workshop(), ScriptedEngine("Other")
     other.consume("PartFreed", lambda message, now: Verdict.PENDING)
 
-    report = run_engines({"Workshop": workshop, "Other": other}, {"Workshops": ["Workshop", "Other"]}, SEED)
+    report = orchestrate({"Workshop": workshop, "Other": other}, {"Workshops": ["Workshop", "Other"]}, SEED)
 
     assert workshop.offered == [] and report.claims == []
     assert [message.attributes["part"] for message, _ in other.offered] == ["p1"]
@@ -56,7 +56,7 @@ def test_a_copy_every_member_but_the_publisher_discarded_is_resolved():
     workshop, other = _workshop(), ScriptedEngine("Other")
     other.consume("PartFreed", lambda message, now: Verdict.DISCARDED)
 
-    report = run_engines({"Workshop": workshop, "Other": other}, {"Workshops": ["Workshop", "Other"]}, SEED)
+    report = orchestrate({"Workshop": workshop, "Other": other}, {"Workshops": ["Workshop", "Other"]}, SEED)
 
     assert report.unclaimed == []
     assert report.warnings == ["PartFreed m1 from Workshop was discarded by every recipient"]
@@ -67,7 +67,7 @@ def test_a_copy_every_member_but_the_publisher_discarded_is_resolved():
 def test_two_warehouses_forwarding_to_each_other_each_get_the_other_s_order(groups):
     tartu, tallinn = _warehouse("Tartu", 1), _warehouse("Tallinn", 2)
 
-    report = run_engines({"Tartu": tartu, "Tallinn": tallinn}, groups, SEED)
+    report = orchestrate({"Tartu": tartu, "Tallinn": tallinn}, groups, SEED)
 
     assert [message.attributes["order"] for message, _ in tartu.claimed] == [2]
     assert [message.attributes["order"] for message, _ in tallinn.claimed] == [1]
@@ -81,7 +81,7 @@ def test_a_workshop_s_message_still_reaches_another_group_that_subscribes():
     workshop, other = _workshop(), ScriptedEngine("Other")
     other.consume("PartFreed", lambda message, now: Verdict.CLAIMED)
 
-    report = run_engines({"Workshop": workshop, "Other": other}, None, SEED)
+    report = orchestrate({"Workshop": workshop, "Other": other}, None, SEED)
 
     assert report.claims == [("m1", "Other", at("09:00"))]
     assert report.copies == [("m1", "Other")] and report.warnings == []

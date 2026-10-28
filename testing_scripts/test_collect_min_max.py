@@ -7,7 +7,7 @@ import pytest
 
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.messaging_parser import parse_messages
-from prosimos.orchestration.orchestrator import run_engines
+from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.protocol import Message, Verdict
 from testing_scripts.scripted_engine import ScriptedEngine
 from testing_scripts.test_collect import _orders, _settings, at
@@ -32,7 +32,7 @@ def _run(tmp_path, collect, published, change=lambda settings: None, more_engine
     for time in sorted({time for time, _ in published}):
         items = [item_id for item_time, item_id in published if item_time == time]
         picking.at(at(time), lambda now, items=items: [_item(item_id) for item_id in items])
-    report = run_engines({orders_name: orders, "Picking": picking, **dict(more_engines)}, None, 1)
+    report = orchestrate({orders_name: orders, "Picking": picking, **dict(more_engines)}, None, 1)
     item_of = {message.id: message.attributes["item_id"] for message in report.published}
     claimed = [(item_of[message_id], time.strftime("%H:%M")) for message_id, _, time in report.claims]
     return report, log, claimed
@@ -190,7 +190,7 @@ def test_in_a_race_the_message_branch_wins_when_min_is_reached(tmp_path):
     shelf.at(at("09:20"), lambda now: [_item("a")])
     shelf.at(at("09:40"), lambda now: [_item(item_id) for item_id in ("b", "c", "d")])
 
-    report = run_engines({"Orders": orders, "Shelf": shelf}, None, 1)
+    report = orchestrate({"Orders": orders, "Shelf": shelf}, None, 1)
 
     assert log.times("Pack") == {0: at("09:40")}
     assert log.times("Cancel order") == {}

@@ -16,11 +16,11 @@ import pytz
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.ocel_writer import OcelProcess, write_ocel
-from prosimos.orchestration.orchestrator import run_engines
+from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.output import _message_links
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import CaseElement, CaseObject, MessageRecord, Verdict
-from prosimos.orchestration.simulation import run_orchestrator
+from prosimos.orchestration.simulation import run_multiprocess_simulation
 from testing_scripts.orchestrator_settings import with_qualifiers
 from testing_scripts.scripted_engine import ScriptedEngine
 from testing_scripts.test_item_verdicts import PICKING, PICKING_JSON, SALES, SALES_JSON, _picking_in
@@ -37,7 +37,7 @@ DROPPED = "the OCEL links of its messages there are dropped"
 def order_management(tmp_path_factory):
     """A 100-order run of the Order Management example written as OCEL, and the items each package took."""
     path = tmp_path_factory.mktemp("ocel_links") / "log.json"
-    report = run_orchestrator(_config(100), None, ocel_out_path=path)
+    report = run_multiprocess_simulation(_config(100), None, ocel_out_path=path)
     with open(path) as file:
         ocel = json.load(file)
     return report, ocel, {package: set(items) for package, items in package_items(report).items()}
@@ -154,8 +154,8 @@ def test_a_process_without_objects_attaches_nothing_and_warns_nothing():
     # Noted at once; attached, every claim and publish would warn
     config = _config(20)
     relay = ProcessSpec("Relay", f"{GATEWAYS}/relay.bpmn", f"{GATEWAYS}/relay.json", None)
-    report = run_orchestrator(dataclasses.replace(config, processes=[*config.processes, relay], consumer_groups=None),
-                              None)
+    report = run_multiprocess_simulation(dataclasses.replace(config, processes=[*config.processes, relay],
+                                                             consumer_groups=None), None)
 
     elements = [element for record in report.message_records
                 for element in [record.publisher, *record.claimers] if element and element.process == "Relay"]
@@ -184,7 +184,7 @@ def _verdicts(picking_json=PICKING_JSON):
     sales = ProsimosEngine(ProcessSpec("Sales", SALES, with_qualifiers(SALES_JSON), 1, "order"), START, None, seed=1)
     picking = ProsimosEngine(ProcessSpec("Picking", PICKING, with_qualifiers(picking_json), None, "item"), START, None,
                              seed=1)
-    report = run_engines({"Sales": sales, "Picking": picking}, None, 1)
+    report = orchestrate({"Sales": sales, "Picking": picking}, None, 1)
     return report, {"Sales": sales, "Picking": picking}
 
 
@@ -193,7 +193,7 @@ def _ocel_of_verdicts(tmp_path, sales_json, picking_json, picking_type="item"):
     picking_type."""
     config = SimulationConfig([ProcessSpec("Sales", SALES, sales_json, 1, "order"),
                                ProcessSpec("Picking", PICKING, picking_json, None, picking_type)], START, 1)
-    run_orchestrator(config, tmp_path / "log.csv", ocel_out_path=tmp_path / "log.json")
+    run_multiprocess_simulation(config, tmp_path / "log.csv", ocel_out_path=tmp_path / "log.json")
     with open(tmp_path / "log.json") as file:
         return json.load(file), pd.read_csv(tmp_path / "log.csv")
 
@@ -271,7 +271,7 @@ def test_capacity_attaches_each_resumed_case_to_its_own_next_task():
     carrier = ScriptedEngine("Carrier")
     carrier.publish_at(START.replace(minute=30), "Truck", dock="Tartu", object_id="Carrier-0")
 
-    report = run_engines({"Orders": orders, "Carrier": carrier}, None, 1)
+    report = orchestrate({"Orders": orders, "Carrier": carrier}, None, 1)
 
     [record] = [record for record in report.message_records if record.type == "Truck"]
     assert [_attached({"Orders": orders}, claimer) for claimer in record.claimers] == [
@@ -341,7 +341,7 @@ def _gateway_run(model, settings=None, seed=1, **messages):
         for each in after if isinstance(after, list) else [after]:
             other.publish_at(START + each, message_type)
     other.consume("Done", lambda message, now: Verdict.CLAIMED)
-    report = run_engines({"P": engine, "S": other}, None, seed)
+    report = orchestrate({"P": engine, "S": other}, None, seed)
     return report, engine
 
 

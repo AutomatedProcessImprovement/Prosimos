@@ -11,7 +11,7 @@ import pytest
 import pytz
 
 from prosimos.orchestration.config import ProcessSpec
-from prosimos.orchestration.orchestrator import run_engines
+from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import Message, Verdict
 from testing_scripts.scripted_engine import ScriptedEngine
@@ -100,7 +100,7 @@ def test_a_message_delivered_during_the_task_before_the_catch_event_is_claimed_o
     warehouse = ScriptedEngine("Warehouse")
     warehouse.publish_at(at("09:01"), "Shipment", order_id="Sales-0")
 
-    report = run_engines({"Sales": sales, "Warehouse": warehouse}, None, 1)
+    report = orchestrate({"Sales": sales, "Warehouse": warehouse}, None, 1)
 
     take_order_ended = next(_time(row[4]) for row in log.rows if row[1] == "Take order")
     assert take_order_ended > at("09:01")
@@ -299,7 +299,7 @@ def test_an_engine_whose_cases_all_wait_still_claims_a_message_published_later()
     warehouse = ScriptedEngine("Warehouse")
     warehouse.publish_at(at("18:00"), "Shipment", order_id="Sales-1")
 
-    report = run_engines({"Sales": sales, "Warehouse": warehouse}, None, 1)
+    report = orchestrate({"Sales": sales, "Warehouse": warehouse}, None, 1)
 
     # Sales stepped only in the morning, then had no next event while both cases waited, until the
     # 18:00 shipment resumed case 1 (two steps: the catch event, then Close order)
@@ -318,7 +318,7 @@ def test_a_claim_that_moves_a_case_to_a_second_catch_event_lets_a_pending_copy_b
     warehouse.publish_at(at("09:01"), "Invoice", order_id="Sales-0")
     warehouse.publish_at(at("12:00"), "Shipment", order_id="Sales-0")
 
-    report = run_engines({"Sales": sales, "Warehouse": warehouse}, None, 1)
+    report = orchestrate({"Sales": sales, "Warehouse": warehouse}, None, 1)
     published = {message.id: message.type for message in report.published}
 
     assert [(published[message_id], time) for message_id, _, time in report.claims] == [
@@ -339,7 +339,7 @@ def _delivered_to(json_path):
     tallinn.publish_at(at("13:00"), "Delivered", object_id="shipment-0")
     tartu.publish_at(at("14:00"), "Delivered", object_id="shipment-0")
 
-    report = run_engines({"Sales": sales, "TartuWarehouse": tartu, "TallinnWarehouse": tallinn}, None, 1)
+    report = orchestrate({"Sales": sales, "TartuWarehouse": tartu, "TallinnWarehouse": tallinn}, None, 1)
     messages = {message.id: message for message in report.published}
     return [(messages[message_id].source, time) for message_id, _, time in report.claims
             if messages[message_id].type == "Delivered"]

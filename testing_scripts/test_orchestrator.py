@@ -9,7 +9,7 @@ import pytz
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import Message, SimulationEngine, Verdict
-from prosimos.orchestration.simulation import run_orchestrator
+from prosimos.orchestration.simulation import run_multiprocess_simulation
 from testing_scripts.orchestrator_settings import orchestrator_settings
 from testing_scripts.test_batching_stats import get_path
 
@@ -55,7 +55,7 @@ def _read_log(path):
 
 def test_two_different_models_both_produce_events(tmp_path):
     log_path = tmp_path / "merged.csv"
-    executed = run_orchestrator(SimulationConfig([_batch_process("batch"), _gateway_process("gateway")], START, SEED), str(log_path)).executed
+    executed = run_multiprocess_simulation(SimulationConfig([_batch_process("batch"), _gateway_process("gateway")], START, SEED), str(log_path)).executed
 
     assert {name for _, name in executed} == {"batch", "gateway"}
     header, *rows = _read_log(log_path)
@@ -69,7 +69,7 @@ def test_merged_log_is_sorted_by_start_time(tmp_path):
     # for a busy resource while the other carries on, so start times arrive out of order
     assets = get_path()
     log_path = tmp_path / "merged.csv"
-    run_orchestrator(
+    run_multiprocess_simulation(
         SimulationConfig(
             [
                 ProcessSpec("stock", str(assets / "stock_replenishment.bpmn"),
@@ -88,7 +88,7 @@ def test_merged_log_is_sorted_by_start_time(tmp_path):
 
 
 def test_events_are_executed_in_global_time_order():
-    executed = run_orchestrator(SimulationConfig([_batch_process("batch"), _gateway_process("gateway")], START, SEED)).executed
+    executed = run_multiprocess_simulation(SimulationConfig([_batch_process("batch"), _gateway_process("gateway")], START, SEED)).executed
 
     times = [event_time for event_time, _ in executed]
     assert times == sorted(times)
@@ -96,7 +96,7 @@ def test_events_are_executed_in_global_time_order():
 
 def test_ties_are_broken_alphabetically_by_process_name():
     # the same model twice: fixed daily arrivals make both report the same batch times
-    executed = run_orchestrator(SimulationConfig([_batch_process("zeta"), _batch_process("alpha")], START, SEED)).executed
+    executed = run_multiprocess_simulation(SimulationConfig([_batch_process("zeta"), _batch_process("alpha")], START, SEED)).executed
 
     ties = [(a, b) for a, b in zip(executed, executed[1:]) if a[0] == b[0]]
     assert ties, "expected the two identical processes to tie at least once"
@@ -108,8 +108,10 @@ def test_same_seed_gives_the_same_run_regardless_of_input_order(tmp_path):
     gateway_a = _random_arrival_gateway_process("gateway_a", tmp_path)
     gateway_b = _random_arrival_gateway_process("gateway_b", tmp_path)
 
-    first = run_orchestrator(SimulationConfig([gateway_a, gateway_b], START, SEED), str(tmp_path / "first.csv"))
-    second = run_orchestrator(SimulationConfig([gateway_b, gateway_a], START, SEED), str(tmp_path / "second.csv"))
+    first = run_multiprocess_simulation(SimulationConfig([gateway_a, gateway_b], START, SEED),
+                                        str(tmp_path / "first.csv"))
+    second = run_multiprocess_simulation(SimulationConfig([gateway_b, gateway_a], START, SEED),
+                                         str(tmp_path / "second.csv"))
 
     assert first == second
     # the gateway logs have no random id column, so they can be compared in full
@@ -122,7 +124,7 @@ def test_duplicate_process_names_are_rejected():
 
 
 def test_runs_without_a_seed():
-    executed = run_orchestrator(SimulationConfig([_batch_process("batch"), _gateway_process("gateway")], START)).executed
+    executed = run_multiprocess_simulation(SimulationConfig([_batch_process("batch"), _gateway_process("gateway")], START)).executed
 
     assert {name for _, name in executed} == {"batch", "gateway"}
     times = [event_time for event_time, _ in executed]
@@ -197,7 +199,7 @@ def test_run_orchestrator_rejects_extra_engines_other_than_the_declared_ones(giv
 
     # checked before anything is built, so the files and the engines needn't exist
     with pytest.raises(ValueError, match=r"exactly the configuration's extra_processes \['Billing'\]"):
-        run_orchestrator(config, extra_engines=given)
+        run_multiprocess_simulation(config, extra_engines=given)
 
 
 def test_config_loads_from_a_json_file_and_runs(tmp_path):
@@ -220,7 +222,7 @@ def test_config_loads_from_a_json_file_and_runs(tmp_path):
         }, f)
 
     config = SimulationConfig.from_json(config_file)
-    executed = run_orchestrator(config).executed
+    executed = run_multiprocess_simulation(config).executed
 
     assert config.start_datetime == START
     assert config.seed == SEED

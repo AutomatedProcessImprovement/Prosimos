@@ -10,7 +10,7 @@ import numpy as np
 
 from bpdfr_discovery.log_parser import preprocess_xes_log
 from prosimos.orchestration.config import SimulationConfig
-from prosimos.orchestration.simulation import run_orchestrator
+from prosimos.orchestration.simulation import run_multiprocess_simulation
 from prosimos.simulation_engine import run_simulation
 
 
@@ -70,7 +70,7 @@ def start_orchestration(config_path, log_out_path=None, report_out_path=None, oc
     if seed is not None:
         config = dataclasses.replace(config, seed=seed)
 
-    report = run_orchestrator(config, log_out_path, ocel_out_path=ocel_out_path)
+    report = run_multiprocess_simulation(config, log_out_path, ocel_out_path=ocel_out_path)
 
     click.echo(run_summary(report))
     if report_out_path is not None:

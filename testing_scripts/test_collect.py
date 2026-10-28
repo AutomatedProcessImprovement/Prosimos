@@ -12,7 +12,7 @@ import pytz
 from cli.diff_res_bpsim import run_summary
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.orchestration.config import ProcessSpec
-from prosimos.orchestration.orchestrator import run_engines
+from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.prosimos_engine import ProsimosEngine, load_process
 from prosimos.orchestration.protocol import Message, Verdict
 from prosimos.simulation_engine import run_simulation
@@ -100,7 +100,7 @@ def test_items_that_arrive_before_the_order_reaches_the_event_are_claimed_when_i
     for hh_mm, item_id in (("08:30", "i1"), ("08:40", "i2"), ("12:00", "i3")):
         picking.publish_at(at(hh_mm), "ItemReady", order_id="Orders-0", item_id=item_id)
 
-    report = run_engines({"Picking": picking, "Orders": orders}, None, 1)
+    report = orchestrate({"Picking": picking, "Orders": orders}, None, 1)
 
     assert [time for _, _, time in report.claims] == [at("09:10"), at("09:10"), at("12:00")]
     assert log.packed() == {0: at("12:00")}
@@ -142,7 +142,7 @@ def test_the_summary_shows_how_many_a_stalled_case_collected():
     for hh_mm, item_id in (("10:00", "i1"), ("10:30", "i2")):
         picking.publish_at(at(hh_mm), "ItemReady", order_id="Orders-0", item_id=item_id)
 
-    report = run_engines({"Picking": picking, "Orders": orders}, None, 1)
+    report = orchestrate({"Picking": picking, "Orders": orders}, None, 1)
 
     assert "  Orders: 1 (Orders-0 collected 2 of 3)" in run_summary(report).splitlines()
 

@@ -228,7 +228,7 @@ So one engine's draws don't depend on which other engines run beside it, and a r
 caller's generators untouched.
 
 Each swap copies both states, about 37 µs (most of it NumPy's `get_state` and `set_state`), which is
-more than many engine calls take themselves. So inside the orchestrator loop (`run_engines`), where
+more than many engine calls take themselves. So inside the orchestrator loop (`orchestrate`), where
 nothing else draws from the global generators, an engine leaves its states there after a call
 (`_GlobalGenerators`, with `keep` set), and its next call finds them in place: they are swapped only
 when another engine is called. Before an engine that doesn't set `manages_global_generators` is

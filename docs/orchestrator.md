@@ -57,10 +57,10 @@ or from Python:
 
 ```python
 from prosimos.orchestration.config import SimulationConfig
-from prosimos.orchestration.simulation import run_orchestrator
+from prosimos.orchestration.simulation import run_multiprocess_simulation
 
 config = SimulationConfig.from_json("testing_scripts/assets/running_example/simulation.json")
-report = run_orchestrator(config, log_out_path="merged_log.csv", ocel_out_path="running_example.json")
+report = run_multiprocess_simulation(config, log_out_path="merged_log.csv", ocel_out_path="running_example.json")
 
 print(report.stalled)    # cases still waiting for a message at the end
 print(report.warnings)   # e.g. messages nobody could use
@@ -70,7 +70,7 @@ Extra engines (see "Configuration") can only be passed from Python.
 
 ## Configuration
 
-`run_orchestrator` takes a `SimulationConfig`, built in code or loaded with
+`run_multiprocess_simulation` takes a `SimulationConfig`, built in code or loaded with
 `SimulationConfig.from_json(path)`:
 
 | Field             | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
@@ -99,8 +99,8 @@ Prosimos (`start-simulation`) uses its own names, `--total_cases` and `case_attr
 **Extra engines.** Engines that aren't built from a BPMN and JSON file, such as the scripted engines
 in the tests, can run alongside the configured ones. List their names in the configuration's
 `extra_processes` (in code only, not in the JSON file), so that consumer groups can name them, and
-pass the engines to `run_orchestrator(config, log_out_path, extra_engines={name: engine, ...})`. The
-engines given must be exactly the declared names.
+pass the engines to `run_multiprocess_simulation(config, log_out_path, extra_engines={name: engine,
+...})`. The engines given must be exactly the declared names.
 
 ## Output
 
@@ -218,8 +218,9 @@ So with a `"qualifier": "item"` on the ItemOrdered publish entry, place order's 
 qualified `item`; the Warehouse's consume entry has none, so the item's first task doesn't link its order. The
 link of every event to its own case's object is always written.
 
-**Run report.** `run_orchestrator` (and `run_engines`) return a `RunReport`; `RunReport.to_dict()`
-gives it as plain lists and dicts with times as ISO strings, which is what `--report_out_path` saves:
+**Run report.** `run_multiprocess_simulation` (and `orchestrate`) return a `RunReport`;
+`RunReport.to_dict()` gives it as plain lists and dicts with times as ISO strings, which is what
+`--report_out_path` saves:
 
 | Field              | Content                                                                                                            |
 |--------------------|--------------------------------------------------------------------------------------------------------------------|

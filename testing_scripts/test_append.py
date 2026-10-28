@@ -12,7 +12,7 @@ from prosimos.messaging_parser import declared_attributes
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import Message, Verdict
-from prosimos.orchestration.simulation import run_orchestrator
+from prosimos.orchestration.simulation import run_multiprocess_simulation
 from testing_scripts.scripted_engine import ScriptedEngine
 from testing_scripts.test_catalogue import _config_with
 from testing_scripts.test_collect import ORDERS, START, _settings, at
@@ -33,7 +33,8 @@ def _run(tmp_path, sent, change=_appending, ocel_attributes=("item_ids",)):
     config = SimulationConfig([ProcessSpec("Orders", ORDERS, _settings(tmp_path, change), 1, "order",
                                            ocel_attributes=ocel_attributes)], START, 1,
                               extra_processes=["Picking"])
-    report = run_orchestrator(config, tmp_path / "log.csv", {"Picking": picking}, ocel_out_path=tmp_path / "log.json")
+    report = run_multiprocess_simulation(config, tmp_path / "log.csv", {"Picking": picking},
+                                         ocel_out_path=tmp_path / "log.json")
     with open(tmp_path / "log.json") as file:
         return report, pd.read_csv(tmp_path / "log.csv"), json.load(file)
 
@@ -99,7 +100,7 @@ def test_a_start_event_appends_the_message_that_starts_the_case():
 
 
 def test_every_order_management_package_lists_the_items_it_took_in_claim_order():
-    report = run_orchestrator(_config(100), None)
+    report = run_multiprocess_simulation(_config(100), None)
 
     packages = {case_object.object_id: [value for attribute, value, _ in case_object.attributes if attribute == "item_ids"][-1]
                 for name, case_object in report.objects if name == "Packaging"}

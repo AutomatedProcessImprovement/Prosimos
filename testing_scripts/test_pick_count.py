@@ -11,7 +11,7 @@ import pytest
 
 from prosimos.orchestration.catalogue import CountFrom, _Pick
 from prosimos.orchestration.config import SimulationConfig
-from prosimos.orchestration.simulation import run_orchestrator
+from prosimos.orchestration.simulation import run_multiprocess_simulation
 from testing_scripts.test_catalogue import _config_with
 from testing_scripts.test_pick import CUSTOMERS, PICKING, PRODUCTS_LIST
 
@@ -32,8 +32,8 @@ def _sales_picking(tmp_path, products, orders=100):
 
 
 def _run(tmp_path, products, name="log"):
-    report = run_orchestrator(_sales_picking(tmp_path, products), tmp_path / f"{name}.csv",
-                              ocel_out_path=tmp_path / f"{name}.json")
+    report = run_multiprocess_simulation(_sales_picking(tmp_path, products), tmp_path / f"{name}.csv",
+                                         ocel_out_path=tmp_path / f"{name}.json")
     with open(tmp_path / f"{name}.json") as file:
         return report, pd.read_csv(tmp_path / f"{name}.csv"), json.load(file)
 

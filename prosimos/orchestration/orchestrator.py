@@ -82,7 +82,7 @@ class _PooledCopy:
     discarded_by: Set[str] = field(default_factory=set)
 
 
-def run_engines(
+def orchestrate(
     engines: Dict[str, SimulationEngine],
     consumer_groups: Optional[Dict[str, List[str]]] = None,
     seed: Optional[int] = None,

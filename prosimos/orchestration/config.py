@@ -116,7 +116,7 @@ class SimulationConfig:
     Everything needed for one multi-process run. Each consumer group maps a group name to the
     processes in it; without consumer_groups, every process is its own group. Every process must
     be in exactly one group, and groups may only name known processes. extra_processes names the
-    processes that run_orchestrator receives as ready-made engines instead of building them from a
+    processes that run_multiprocess_simulation receives as ready-made engines instead of building them from a
     ProcessSpec (e.g. scripted test engines), so that groups can name them too. Each process's catalogues map a
     name (the OCEL object type) to the objects with no events of their own, a list of CatalogueObject, a
     CataloguePool or a GrowingCatalogue, and its references say which of its attributes hold their ids, and may

@@ -12,7 +12,7 @@ from prosimos.messaging_parser import declared_attributes
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import Message
-from prosimos.orchestration.simulation import run_orchestrator
+from prosimos.orchestration.simulation import run_multiprocess_simulation
 from testing_scripts.scripted_engine import ScriptedEngine
 from testing_scripts.test_append import _run as _run_orders
 from testing_scripts.test_catalogue import _config_with
@@ -40,7 +40,8 @@ def _run(tmp_path, sent, aggregate):
     config = SimulationConfig([ProcessSpec("Packages", PACKAGES, _settings(tmp_path, aggregate), None, "package",
                                            ocel_attributes=tuple(aggregate))],
                               START, 1, extra_processes=["Picking"])
-    report = run_orchestrator(config, tmp_path / "log.csv", {"Picking": picking}, ocel_out_path=tmp_path / "log.json")
+    report = run_multiprocess_simulation(config, tmp_path / "log.csv", {"Picking": picking},
+                                         ocel_out_path=tmp_path / "log.json")
     return report, pd.read_csv(tmp_path / "log.csv")
 
 

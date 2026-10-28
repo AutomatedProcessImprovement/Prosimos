@@ -16,7 +16,7 @@ from click.testing import CliRunner
 
 from cli.diff_res_bpsim import cli
 from prosimos.orchestration.config import SimulationConfig
-from prosimos.orchestration.simulation import run_orchestrator
+from prosimos.orchestration.simulation import run_multiprocess_simulation
 CONFIG = "testing_scripts/assets/order_management/simulation.json"  # 2,000 orders, 1,450 packing rounds; seed 1
 ORDERS = 100
 # enough rounds to pack every item: restocked items are picked up to a week after the last order
@@ -44,7 +44,7 @@ def _config(orders=ORDERS, rounds=ROUNDS):
 def run(tmp_path_factory):
     """One 100-order run: the report, the merged log, and the path of the OCEL file."""
     folder = tmp_path_factory.mktemp("order_management")
-    report = run_orchestrator(_config(), folder / "log.csv", ocel_out_path=folder / "log.json")
+    report = run_multiprocess_simulation(_config(), folder / "log.csv", ocel_out_path=folder / "log.json")
     log = pd.read_csv(folder / "log.csv", parse_dates=["enable_time", "start_time", "end_time"])
     return report, log, folder / "log.json"
 
@@ -276,8 +276,8 @@ def test_every_task_s_work_time_is_within_its_range(run):
 
 
 def test_the_same_seed_gives_the_same_run(tmp_path):
-    first = run_orchestrator(_config(), tmp_path / "first.csv")
-    second = run_orchestrator(_config(), tmp_path / "second.csv")
+    first = run_multiprocess_simulation(_config(), tmp_path / "first.csv")
+    second = run_multiprocess_simulation(_config(), tmp_path / "second.csv")
 
     assert first.to_dict() == second.to_dict()
     assert (tmp_path / "first.csv").read_text() == (tmp_path / "second.csv").read_text()
@@ -301,7 +301,7 @@ def test_the_same_seed_gives_the_same_run_through_start_orchestration(tmp_path):
                                           "--log_out_path", str(tmp_path / f"{name}.csv"),
                                           "--report_out_path", str(tmp_path / f"{name}.json")])
         assert result.exit_code == 0, result.output
-    run_orchestrator(_config(), tmp_path / "python.csv")
+    run_multiprocess_simulation(_config(), tmp_path / "python.csv")
 
     assert (tmp_path / "first.csv").read_text() == (tmp_path / "second.csv").read_text()
     assert (tmp_path / "first.json").read_text() == (tmp_path / "second.json").read_text()

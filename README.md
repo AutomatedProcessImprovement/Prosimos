@@ -65,10 +65,10 @@ lists the processes, and one command (`start-orchestration`, above) or one call 
 
 ```python
 from prosimos.orchestration.config import SimulationConfig
-from prosimos.orchestration.simulation import run_orchestrator
+from prosimos.orchestration.simulation import run_multiprocess_simulation
 
 config = SimulationConfig.from_json("config.json")
-report = run_orchestrator(config, log_out_path="merged_log.csv", ocel_out_path="ocel.json")
+report = run_multiprocess_simulation(config, log_out_path="merged_log.csv", ocel_out_path="ocel.json")
 ```
 
 The result is one event log of all processes and a report of every message, claim and discard,

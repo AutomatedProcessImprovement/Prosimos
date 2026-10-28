@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 import pytz
 
 from prosimos.orchestration.config import ProcessSpec
-from prosimos.orchestration.orchestrator import run_engines
+from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 
 ASSETS = "testing_scripts/assets/messaging"
@@ -55,7 +55,7 @@ def _run(orders=1, picking_json=PICKING_JSON):
     sales = ProsimosEngine(ProcessSpec("Sales", SALES, SALES_JSON, orders), START, _Log(), seed=1)
     picking_log = _Log()
     picking = ProsimosEngine(ProcessSpec("Picking", PICKING, picking_json, None), START, picking_log, seed=1)
-    report = run_engines({"Sales": sales, "Picking": picking}, None, 1)
+    report = orchestrate({"Sales": sales, "Picking": picking}, None, 1)
     return report, picking, picking_log
 
 

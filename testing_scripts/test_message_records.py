@@ -7,10 +7,10 @@ from datetime import datetime
 import pytz
 
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
-from prosimos.orchestration.orchestrator import run_engines
+from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import Verdict
-from prosimos.orchestration.simulation import run_orchestrator
+from prosimos.orchestration.simulation import run_multiprocess_simulation
 from testing_scripts.orchestrator_settings import with_qualifiers
 from testing_scripts.scripted_engine import ScriptedEngine
 
@@ -44,7 +44,7 @@ def _verdicts_run():
     which publishes ItemReady; Sales collects all 3, then sends each item its Shipped, taken at a race branch."""
     sales = _engine("Sales", "orders_with_verdicts", f"{ASSETS}/orders_with_verdicts.json", 1)
     picking = _engine("Picking", "items_awaiting_verdict", f"{ASSETS}/items_awaiting_verdict.json")
-    return run_engines({"Sales": sales, "Picking": picking}, None, 1), picking
+    return orchestrate({"Sales": sales, "Picking": picking}, None, 1), picking
 
 
 def test_a_message_start_records_the_new_case_as_claimer():
@@ -84,7 +84,7 @@ def test_a_race_branch_records_the_waiting_case_at_its_catch_event():
 
 
 def test_a_catch_event_records_the_waiting_case():
-    report = run_orchestrator(SimulationConfig.from_json("testing_scripts/assets/running_example/simulation.json"), None)
+    report = run_multiprocess_simulation(SimulationConfig.from_json("testing_scripts/assets/running_example/simulation.json"), None)
 
     records = _records(report, "Shipment")
     assert records  # with this seed, warehouses ship orders
@@ -102,7 +102,7 @@ def test_capacity_2_records_both_claimers():
     carrier = ScriptedEngine("Carrier")
     carrier.publish_at(START.replace(minute=30), "Truck", dock="Tartu", object_id="Carrier-0")
 
-    report = run_engines({"Orders": orders, "Carrier": carrier}, None, 1)
+    report = orchestrate({"Orders": orders, "Carrier": carrier}, None, 1)
 
     [record] = _records(report, "Truck")
     assert record.publisher is None  # a scripted engine keeps no records
@@ -118,7 +118,7 @@ def test_a_discarded_and_an_unclaimed_message_have_no_claimer():
     archive.consume("OrderPlaced", lambda message, now:
                     Verdict.DISCARDED if message.attributes["object_id"] == "Sales-0" else Verdict.PENDING)
 
-    report = run_engines({"Sales": sales, "Archive": archive}, None, 1)
+    report = orchestrate({"Sales": sales, "Archive": archive}, None, 1)
 
     discarded, unclaimed = _records(report, "OrderPlaced")
     assert [message_id for message_id, _, _ in report.discards] == [discarded.message_id]
@@ -136,7 +136,7 @@ def test_the_records_are_in_the_report_as_json():
     picking = ProsimosEngine(ProcessSpec("Picking", f"{ASSETS}/items_awaiting_verdict.bpmn",
                                          with_qualifiers(f"{ASSETS}/items_awaiting_verdict.json"), None, "item"), START,
                              None, seed=1)
-    report = run_engines({"Sales": sales, "Picking": picking}, None, 1)
+    report = orchestrate({"Sales": sales, "Picking": picking}, None, 1)
 
     first = report.to_dict()["message_records"][0]
     # the links attach to row 0 of each log: order-0's place order and item-0's pick item

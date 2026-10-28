@@ -1,5 +1,5 @@
 """The run report: one test per warning and per count. Stalled cases are future work."""
-from prosimos.orchestration.orchestrator import run_engines
+from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.protocol import Verdict
 from testing_scripts.protocol_scenario import at, run_scenario
 from testing_scripts.scripted_engine import ScriptedEngine
@@ -21,7 +21,7 @@ def _consumer(name, message_type, verdict):
 
 
 def test_warning_for_a_message_type_nobody_subscribes_to():
-    report = run_engines({"P": _publisher("Newsletter")}, None, SEED)
+    report = orchestrate({"P": _publisher("Newsletter")}, None, SEED)
 
     assert report.warnings == ["Newsletter m1 from P has no subscribers"]
     assert report.copies == [] and report.unclaimed == []
@@ -38,7 +38,7 @@ def test_warning_for_a_message_every_recipient_discarded():
 def test_no_warning_when_another_group_claims_the_message():
     engines = {"P": _publisher("X"), "A": _consumer("A", "X", Verdict.CLAIMED), "B": _consumer("B", "X", Verdict.DISCARDED)}
 
-    report = run_engines(engines, {"P": ["P"], "GroupA": ["A"], "GroupB": ["B"]}, SEED)
+    report = orchestrate(engines, {"P": ["P"], "GroupA": ["A"], "GroupB": ["B"]}, SEED)
 
     assert report.warnings == []
 
@@ -46,7 +46,7 @@ def test_no_warning_when_another_group_claims_the_message():
 def test_no_warning_while_a_copy_is_still_pending():
     engines = {"P": _publisher("X"), "A": _consumer("A", "X", Verdict.DISCARDED), "B": _consumer("B", "X", Verdict.PENDING)}
 
-    report = run_engines(engines, {"P": ["P"], "Pair": ["A", "B"]}, SEED)
+    report = orchestrate(engines, {"P": ["P"], "Pair": ["A", "B"]}, SEED)
 
     assert report.warnings == []
 
@@ -58,7 +58,7 @@ def test_discarded_counts_per_type_and_process():
         "B": _consumer("B", "Y", Verdict.DISCARDED),
     }
 
-    report = run_engines(engines, None, SEED)
+    report = orchestrate(engines, None, SEED)
 
     assert report.discarded_counts == {("X", "A"): 2, ("Y", "B"): 1}
 
@@ -71,7 +71,7 @@ def test_unclaimed_copies_are_the_ones_left_in_the_pool():
         "C": _consumer("C", "Y", Verdict.CLAIMED),
     }
 
-    report = run_engines(engines, None, SEED)
+    report = orchestrate(engines, None, SEED)
 
     # X has one copy per subscribed group, both still pending; Y was claimed, so no copy is left
     assert sorted((group, message.type) for group, message in report.unclaimed) == [("A", "X"), ("B", "X")]

@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 
 import pytz
 
-from prosimos.orchestration.orchestrator import run_engines
+from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.protocol import Message, Verdict
 from testing_scripts.scripted_engine import ScriptedEngine
 
@@ -145,5 +145,5 @@ def build_engines():
 
 def run_scenario(seed):
     engines = build_engines()
-    report = run_engines(engines, CONSUMER_GROUPS, seed)
+    report = orchestrate(engines, CONSUMER_GROUPS, seed)
     return engines, report

@@ -8,7 +8,7 @@ import json
 import pytest
 
 from prosimos.exceptions import InvalidSimScenarioException
-from prosimos.orchestration.orchestrator import run_engines
+from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.prosimos_engine import load_process
 from prosimos.orchestration.protocol import Verdict
 from testing_scripts.scripted_engine import ScriptedEngine
@@ -29,7 +29,7 @@ def _with_carrier(tmp_path, capacity, cases, trucks):
     carrier = ScriptedEngine("Carrier")
     for number, (time, attributes) in enumerate(trucks):
         carrier.publish_at(at(time), "Truck", object_id=f"Carrier-{number}", dock="Tartu", **attributes)
-    return run_engines({"Carrier": carrier, "Orders": orders}, None, 1), log
+    return orchestrate({"Carrier": carrier, "Orders": orders}, None, 1), log
 
 
 def test_2_4_with_1_order_waiting_stays_pending_then_resumes_2_when_the_2nd_order_parks(tmp_path):
@@ -160,7 +160,7 @@ def test_in_a_race_a_truck_waits_for_min_orders_while_their_deadlines_run(tmp_pa
     carrier = ScriptedEngine("Carrier")
     carrier.publish_at(at("08:30"), "Truck", dock="Tartu", object_id="Carrier-0")
 
-    report = run_engines({"Orders": orders, "Carrier": carrier}, None, 1)
+    report = orchestrate({"Orders": orders, "Carrier": carrier}, None, 1)
 
     assert log.times("Load") == loaded
     assert log.times("Send by courier") == by_courier

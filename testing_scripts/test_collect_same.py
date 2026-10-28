@@ -5,7 +5,7 @@ as the first message it claimed there, e.g. the oldest waiting item and then all
 import pytest
 
 from prosimos.exceptions import InvalidSimScenarioException
-from prosimos.orchestration.orchestrator import run_engines
+from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.protocol import Message, Verdict
 from testing_scripts.scripted_engine import ScriptedEngine
 from testing_scripts.test_collect import _orders, _run_until_idle, _settings, at
@@ -39,7 +39,7 @@ def _run(tmp_path, published, collect="all", same=("customer",)):
     for time in sorted({time for time, _ in published}):
         items = [item for item_time, item in published if item_time == time]
         picking.at(at(time), lambda now, items=items: items)
-    report = run_engines({"Orders": orders, "Picking": picking}, None, 1)
+    report = orchestrate({"Orders": orders, "Picking": picking}, None, 1)
     item_of = {message.id: message.attributes["item_id"] for message in report.published}
     case_of = {record.message_id: record.claimers[0].object_id for record in report.message_records if record.claimers}
     taken = {item_of[message_id]: (case_of[message_id], time.strftime("%H:%M"))

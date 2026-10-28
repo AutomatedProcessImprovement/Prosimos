@@ -16,7 +16,7 @@ from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.ocel_writer import OcelProcess, write_ocel
 from prosimos.orchestration.output import _reference_links, _tag_along
 from prosimos.orchestration.protocol import CaseObject
-from prosimos.orchestration.simulation import run_orchestrator
+from prosimos.orchestration.simulation import run_multiprocess_simulation
 from testing_scripts.scripted_engine import ScriptedEngine
 from testing_scripts.test_collect import ORDERS, _settings, at
 from testing_scripts.test_order_management import CONFIG, _config
@@ -28,7 +28,7 @@ START = pytz.utc.localize(datetime(2024, 1, 1, 9))
 def order_management(tmp_path_factory):
     """A 100-order run of the Order Management example written as OCEL, and its report."""
     path = tmp_path_factory.mktemp("catalogue") / "log.json"
-    report = run_orchestrator(_config(100), None, ocel_out_path=path)
+    report = run_multiprocess_simulation(_config(100), None, ocel_out_path=path)
     with open(path) as file:
         return json.load(file), report, path
 
@@ -244,7 +244,7 @@ def test_a_list_appended_from_messages_links_each_item_it_collected(tmp_path):
         "Orders", ORDERS, _settings(tmp_path, appending), 1, "order",
         catalogues={"item": [CatalogueObject(item) for item in ("i12", "i17", "i23", "i99")]},
         references=(Reference("item_ids", "item", o2o="contains"),))], START, 1, extra_processes=["Picking"])
-    run_orchestrator(config, None, {"Picking": picking}, ocel_out_path=tmp_path / "log.json")
+    run_multiprocess_simulation(config, None, {"Picking": picking}, ocel_out_path=tmp_path / "log.json")
     with open(tmp_path / "log.json") as file:
         ocel = json.load(file)
 

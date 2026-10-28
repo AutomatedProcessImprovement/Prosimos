@@ -1,6 +1,6 @@
 """
 The running example (docs/running-example.md): Sales, Billing and the two warehouses, all real Prosimos models
-loaded from one configuration file and run with run_orchestrator.
+loaded from one configuration file and run with run_multiprocess_simulation.
 """
 import csv
 import json
@@ -10,14 +10,14 @@ from datetime import datetime
 import pytest
 
 from prosimos.orchestration.config import SimulationConfig
-from prosimos.orchestration.simulation import run_orchestrator
+from prosimos.orchestration.simulation import run_multiprocess_simulation
 
 CONFIG = "testing_scripts/assets/running_example/simulation.json"  # seed 1, 20 orders
 SERVES = {"TartuWarehouse": {"Tartu", "Tapa"}, "TallinnWarehouse": {"Tallinn", "Tapa"}}
 
 
 def _run(log_path):
-    report = run_orchestrator(SimulationConfig.from_json(CONFIG), log_path)
+    report = run_multiprocess_simulation(SimulationConfig.from_json(CONFIG), log_path)
     with open(log_path, encoding="utf-8") as file:
         return report, list(csv.DictReader(file))
 
@@ -84,7 +84,7 @@ def test_the_same_seed_gives_the_same_run(tmp_path):
 
 
 def test_the_ocel_output_names_objects_by_type_and_numbers_shipments_across_both_warehouses(tmp_path):
-    run_orchestrator(SimulationConfig.from_json(CONFIG), None, ocel_out_path=tmp_path / "log.json")
+    run_multiprocess_simulation(SimulationConfig.from_json(CONFIG), None, ocel_out_path=tmp_path / "log.json")
     with open(tmp_path / "log.json", encoding="utf-8") as file:
         objects = json.load(file)["objects"]
 
@@ -95,7 +95,7 @@ def test_the_ocel_output_names_objects_by_type_and_numbers_shipments_across_both
 
 
 def test_the_ocel_output_links_each_invoice_and_shipment_to_its_order(tmp_path):
-    run_orchestrator(SimulationConfig.from_json(CONFIG), None, ocel_out_path=tmp_path / "log.json")
+    run_multiprocess_simulation(SimulationConfig.from_json(CONFIG), None, ocel_out_path=tmp_path / "log.json")
     with open(tmp_path / "log.json", encoding="utf-8") as file:
         ocel = json.load(file)
 

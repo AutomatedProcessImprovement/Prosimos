@@ -15,7 +15,7 @@ import pytz
 
 from prosimos.orchestration.catalogue import CatalogueObject, CataloguePool, Reference, _Pick, _drawn_catalogues
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
-from prosimos.orchestration.simulation import run_orchestrator
+from prosimos.orchestration.simulation import run_multiprocess_simulation
 from testing_scripts.test_catalogue import _config_with
 from testing_scripts.test_order_management import CONFIG, _config
 
@@ -43,7 +43,7 @@ def _loans(cases, catalogue, pick, seed=1, with_attributes=()):
 
 
 def _run(config, tmp_path, name="log"):
-    report = run_orchestrator(config, tmp_path / f"{name}.csv", ocel_out_path=tmp_path / f"{name}.json")
+    report = run_multiprocess_simulation(config, tmp_path / f"{name}.csv", ocel_out_path=tmp_path / f"{name}.json")
     with open(tmp_path / f"{name}.json") as file:
         return report, pd.read_csv(tmp_path / f"{name}.csv"), json.load(file)
 

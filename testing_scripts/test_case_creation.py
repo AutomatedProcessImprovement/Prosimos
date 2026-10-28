@@ -9,7 +9,7 @@ import pytest
 import pytz
 
 from prosimos.orchestration.config import ProcessSpec
-from prosimos.orchestration.orchestrator import run_engines
+from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import Message, Verdict
 from testing_scripts.scripted_engine import ScriptedEngine
@@ -114,7 +114,7 @@ def test_a_process_with_no_arrivals_runs_only_the_cases_its_messages_start():
                                  ("09:40", "Sales-2", "Tapa")):
         sales.publish_at(at(hh_mm), "OrderPlaced", object_id=case_id, city=city)
 
-    report = run_engines({"Sales": sales, "TartuWarehouse": warehouse}, None, 1)
+    report = orchestrate({"Sales": sales, "TartuWarehouse": warehouse}, None, 1)
 
     # one case per Tartu or Tapa order, started when the order was published; the Tallinn order is discarded
     assert log.cases("Pack order") == {0: at("09:10"), 1: at("09:40")}
@@ -144,7 +144,7 @@ def test_a_message_for_a_case_a_start_message_will_create_is_claimed_once_the_ca
     feed.publish_at(at("09:00"), "Update", for_case="Updates-0")
     feed.publish_at(at("09:30"), "Open")
 
-    report = run_engines({"Feed": feed, "Updates": updates}, None, 1)
+    report = orchestrate({"Feed": feed, "Updates": updates}, None, 1)
 
     published = {message.id: message.type for message in report.published}
     assert [(published[message_id], time) for message_id, _, time in report.claims] == [
