@@ -231,10 +231,10 @@ Each swap copies both states, about 37 µs (most of it NumPy's `get_state` and `
 more than many engine calls take themselves. So inside the orchestrator loop (`run_engines`), where
 nothing else draws from the global generators, an engine leaves its states there after a call
 (`_GlobalGenerators`, with `keep` set), and its next call finds them in place: they are swapped only
-when another engine is called. Before an engine that isn't a `ProsimosEngine` is called (it may draw
-from the global generators itself), and when the loop ends or fails, the caller's states are put
-back. Each engine still draws from its own states only, so the results are the same as with a swap
-at every call.
+when another engine is called. Before an engine that doesn't set `manages_global_generators` is
+called (it may draw from the global generators itself; a `ProsimosEngine` sets it), and when the loop
+ends or fails, the caller's states are put back. Each engine still draws from its own states only, so
+the results are the same as with a swap at every call.
 
 An engine's states are seeded from the simulation seed and its process name, with a stable hash
 (SHA-256 of `"<seed>/<name>"`, not Python's `hash()`, which differs between runs), so two engines of

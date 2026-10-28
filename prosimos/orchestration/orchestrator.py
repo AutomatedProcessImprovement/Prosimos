@@ -12,7 +12,6 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from prosimos.orchestration.config import _checked_consumer_groups
 from prosimos.orchestration.output import _plain
-from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import (CaseElement, CaseObject, EngineReport, Message, MessageRecord,
                                            SimulationEngine, StalledCase, Verdict)
 from prosimos.orchestration.random_generators import _generators
@@ -129,8 +128,8 @@ def run_engines(
 
     def engine(name):
         """engines[name], with the caller's generator states back in the global generators first for an engine
-        that may draw from them itself: any but a ProsimosEngine."""
-        if not isinstance(engines[name], ProsimosEngine):
+        that may draw from them itself: any that doesn't put its own states there (manages_global_generators)."""
+        if not getattr(engines[name], "manages_global_generators", False):
             _generators.give_back()
         return engines[name]
 

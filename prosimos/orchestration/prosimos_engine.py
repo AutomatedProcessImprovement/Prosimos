@@ -67,6 +67,10 @@ class ProsimosEngine(SimulationEngine):
     global generators: if the caller seeded those first (random.seed, np.random.seed), the run is
     repeatable; otherwise every run differs."""
 
+    # it puts its own states into the global generators for each call (_GlobalGenerators), so the run loop
+    # needn't give the caller's back before calling it
+    manages_global_generators = True
+
     def __init__(self, spec: ProcessSpec, start_datetime: datetime, log_writer=None, seed: Optional[int] = None,
                  picks: Tuple["_Pick", ...] = ()):
         self._spec = spec

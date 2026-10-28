@@ -1,7 +1,7 @@
 """
 The contract between the engines and the orchestrator (docs/orchestrator.md, "Engine interface"): what a message
 is, what an engine answers when it is offered one, what it records for the output, and the interface an engine
-implements. It doesn't depend on Prosimos: another engine can implement it.
+implements. It depends on no particular simulator: any engine can implement it.
 """
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
