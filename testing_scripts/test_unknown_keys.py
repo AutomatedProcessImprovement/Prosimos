@@ -14,7 +14,7 @@ from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.messaging_parser import parse_messages
 from prosimos.orchestration.catalogue import CataloguePool, _checked_catalogue
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
-from prosimos.orchestrator import load_process
+from prosimos.orchestration.prosimos_engine import load_process
 from testing_scripts.test_catalogue import _config_with
 from testing_scripts.test_messaging_parser import bpmn, consume, publish  # noqa: F401 (bpmn is a fixture)
 

@@ -7,7 +7,7 @@ import json
 import tempfile
 from pathlib import Path
 
-from prosimos.orchestrator import PROCESS_SETTINGS_KEYS
+from prosimos.orchestration.prosimos_engine import PROCESS_SETTINGS_KEYS
 
 _FOLDER = Path(tempfile.mkdtemp(prefix="orchestrator_settings_"))
 

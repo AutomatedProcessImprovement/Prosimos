@@ -11,7 +11,7 @@ import pytz
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.messaging_parser import ConditionTerm, ConsumePoint
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
-from prosimos.orchestrator import load_process
+from prosimos.orchestration.prosimos_engine import load_process
 
 ASSETS = "testing_scripts/assets/messaging"
 WAREHOUSE = f"{ASSETS}/tartu_warehouse.bpmn"  # message start -> Pack order -> throw Shipment -> end

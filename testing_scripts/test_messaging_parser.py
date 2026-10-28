@@ -8,7 +8,7 @@ import pytz
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.messaging_parser import (ConditionTerm, ConsumePoint, MessagingModel, PublishPoint, declared_attributes,
                                        parse_messages)
-from prosimos.orchestrator import load_process
+from prosimos.orchestration.prosimos_engine import load_process
 
 EVENTS = {
     "Start": '<bpmn:startEvent id="Start"/>',
