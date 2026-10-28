@@ -8,7 +8,8 @@ import json
 
 import pytest
 
-from prosimos.orchestrator import CatalogueObject, Computed, SimulationConfig, _Brought, _Pick
+from prosimos.orchestration.catalogue import CatalogueObject, Computed
+from prosimos.orchestrator import SimulationConfig, _Brought, _Pick
 from testing_scripts.test_catalogue import _config_with
 from testing_scripts.test_pick import (CUSTOMERS, PICKING, POOL, PRODUCTS_LIST, RATED, _loans, _run,
                                        _starting_values)

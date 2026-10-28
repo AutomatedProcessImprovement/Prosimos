@@ -13,8 +13,8 @@ import pandas as pd
 import pytest
 import pytz
 
-from prosimos.orchestrator import (CatalogueObject, CataloguePool, ProcessSpec, Reference, SimulationConfig, _Pick,
-                                   _drawn_catalogues, run_orchestrator)
+from prosimos.orchestration.catalogue import CatalogueObject, CataloguePool, Reference
+from prosimos.orchestrator import ProcessSpec, SimulationConfig, _Pick, _drawn_catalogues, run_orchestrator
 from testing_scripts.test_catalogue import _config_with
 from testing_scripts.test_order_management import CONFIG, _config
 
