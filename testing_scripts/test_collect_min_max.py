@@ -6,7 +6,7 @@ fill up to max.
 import pytest
 
 from prosimos.exceptions import InvalidSimScenarioException
-from prosimos.messaging_parser import parse_messages
+from prosimos.messaging.parser import parse_messages
 from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.protocol import Message, Verdict
 from testing_scripts.scripted_engine import ScriptedEngine

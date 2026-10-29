@@ -9,7 +9,7 @@ from prosimos.batch_processing import BatchConfigPerTask
 from prosimos.control_flow_manager import BPMN, ElementInfo, ProcessState
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.histogram_distribution import HistogramDistribution
-from prosimos.messaging_parser import parse_messages_file
+from prosimos.messaging.parser import parse_messages_file
 from prosimos.warning_logger import warning_logger
 from prosimos.simulation_properties_parser import parse_json_sim_parameters, parse_simulation_model, add_default_flows
 

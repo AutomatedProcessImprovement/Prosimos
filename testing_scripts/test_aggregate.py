@@ -8,7 +8,7 @@ import pandas as pd
 import pytest
 
 from prosimos.exceptions import InvalidSimScenarioException
-from prosimos.messaging_parser import declared_attributes
+from prosimos.messaging.parser import declared_attributes
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import Message

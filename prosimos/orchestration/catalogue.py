@@ -17,7 +17,7 @@ from prosimos.case_attributes import CaseAttribute
 from prosimos.control_flow_manager import BPMN
 from prosimos.messaging.engine import _aggregated, _is_number
 from prosimos.messaging.model import AGGREGATE_FUNCTIONS
-from prosimos.messaging_parser import is_number, is_whole_number
+from prosimos.messaging.parser import is_number, is_whole_number
 from prosimos.orchestration.random_generators import _engine_random_states
 from prosimos.simulation_properties_parser import parse_simulation_model
 from prosimos.warning_logger import warning_logger

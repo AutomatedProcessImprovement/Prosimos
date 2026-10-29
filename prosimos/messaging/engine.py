@@ -11,7 +11,7 @@ from heapq import heappop, heappush
 from prosimos.branch_condition_rules import BranchConditionRule
 from prosimos.control_flow_manager import BPMN
 from prosimos.execution_info import EnabledEvent
-from prosimos.messaging_parser import is_whole_number, is_whole_number_of_at_least_one
+from prosimos.messaging.parser import is_whole_number, is_whole_number_of_at_least_one
 from prosimos.warning_logger import warning_logger
 
 

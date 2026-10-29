@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Tuple, Union
 import pytz
 
 from prosimos.messaging.model import AGGREGATE_FUNCTIONS
-from prosimos.messaging_parser import is_number, unknown_keys
+from prosimos.messaging.parser import is_number, unknown_keys
 from prosimos.orchestration.catalogue import (CatalogueObject, CataloguePool, Computed, CountFrom, GrowingCatalogue,
                                             NewShare, Reference, _brought_names, _checked_catalogue)
 from prosimos.simulation_properties_parser import parse_datetime

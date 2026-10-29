@@ -7,7 +7,7 @@ import pytz
 
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.messaging.model import ConditionTerm, ConsumePoint, MessagingModel, PublishPoint
-from prosimos.messaging_parser import declared_attributes, parse_messages
+from prosimos.messaging.parser import declared_attributes, parse_messages
 from prosimos.orchestration.prosimos_engine import load_process
 
 EVENTS = {
