@@ -3,9 +3,13 @@ The messaging part of the Prosimos engine (docs/engine-internals.md): the method
 event at a time, receive and publish messages, race the branches of event-based gateways, set case values from
 messages, and tell the output what happened.
 """
+import math
 from heapq import heappop, heappush
 
 from prosimos import simulation_engine
+from prosimos.execution_info import EnabledEvent
+from prosimos.messaging_parser import is_whole_number, is_whole_number_of_at_least_one
+from prosimos.warning_logger import warning_logger
 
 
 class EngineMessaging:
@@ -81,3 +85,201 @@ class EngineMessaging:
                 for index in range(1, self._count(point, p_case) + 1):
                     self.outbox.append((point.type, self._message_attributes(point, p_case, index), p_case, element_id,
                                         point))
+
+    def deliver(self, message_type, attributes, source, now):
+        """Offers one message: 'claimed' if it resumed a waiting case (the one waiting longest, ties
+        by case id) or, failing that, started a new case at the start event; 'discarded' if it can
+        never match; 'pending' otherwise. After a claim, claimed_by lists who took it: the new case and
+        the start event, or each waiting case it resumed and the catch event it waited at."""
+        self._ensure_arrivals_generated()
+        self._close_collections(before=now)
+        self.claimed_by = []
+        values = dict(attributes, source=source)
+        # the oldest matching waiting case claims the message; its consume entry's capacity (min, max) says how
+        # many waiting cases at the same entry claim it, oldest first: with fewer than min waiting, none does yet;
+        # with min, up to max, without waiting to fill up
+        claiming, takers, fewest, capacity = None, [], 1, 1
+        for parked_event in self.parked_events():
+            if claiming is None:
+                claiming = next((point for point in self._consume_points[parked_event.task_id] if point.type == message_type
+                                 and self._accepts(point, values, parked_event.p_case)), None)
+                if claiming is not None:
+                    if parked_event.race is not None:
+                        parked_event, claiming = self._first_listed_branch(parked_event.race, message_type, values)
+                    fewest, capacity = self._capacity(claiming, values)
+                    takers.append(parked_event)
+            elif parked_event.task_id == claiming.event_id and self._accepts(claiming, values, parked_event.p_case):
+                takers.append(parked_event)
+            if takers and len(takers) == capacity:
+                break
+        if takers and len(takers) < fewest:
+            return "pending"  # offered again at this engine's next step, e.g. when another case starts waiting
+        if takers:
+            for parked_event in takers:
+                self._claim(parked_event, claiming, values, now)
+            self.claimed_by = [(parked_event.p_case, parked_event.task_id, claiming)
+                               for parked_event in takers]
+            return "claimed"
+        points = [point for points in self._consume_points.values() for point in points if point.type == message_type]
+        # a start event's condition looks only at the message, so it decides now: a new case, or never
+        starting = next((point for point in points
+                         if point.starts_case and self._condition_holds(point.condition, values, None)), None)
+        if starting is not None:
+            def start_values(p_case, case_values):
+                self._apply_copy(starting, values, case_values)
+                self._apply_append(starting, values, case_values)
+                self._apply_aggregate(starting, values, p_case, case_values)
+
+            p_case = self.create_case(now, start_values)
+            self.claimed_by = [(p_case, starting.event_id, starting)]
+            return "claimed"
+        if any(self._could_match(point.condition, values) and self._has_same(point, values)
+               for point in points if not point.starts_case):
+            return "pending"
+        return "discarded"
+
+    def _claim(self, parked_event, point, values, now):
+        """A waiting case claims one message: the values listed in point.copy are copied into it, and once it
+        has collected all the messages it needs, it is resumed at now."""
+        key = (parked_event.p_case, parked_event.task_id)
+        case_values = self.sim_setup.bpmn_graph.all_attributes[parked_event.p_case]
+        self._apply_copy(point, values, case_values)
+        self._apply_append(point, values, case_values)
+        aggregated = self._apply_aggregate(point, values, parked_event.p_case, case_values)
+        self._copied_later.extend((parked_event.p_case, target, values[source], now)
+                                  for target, source in point.copy if source in values)
+        self._copied_later.extend((parked_event.p_case, target, case_values[target], now)
+                                  for target, source in point.append if source in values)
+        self._copied_later.extend((parked_event.p_case, target, case_values[target], now) for target in aggregated)
+        self._collected[key][0] += 1
+        if point.same and self._collected[key][3] is None:
+            self._collected[key][3] = {name: values[name] for name in point.same}
+        claimed, low, high, _ = self._collected[key]
+        if key in self._closing:
+            if claimed >= high:
+                self._close(key)
+        elif claimed >= low:
+            self._resume(parked_event, now, keep_open=claimed < high)
+
+    def _resume(self, parked_event, now, keep_open=False):
+        """Resumes a waiting case at now: its catch event is queued again, and completes at once. If the
+        case was waiting in a race, its branch wins and the others are canceled. With keep_open, the case got its
+        min but not its max: it keeps taking messages offered at now until the orchestrator's offers for that
+        step are done (see _close_collections)."""
+        if parked_event.race is not None:
+            self._win_race(parked_event.race, parked_event.task_id, parked_event.p_state)
+        key = (parked_event.p_case, parked_event.task_id)
+        if keep_open:
+            self._closing[key] = now
+        else:
+            del self._parked_events[key]
+            del self._collected[key]
+        resumed = EnabledEvent(parked_event.p_case, parked_event.p_state, parked_event.task_id, self.simulation_at_from_datetime(now), now,
+                               is_inter_event=True)
+        resumed.parked_event = parked_event
+        self.events_queue.append_event(resumed)
+
+    def _close(self, key):
+        del self._parked_events[key], self._collected[key], self._closing[key]
+
+    def _close_collections(self, before=None):
+        """Closes the collections still open since their case got its min (all, or those opened before the time
+        before). The orchestrator offers a step's messages one after another and then asks every engine what it
+        does next, so the next call to next_event_time() or step() means the offers of that step are done; a
+        message offered at a later time means so too."""
+        for key, opened in list(self._closing.items()):
+            if before is None or opened < before:
+                self._close(key)
+
+    def _accepts(self, point, values, p_case):
+        """Whether the case p_case, waiting at point's event, takes the message: its condition holds and, with
+        'same', the message has the values the first message the case claimed there set."""
+        if not self._condition_holds(point.condition, values, p_case) or not self._has_same(point, values):
+            return False
+        collected = self._collected.get((p_case, point.event_id))
+        first = collected[3] if collected is not None else None
+        return first is None or all(values[name] == value for name, value in first.items())
+
+    def _has_same(self, point, values):
+        """Whether the message has every attribute point.same lists; a message without one never matches there,
+        with one warning per event and attribute."""
+        missing = [name for name in point.same if name not in values]
+        for name in missing:
+            if (point.event_id, name) not in self._warned_missing_same:
+                self._warned_missing_same.add((point.event_id, name))
+                warning_logger.add_warning(
+                    f"{point.type} message offered at {point.event_id} has no {name}, which 'same' compares; it "
+                    f"doesn't match there")
+        return not missing
+
+    def _capacity(self, point, values):
+        """(min, max) waiting cases this message resumes at point, each fixed or read from the message. A min read
+        from the message that is missing or not a whole number of at least 1 counts as 1; a max that is missing or
+        not a whole number of at least min counts as min. Each comes with one warning per event and attribute."""
+        fewest = point.capacity_min
+        if point.capacity_min_attribute is not None:
+            fewest = values.get(point.capacity_min_attribute)
+            if not is_whole_number_of_at_least_one(fewest):
+                self._warn_capacity(point, "min", point.capacity_min_attribute, f"(got {fewest!r}); its min counts as 1")
+                fewest = 1
+            fewest = int(fewest)
+        most = point.capacity if point.capacity_attribute is None else values.get(point.capacity_attribute)
+        if most == math.inf or is_whole_number_of_at_least_one(most) and most >= fewest:
+            return fewest, most if most == math.inf else int(most)
+        if fewest == 1:
+            self._warn_capacity(point, "max", point.capacity_attribute, f"(got {most!r}); it resumes one waiting case")
+        else:
+            self._warn_capacity(point, "max", point.capacity_attribute or "max",
+                                f"(got {most!r}, min {fewest}); it resumes no more than {fewest} waiting cases")
+        return fewest, fewest
+
+    def _warn_capacity(self, point, bound, attribute, consequence):
+        if (point.event_id, bound, attribute) not in self._warned_capacities:
+            self._warned_capacities.add((point.event_id, bound, attribute))
+            warning_logger.add_warning(
+                f"{point.type} message accepted at {point.event_id} has no valid {attribute} {consequence}")
+
+    def _needed(self, p_case, event_id):
+        """How many messages a case arriving at a catch event must claim there: the entries' fixed collect, or
+        the case attribute holding it, read now; one that isn't a whole number of at least 0 counts as 1, with
+        one warning per event and attribute."""
+        point = self._consume_points[event_id][0]  # an event with collect has exactly one entry
+        if point.collect_attribute is None:
+            return point.collect
+        needed = self.sim_setup.bpmn_graph.get_all_attributes(p_case).get(point.collect_attribute)
+        if is_whole_number(needed, minimum=0):
+            return int(needed)
+        if (point.event_id, point.collect_attribute) not in self._warned_collects:
+            self._warned_collects.add((point.event_id, point.collect_attribute))
+            warning_logger.add_warning(
+                f"case {p_case} reaches {point.event_id} with no valid {point.collect_attribute} "
+                f"(got {needed!r}); it collects one message")
+        return 1
+
+    def _most(self, p_case, event_id, needed):
+        """How many messages a case arriving at a catch event may claim there in all, at least needed (its min):
+        the entry's fixed max, no limit (math.inf), or the case attribute holding it, read now; without a max, the
+        min. One that isn't a whole number of at least needed counts as needed, with one warning per event and
+        attribute."""
+        point = self._consume_points[event_id][0]
+        if point.collect_max is None and point.collect_max_attribute is None:
+            return needed
+        if point.collect_max_attribute is None:
+            most, name = point.collect_max, "max"
+        else:
+            most = self.sim_setup.bpmn_graph.get_all_attributes(p_case).get(point.collect_max_attribute)
+            name = point.collect_max_attribute
+        if isinstance(most, float) and most == math.inf:
+            return most
+        if is_whole_number(most, minimum=needed):
+            return int(most)
+        if (point.event_id, name) not in self._warned_collects:
+            self._warned_collects.add((point.event_id, name))
+            warning_logger.add_warning(
+                f"case {p_case} reaches {point.event_id} with no valid {name} (got {most!r}, min {needed}); it "
+                f"collects no more than {needed}")
+        return needed
+
+    def collected(self, parked_event):
+        """(messages claimed so far, messages needed: min) by a case parked at its catch event."""
+        return tuple(self._collected[(parked_event.p_case, parked_event.task_id)][:2])
