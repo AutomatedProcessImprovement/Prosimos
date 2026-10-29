@@ -14,7 +14,7 @@ from prosimos.orchestration.config import ProcessSpec
 from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import Message, Verdict
-from testing_scripts.scripted_engine import ScriptedEngine
+from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
 ASSETS = "testing_scripts/assets/messaging"
 SALES = f"{ASSETS}/sales.bpmn"  # Take order -> throw OrderPlaced -> catch Shipment -> Close order

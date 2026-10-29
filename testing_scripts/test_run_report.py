@@ -1,8 +1,8 @@
 """The run report: one test per warning and per count. Stalled cases are future work."""
 from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.protocol import Verdict
-from testing_scripts.protocol_scenario import at, run_scenario
-from testing_scripts.scripted_engine import ScriptedEngine
+from testing_scripts.multiprocess.protocol_scenario import at, run_scenario
+from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
 SEED = 1
 

@@ -20,7 +20,7 @@ import pytz
 
 from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.protocol import Message, Verdict
-from testing_scripts.scripted_engine import ScriptedEngine
+from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
 DAY = pytz.utc.localize(datetime(2024, 1, 1))
 TRUCK_CAPACITY = 2

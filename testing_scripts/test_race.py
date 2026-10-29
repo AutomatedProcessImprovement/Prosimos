@@ -15,8 +15,8 @@ from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.prosimos_engine import ProsimosEngine, load_process
 from prosimos.orchestration.protocol import Message, StalledCase, Verdict
 from prosimos.simulation_engine import run_simulation
-from testing_scripts.orchestrator_settings import prosimos_settings
-from testing_scripts.scripted_engine import ScriptedEngine
+from testing_scripts.multiprocess.orchestrator_settings import prosimos_settings
+from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
 ASSETS = "testing_scripts/assets/messaging"
 # Take order -> throw OrderPlaced -> event-based gateway: Shipment (Close order) or 6 h timer (Cancel order)

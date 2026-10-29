@@ -14,7 +14,7 @@ import pytz
 from prosimos.orchestration.config import ProcessSpec
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.simulation_engine import run_simulation
-from testing_scripts.orchestrator_settings import prosimos_settings
+from testing_scripts.multiprocess.orchestrator_settings import prosimos_settings
 
 ASSETS = "testing_scripts/assets/messaging"
 SALES = f"{ASSETS}/sales.bpmn"  # start -> Take order -> throw OrderPlaced -> catch Shipment -> end

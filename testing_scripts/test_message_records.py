@@ -11,8 +11,8 @@ from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import Verdict
 from prosimos.orchestration.simulation import run_multiprocess_simulation
-from testing_scripts.orchestrator_settings import with_qualifiers
-from testing_scripts.scripted_engine import ScriptedEngine
+from testing_scripts.multiprocess.orchestrator_settings import with_qualifiers
+from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
 ASSETS = "testing_scripts/assets/messaging"
 START = pytz.utc.localize(datetime(2024, 1, 1, 9))

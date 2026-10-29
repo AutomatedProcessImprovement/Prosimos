@@ -9,7 +9,7 @@ from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.messaging.parser import parse_messages
 from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.protocol import Message, Verdict
-from testing_scripts.scripted_engine import ScriptedEngine
+from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 from testing_scripts.test_collect import _orders, _settings, at
 from testing_scripts.test_race import ITEMS_RACE, ITEMS_RACE_JSON, _race_orders
 from testing_scripts.test_race import _settings as _race_settings

@@ -11,7 +11,7 @@ from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.prosimos_engine import load_process
 from prosimos.orchestration.protocol import Verdict
-from testing_scripts.scripted_engine import ScriptedEngine
+from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 from testing_scripts.test_capacity import (ASSETS, ORDERS, START, _orders, _run_until_idle, _settings, _truck_ids, at,
                                            truck)
 from testing_scripts.test_race import AFTER_TIES, TRUCK_RACE, TRUCK_RACE_JSON, _race_orders

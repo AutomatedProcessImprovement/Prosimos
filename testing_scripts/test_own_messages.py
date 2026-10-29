@@ -7,8 +7,8 @@ import pytest
 
 from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.protocol import Verdict
-from testing_scripts.protocol_scenario import at
-from testing_scripts.scripted_engine import ScriptedEngine
+from testing_scripts.multiprocess.protocol_scenario import at
+from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
 SEED = 1
 

@@ -21,10 +21,10 @@ from prosimos.orchestration.output import _message_links
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import CaseElement, CaseObject, MessageRecord, Verdict
 from prosimos.orchestration.simulation import run_multiprocess_simulation
-from testing_scripts.orchestrator_settings import with_qualifiers
-from testing_scripts.scripted_engine import ScriptedEngine
-from testing_scripts.test_item_verdicts import PICKING, PICKING_JSON, SALES, SALES_JSON, _picking_in
+from testing_scripts.multiprocess.orchestrator_settings import with_qualifiers
+from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 from testing_scripts.test_append import _run as _run_orders
+from testing_scripts.test_item_verdicts import PICKING, PICKING_JSON, SALES, SALES_JSON, _picking_in
 from testing_scripts.test_order_management import _config, package_items
 
 ASSETS = "testing_scripts/assets/messaging"

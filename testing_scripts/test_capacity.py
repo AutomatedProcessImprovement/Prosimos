@@ -13,7 +13,7 @@ from prosimos.orchestration.config import ProcessSpec
 from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.prosimos_engine import ProsimosEngine, load_process
 from prosimos.orchestration.protocol import Message, Verdict
-from testing_scripts.scripted_engine import ScriptedEngine
+from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
 ASSETS = "testing_scripts/assets/messaging"
 # an order arrives every 10 minutes from 09:00, is packed (1 min) and waits at Catch_Truck for a truck at

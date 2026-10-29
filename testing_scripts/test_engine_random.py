@@ -16,7 +16,7 @@ import pytz
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.simulation import run_multiprocess_simulation
 from prosimos.simulation_engine import SimBPMEnv, run_simulation
-from testing_scripts.scripted_engine import ScriptedEngine
+from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
 EXAMPLE = "testing_scripts/assets/running_example"
 START = pytz.utc.localize(datetime(2024, 1, 1, 9))

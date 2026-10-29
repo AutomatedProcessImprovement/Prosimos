@@ -16,8 +16,8 @@ from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.prosimos_engine import ProsimosEngine, load_process
 from prosimos.orchestration.protocol import Message, Verdict
 from prosimos.simulation_engine import run_simulation
-from testing_scripts.orchestrator_settings import prosimos_settings
-from testing_scripts.scripted_engine import ScriptedEngine
+from testing_scripts.multiprocess.orchestrator_settings import prosimos_settings
+from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
 ASSETS = "testing_scripts/assets/messaging"
 # an order arrives every hour from 09:00; after Pick (10 min) it waits at Catch_Items for one ItemReady

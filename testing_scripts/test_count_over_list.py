@@ -12,7 +12,7 @@ from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.simulation import run_multiprocess_simulation
-from testing_scripts.scripted_engine import ScriptedEngine
+from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
 ASSETS = "testing_scripts/assets/messaging"
 # an item arrives every 10 minutes from 09:00; after Pick (5 min) it publishes ItemPicked with its case_id and
