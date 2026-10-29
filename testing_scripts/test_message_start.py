@@ -9,7 +9,7 @@ import pytest
 import pytz
 
 from prosimos.exceptions import InvalidSimScenarioException
-from prosimos.messaging_parser import ConditionTerm, ConsumePoint
+from prosimos.messaging.model import ConditionTerm, ConsumePoint
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.prosimos_engine import load_process
 
