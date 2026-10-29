@@ -14,9 +14,9 @@ from prosimos.control_flow_manager import (
     BPMN,
     CustomDatetimeAndSeconds,
 )
-from prosimos.engine_messaging import EngineMessaging
 from prosimos.execution_info import EnabledEvent, TaskEvent, Trace
 from prosimos.file_manager import FileManager
+from prosimos.messaging.engine import EngineMessaging
 from prosimos.prioritisation import CasePrioritisation
 from prosimos.simulation_properties_parser import parse_datetime
 from prosimos.simulation_queues_ds import (
