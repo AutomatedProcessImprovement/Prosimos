@@ -8,6 +8,7 @@ import numbers
 from datetime import timedelta
 from heapq import heappop, heappush
 
+from prosimos.branch_condition_rules import BranchConditionRule
 from prosimos.execution_info import EnabledEvent
 from prosimos.messaging_parser import is_whole_number, is_whole_number_of_at_least_one
 from prosimos.warning_logger import warning_logger
@@ -469,6 +470,57 @@ class EngineMessaging:
                 warning_logger.add_warning(
                     f"{point.type} message accepted at {point.event_id} has no {source_name} to append to "
                     f"{target}; nothing is added to {target}")
+
+    def _condition_holds(self, condition, values, p_case):
+        if condition is None:
+            return True
+        return any(all(self._term_holds(term, values, p_case) for term in alternative) for alternative in condition)
+
+    def _term_holds(self, term, values, p_case):
+        if term.attribute not in values:
+            return False
+        if term.object_attribute is None:
+            compared_with = term.value
+        elif term.object_attribute == "object_id":
+            compared_with = self.object_id(p_case)
+        else:
+            case_values = self.sim_setup.bpmn_graph.get_all_attributes(p_case)
+            if term.object_attribute not in case_values:
+                return False
+            compared_with = case_values[term.object_attribute]
+        # the same comparison as branch rules
+        return BranchConditionRule(term.attribute, term.comparison, compared_with).is_rule_true(
+            {term.attribute: values[term.attribute]})
+
+    def _could_match(self, condition, values):
+        """Whether some case that hasn't finished, or (in a process started by messages) one that doesn't
+        exist yet, could still accept the message. Only terms on fixed values and on object_id are decided
+        now; other case attributes can still change."""
+        unfinished = self._unfinished
+        future_cases = self.sim_setup.messaging.started_by_messages
+        if condition is None:
+            return bool(unfinished) or future_cases
+        for alternative in condition:
+            decided = [term for term in alternative if term.object_attribute in (None, "object_id")]
+            if any(all(self._term_holds(term, values, p_case) for term in decided) for p_case in unfinished):
+                return True
+            if future_cases and all(self._term_could_hold_for_a_future_case(term, values) for term in decided):
+                return True
+        return False
+
+    def _term_could_hold_for_a_future_case(self, term, values):
+        """For a case that a start message may still create. Its object_id isn't known yet, except that its
+        number is at least the number of cases so far: an '=' term holds only for such an id; any other
+        comparison might hold."""
+        if term.object_attribute is None:
+            return self._term_holds(term, values, None)
+        if term.attribute not in values:
+            return False
+        if term.comparison != "=":
+            return True
+        prefix, _, number = str(values[term.attribute]).rpartition("-")
+        return (prefix == self.id_prefix and number.isdigit() and str(int(number)) == number
+                and int(number) >= len(self.log_info.trace_list))
 
 
 def _is_number(value):
