@@ -15,8 +15,9 @@ from prosimos.messaging.parser import parse_messages
 from prosimos.orchestration.catalogue import CataloguePool, _checked_catalogue
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.prosimos_engine import load_process
+from testing_scripts.multiprocess.messaging.test_messaging_parser import (  # noqa: F401 (bpmn is a fixture)
+    bpmn, consume, publish)
 from testing_scripts.test_catalogue import _config_with
-from testing_scripts.test_messaging_parser import bpmn, consume, publish  # noqa: F401 (bpmn is a fixture)
 
 START = pytz.utc.localize(datetime(2024, 1, 1, 9))
 

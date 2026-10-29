@@ -17,8 +17,8 @@ from prosimos.orchestration.ocel_writer import OcelProcess, write_ocel
 from prosimos.orchestration.output import _reference_links, _tag_along
 from prosimos.orchestration.protocol import CaseObject
 from prosimos.orchestration.simulation import run_multiprocess_simulation
+from testing_scripts.multiprocess.messaging.test_collect import ORDERS, _settings, at
 from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
-from testing_scripts.test_collect import ORDERS, _settings, at
 from testing_scripts.test_order_management import CONFIG, _config
 
 START = pytz.utc.localize(datetime(2024, 1, 1, 9))

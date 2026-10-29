@@ -10,10 +10,11 @@ from prosimos.orchestration.catalogue import _Brought
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import Message
-from testing_scripts.test_aggregate import WEIGHTS, _history, _ocel_history, _rejected, _run, _settings
-from testing_scripts.test_append import _run as _run_orders
+from testing_scripts.multiprocess.messaging.test_aggregate import (WEIGHTS, _history, _ocel_history, _rejected, _run,
+                                                                   _settings)
+from testing_scripts.multiprocess.messaging.test_append import _run as _run_orders
+from testing_scripts.multiprocess.messaging.test_count_over_list import PACKAGES, START
 from testing_scripts.test_catalogue import _config_with
-from testing_scripts.test_count_over_list import PACKAGES, START
 from testing_scripts.test_pick import CUSTOMERS, PICKING, PRODUCTS_LIST
 from testing_scripts.test_pick_count import PRODUCTS, SALES, _at_creation, _sales_picking
 from testing_scripts.test_with import PRICE
