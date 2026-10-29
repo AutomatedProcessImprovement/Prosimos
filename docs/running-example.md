@@ -4,7 +4,8 @@ One scenario, used throughout this documentation and in the tests, that shows ho
 exchange messages through the orchestrator ([orchestrator.md](orchestrator.md)): orders placed in
 Sales are billed, packed by one of two warehouses, shipped, and closed. All four processes are real
 Prosimos models in `testing_scripts/assets/running_example/`, run from one configuration file,
-`simulation.json` (checked by `testing_scripts/test_real_running_example.py`).
+`simulation.json` (checked by
+`testing_scripts/multiprocess/examples/test_real_running_example.py`).
 
 A larger example, after a real event log and with a comparison against it, is the
 [Order Management example](order-management.md).

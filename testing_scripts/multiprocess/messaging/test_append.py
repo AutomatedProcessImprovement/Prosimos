@@ -14,10 +14,10 @@ from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import Message, Verdict
 from prosimos.orchestration.simulation import run_multiprocess_simulation
 from testing_scripts.multiprocess.catalogue.test_catalogue import _config_with
+from testing_scripts.multiprocess.examples.test_order_management import _config, package_items
 from testing_scripts.multiprocess.messaging.test_collect import ORDERS, START, _settings, at
 from testing_scripts.multiprocess.messaging.test_count_over_list import PACKAGES, PACKAGES_JSON
 from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
-from testing_scripts.test_order_management import _config, package_items
 
 
 def _appending(settings):

@@ -3,7 +3,7 @@
 An example with orders, items and packages, to show the multi-process features working together on a
 realistic model: three processes, seven people on one calendar, and two catalogues, for its customers and
 products. The models are in `testing_scripts/assets/order_management/`; the tests are in
-`testing_scripts/test_order_management.py`.
+`testing_scripts/multiprocess/examples/test_order_management.py`.
 
 It uses most messaging features ([messaging.md](messaging.md)): one message per object with `count` and
 `index`, processes started by messages, `copy`, `append` and `aggregate`, and `collect` with `same`; and the
