@@ -12,7 +12,7 @@ from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.simulation import run_multiprocess_simulation
 from testing_scripts.multiprocess.orchestrator_settings import orchestrator_settings
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parents[3]
 ASSETS = REPO_ROOT / "testing_scripts" / "assets"
 START = pytz.utc.localize(datetime(2024, 1, 1, 9, 30))
 SEED = 42
@@ -89,7 +89,7 @@ def _hash_seeds_with_reversed_set_order():
 
 def _run_in_fresh_python(log_path, config_dir, hash_seed):
     code = (
-        "from testing_scripts.test_repeatability import run_and_write_log; "
+        "from testing_scripts.multiprocess.protocol.test_repeatability import run_and_write_log; "
         f"run_and_write_log({str(log_path)!r}, {str(config_dir)!r})"
     )
     subprocess.run(
