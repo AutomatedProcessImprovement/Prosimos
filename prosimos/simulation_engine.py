@@ -17,7 +17,6 @@ from prosimos.control_flow_manager import (
 from prosimos.engine_messaging import EngineMessaging
 from prosimos.execution_info import EnabledEvent, TaskEvent, Trace
 from prosimos.file_manager import FileManager
-from prosimos.messaging_parser import is_whole_number
 from prosimos.prioritisation import CasePrioritisation
 from prosimos.simulation_properties_parser import parse_datetime
 from prosimos.simulation_queues_ds import (
@@ -161,43 +160,6 @@ class SimBPMEnv(EngineMessaging):
 
     # Queue priorities (case priority first, timers at 0) were removed; last version with them: 5f40913
 
-    def _count(self, point, p_case):
-        """How many messages point publishes for a case passing it now: 1 without count, else its fixed count
-        or the case attribute holding it, read now; one that isn't a whole number of at least 0 counts as 1,
-        with one warning per event and attribute. Over a list, one per entry; a missing or empty list publishes
-        none, with one warning per event."""
-        if not point.counted:
-            return 1
-        if point.count_list is not None:
-            return len(self._count_list(point, p_case))
-        if point.count_attribute is None:
-            return point.count
-        count = self.sim_setup.bpmn_graph.get_all_attributes(p_case).get(point.count_attribute)
-        if is_whole_number(count, minimum=0):
-            return int(count)
-        if (point.event_id, point.count_attribute) not in self._warned_counts:
-            self._warned_counts.add((point.event_id, point.count_attribute))
-            warning_logger.add_warning(
-                f"case {p_case} passes {point.event_id} with no valid {point.count_attribute} (got {count!r}); "
-                f"it publishes one {point.type} message")
-        return 1
-
-    def _count_list(self, point, p_case):
-        entries = self.sim_setup.bpmn_graph.get_all_attributes(p_case).get(point.count_list)
-        if isinstance(entries, (list, tuple)) and entries:
-            return entries
-        if point.event_id not in self._warned_count_lists:
-            self._warned_count_lists.add(point.event_id)
-            kind = "an empty" if isinstance(entries, (list, tuple)) else "no"
-            warning_logger.add_warning(
-                f"case {p_case} passes {point.event_id} with {kind} list {point.count_list} (got {entries!r}); "
-                f"it publishes no {point.type} message")
-        return ()
-
-    def object_id(self, p_case):
-        """How a case's object is named in messages, both when publishing and in conditions: e.g. order-7."""
-        return f"{self.id_prefix}-{p_case}"
-
     def tasks_next_to(self, element_id, forward):
         """The tasks the token reaches first after element_id (forward) or came from last before it: the flows
         are followed through gateways and events, and stop at tasks. Task id -> whether some path to it passes
@@ -273,30 +235,6 @@ class SimBPMEnv(EngineMessaging):
     def waiting_for(self, event_id):
         """The message types a case waiting at event_id accepts."""
         return sorted({point.type for point in self._consume_points[event_id]})
-
-    def _message_attributes(self, point, p_case, index):
-        """The listed attributes, copied from the case's current values; index is the message's number among
-        the ones point publishes for this pass."""
-        values = self.sim_setup.bpmn_graph.get_all_attributes(p_case)
-        attributes = dict()
-        for name in point.attributes:
-            if name == "object_id":
-                attributes[name] = self.object_id(p_case)
-            elif name == "index":  # only listed on an entry with count (checked at load time)
-                attributes[name] = index
-            elif name in values:
-                attributes[name] = values[name]
-            else:
-                # declared (checked at load time) but not given a value on this case's path yet
-                attributes[name] = None
-                if (point.event_id, name) not in self._warned_missing_values:
-                    self._warned_missing_values.add((point.event_id, name))
-                    warning_logger.add_warning(
-                        f"Attribute {name} has no value when case {p_case} passes {point.event_id}; "
-                        f"its {point.type} message carries None")
-        if point.count_list is not None:  # only called for an index within the list
-            attributes[point.count_as] = values[point.count_list][index - 1]
-        return attributes
 
     def _update_initial_event_info(self, sim_setup, p_case, arrival_time):
         for e_id in sim_setup.bpmn_graph.last_datetime:

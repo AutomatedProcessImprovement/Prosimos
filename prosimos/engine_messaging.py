@@ -522,6 +522,67 @@ class EngineMessaging:
         return (prefix == self.id_prefix and number.isdigit() and str(int(number)) == number
                 and int(number) >= len(self.log_info.trace_list))
 
+    def _count(self, point, p_case):
+        """How many messages point publishes for a case passing it now: 1 without count, else its fixed count
+        or the case attribute holding it, read now; one that isn't a whole number of at least 0 counts as 1,
+        with one warning per event and attribute. Over a list, one per entry; a missing or empty list publishes
+        none, with one warning per event."""
+        if not point.counted:
+            return 1
+        if point.count_list is not None:
+            return len(self._count_list(point, p_case))
+        if point.count_attribute is None:
+            return point.count
+        count = self.sim_setup.bpmn_graph.get_all_attributes(p_case).get(point.count_attribute)
+        if is_whole_number(count, minimum=0):
+            return int(count)
+        if (point.event_id, point.count_attribute) not in self._warned_counts:
+            self._warned_counts.add((point.event_id, point.count_attribute))
+            warning_logger.add_warning(
+                f"case {p_case} passes {point.event_id} with no valid {point.count_attribute} (got {count!r}); "
+                f"it publishes one {point.type} message")
+        return 1
+
+    def _count_list(self, point, p_case):
+        entries = self.sim_setup.bpmn_graph.get_all_attributes(p_case).get(point.count_list)
+        if isinstance(entries, (list, tuple)) and entries:
+            return entries
+        if point.event_id not in self._warned_count_lists:
+            self._warned_count_lists.add(point.event_id)
+            kind = "an empty" if isinstance(entries, (list, tuple)) else "no"
+            warning_logger.add_warning(
+                f"case {p_case} passes {point.event_id} with {kind} list {point.count_list} (got {entries!r}); "
+                f"it publishes no {point.type} message")
+        return ()
+
+    def object_id(self, p_case):
+        """How a case's object is named in messages, both when publishing and in conditions: e.g. order-7."""
+        return f"{self.id_prefix}-{p_case}"
+
+    def _message_attributes(self, point, p_case, index):
+        """The listed attributes, copied from the case's current values; index is the message's number among
+        the ones point publishes for this pass."""
+        values = self.sim_setup.bpmn_graph.get_all_attributes(p_case)
+        attributes = dict()
+        for name in point.attributes:
+            if name == "object_id":
+                attributes[name] = self.object_id(p_case)
+            elif name == "index":  # only listed on an entry with count (checked at load time)
+                attributes[name] = index
+            elif name in values:
+                attributes[name] = values[name]
+            else:
+                # declared (checked at load time) but not given a value on this case's path yet
+                attributes[name] = None
+                if (point.event_id, name) not in self._warned_missing_values:
+                    self._warned_missing_values.add((point.event_id, name))
+                    warning_logger.add_warning(
+                        f"Attribute {name} has no value when case {p_case} passes {point.event_id}; "
+                        f"its {point.type} message carries None")
+        if point.count_list is not None:  # only called for an index within the list
+            attributes[point.count_as] = values[point.count_list][index - 1]
+        return attributes
+
 
 def _is_number(value):
     return isinstance(value, numbers.Real) and not isinstance(value, bool)
