@@ -151,7 +151,10 @@ def write_ocel(path, processes, objects, rows, logged_elements=None, message_lin
             "id": f"e{number}",
             "type": event["row"]["activity"],
             "time": _time(event["time"]),
-            "attributes": [{"name": "resource", "value": event["row"]["resource"]}],
+            # our extension of OCEL, whose events are atomic: when the task started and when it was enabled
+            "attributes": [{"name": "resource", "value": event["row"]["resource"]},
+                           {"name": "start_time", "value": _time(_as_datetime(event["row"]["start_time"]))},
+                           {"name": "enable_time", "value": _time(_as_datetime(event["row"]["enable_time"]))}],
             "relationships": relationships,
         })
 
@@ -159,7 +162,9 @@ def write_ocel(path, processes, objects, rows, logged_elements=None, message_lin
         "objectTypes": [{"name": object_type, "attributes": [{"name": name, "type": _ocel_type(values)}
                                                              for name, values in sorted(names.items())]}
                         for object_type, names in sorted(attribute_values.items())],
-        "eventTypes": [{"name": activity, "attributes": [{"name": "resource", "type": "string"}]}
+        "eventTypes": [{"name": activity, "attributes": [{"name": "resource", "type": "string"},
+                                                         {"name": "start_time", "type": "time"},
+                                                         {"name": "enable_time", "type": "time"}]}
                        for activity in sorted({event["type"] for event in events})],
         "objects": ocel_objects,
         "events": events,

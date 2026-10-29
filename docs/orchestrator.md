@@ -139,8 +139,17 @@ written as an OCEL 2.0 JSON file, the format of the OCEL 2.0 sample logs, readab
   keys, objects have no relationships. The catalogue's objects are written too, with all their attributes (see
   [catalogue.md](catalogue.md)).
 - **Events:** one per task, i.e. per row of the merged log, with the activity as event type, the task's
-  completion as time, `resource` as attribute, a link to its case's object, and links to the objects
-  on the other end of its messages (see below) and to the catalogue objects its references name. Event ids (`e1`, `e2`, ...) follow time order.
+  completion as time, `resource`, `start_time` and `enable_time` as attributes, a link to its case's object, and
+  links to the objects on the other end of its messages (see below) and to the catalogue objects its references
+  name. Event ids (`e1`, `e2`, ...) follow time order.
+- **Event times, our extension of OCEL.** OCEL events are atomic: one time each, in OCEL 2.0 and in the 2.1
+  pre-release. A simulated task takes time and may wait to start, and both matter for simulation (waiting, working
+  time, resource use), so every event also carries the task's `start_time` and `enable_time` from its log row,
+  written like `time` (e.g. `2023-04-03T09:00:00.000000Z`) and declared with type `time` in every event type. OCEL
+  allows extra event attributes, so the file stays OCEL 2.0, and `pm4py.read_ocel2_json` reads both as times. The
+  event's own `time` stays the completion. The values are the log's: Prosimos computes a task's start from seconds
+  since the start of the run, so a task that starts the moment it is enabled may show an `enable_time` 1 µs after
+  its `start_time` (90 of about 22,000 tasks of the Order Management example with seed 1).
 - `objectTypes` and `eventTypes` list each type with its attributes; an attribute's type is inferred
   from its values.
 - A process without an `object_type` writes no objects and no events. Extra engines write neither.

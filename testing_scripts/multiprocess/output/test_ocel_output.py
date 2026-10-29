@@ -5,7 +5,7 @@ task, linked to its case's object.
 import dataclasses
 import json
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pandas as pd
 import pytest
@@ -21,6 +21,7 @@ from testing_scripts.multiprocess.examples.test_order_management import _config
 from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
 START = pytz.utc.localize(datetime(2024, 1, 1, 9))
+ONE_MICROSECOND = timedelta(microseconds=1)
 
 
 @pytest.fixture(scope="module")
@@ -72,7 +73,8 @@ def test_object_and_event_types_are_listed_with_their_attributes(order_managemen
     assert {t["name"] for t in ocel["eventTypes"]} == {
         "place order", "confirm order", "payment reminder", "pay order", "item out of stock", "reorder item",
         "pick item", "create package", "send package", "failed delivery", "package delivered"}
-    assert all(t["attributes"] == [{"name": "resource", "type": "string"}] for t in ocel["eventTypes"])
+    assert all(t["attributes"] == [{"name": "resource", "type": "string"}, {"name": "start_time", "type": "time"},
+                                   {"name": "enable_time", "type": "time"}] for t in ocel["eventTypes"])
 
 
 def test_pm4py_reads_the_file(order_management):
@@ -83,6 +85,60 @@ def test_pm4py_reads_the_file(order_management):
 
     assert len(ocel.events) == len(log)
     assert set(ocel.objects["ocel:type"]) == {"order", "item", "package", "customer", "product"}
+
+
+# start_time and enable_time: our extension of OCEL, whose events have one time, the completion
+
+def _times(event):
+    """An event's time, start_time and enable_time, as the file writes them."""
+    attributes = {attribute["name"]: attribute["value"] for attribute in event["attributes"]}
+    return event["time"], attributes["start_time"], attributes["enable_time"]
+
+
+def test_every_event_has_the_start_and_enable_time_of_its_log_row(order_management):
+    _, log, ocel, _ = order_management
+
+    def utc(column):
+        return pd.to_datetime(log[column], format="ISO8601").dt.tz_convert("UTC").dt.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+    object_type = {"Sales": "order", "Warehouse": "item", "Packaging": "package"}
+    rows = Counter(zip(log["activity"], log["resource"], [f"{object_type[p]}-{c}" for p, c in zip(log["process"],
+                       log["case_id"])], utc("end_time"), utc("start_time"), utc("enable_time")))
+    events = Counter((event["type"], event["attributes"][0]["value"], event["relationships"][0]["objectId"],
+                      *_times(event)) for event in ocel["events"])
+    assert events == rows
+
+
+def test_an_event_is_enabled_before_it_starts_and_starts_before_it_completes(order_management):
+    _, _, ocel, _ = order_management
+
+    times = [tuple(map(datetime.fromisoformat, _times(event))) for event in ocel["events"]]
+    assert all(start <= time for time, start, _ in times)
+    # Prosimos computes a task's start from seconds, so one that starts the moment it is enabled may show an
+    # enable_time 1 µs after its start_time; the file copies the log's values (docs/orchestrator.md, "Output")
+    assert all(enable <= start + ONE_MICROSECOND for _, start, enable in times)
+    assert any(enable < start < time for time, start, enable in times)
+
+
+def test_an_instant_task_has_all_three_times_equal(order_management):
+    _, _, ocel, _ = order_management
+
+    # placing an order and recording a delivery take no time, and System is there around the clock
+    instant = [event for event in ocel["events"]
+               if event["type"] in ("place order", "failed delivery", "package delivered")]
+    assert instant and all(len(set(_times(event))) == 1 for event in instant)
+
+
+def test_pm4py_reads_start_time_and_enable_time_as_times(order_management):
+    pm4py = pytest.importorskip("pm4py")
+    _, _, ocel, path = order_management
+
+    events = pm4py.read_ocel2_json(str(path)).events
+
+    assert {"start_time", "enable_time"} <= set(events.columns)
+    assert all(str(events[column].dtype) == "datetime64[ns, UTC]" for column in ("start_time", "enable_time"))
+    assert (events["start_time"] <= events["ocel:timestamp"]).all()
+    assert (events["enable_time"] <= events["start_time"] + ONE_MICROSECOND).all()
 
 
 def test_a_process_has_an_object_type_only_where_it_is_given(tmp_path):
@@ -144,8 +200,10 @@ def test_objects_created_at_the_same_moment_go_by_process_order_then_case_number
 
 
 def _row(process, case, end):
-    """A logged task of the case, so that the writer writes its object."""
-    return process, {"case_id": case, "activity": "a", "resource": "R", "end_time": end}
+    """A logged task of the case, so that the writer writes its object: an instant one, enabled, started and
+    completed at end."""
+    return process, {"case_id": case, "activity": "a", "resource": "R", "enable_time": end, "start_time": end,
+                     "end_time": end}
 
 
 def test_a_value_copied_at_a_catch_event_is_a_later_attribute_value(tmp_path):

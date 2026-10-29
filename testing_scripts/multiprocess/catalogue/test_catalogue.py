@@ -256,6 +256,12 @@ def test_a_list_appended_from_messages_links_each_item_it_collected(tmp_path):
     assert linked == {"Pick": [], "Pack": ["i17", "i23", "i12"]}
 
 
+def _instant_row(process, activity, at):
+    """A logged task of the process's case 0, enabled, started and completed at at."""
+    return process, {"case_id": 0, "activity": activity, "resource": "R", "enable_time": at, "start_time": at,
+                     "end_time": at}
+
+
 # tag_along: P's object p-0 names a product (tag_along, none of its own events) and a colour (every own event);
 # Q's case q-0 links p-0 through a message at its first event and, with carry_links, at its second
 
@@ -272,7 +278,7 @@ def test_with_tag_along_every_event_of_another_case_that_links_the_object_links_
     objects = [("P", CaseObject("p-0", START, [("product", "phone", START), ("colour", "red", START),
                                                ("product", "tablet", START + timedelta(minutes=15))])),
                ("Q", CaseObject("q-0", START))]
-    rows = [(process, {"case_id": 0, "activity": activity, "resource": "R", "end_time": START + timedelta(minutes=end)})
+    rows = [_instant_row(process, activity, START + timedelta(minutes=end))
             for process, activity, end in (("P", "place order", 5), ("Q", "a", 10), ("Q", "b", 20))]
     _, _, event_links = _reference_links(config, config.catalogue, processes, objects, rows, {}, [].append)
 
@@ -297,7 +303,7 @@ def test_with_tag_along_an_event_links_each_id_of_the_list_the_object_held_once(
     processes = {"P": OcelProcess("p"), "Q": OcelProcess("q")}
     objects = [("P", CaseObject("p-0", START, [("products", ["phone", "tablet", "phone"], START)])),
                ("Q", CaseObject("q-0", START))]
-    rows = [(process, {"case_id": 0, "activity": activity, "resource": "R", "end_time": START + timedelta(minutes=end)})
+    rows = [_instant_row(process, activity, START + timedelta(minutes=end))
             for process, activity, end in (("P", "place order", 5), ("Q", "a", 10))]
 
     write_ocel(tmp_path / "log.json", processes, objects, rows, None, {("Q", 0): [(("P", "p-0"), "item")]}, None,

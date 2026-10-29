@@ -280,7 +280,10 @@ def test_capacity_attaches_each_resumed_case_to_its_own_next_task():
 
 
 def _row(case, activity, end):
-    return "P", {"case_id": case, "activity": activity, "resource": "R", "end_time": START.replace(minute=end)}
+    """An instant task of the case, enabled, started and completed at minute end."""
+    at = START.replace(minute=end)
+    return "P", {"case_id": case, "activity": activity, "resource": "R", "enable_time": at, "start_time": at,
+                 "end_time": at}
 
 
 def _relationships(tmp_path, process):
