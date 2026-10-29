@@ -16,8 +16,8 @@ from prosimos.orchestration.output import _object_links
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import CaseElement, MessageRecord
 from prosimos.orchestration.simulation import run_multiprocess_simulation
+from testing_scripts.multiprocess.output.test_ocel_links import _items, _items_of_orders
 from testing_scripts.multiprocess.protocol.test_message_records import _verdicts_run
-from testing_scripts.test_ocel_links import _items, _items_of_orders
 from testing_scripts.test_order_management import _config, package_items
 
 ASSETS = "testing_scripts/assets/messaging"
