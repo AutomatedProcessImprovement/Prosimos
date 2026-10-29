@@ -16,7 +16,7 @@ import pytz
 from prosimos.orchestration.catalogue import CatalogueObject, CataloguePool, Reference, _Pick, _drawn_catalogues
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.simulation import run_multiprocess_simulation
-from testing_scripts.test_catalogue import _config_with
+from testing_scripts.multiprocess.catalogue.test_catalogue import _config_with
 from testing_scripts.test_order_management import CONFIG, _config
 
 ASSETS = Path("testing_scripts/assets")

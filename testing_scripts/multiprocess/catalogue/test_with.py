@@ -10,10 +10,10 @@ import pytest
 
 from prosimos.orchestration.catalogue import CatalogueObject, Computed, _Brought, _Pick
 from prosimos.orchestration.config import SimulationConfig
-from testing_scripts.test_catalogue import _config_with
-from testing_scripts.test_pick import (CUSTOMERS, PICKING, POOL, PRODUCTS_LIST, RATED, _loans, _run,
-                                       _starting_values)
-from testing_scripts.test_pick_count import PRODUCTS, SALES, _at_creation, _sales_picking
+from testing_scripts.multiprocess.catalogue.test_catalogue import _config_with
+from testing_scripts.multiprocess.catalogue.test_pick import (CUSTOMERS, PICKING, POOL, PRODUCTS_LIST, RATED, _loans,
+                                                              _run, _starting_values)
+from testing_scripts.multiprocess.catalogue.test_pick_count import PRODUCTS, SALES, _at_creation, _sales_picking
 
 PRICE = {obj["id"]: obj["attributes"]["price"] for obj in PRODUCTS_LIST}
 

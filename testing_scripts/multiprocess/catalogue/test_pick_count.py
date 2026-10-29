@@ -12,8 +12,8 @@ import pytest
 from prosimos.orchestration.catalogue import CountFrom, _Pick
 from prosimos.orchestration.config import SimulationConfig
 from prosimos.orchestration.simulation import run_multiprocess_simulation
-from testing_scripts.test_catalogue import _config_with
-from testing_scripts.test_pick import CUSTOMERS, PICKING, PRODUCTS_LIST
+from testing_scripts.multiprocess.catalogue.test_catalogue import _config_with
+from testing_scripts.multiprocess.catalogue.test_pick import CUSTOMERS, PICKING, PRODUCTS_LIST
 
 PRODUCTS = {"object_attribute": "products", "catalogue": "product", "pick": "uniform"}
 SALES = r"processes\[0\].references\[1\]"

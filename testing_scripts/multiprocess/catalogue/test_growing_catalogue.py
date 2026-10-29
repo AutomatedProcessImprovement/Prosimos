@@ -10,9 +10,9 @@ import pytest
 
 from prosimos.orchestration.catalogue import GrowingCatalogue, NewShare, _NewPick
 from prosimos.orchestration.config import SimulationConfig
-from testing_scripts.test_catalogue import _config_with
+from testing_scripts.multiprocess.catalogue.test_catalogue import _config_with
+from testing_scripts.multiprocess.catalogue.test_pick import POOL, PICKING, _customers_of_cases, _loans, _run
 from testing_scripts.test_order_management import _config
-from testing_scripts.test_pick import POOL, PICKING, _customers_of_cases, _loans, _run
 
 CUSTOMERS = GrowingCatalogue(POOL.attributes)  # segment and credit_limit
 
