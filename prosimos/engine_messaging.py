@@ -78,7 +78,7 @@ class EngineMessaging:
             # the generator is only advanced while the queue has an event, so it never runs dry
             return None
         if self._event_generator is None:
-            self._event_generator = simulation_engine.execute_full_process(self)
+            self._event_generator = self._full_process()
         executed = next(self._event_generator, None)
         self._hold_passed_elements()
         return executed
@@ -487,8 +487,3 @@ def _aggregated(function, values, initial=None):
     if function == "sum":
         return sum(values) if all(isinstance(value, numbers.Integral) for value in values) else math.fsum(values)
     return min(values) if function == "min" else max(values)
-
-
-# last, once EngineMessaging exists: simulation_engine.py imports this file for it, and step calls execute_full_process
-# through this module, so whichever of the two files is imported first, the other finds what it needs
-from prosimos import simulation_engine  # noqa: E402

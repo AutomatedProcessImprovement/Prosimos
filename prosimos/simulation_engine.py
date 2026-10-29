@@ -156,6 +156,10 @@ class SimBPMEnv(EngineMessaging):
         self._warned_overlapping_races = set()
         self._warned_races_won_at_once = set()
 
+    def _full_process(self):
+        """The generator that runs this engine's events one by one (execute_full_process), for step()."""
+        return execute_full_process(self)
+
     # Queue priorities (case priority first, timers at 0) were removed; last version with them: 5f40913
 
     def _count(self, point, p_case):
