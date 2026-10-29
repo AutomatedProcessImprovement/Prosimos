@@ -9,6 +9,7 @@ from datetime import timedelta
 from heapq import heappop, heappush
 
 from prosimos.branch_condition_rules import BranchConditionRule
+from prosimos.control_flow_manager import BPMN
 from prosimos.execution_info import EnabledEvent
 from prosimos.messaging_parser import is_whole_number, is_whole_number_of_at_least_one
 from prosimos.warning_logger import warning_logger
@@ -582,6 +583,82 @@ class EngineMessaging:
         if point.count_list is not None:  # only called for an index within the list
             attributes[point.count_as] = values[point.count_list][index - 1]
         return attributes
+
+    def tasks_next_to(self, element_id, forward):
+        """The tasks the token reaches first after element_id (forward) or came from last before it: the flows
+        are followed through gateways and events, and stop at tasks. Task id -> whether some path to it passes
+        a parallel or inclusive gateway that joins (or splits, forward) several flows, i.e. whether it may run
+        alongside the others."""
+        key = (element_id, forward)
+        if key not in self._tasks_next_to:
+            graph = self.sim_setup.bpmn_graph
+            tasks, seen, to_visit = {}, {(element_id, False)}, [(element_id, False)]
+            while to_visit:
+                current, concurrent = to_visit.pop()
+                element = graph.element_info[current]
+                if element.type in (BPMN.PARALLEL_GATEWAY, BPMN.INCLUSIVE_GATEWAY) and current != element_id:
+                    concurrent = concurrent or (element.is_split() if forward else element.is_join())
+                for flow in element.outgoing_flows if forward else element.incoming_flows:
+                    neighbour = graph.flow_arcs[flow][1 if forward else 0]
+                    if (neighbour, concurrent) in seen:
+                        continue
+                    seen.add((neighbour, concurrent))
+                    if graph.element_info[neighbour].type is BPMN.TASK:
+                        tasks[neighbour] = tasks.get(neighbour, False) or concurrent
+                    else:
+                        to_visit.append((neighbour, concurrent))
+            self._tasks_next_to[key] = tasks
+        return self._tasks_next_to[key]
+
+    def case_attribute_history(self):
+        """Case id -> its case attributes over time, as (attribute, value, time): every value the case had
+        when it was created, then every value a message copied into it later, in the order they came."""
+        history = {p_case: [(name, value, createdAt) for name, value in values.items()]
+                   for p_case, (createdAt, values) in self._case_created.items()}
+        for p_case, name, value, copiedAt in self._copied_later:
+            history[p_case].append((name, value, copiedAt))
+        return history
+
+    def case_creation_times(self):
+        """Case id -> when it was created."""
+        return {p_case: createdAt for p_case, (createdAt, _) in self._case_created.items()}
+
+    def only_started_values(self):
+        """Case id -> the aggregated attributes whose value when it was created is only their start, 0 or their
+        initial: no message had written them yet (a message that starts a case writes its own aggregates into the
+        new case)."""
+        return dict(self._only_started)
+
+    def stalled_at(self, parked_event):
+        """Where a parked case is reported stalled: the race gateway if it waits in a race, else its event."""
+        return self._race_gateway_of.get(parked_event.task_id, parked_event.task_id)
+
+    def stalled_waits(self):
+        """The cases still waiting for a message, once per case and place where they are reported stalled:
+        (the parked event, the place, the message types accepted there), the one waiting longest first.
+        A case waiting in a race is reported once, at the gateway, with the types of all its message
+        branches."""
+        self._close_collections()
+        waits = dict()  # (case id, place) -> (parked event, place, message types)
+        for parked_event in self.parked_events():
+            place = self.stalled_at(parked_event)
+            _, _, types = waits.setdefault((parked_event.p_case, place), (parked_event, place, set()))
+            types.update(self.waiting_for(parked_event.task_id))
+        return [(parked_event, place, sorted(types)) for parked_event, place, types in waits.values()]
+
+    def parked_events(self):
+        """The queued catch events (EnabledEvents) at which cases are parked, waiting for a message: one
+        per waiting case and event, the one waiting longest first (ties by case id)."""
+        for key, parked_event in list(self._parked_events.items()):
+            if not any(parked_event.p_state.has_token(flow) for flow in self.sim_setup.bpmn_graph.element_info[parked_event.task_id].incoming_flows):
+                del self._parked_events[key]  # the case moved on without it (e.g. a terminate end event)
+                del self._collected[key]
+                self._closing.pop(key, None)
+        return [self._parked_events[key] for key in sorted(self._parked_events, key=lambda key: (self._parked_events[key].enabled_datetime, key))]
+
+    def waiting_for(self, event_id):
+        """The message types a case waiting at event_id accepts."""
+        return sorted({point.type for point in self._consume_points[event_id]})
 
 
 def _is_number(value):
