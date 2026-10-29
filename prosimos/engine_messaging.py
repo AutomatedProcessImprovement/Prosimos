@@ -4,10 +4,10 @@ event at a time, receive and publish messages, race the branches of event-based 
 messages, and tell the output what happened.
 """
 import math
+import numbers
 from datetime import timedelta
 from heapq import heappop, heappush
 
-from prosimos import simulation_engine
 from prosimos.execution_info import EnabledEvent
 from prosimos.messaging_parser import is_whole_number, is_whole_number_of_at_least_one
 from prosimos.warning_logger import warning_logger
@@ -392,3 +392,103 @@ class EngineMessaging:
             self._unfinished[p_case] = None
         else:
             self._unfinished.pop(p_case, None)
+
+    def create_case(self, now, set_values=None):
+        """Starts a new case at now, as a planned arrival would (case attributes drawn as usual), and
+        returns its id: the next consecutive one, since the log's trace list is indexed by case id.
+        set_values(p_case, case_values), if given, changes the drawn values before the case starts."""
+        p_case = len(self.log_info.trace_list)
+        case_values = self.sim_setup.case_attributes.get_values_calculated()
+        case_values.update(self._starting_values())
+        if set_values is not None:
+            set_values(p_case, case_values)
+        self.case_prioritisation.all_case_attributes[p_case] = case_values
+        self.case_prioritisation.all_case_priorities[p_case] = \
+            self.sim_setup.prioritisation_rules.get_priority(case_values)
+        self.sim_setup.bpmn_graph.all_attributes[p_case] = case_values
+        self._update_initial_event_info(self.sim_setup, p_case, self.simulation_at_from_datetime(now))
+        return p_case
+
+    def _starting_values(self):
+        """What a case's appended and aggregated attributes start with: an empty list, and an aggregate's initial,
+        else 0 for a sum or count (a min or max without initial has no value until the first message)."""
+        values = {target: [] for target in self._appended}
+        values.update((target, initial if initial is not None else 0) for target, (function, initial)
+                      in self._aggregated.items() if initial is not None or function in ("sum", "count"))
+        return values
+
+    def _apply_aggregate(self, point, values, p_case, case_values):
+        """Adds the message attributes listed in point.aggregate to the values aggregated so far for the case, and
+        writes each function over them into the case's values; the case attributes it wrote. A message without one
+        of them, or for sum, min and max with one that isn't a number, is skipped, with one warning per event and
+        attribute."""
+        written = []
+        for target, function, source_name, initial in point.aggregate:
+            if source_name not in values:
+                if (point.event_id, source_name) not in self._warned_missing_aggregates:
+                    self._warned_missing_aggregates.add((point.event_id, source_name))
+                    warning_logger.add_warning(
+                        f"{point.type} message accepted at {point.event_id} has no {source_name} to aggregate into "
+                        f"{target}; {target} is left unchanged")
+                continue
+            value = values[source_name]
+            if function != "count" and not _is_number(value):
+                if (point.event_id, source_name) not in self._warned_not_numbers:
+                    self._warned_not_numbers.add((point.event_id, source_name))
+                    warning_logger.add_warning(
+                        f"{point.type} message accepted at {point.event_id} has {source_name} {value!r}, which isn't "
+                        f"a number to {function} into {target}; {target} is left unchanged")
+                continue
+            aggregated = self._aggregated_values.setdefault((p_case, target), [])
+            aggregated.append(value)
+            case_values[target] = _aggregated(function, aggregated, initial)
+            written.append(target)
+        return written
+
+    def _apply_copy(self, point, values, case_values):
+        """Writes the message attributes listed in point.copy into the case's values. A message without
+        one of them leaves that case attribute unchanged, with one warning per event and attribute."""
+        for target, source_name in point.copy:
+            if source_name in values:
+                case_values[target] = values[source_name]
+            elif (point.event_id, source_name) not in self._warned_missing_copies:
+                self._warned_missing_copies.add((point.event_id, source_name))
+                warning_logger.add_warning(
+                    f"{point.type} message accepted at {point.event_id} has no {source_name} to copy into "
+                    f"{target}; {target} is left unchanged")
+
+    def _apply_append(self, point, values, case_values):
+        """Adds the message attributes listed in point.append to the lists in the case's values, as new lists, so
+        the values recorded earlier keep their contents. A message without one of them adds nothing, with one
+        warning per event and attribute."""
+        for target, source_name in point.append:
+            if source_name in values:
+                case_values[target] = [*case_values.get(target, []), values[source_name]]
+            elif (point.event_id, source_name) not in self._warned_missing_appends:
+                self._warned_missing_appends.add((point.event_id, source_name))
+                warning_logger.add_warning(
+                    f"{point.type} message accepted at {point.event_id} has no {source_name} to append to "
+                    f"{target}; nothing is added to {target}")
+
+
+def _is_number(value):
+    return isinstance(value, numbers.Real) and not isinstance(value, bool)
+
+
+def _aggregated(function, values, initial=None):
+    """function over values: count, sum, min or max, and over initial, if given, a number already among them: a
+    count adds the values to it, a sum, min or max takes it as one more value. A sum of whole numbers is a whole
+    number; any other is rounded once, at the end (math.fsum), so it doesn't depend on the order of the messages:
+    1.2, 0.8 and 2.1 add up to 4.1 in any order, where adding them one by one may give 4.1000000000000005."""
+    if function == "count":
+        return len(values) + (initial if initial is not None else 0)
+    if initial is not None:
+        values = [initial, *values]
+    if function == "sum":
+        return sum(values) if all(isinstance(value, numbers.Integral) for value in values) else math.fsum(values)
+    return min(values) if function == "min" else max(values)
+
+
+# last, once EngineMessaging exists: simulation_engine.py imports this file for it, and step calls execute_full_process
+# through this module, so whichever of the two files is imported first, the other finds what it needs
+from prosimos import simulation_engine  # noqa: E402
