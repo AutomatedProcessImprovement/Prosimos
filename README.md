@@ -42,7 +42,7 @@ Without **_seed_**, every run draws different random values.
 To simulate several processes together, exchanging messages (see "Multi-process simulation" below),
 run from the root folder:
 
-    poetry run prosimos start-orchestration --config <Path to the JSON configuration file listing the processes>
+    poetry run prosimos start-orchestration --config <Path to the JSON configuration file listing the organizations and their processes>
                                             --log_out_path <(Optional) Path to the CSV file to save the merged event-log of all processes>
                                             --report_out_path <(Optional) Path to the JSON file to save the full run report>
                                             --ocel_out_path <(Optional) Path to the JSON file to save the run as an OCEL 2.0 event log>
@@ -61,7 +61,7 @@ Several processes can be simulated side by side on one shared clock, exchanging 
 example, a Sales process announces each order, warehouses compete to handle it, and the Sales case
 waits until its shipment arrives. Each process is an ordinary Prosimos model (BPMN plus JSON); its
 JSON settings list which message events publish or wait for which messages. A configuration file
-lists the processes, and one command (`start-orchestration`, above) or one call runs them together:
+lists the organizations, each with its processes, and one command (`start-orchestration`, above) or one call runs them together:
 
 ```python
 from prosimos.orchestration.config import SimulationConfig
@@ -76,7 +76,8 @@ plus the cases still waiting for a message at the end. With an OCEL path, the ru
 object-centric event log in the OCEL 2.0 JSON format, readable with `pm4py.read_ocel2_json`: one object per
 case (an order, an item, a package), one event per task, and the links that the messages between the cases
 make, e.g. place order linked to the items it ordered, each order comprising its items. Objects without
-events of their own, such as customers and products, come from a catalogue in the configuration. See:
+events of their own, such as customers and products, come from an organization's catalogue, shared by its
+processes. See:
 
 - [docs/orchestrator.md](docs/orchestrator.md): configuration, output, how messages are routed, and
   the engine interface;

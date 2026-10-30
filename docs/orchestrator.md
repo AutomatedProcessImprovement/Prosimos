@@ -81,18 +81,29 @@ Extra engines (see "Configuration") can only be passed from Python.
 
 | Field             | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 |-------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `processes`       | one entry per process: a unique `name`, `bpmn_path`, `json_path`, and `arrivals`, how many cases arrive, <br/>unless the process is started by messages ([messaging.md](messaging.md)); optionally `object_type`, the type of the objects its cases are, one kind of thing, named in the singular (without one, the process is left out of the OCEL output; several processes may share one, e.g. two warehouses that both make shipments), `qualifier`, `qualifier_by_activity` and `carry_links` for its OCEL links and `ocel_attributes`, the attributes written to its objects (see "Output"), and `catalogues` and `references`, its objects with no events of their own and which of its attributes hold their ids ([catalogue.md](catalogue.md)) |
+| `organizations`   | one entry per organization, a business: a unique `name`, its `processes` and, optionally, its `catalogues`, objects with no events of their own that its processes share ([catalogue.md](catalogue.md)). Every process belongs to exactly one organization; a business with one process is an organization with one process (see "Organizations" below)                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `processes`       | in an organization, one entry per process: a unique `name`, `bpmn_path`, `json_path`, and `arrivals`, how many cases arrive, <br/>unless the process is started by messages ([messaging.md](messaging.md)); optionally `object_type`, the type of the objects its cases are, one kind of thing, named in the singular (without one, the process is left out of the OCEL output; several processes may share one, e.g. two warehouses that both make shipments), `qualifier`, `qualifier_by_activity` and `carry_links` for its OCEL links and `ocel_attributes`, the attributes written to its objects (see "Output"), and `references`, which of its attributes hold the ids of its organization's catalogue objects ([catalogue.md](catalogue.md))    |
 | `start_time`      | the simulation's start, shared by all processes; a time without a time zone is taken as UTC                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `seed`            | optional; the same seed gives the same run. Each Prosimos engine gets its own random generators, seeded from the seed and its process name, so adding or changing one process doesn't change the others' draws. Without a seed, every run draws different random values                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `consumer_groups` | optional; group name → processes in it. Without it, every process is its own group (see "Message routing")                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
-File paths are relative to the configuration file's folder. A configuration is rejected if process
-names repeat, a process is in no group or in more than one, a group names a process that doesn't exist,
-or the catalogues and references break one of the rules listed in [catalogue.md](catalogue.md).
-It is also rejected for a key it doesn't know, at the top level, in a process entry, a catalogue (a listed
-object, a pool or a growing catalogue), a reference or its `pick`, since a misspelled key would otherwise
-be ignored and change the run without any message:
-`processes[0].references[0]: unknown key 'link_event'; allowed: catalogue, count, link_events, o2o, object_attribute, pick, reverse, tag_along, with`.
+File paths are relative to the configuration file's folder. A configuration is rejected if organization
+or process names repeat, a process is in no group or in more than one, a group names a process that doesn't
+exist, or the catalogues and references break one of the rules listed in [catalogue.md](catalogue.md).
+It is also rejected for a key it doesn't know, at the top level (a top-level `processes`, for example: processes
+belong to an organization), in an organization entry, a process entry, a catalogue (a listed object, a pool or a
+growing catalogue), a reference or its `pick`, since a misspelled key would otherwise be ignored and change the
+run without any message, and every message names where the key is:
+`organizations[0].processes[0].references[0]: unknown key 'link_event'; allowed: catalogue, count, link_events, o2o, object_attribute, pick, reverse, tag_along, with`.
+
+**Organizations.** An organization is a box around a business's processes and its data: inside, its processes
+share its catalogues; between organizations, only messages pass. Messages, routing and consumer groups don't
+depend on organizations: a group may name processes of any organization, e.g. a partner's warehouse competing
+with ours (the running example's Warehouses group holds Our company's TartuWarehouse and Tallinn partner's
+TallinnWarehouse). Engines never learn their organization: catalogues and picks are handled before the engines
+are built, and each process still draws its picks from its own generator. The organization isn't written in
+the output yet. Ready-made engines passed from Python (`extra_processes`) belong to no organization and read no
+catalogues.
 
 **A process's JSON file** (`json_path`) holds its Prosimos simulation settings, with the attributes drawn for each
 new object under `object_attributes`, in Prosimos's format for its case attributes, and the `messages` section
@@ -139,7 +150,8 @@ written as an OCEL 2.0 JSON file, the format of the OCEL 2.0 sample logs, readab
   the OCEL output does this; the CSV log and the run report are unchanged. `ocel_attributes` may name only
   attributes the objects have: drawn in `object_attributes`, picked or brought (`with`) by a reference, or copied,
   appended or aggregated from messages; any other name is a load error (`Invalid ocel_attributes:
-  processes[1].ocel_attributes names ['colour'], which the objects of process Warehouse never have (...)`). Its
+  organizations[0].processes[1].ocel_attributes names ['colour'], which the objects of process Warehouse never have
+  (...)`). Its
   relationships are its links to other objects, from the `o2o` keys of message entries
   ([messaging.md](messaging.md)): e.g. an order comprises each item its ItemOrdered messages started. Without `o2o`
   keys, objects have no relationships. The catalogue's objects are written too, with all their attributes (see
@@ -168,11 +180,12 @@ with the links from and to its object, as `pm4py.read_ocel2_json` would leave it
 report still lists it as stalled. Catalogue objects have no events by design and are always written.
 
 **Objects without events: the catalogue.** Some objects never have events of their own: customers,
-products, suppliers. A process's `catalogues` declare them (each a list, a generated pool, or a growing
-catalogue), and each of its `references` says that one of its attributes' value is the id of an object of one
-of its own catalogues, which OCEL links to write for it (`o2o`, `reverse`, `link_events`, `tag_along`), and,
-with `pick`, chooses the value when a case is created. A process never refers to another's catalogue: what it
-knows of another's objects comes in messages.
+products, suppliers. An organization's `catalogues` declare them (each a list, a generated pool, or a growing
+catalogue), shared by its processes, and each of a process's `references` says that one of its attributes' value
+is the id of an object of one of its organization's catalogues, which OCEL links to write for it (`o2o`,
+`reverse`, `link_events`, `tag_along`), and, with `pick`, chooses the value when a case is created. A process
+never refers to another organization's catalogue: what it knows of another organization's objects comes in
+messages. Each catalogue object is written once, whichever processes link it.
 The catalogue's objects are written with the catalogue name as type. All keys, with examples, the Order
 Management configuration as a worked example, and every error and warning are in
 [catalogue.md](catalogue.md).

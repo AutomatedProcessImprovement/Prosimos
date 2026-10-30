@@ -7,8 +7,7 @@ Prosimos models in `testing_scripts/assets/running_example/`, run from one confi
 `simulation.json` (checked by
 `testing_scripts/multiprocess/examples/test_real_running_example.py`).
 
-A larger example, after a real event log and with a comparison against it, is the
-[Order Management example](order-management.md).
+A larger example, with orders, items and packages, is the [Order Management example](order-management.md).
 
 ## The scenario
 
@@ -62,6 +61,10 @@ Billing is a group of its own, so it gets its own copy of every order. The two w
 group: each order is offered to both, and the first that accepts it takes it. A Tapa order suits
 both, so which one packs it is a random choice of the orchestrator, fixed by the seed. A Pärnu order
 suits neither: both discard it, and its Sales case waits for a shipment that never comes.
+
+The processes belong to two organizations ([orchestrator.md](orchestrator.md), "Organizations"): Our company
+runs Sales, Billing and TartuWarehouse, and Tallinn partner runs TallinnWarehouse. The Warehouses group spans
+both, so a partner's warehouse competes with ours for the same orders; routing doesn't depend on organizations.
 
 ## Running it
 

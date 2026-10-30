@@ -5,27 +5,31 @@ refer to them, through a case attribute such as `customer = "c7"`. In a plain ev
 text. In the OCEL output it should be an object, with its own attributes, linked to the orders it placed
 and to the events that involved it.
 
-Two keys of a process's entry in the configuration file (see [orchestrator.md](orchestrator.md)) do this. Each
-process describes only itself, as a company holds its own master data:
+Two keys of the configuration file (see [orchestrator.md](orchestrator.md)) do this. A company holds its own
+master data, shared by its processes, so the catalogues belong to an organization and the references to its
+processes:
 
-- its **catalogues** declare the objects: who exists, and with which attributes;
-- a **reference** says that one of its attributes' value *is* the id of an object of one of its catalogues (or
-  a list of such ids), which OCEL links to write for it, and, with `pick`, chooses that value when a case is created; with `with`,
-  the case also starts with attributes of the object it picked.
+- the organization's **catalogues** declare the objects: who exists, and with which attributes;
+- a process's **reference** says that one of its attributes' value *is* the id of an object of one of its
+  organization's catalogues (or a list of such ids), which OCEL links to write for it, and, with `pick`, chooses
+  that value when a case is created; with `with`, the case also starts with attributes of the object it picked.
 
 A first example, with two customers and Sales choosing one for every order:
 
 ```json
-{"name": "Sales", "bpmn_path": "sales.bpmn", "json_path": "sales.json", "arrivals": 100,
+{"name": "Our company",
  "catalogues": {
    "customer": [
      {"id": "c1", "attributes": {"segment": "retail"}},
      {"id": "c2", "attributes": {"segment": "business"}}
    ]
  },
- "references": [
-   {"object_attribute": "customer", "catalogue": "customer",
-    "o2o": "places", "reverse": true, "pick": "uniform"}
+ "processes": [
+   {"name": "Sales", "bpmn_path": "sales.bpmn", "json_path": "sales.json", "arrivals": 100,
+    "references": [
+      {"object_attribute": "customer", "catalogue": "customer",
+       "o2o": "places", "reverse": true, "pick": "uniform"}
+    ]}
  ]}
 ```
 
@@ -98,20 +102,22 @@ the start of the run: with 2,000 orders picking uniformly from 1,500 customers, 
 
 - `attributes` (optional): as for a pool. There is no list and no `count`.
 
-The catalogue starts empty. One reference creates its objects as cases are created, with `"pick": "new"` or
-`{"new_share": ...}` (see below). Ids are numbered in creation order: planned cases are created in case
-order when the engine is built, message-started ones when their message arrives. Each new object's
-attributes are drawn in creation order, from a generator seeded from the seed and the catalogue's name, so
-the same seed gives the same objects. They are timed when the first case took the object's id.
+The catalogue starts empty. One reference of the organization creates its objects as cases are created, with
+`"pick": "new"` or `{"new_share": ...}` (see below); its other processes learn the ids from messages. Ids are
+numbered in creation order: planned cases are created in case order when the engine is built, message-started
+ones when their message arrives. Each new object's attributes are drawn in creation order, from a generator
+seeded from the seed and the catalogue's name, so the same seed gives the same objects. They are timed when the
+first case took the object's id.
 
 ## References
 
-A reference, in a process's `references`, ties one of the process's attributes to one of its catalogues:
+A reference, in a process's `references`, ties one of the process's attributes to one of its organization's
+catalogues:
 
 | Key                | Required | Example                            | Meaning                                                                                                         |
 |--------------------|----------|------------------------------------|-----------------------------------------------------------------------------------------------------------------|
 | `object_attribute` | yes      | `"customer"`                       | the attribute whose value is a catalogue id, or a list of them (see "A list of ids")                            |
-| `catalogue`        | yes      | `"customer"`                       | the process's catalogue the id belongs to                                                                       |
+| `catalogue`        | yes      | `"customer"`                       | the organization's catalogue the id belongs to                                                                  |
 | `o2o`              | no       | `"places"`                         | qualifier of a link between the case's object and the catalogue object; without it, no such link                |
 | `reverse`          | no       | `true`                             | turns the `o2o` link around: from the catalogue object to the case's object (default `false`)                   |
 | `link_events`      | no       | `["place order", "Confirm_Order"]` | which of the case's events link the catalogue object: task names or task ids; without it every event, `[]` none |
@@ -144,11 +150,14 @@ the same reference without `pick` would make the drawn text an object:
 {"object_attribute": "customer", "catalogue": "customer", "o2o": "places", "reverse": true}
 ```
 
-**A reference names a catalogue of its own process**, never another's: what one process knows reaches another
-only in messages, copied under any name the receiver chooses. Catalogue names are unique across the
-configuration, since they are object types of the OCEL output, and ids are unique across all catalogues. In
-Order Management, the items get their order's customer from `ItemOrdered` as an attribute; the customers
-belong to Sales, so the items aren't linked to them.
+**A reference names a catalogue of its own organization**, any of them, never another organization's: the
+processes of one organization share its catalogues, and what one organization knows reaches another only in
+messages, copied under any name the receiver chooses. Each catalogue object is written once in the OCEL file,
+whichever processes link it. Catalogue names are unique across the configuration, since they are object types of
+the OCEL output (a partner's products get a name of their own, e.g. `partner_product`), and ids are unique across
+all catalogues. In Order Management, Sales picks the customers and the Warehouse the products, both from Shop's
+catalogues; the items get their order's customer from `ItemOrdered` as an attribute, and the Warehouse has no
+reference on it, so the items aren't linked to the customers.
 
 A value that isn't an id of the catalogue gets no link, and a warning (see "Errors and warnings").
 
@@ -331,43 +340,22 @@ published messages and `aggregate`.
 
 ## Worked example: Order Management
 
-The Order Management example ([order-management.md](order-management.md)) has 15 customers in a catalogue of
-Sales, which picks one uniformly for each order, and 20 products in a catalogue of the Warehouse, which picks
-one uniformly for each item. This is its full configuration,
+The Order Management example ([order-management.md](order-management.md)) is one organization, Shop, with 15
+customers and 20 products in its catalogues: Sales picks a customer uniformly for each order, and the Warehouse a
+product uniformly for each item. This is its full configuration,
 `testing_scripts/assets/order_management/simulation.json`:
 
 ```json
 {
-  "processes": [
+  "organizations": [
     {
-      "name": "Sales",
-      "bpmn_path": "sales.bpmn",
-      "json_path": "sales.json",
-      "arrivals": 2000,
-      "object_type": "order",
-      "qualifier": "order",
-      "carry_links": true,
+      "name": "Shop",
       "catalogues": {
         "customer": [
           {"id": "c1"}, {"id": "c2"}, {"id": "c3"}, {"id": "c4"}, {"id": "c5"},
           {"id": "c6"}, {"id": "c7"}, {"id": "c8"}, {"id": "c9"}, {"id": "c10"},
           {"id": "c11"}, {"id": "c12"}, {"id": "c13"}, {"id": "c14"}, {"id": "c15"}
-        ]
-      },
-      "references": [
-        {"object_attribute": "customer", "catalogue": "customer",
-         "o2o": "places", "reverse": true, "link_events": ["place order", "confirm order"],
-         "pick": "uniform"}
-      ]
-    },
-    {
-      "name": "Warehouse",
-      "bpmn_path": "warehouse.bpmn",
-      "json_path": "warehouse.json",
-      "object_type": "item",
-      "qualifier": "item",
-      "ocel_attributes": ["weight", "price"],
-      "catalogues": {
+        ],
         "product": [
           {"id": "iPhone X", "attributes": {"weight": 0.172, "price": 699}},
           {"id": "iPhone 8", "attributes": {"weight": 0.21, "price": 529}},
@@ -391,28 +379,52 @@ one uniformly for each item. This is its full configuration,
           {"id": "iPhone 11", "attributes": {"weight": 0.166, "price": 799}}
         ]
       },
-      "references": [
-        {"object_attribute": "product", "catalogue": "product", "o2o": "is a", "tag_along": true,
-         "pick": "uniform",
-         "with": {"weight": "weight", "price": "price"}}
+      "processes": [
+        {
+          "name": "Sales",
+          "bpmn_path": "sales.bpmn",
+          "json_path": "sales.json",
+          "arrivals": 2000,
+          "object_type": "order",
+          "qualifier": "order",
+          "carry_links": true,
+          "references": [
+            {"object_attribute": "customer", "catalogue": "customer",
+             "o2o": "places", "reverse": true, "link_events": ["place order", "confirm order"],
+             "pick": "uniform"}
+          ]
+        },
+        {
+          "name": "Warehouse",
+          "bpmn_path": "warehouse.bpmn",
+          "json_path": "warehouse.json",
+          "object_type": "item",
+          "qualifier": "item",
+          "ocel_attributes": ["weight", "price"],
+          "references": [
+            {"object_attribute": "product", "catalogue": "product", "o2o": "is a", "tag_along": true,
+             "pick": "uniform",
+             "with": {"weight": "weight", "price": "price"}}
+          ]
+        },
+        {
+          "name": "Packaging",
+          "bpmn_path": "packaging.bpmn",
+          "json_path": "packaging.json",
+          "arrivals": 1450,
+          "object_type": "package",
+          "qualifier": "package",
+          "ocel_attributes": ["weight"],
+          "qualifier_by_activity": {
+            "Create_Package": "creates",
+            "Send_Package": "shipped package",
+            "Resend_Package": "shipped package",
+            "Failed_Delivery": "shipped package",
+            "Package_Delivered": "shipped package"
+          },
+          "carry_links": true
+        }
       ]
-    },
-    {
-      "name": "Packaging",
-      "bpmn_path": "packaging.bpmn",
-      "json_path": "packaging.json",
-      "arrivals": 1450,
-      "object_type": "package",
-      "qualifier": "package",
-      "ocel_attributes": ["weight"],
-      "qualifier_by_activity": {
-        "Create_Package": "creates",
-        "Send_Package": "shipped package",
-        "Resend_Package": "shipped package",
-        "Failed_Delivery": "shipped package",
-        "Package_Delivered": "shipped package"
-      },
-      "carry_links": true
     }
   ],
   "seed": 1,
@@ -480,70 +492,71 @@ the product's `weight` and `price` into the item. `ItemPicked` carries the item'
                      {"objectId": "Fire Stick 4K", "qualifier": "product"}]}
   ```
 
-Items and packages carry `customer` too, but only as a case attribute: the customers are a catalogue of Sales,
-and a reference names a catalogue of its own process. To have every order come from a new customer instead,
-replace the list with `"customer": {"attributes": [...]}` and the pick with `"new"`.
+Items and packages carry `customer` too, but only as a case attribute: the Warehouse and Packaging have no
+reference on it, though they could, since the customers are Shop's. To have every order come from a new customer
+instead, replace the list with `"customer": {"attributes": [...]}` and the pick with `"new"`.
 
 ## Errors and warnings
 
 **Load errors.** A configuration is checked when it is built (`SimulationConfig(...)` or
 `SimulationConfig.from_json`). Two errors stop reading the file at once, prefixed by its path:
 
-| Message                                                                | Cause                                                 |
-|------------------------------------------------------------------------|-------------------------------------------------------|
-| `processes[0].catalogues.customer[0]: 'id' must be a non-empty string` | a list object without an `id`, or an empty one        |
-| `processes[0].references[0] is missing ['object_attribute']`           | a reference without `object_attribute` or `catalogue` |
+| Message                                                                       | Cause                                                 |
+|-------------------------------------------------------------------------------|-------------------------------------------------------|
+| `organizations[0].catalogues.customer[0]: 'id' must be a non-empty string`    | a list object without an `id`, or an empty one        |
+| `organizations[0].processes[0].references[0] is missing ['object_attribute']` | a reference without `object_attribute` or `catalogue` |
 
 All the others are collected and raised together, as one `ValueError` starting `Invalid catalogue: `, the
 problems separated by `; `. A growing catalogue with only a `"uniform"` pick, for example, breaks two rules:
 
 ```
-Invalid catalogue: growing catalogue 'customer' needs exactly one reference that creates its objects ("new" or new_share), got 0; processes[0].references[0] picks from growing catalogue 'customer', which only takes "new" or {"new_share": ...}
+Invalid catalogue: growing catalogue 'customer' needs exactly one reference that creates its objects ("new" or new_share), got 0; organizations[0].processes[0].references[0] picks from growing catalogue 'customer', which only takes "new" or {"new_share": ...}
 ```
 
 The messages, by the key they are about:
 
-| Key                          | Message                                                                                                                                                                                               |
-|------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `id`                         | `catalogue ids are repeated: ['x']` (ids are unique across all catalogues)                                                                                                                            |
-| `id`                         | `catalogue ids look like object ids (<object type>-<number>): ['order-1']`                                                                                                                            |
-| catalogue name               | `catalogue 'order' is the object type of process Sales`                                                                                                                                               |
-| `count` (pool)               | `catalogue 'customer': count must be a whole number of at least 1, got 0`                                                                                                                             |
-| `attributes` (pool, growing) | `catalogue 'customer': attributes[0]: InvalidCaseAttributeException: Case attribute segment: probabilities' sum should be equal to 1` (Prosimos's own message)                                        |
-| growing catalogue            | `catalogue ids look like the ids growing catalogue 'customer' creates (customer-<number>): ['customer-2']`                                                                                            |
-| growing catalogue            | `growing catalogue 'customer' needs exactly one reference that creates its objects ("new" or new_share), got 0`                                                                                       |
-| `catalogue`                  | `processes[0].references[0] names unknown catalogue 'clients'`                                                                                                                                        |
-| `catalogue`                  | `processes[1].references[0] names catalogue 'customer' of process Sales; a reference names a catalogue of its own process`                                                                            |
-| catalogue name               | `catalogue 'customer' is declared by more than one process: Sales, Warehouse`                                                                                                                         |
-| `link_events`                | `processes[0].references[0] link_events names ['confrim order'], which are no tasks of process Sales`                                                                                                 |
-| `pick`                       | `processes[0].references[0] pick must be "uniform", {"weights": {id: weight, ...}}, "new" or {"new_share": share}`                                                                                    |
-| `pick`                       | `processes[0].references[0] picks customer, which process Sales also draws in its object_attributes`                                                                                                  |
-| `pick`                       | `processes[1].references[0] picks customer, which process Warehouse also copies from a message (consume entries at ['Start_Item'])`                                                                   |
-| `pick`                       | `processes[2].references[0] picks item_ids, which process Packaging also appends to from a message (consume entries at ['Catch_Items'])`                                                              |
-| `pick`                       | `more than one reference picks customer of process Sales`                                                                                                                                             |
-| `count` (pick)               | `processes[0].references[1] has count but no pick; count says how many objects the pick chooses`                                                                                                      |
-| `count` (pick)               | `processes[0].references[1] count must be a whole number of at least 0 or {"object_attribute": <object attribute>}, got -1`                                                                           |
-| `count` (pick)               | `processes[0].references[1] count reads 'lines', which process Sales doesn't draw in its object_attributes; the count is read when the case is created`                                               |
-| `count` (pick)               | `processes[0].references[1] has count with "new" or new_share; count works with "uniform" or weights, which choose among the objects there are`                                                       |
-| `weights`                    | `processes[0].references[0] weights name ['c99'], which are no ids of catalogue 'customer'`                                                                                                           |
-| `weights`                    | `processes[0].references[0] weights must be numbers of at least 0, not all 0, got {'c1': 0, 'c2': 0}`                                                                                                 |
-| `weights`                    | `processes[0].references[0] has weights on pool 'customer'; a pool can only be picked from uniformly`                                                                                                 |
-| `"new"`, `new_share`         | `processes[0].references[0] picks "new" or new_share from catalogue 'customer', which is no growing catalogue`                                                                                        |
-| `"new"`, `new_share`         | `processes[0].references[0] picks from growing catalogue 'customer', which only takes "new" or {"new_share": ...}`                                                                                    |
-| `new_share`                  | `processes[0].references[0] new_share must be a number above 0 and at most 1, got 1.5`                                                                                                                |
-| `with`                       | `processes[1].references[0] with must map attribute names to an attribute of the picked object or to one function of one, {"sum" \| "count" \| "min" \| "max": <attribute>}, got ['weight', 'price']` |
-| `with`                       | `processes[0].references[1] copies ['price'] on a pick with count; a list pick needs a function over the picked objects, e.g. {"sum": "price"}`                                                       |
-| `with`                       | `processes[0].references[1] with sums, or takes the min or max of, ['price'], which not every object of catalogue 'product' has as a number`                                                          |
-| `with`                       | `processes[0].references[1] with 'price' initial must be a number, got '5'`                                                                                                                           |
-| `with`                       | `processes[0].references[1] with 'price' has initial but no function; initial is the first value a sum, count, min or max works over, and a plain copy has none`                                      |
-| `with`                       | `processes[1].references[0] has with but no pick; a catalogue object brings its attributes only when the reference picks it`                                                                          |
-| `with`                       | `processes[1].references[0] has with on growing catalogue 'product', whose objects don't exist yet when a case is created`                                                                            |
-| `with`                       | `processes[1].references[0] with names ['volume'], which not every object of catalogue 'product' has`                                                                                                 |
-| `with`                       | `processes[1].references[0] brings price, which process Warehouse also draws in its object_attributes`                                                                                                |
-| `with`                       | `processes[1].references[0] brings customer, which process Warehouse also copies from a message (consume entries at ['Start_Item'])`                                                                  |
-| `with`                       | `processes[1].references[0] brings product, which process Warehouse also picks`                                                                                                                       |
-| `with`                       | `processes[1].references[0] brings weight, which another with also brings to process Warehouse`                                                                                                       |
-| `with`                       | `processes[1].references[0] brings object_id, which is reserved for the object's own id`                                                                                                              |
+| Key                          | Message                                                                                                                                                                                                                                                        |
+|------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `id`                         | `catalogue ids are repeated: ['x']` (ids are unique across all catalogues)                                                                                                                                                                                     |
+| `id`                         | `catalogue ids look like object ids (<object type>-<number>): ['order-1']`                                                                                                                                                                                     |
+| catalogue name               | `catalogue 'order' is the object type of process Sales`                                                                                                                                                                                                        |
+| `count` (pool)               | `catalogue 'customer': count must be a whole number of at least 1, got 0`                                                                                                                                                                                      |
+| `attributes` (pool, growing) | `catalogue 'customer': attributes[0]: InvalidCaseAttributeException: Case attribute segment: probabilities' sum should be equal to 1` (Prosimos's own message)                                                                                                 |
+| growing catalogue            | `catalogue ids look like the ids growing catalogue 'customer' creates (customer-<number>): ['customer-2']`                                                                                                                                                     |
+| growing catalogue            | `growing catalogue 'customer' needs exactly one reference that creates its objects ("new" or new_share), got 0                                                                                                                                                 |
+| growing catalogue            | `growing catalogue 'customer' has more than one reference that creates its objects ("new" or new_share): organizations[0].processes[0].references[0], organizations[0].processes[2].references[0]; one creates them, the others learn their ids from messages` |
+| `catalogue`                  | `organizations[0].processes[0].references[0] names unknown catalogue 'clients'`                                                                                                                                                                                |
+| `catalogue`                  | `organizations[1].processes[0].references[0] names catalogue 'product' of organization Shop; a reference names a catalogue of its own organization`                                                                                                            |
+| catalogue name               | `catalogue 'customer' is declared by more than one organization: Shop, Partner`                                                                                                                                                                                |
+| `link_events`                | `organizations[0].processes[0].references[0] link_events names ['confrim order'], which are no tasks of process Sales`                                                                                                                                         |
+| `pick`                       | `organizations[0].processes[0].references[0] pick must be "uniform", {"weights": {id: weight, ...}}, "new" or {"new_share": share}`                                                                                                                            |
+| `pick`                       | `organizations[0].processes[0].references[0] picks customer, which process Sales also draws in its object_attributes`                                                                                                                                          |
+| `pick`                       | `organizations[0].processes[1].references[0] picks customer, which process Warehouse also copies from a message (consume entries at ['Start_Item'])`                                                                                                           |
+| `pick`                       | `organizations[0].processes[2].references[0] picks item_ids, which process Packaging also appends to from a message (consume entries at ['Catch_Items'])`                                                                                                      |
+| `pick`                       | `more than one reference picks customer of process Sales`                                                                                                                                                                                                      |
+| `count` (pick)               | `organizations[0].processes[0].references[1] has count but no pick; count says how many objects the pick chooses`                                                                                                                                              |
+| `count` (pick)               | `organizations[0].processes[0].references[1] count must be a whole number of at least 0 or {"object_attribute": <object attribute>}, got -1`                                                                                                                   |
+| `count` (pick)               | `organizations[0].processes[0].references[1] count reads 'lines', which process Sales doesn't draw in its object_attributes; the count is read when the case is created`                                                                                       |
+| `count` (pick)               | `organizations[0].processes[0].references[1] has count with "new" or new_share; count works with "uniform" or weights, which choose among the objects there are`                                                                                               |
+| `weights`                    | `organizations[0].processes[0].references[0] weights name ['c99'], which are no ids of catalogue 'customer'`                                                                                                                                                   |
+| `weights`                    | `organizations[0].processes[0].references[0] weights must be numbers of at least 0, not all 0, got {'c1': 0, 'c2': 0}`                                                                                                                                         |
+| `weights`                    | `organizations[0].processes[0].references[0] has weights on pool 'customer'; a pool can only be picked from uniformly`                                                                                                                                         |
+| `"new"`, `new_share`         | `organizations[0].processes[0].references[0] picks "new" or new_share from catalogue 'customer', which is no growing catalogue`                                                                                                                                |
+| `"new"`, `new_share`         | `organizations[0].processes[0].references[0] picks from growing catalogue 'customer', which only takes "new" or {"new_share": ...}`                                                                                                                            |
+| `new_share`                  | `organizations[0].processes[0].references[0] new_share must be a number above 0 and at most 1, got 1.5`                                                                                                                                                        |
+| `with`                       | `organizations[0].processes[1].references[0] with must map attribute names to an attribute of the picked object or to one function of one, {"sum" \| "count" \| "min" \| "max": <attribute>}, got ['weight', 'price']`                                         |
+| `with`                       | `organizations[0].processes[0].references[1] copies ['price'] on a pick with count; a list pick needs a function over the picked objects, e.g. {"sum": "price"}`                                                                                               |
+| `with`                       | `organizations[0].processes[0].references[1] with sums, or takes the min or max of, ['price'], which not every object of catalogue 'product' has as a number`                                                                                                  |
+| `with`                       | `organizations[0].processes[0].references[1] with 'price' initial must be a number, got '5'`                                                                                                                                                                   |
+| `with`                       | `organizations[0].processes[0].references[1] with 'price' has initial but no function; initial is the first value a sum, count, min or max works over, and a plain copy has none`                                                                              |
+| `with`                       | `organizations[0].processes[1].references[0] has with but no pick; a catalogue object brings its attributes only when the reference picks it`                                                                                                                  |
+| `with`                       | `organizations[0].processes[1].references[0] has with on growing catalogue 'product', whose objects don't exist yet when a case is created`                                                                                                                    |
+| `with`                       | `organizations[0].processes[1].references[0] with names ['volume'], which not every object of catalogue 'product' has`                                                                                                                                         |
+| `with`                       | `organizations[0].processes[1].references[0] brings price, which process Warehouse also draws in its object_attributes`                                                                                                                                        |
+| `with`                       | `organizations[0].processes[1].references[0] brings customer, which process Warehouse also copies from a message (consume entries at ['Start_Item'])`                                                                                                          |
+| `with`                       | `organizations[0].processes[1].references[0] brings product, which process Warehouse also picks`                                                                                                                                                               |
+| `with`                       | `organizations[0].processes[1].references[0] brings weight, which another with also brings to process Warehouse`                                                                                                                                               |
+| `with`                       | `organizations[0].processes[1].references[0] brings object_id, which is reserved for the object's own id`                                                                                                                                                      |
 
 `link_events` is not checked for extra engines, which have no BPMN model.
 
@@ -568,6 +581,9 @@ it through its configuration, where the pick declares the attribute.
 
 ## Limitations
 
-- **One creator per growing catalogue.** Only one reference creates a growing catalogue's objects, so a
-  process can't create them through two attributes (e.g. the buyer and the recipient of an order). Two
-  processes never share a catalogue: each keeps its own, and what one knows reaches the other in messages.
+- **One creator per growing catalogue.** In an organization, only one reference creates a growing catalogue's
+  objects, so a process can't create them through two attributes (e.g. the buyer and the recipient of an order),
+  and its organization's other processes learn the ids from messages. Organizations never share a catalogue:
+  what one knows reaches another in messages.
+- **The organization isn't written in the OCEL output** yet: catalogue objects and the processes' objects don't
+  say whose they are.

@@ -162,13 +162,14 @@ Objects are linked to each other too: each order **comprises** its items (`"o2o"
 ItemOrdered entry), each package **contains** its items (`"o2o": "contains"` on Packaging's ItemPicked entry),
 and each item **is a** product (`"o2o": "is a"` on the product reference).
 
-Customers have no events of their own, so they come from a catalogue of Sales: 15 customers, c1 to c15, without
-attributes ([catalogue.md](catalogue.md) uses this configuration as its worked example). A reference of Sales on
+The three processes form one organization, Shop, whose two catalogues they share. Customers have no events of
+their own, so they come from a catalogue: 15 customers, c1 to c15, without attributes
+([catalogue.md](catalogue.md) uses this configuration as its worked example). A reference of Sales on
 its `customer` attribute picks it when an order is created (`"pick": "uniform"`; `sales.json` doesn't draw it),
 links each customer to the orders it **places** (`"reverse": true`, from the customer to the order), and links
 place order and confirm order to their customer; pay order isn't linked. Since `ItemOrdered` carries the picked
-`customer`, `sales.json` only runs inside this configuration, not on its own. Products come from a catalogue of
-the Warehouse: 20, each with its `weight` and `price`. A reference of the Warehouse picks one for each item,
+`customer`, `sales.json` only runs inside this configuration, not on its own. Products come from Shop's other
+catalogue: 20, each with its `weight` and `price`. A reference of the Warehouse picks one for each item,
 uniformly, links the item to it (**is a**), links every event of the item to it and, with `"tag_along": true`,
 every other event that links the item, and, with `"with": {"weight": "weight", "price": "price"}`, gives the
 item its product's weight and price when it is created. They are the item's own attributes from then on: written
