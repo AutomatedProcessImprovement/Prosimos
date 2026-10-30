@@ -5,7 +5,7 @@ together on 100 orders with a fixed seed, by seven people on one calendar.
 import dataclasses
 import json
 import statistics
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import datetime, time, timedelta
 from pathlib import Path
 
@@ -181,6 +181,67 @@ def test_every_event_that_links_an_item_links_its_product_and_only_its_order_s_e
         if any(object_type[object_id] == "customer" for object_id, _ in linked):
             with_customer.add(event["type"])
     assert with_customer == {"place order", "confirm order"}
+
+
+# the order chooses its products: Sales picks one per item, prices the order, and names each product in its
+# ItemOrdered; the Warehouse copies it, and its reference, without a pick, brings the product's weight and price
+
+PRODUCT_PRICE = {product["id"]: product["attributes"]["price"]
+                 for product in json.loads(Path(CONFIG).read_text())["organizations"][0]["catalogues"]["product"]}
+
+
+def _order_products(log):
+    """Order id -> (its products, its price), as Sales logs them."""
+    first = _rows(log, "Sales").groupby("case_id").first()
+    return {f"order-{case}": (json.loads(row["products"]), row["price"]) for case, row in first.iterrows()}
+
+
+def test_every_order_costs_5_plus_its_items_prices(run):
+    _, log, _ = run
+
+    items = _rows(log, "Warehouse").groupby("case_id").first()
+    item_prices = items.groupby("order_id")["price"].sum()
+    orders = _order_products(log)
+    assert len(orders) == ORDERS
+    assert all(price == pytest.approx(5.00 + sum(PRODUCT_PRICE[product] for product in products))
+               and price == pytest.approx(5.00 + item_prices[order]) for order, (products, price) in orders.items())
+
+
+def test_each_item_s_product_is_one_of_its_order_s_products_as_often_as_the_list_holds_it(run):
+    _, log, _ = run
+
+    items = _rows(log, "Warehouse").groupby("case_id").first()
+    assert all(Counter(products) == Counter(items[items["order_id"] == order]["product"])
+               for order, (products, _) in _order_products(log).items())
+
+
+def test_each_product_object_appears_once_linked_from_place_order_and_pick_item(run):
+    _, log, ocel_path = run
+
+    with open(ocel_path) as file:
+        ocel = json.load(file)
+    products = [obj["id"] for obj in ocel["objects"] if obj["type"] == "product"]
+    assert sorted(products) == sorted(PRODUCT_PRICE)  # each once
+    object_type = {obj["id"]: obj["type"] for obj in ocel["objects"]}
+    linked = defaultdict(set)  # (event type, its own object) -> the products it links
+    for event in ocel["events"]:
+        own = event["relationships"][0]["objectId"]
+        linked[(event["type"], own)].update(link["objectId"] for link in event["relationships"]
+                                            if object_type[link["objectId"]] == "product")
+    product_of_item = {f"item-{case}": row["product"]
+                       for case, row in _rows(log, "Warehouse").groupby("case_id").first().iterrows()}
+    assert all(linked[("place order", order)] == set(products)
+               for order, (products, _) in _order_products(log).items())
+    assert all(linked[("pick item", item)] == {product} for item, product in product_of_item.items())
+
+
+def test_the_order_s_price_is_written_as_an_object_attribute(run):
+    _, log, ocel_path = run
+
+    with open(ocel_path) as file:
+        orders = {obj["id"]: obj for obj in json.load(file)["objects"] if obj["type"] == "order"}
+    assert all([(value["name"], value["value"]) for value in orders[order]["attributes"]]
+               == [("price", pytest.approx(price))] for order, (_, price) in _order_products(log).items())
 
 
 def test_pm4py_reads_the_simulated_file(run):

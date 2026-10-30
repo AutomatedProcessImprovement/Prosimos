@@ -15,13 +15,14 @@ catalogue ([catalogue.md](catalogue.md)) for its customers and products.
 
 ```
 Sales (order)        arrivals: around the clock, about one every 4.8 h, 2,000 orders
-                     object attributes: customer (picked from c1..c15), items (1..16)
-                     place order -> (throw ItemOrdered x items: object_id, index, customer)
+                     object attributes: customer (picked from c1..c15), items (1..16), products (picked
+                     uniformly from the 20, one per item), price (5.00 + their prices)
+                     place order -> (throw ItemOrdered x products: object_id, index, customer, product)
                      -> confirm order (sales clerk)
                      -> XOR: 80% timer: customer pays (about 3 days) -> pay order (sales clerk) -> end
                            | 20% timer 20 days -> payment reminder (sales clerk) -> back to the XOR
-Warehouse (item)     start ItemOrdered (copy order_id, item_index from index, customer)
-                     object attributes: product (picked uniformly from the 20), and its weight and price
+Warehouse (item)     start ItemOrdered (copy order_id, item_index from index, customer, product)
+                     object attributes: its product's weight and price (with, from the product it received)
                      -> XOR: 20% item out of stock -> reorder item -> timer: item restocked | 80% straight on
                      -> pick item (warehouse worker)
                      -> message end ItemPicked{order_id, item_index, customer, object_id, weight}
@@ -34,10 +35,12 @@ Packaging (package)  arrivals: weekdays 9:00-17:00, about one packing round ever
 ```
 
 The customer is picked for the order and travels with the messages: order → `ItemOrdered` → item →
-`ItemPicked` → package. A packing round starts in the packer's hours, takes the oldest waiting item and then all
-of that customer's waiting items, and creates the package. If no item is waiting, the round waits for the next
-one, and takes it with the others of its customer offered at that moment. How long an item waits for its package
-therefore depends on how often rounds come, not on a drawn package size.
+`ItemPicked` → package. So are the products: the order chooses them, one per item, and gets its price from
+them; each `ItemOrdered` names one, and the item looks up its weight and price in the same catalogue. A packing
+round starts in the packer's hours, takes the oldest waiting item and then all of that customer's waiting items,
+and creates the package. If no item is waiting, the round waits for the next one, and takes it with the others of
+its customer offered at that moment. How long an item waits for its package therefore depends on how often rounds
+come, not on a drawn package size.
 
 Rounds keep coming after the last item, and would wait forever, so their number is limited: 1,450 rounds last
 until a week after the last item is picked (with seed 1 the orders end on 2024-05-08, the last item is picked on
@@ -61,32 +64,32 @@ flowchart LR
 
 ## Messages
 
-| Process       | Publishes                                                                                 | Consumes                                                                                                                                                                   |
-|---------------|-------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Sales**     | `ItemOrdered{object_id, index, customer}`, `count` = `items`                              | nothing                                                                                                                                                                    |
-| **Warehouse** | `ItemPicked{order_id, item_index, customer, object_id, weight}`, at its message end event | `ItemOrdered` at its start event; copies `order_id` from `object_id`, `item_index` from `index`, `customer` from `customer`                                                |
-| **Packaging** | nothing                                                                                   | `ItemPicked` at "items picked": `"collect": "all"` with `"same": ["customer"]`, copying `customer`, appending `object_id` to `item_ids` and summing `weight` into `weight` |
+| Process       | Publishes                                                                                                         | Consumes                                                                                                                                                                   |
+|---------------|-------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Sales**     | `ItemOrdered{object_id, index, customer, product}`, `count` over the list `products`, each carrying its `product` | nothing                                                                                                                                                                    |
+| **Warehouse** | `ItemPicked{order_id, item_index, customer, object_id, weight}`, at its message end event                         | `ItemOrdered` at its start event; copies `order_id` from `object_id`, `item_index` from `index`, `customer` from `customer`, `product` from `product`                      |
+| **Packaging** | nothing                                                                                                           | `ItemPicked` at "items picked": `"collect": "all"` with `"same": ["customer"]`, copying `customer`, appending `object_id` to `item_ids` and summing `weight` into `weight` |
 
 ## Objects and activities
 
-| In the OCEL output             | Process   | BPMN element                              | Feature                                                                                                |
-|--------------------------------|-----------|-------------------------------------------|--------------------------------------------------------------------------------------------------------|
-| object type **order**          | Sales     | one case per order                        | arrivals around the clock; object attribute `items`; `customer` picked from the catalogue              |
-| object type **item**           | Warehouse | one case per item                         | a message start event on `ItemOrdered`, published once per item with `count`; `index` → `item_index`   |
-| object type **package**        | Packaging | one case per packing round                | arrivals in the packer's hours; `collect` `"all"` with `same` customer; `weight` the sum of its items' |
-| object type **customer**       | all       | attribute `customer`                      | 15 in the catalogue; picked for the order, copied to items and packages; what a package's items share  |
-| object type **product**        | Warehouse | attribute `product`                       | 20 in the catalogue; one picked uniformly for each item, and its weight and price with it              |
-| activity **place order**       | Sales     | task `Place_Order`                        | recorded by `System` when the order arrives; `ItemOrdered` is published right after it                 |
-| activity **confirm order**     | Sales     | task `Confirm_Order`                      | the sales clerk                                                                                        |
-| activity **payment reminder**  | Sales     | task `Payment_Reminder`                   | the 20% branch of an XOR, after a 20-day timer, then back to the XOR                                   |
-| activity **pay order**         | Sales     | task `Pay_Order`                          | the 80% branch of that XOR, after the timer `Customer_Pays`: the clerk records the payment             |
-| activity **item out of stock** | Warehouse | task `Item_Out_Of_Stock`                  | the 20% branch of an XOR                                                                               |
-| activity **reorder item**      | Warehouse | task `Reorder_Item`                       | after item out of stock, then the timer `Item_Restocked`: the supplier's delay                         |
-| activity **pick item**         | Warehouse | task `Pick_Item`                          | a warehouse worker; `ItemPicked` is published at the message end event after it                        |
-| activity **create package**    | Packaging | task `Create_Package`                     | the packer, after the packing round has taken its items                                                |
-| activity **send package**      | Packaging | tasks `Send_Package` and `Resend_Package` | a courier's trip: the first one, and one after each failed delivery                                    |
-| activity **failed delivery**   | Packaging | task `Failed_Delivery`                    | recorded by `System`: the 20% branch after the first trip, then the 30% branch after each later one    |
-| activity **package delivered** | Packaging | task `Package_Delivered`                  | recorded by `System`: the other branches, 80% after the first trip, 70% after a later one              |
+| In the OCEL output             | Process          | BPMN element                              | Feature                                                                                                                                                 |
+|--------------------------------|------------------|-------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
+| object type **order**          | Sales            | one case per order                        | arrivals around the clock; object attribute `items`; `customer` and `products`, one per item, picked from the catalogues; `price` = 5.00 + their prices |
+| object type **item**           | Warehouse        | one case per item                         | a message start event on `ItemOrdered`, published once per product with `count` over a list; `index` → `item_index`                                     |
+| object type **package**        | Packaging        | one case per packing round                | arrivals in the packer's hours; `collect` `"all"` with `same` customer; `weight` the sum of its items'                                                  |
+| object type **customer**       | all              | attribute `customer`                      | 15 in the catalogue; picked for the order, copied to items and packages; what a package's items share                                                   |
+| object type **product**        | Sales, Warehouse | attributes `products` and `product`       | 20 in the catalogue; picked by the order, one per item, uniformly; the item gets its weight and price from it                                           |
+| activity **place order**       | Sales            | task `Place_Order`                        | recorded by `System` when the order arrives; `ItemOrdered` is published right after it                                                                  |
+| activity **confirm order**     | Sales            | task `Confirm_Order`                      | the sales clerk                                                                                                                                         |
+| activity **payment reminder**  | Sales            | task `Payment_Reminder`                   | the 20% branch of an XOR, after a 20-day timer, then back to the XOR                                                                                    |
+| activity **pay order**         | Sales            | task `Pay_Order`                          | the 80% branch of that XOR, after the timer `Customer_Pays`: the clerk records the payment                                                              |
+| activity **item out of stock** | Warehouse        | task `Item_Out_Of_Stock`                  | the 20% branch of an XOR                                                                                                                                |
+| activity **reorder item**      | Warehouse        | task `Reorder_Item`                       | after item out of stock, then the timer `Item_Restocked`: the supplier's delay                                                                          |
+| activity **pick item**         | Warehouse        | task `Pick_Item`                          | a warehouse worker; `ItemPicked` is published at the message end event after it                                                                         |
+| activity **create package**    | Packaging        | task `Create_Package`                     | the packer, after the packing round has taken its items                                                                                                 |
+| activity **send package**      | Packaging        | tasks `Send_Package` and `Resend_Package` | a courier's trip: the first one, and one after each failed delivery                                                                                     |
+| activity **failed delivery**   | Packaging        | task `Failed_Delivery`                    | recorded by `System`: the 20% branch after the first trip, then the 30% branch after each later one                                                     |
+| activity **package delivered** | Packaging        | task `Package_Delivered`                  | recorded by `System`: the other branches, 80% after the first trip, 70% after a later one                                                               |
 
 ## Staff, calendars and durations
 
@@ -154,7 +157,7 @@ product (`product`); customers don't tag along, so pay order links no customer:
 | place order                                      | its order (`order`), the items its ItemOrdered messages started (`item`), their products and its customer (`customer`) |
 | confirm order                                    | its order, its customer and, with `carry_links`, its items and their products                                          |
 | payment reminder, pay order                      | its order and, with `carry_links`, its items and their products                                                        |
-| every event of an item                           | its item (`item`) and its product (`product`), from the reference that picks it; not its order or its package          |
+| every event of an item                           | its item (`item`) and its product (`product`), from the Warehouse's product reference; not its order or its package    |
 | create package                                   | its package (`creates`), the items it collected (`item`) and their products                                            |
 | send package, failed delivery, package delivered | its package (`shipped package`) and, with `carry_links`, its items and their products                                  |
 
@@ -169,17 +172,24 @@ its `customer` attribute picks it when an order is created (`"pick": "uniform"`;
 links each customer to the orders it **places** (`"reverse": true`, from the customer to the order), and links
 place order and confirm order to their customer; pay order isn't linked. Since `ItemOrdered` carries the picked
 `customer`, `sales.json` only runs inside this configuration, not on its own. Products come from Shop's other
-catalogue: 20, each with its `weight` and `price`. A reference of the Warehouse picks one for each item,
-uniformly, links the item to it (**is a**), links every event of the item to it and, with `"tag_along": true`,
-every other event that links the item, and, with `"with": {"weight": "weight", "price": "price"}`, gives the
-item its product's weight and price when it is created. They are the item's own attributes from then on: written
-on its OCEL object (the Warehouse's `ocel_attributes`), and `weight` travels on `ItemPicked` to be summed into
-the package's.
+catalogue: 20, each with its `weight` and `price`. A second reference of Sales picks the order's `products`, one
+per item (`"count": {"object_attribute": "items"}`), uniformly, and prices the order with
+`"with": {"price": {"sum": "price", "initial": 5.00}}`: 5.00 plus its products' prices, written on the order's OCEL
+object (Sales's `ocel_attributes`). It links no events (`"link_events": []`): the order's events reach its products
+through its items. `ItemOrdered` is published once per product (`count` over the list `products`, each message
+carrying its entry as `product`). The Warehouse copies `product` from it, and its reference, without a pick
+([catalogue.md](catalogue.md), "With for a received value"), links the item to the product (**is a**), links
+every event of the item to it and, with `"tag_along": true`, every other event that links the item, and, with
+`"with": {"weight": "weight", "price": "price"}`, gives the item its product's weight and price when it is
+created. They are the item's own attributes from then on: written on its OCEL object (the Warehouse's
+`ocel_attributes`), and `weight` travels on `ItemPicked` to be summed into the package's. Every order therefore
+costs 5.00 plus its items' prices.
 
-Only an item's `weight` and `price` and a package's `weight` are written to the objects (`ocel_attributes`).
-The others route messages (`order_id`, `item_index`, `item_ids`, `items`) or are links already (`customer`,
-`product`), and stay in the CSV log only. A packing round takes all its items at the same moment, so its package
-gets one weight, the sum of its items', without the running totals in between or the starting 0.
+Only an order's `price`, an item's `weight` and `price` and a package's `weight` are written to the objects
+(`ocel_attributes`). The others route messages (`order_id`, `item_index`, `item_ids`, `items`, `products`) or are
+links already (`customer`, `product`), and stay in the CSV log only. A packing round takes all its items at the
+same moment, so its package gets one weight, the sum of its items', without the running totals in between or the
+starting 0.
 
 Sales and Packaging have `carry_links`; Warehouse doesn't, so a reorder is linked only to its item and its
 product. A packing round that never took an item has no events and no links, so the OCEL file leaves its package

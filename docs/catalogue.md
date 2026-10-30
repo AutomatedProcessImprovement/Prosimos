@@ -158,9 +158,9 @@ processes of one organization share its catalogues, and what one organization kn
 messages, copied under any name the receiver chooses. Each catalogue object is written once in the OCEL file,
 whichever processes link it. Catalogue names are unique across the configuration, since they are object types of
 the OCEL output (a partner's products get a name of their own, e.g. `partner_product`), and ids are unique across
-all catalogues. In Order Management, Sales picks the customers and the Warehouse the products, both from Shop's
-catalogues; the items get their order's customer from `ItemOrdered` as an attribute, and the Warehouse has no
-reference on it, so the items aren't linked to the customers.
+all catalogues. In Order Management, Sales picks the customers and the products, and the Warehouse looks up each
+item's product, all in Shop's catalogues; the items get their order's customer from `ItemOrdered` as an attribute,
+and the Warehouse has no reference on it, so the items aren't linked to the customers.
 
 A value that isn't an id of the catalogue gets no link, and a warning (see "Errors and warnings").
 
@@ -377,9 +377,9 @@ setup. The orchestrator sees nothing of them during the run.
 ## Worked example: Order Management
 
 The Order Management example ([order-management.md](order-management.md)) is one organization, Shop, with 15
-customers and 20 products in its catalogues: Sales picks a customer uniformly for each order, and the Warehouse a
-product uniformly for each item. This is its full configuration,
-`testing_scripts/assets/order_management/simulation.json`:
+customers and 20 products in its catalogues: Sales picks a customer uniformly for each order and its products, one
+per item, and the Warehouse looks up each item's product, which the order names in its message. This is its full
+configuration, `testing_scripts/assets/order_management/simulation.json`:
 
 ```json
 {
@@ -424,10 +424,14 @@ product uniformly for each item. This is its full configuration,
           "object_type": "order",
           "qualifier": "order",
           "carry_links": true,
+          "ocel_attributes": ["price"],
           "references": [
             {"object_attribute": "customer", "catalogue": "customer",
              "o2o": "places", "reverse": true, "link_events": ["place order", "confirm order"],
-             "pick": "uniform"}
+             "pick": "uniform"},
+            {"object_attribute": "products", "catalogue": "product", "link_events": [],
+             "pick": "uniform", "count": {"object_attribute": "items"},
+             "with": {"price": {"sum": "price", "initial": 5.00}}}
           ]
         },
         {
@@ -439,7 +443,6 @@ product uniformly for each item. This is its full configuration,
           "ocel_attributes": ["weight", "price"],
           "references": [
             {"object_attribute": "product", "catalogue": "product", "o2o": "is a", "tag_along": true,
-             "pick": "uniform",
              "with": {"weight": "weight", "price": "price"}}
           ]
         },
@@ -475,9 +478,11 @@ poetry run prosimos start-orchestration --config testing_scripts/assets/order_ma
 ```
 
 `sales.json` has no `customer` in its `object_attributes`: the reference picks it. Its `ItemOrdered` message
-then carries it to the items, and `ItemPicked` to the packages. Likewise, `warehouse.json` has no `product`:
-the Warehouse's reference picks it, uniformly, and brings
-the product's `weight` and `price` into the item. `ItemPicked` carries the item's `weight` to the package.
+then carries it to the items, and `ItemPicked` to the packages. Sales's second reference picks the order's
+`products`, as many as `items` says, and gives the order `price`: 5.00 plus their prices. `ItemOrdered` is published
+once per product (`count` over the list `products`), naming it as `product`. `warehouse.json` copies `product` from
+the message, and the Warehouse's reference, without a pick, brings the product's `weight` and `price` into the item
+(see "With for a received value"). `ItemPicked` carries the item's `weight` to the package.
 
 **What appears in the OCEL file** (excerpts of that run, 2,000 orders):
 
@@ -492,8 +497,17 @@ the product's `weight` and `price` into the item. `ItemPicked` carries the item'
                      {"objectId": "order-29", "qualifier": "places"}, ...]}
   ```
 
-- **The orders** keep `customer` as an attribute of their case, a column of the log, but not of their OCEL
-  object: Sales lists no `ocel_attributes`, so the order is linked to its customer instead.
+- **The orders** keep `customer` and `products` as attributes of their case, columns of the log, but not of
+  their OCEL object: Sales's `ocel_attributes` list only `price`, so the order is linked to its customer instead,
+  and reaches its products through its items. Its price is 5.00 plus its products' prices:
+
+  ```json
+  {"id": "order-0", "type": "order",
+   "attributes": [{"name": "price", "value": 4723.99, "time": "2023-04-03T06:00:00.000000Z"}],
+   "relationships": [{"objectId": "item-0", "qualifier": "comprises"}, ...]}
+  ```
+
+  order-0's products are Kindle, iPad, iPhone 11 Pro, iPad and MacBook Pro: 5.00 + 79.99 + 495 + 1149 + 495 + 2500.
 
 - **place order and confirm order** are linked to their order's customer, with the qualifier `customer`
   (4,000 links: 2,000 of each); **pay order** isn't, since it isn't in `link_events`:
@@ -510,22 +524,23 @@ the product's `weight` and `price` into the item. `ItemPicked` carries the item'
    "relationships": [{"objectId": "order-0", "qualifier": "order"}, ...]}
   ```
 
-- **The 20 products**, type `product`, with `weight` and `price`. Each item **is a** product
+- **The 20 products**, type `product`, with `weight` and `price`, each written once. Each item **is a** product
   (`"o2o": "is a"`, from the item to the product), has `weight` and `price` as attributes (the Warehouse's
   `ocel_attributes`; `product` is linked rather than written), and every one of its events is linked to the
   product with the qualifier `product` (no `link_events`). With `tag_along`, so is every other event that
   links the item: place order, confirm order, payment reminder, pay order, create package, send
-  package, failed delivery and package delivered. Customers don't tag along: pay order links the order's items
-  and their products, but no customer.
+  package, failed delivery and package delivered. Sales's products reference links no events
+  (`"link_events": []`), so the order's events link their products this way only, once each. Customers don't tag
+  along: pay order links the order's items and their products, but no customer.
 
   ```json
   {"id": "item-0", "type": "item",
-   "attributes": [{"name": "weight", "value": 0.28, "time": "2023-04-03T06:00:00.000000Z"},
-                  {"name": "price", "value": 89.99, "time": "2023-04-03T06:00:00.000000Z"}],
-   "relationships": [{"objectId": "Fire Stick 4K", "qualifier": "is a"}]}
+   "attributes": [{"name": "weight", "value": 0.483, "time": "2023-04-03T06:00:00.000000Z"},
+                  {"name": "price", "value": 79.99, "time": "2023-04-03T06:00:00.000000Z"}],
+   "relationships": [{"objectId": "Kindle", "qualifier": "is a"}]}
   {"id": "e5", "type": "pick item", "time": "2023-04-03T09:08:32.152135Z",
-   "relationships": [{"objectId": "item-0", "qualifier": "item"}, ...,
-                     {"objectId": "Fire Stick 4K", "qualifier": "product"}]}
+   "relationships": [{"objectId": "item-0", "qualifier": "item"},
+                     {"objectId": "Kindle", "qualifier": "product"}]}
   ```
 
 Items and packages carry `customer` too, but only as a case attribute: the Warehouse and Packaging have no

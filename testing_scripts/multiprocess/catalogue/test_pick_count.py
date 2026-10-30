@@ -14,6 +14,7 @@ from prosimos.orchestration.config import SimulationConfig
 from prosimos.orchestration.simulation import run_multiprocess_simulation
 from testing_scripts.multiprocess.catalogue.test_catalogue import _config_with
 from testing_scripts.multiprocess.catalogue.test_pick import CUSTOMERS, PICKING, PRODUCTS_LIST
+from testing_scripts.multiprocess.examples.test_order_management import CONFIG
 from testing_scripts.multiprocess.orchestrator_settings import one_organization
 
 PRODUCTS = {"object_attribute": "products", "catalogue": "product", "pick": "uniform"}
@@ -22,10 +23,18 @@ SALES = r"processes\[0\].references\[1\]"
 
 def _sales_picking(tmp_path, products, orders=100):
     """Order Management's Sales alone, with 100 orders: it picks its customer and, with the reference products, its
-    products from the 20. Without the Warehouse, which picks its own products, ItemOrdered finds no
-    recipient."""
+    products from the 20. Without the Warehouse, ItemOrdered finds no recipient; it is published once per item, as
+    many as items says, so that a run without the reference products publishes the same messages."""
     path = _config_with(tmp_path, catalogues={"customer": CUSTOMERS, "product": PRODUCTS_LIST},
                         references={"Sales": [{**PICKING, "pick": "uniform"}, *([products] if products else [])]})
+    with open(CONFIG.replace("simulation.json", "sales.json")) as file:
+        sales = json.load(file)
+    sales["messages"]["publish"][0]["count"] = {"object_attribute": "items"}
+    (tmp_path / "sales.json").write_text(json.dumps(sales))
+    data = json.loads(path.read_text())
+    next(process for process in data["organizations"][0]["processes"] if process["name"] == "Sales")["json_path"] = \
+        str(tmp_path / "sales.json")
+    path.write_text(json.dumps(data))
     config = SimulationConfig.from_json(path)
     return dataclasses.replace(config, organizations=one_organization([
         dataclasses.replace(spec, arrivals=orders if spec.name == "Sales" else spec.arrivals)

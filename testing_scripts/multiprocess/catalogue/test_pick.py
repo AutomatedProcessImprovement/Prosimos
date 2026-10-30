@@ -57,11 +57,12 @@ def _customers_of_cases(report, process):
 
 # Order Management
 
-def test_order_management_picks_its_customer_and_sales_json_no_longer_draws_it(tmp_path):
+def test_order_management_picks_its_customer_and_sales_json_doesnt_draw_it(tmp_path):
     with open(ASSETS / "order_management" / "sales.json") as file:
         assert "customer" not in {attribute["name"] for attribute in json.load(file)["object_attributes"]}
     [sales] = [spec for spec in SimulationConfig.from_json(CONFIG).processes if spec.name == "Sales"]
-    assert [reference.pick for reference in sales.references] == ["uniform"]
+    [customer] = [reference for reference in sales.references if reference.object_attribute == "customer"]
+    assert customer.pick == "uniform"
 
     report, log, _ = _run(_config(100), tmp_path)
 

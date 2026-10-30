@@ -122,7 +122,8 @@
         "copy": {
           "order_id": "object_id",
           "item_index": "index",
-          "customer": "customer"
+          "customer": "customer",
+          "product": "product"
         }
       }
     ]

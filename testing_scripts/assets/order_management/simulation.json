@@ -40,10 +40,14 @@
           "object_type": "order",
           "qualifier": "order",
           "carry_links": true,
+          "ocel_attributes": ["price"],
           "references": [
             {"object_attribute": "customer", "catalogue": "customer",
              "o2o": "places", "reverse": true, "link_events": ["place order", "confirm order"],
-             "pick": "uniform"}
+             "pick": "uniform"},
+            {"object_attribute": "products", "catalogue": "product", "link_events": [],
+             "pick": "uniform", "count": {"object_attribute": "items"},
+             "with": {"price": {"sum": "price", "initial": 5.00}}}
           ]
         },
         {
@@ -55,7 +59,6 @@
           "ocel_attributes": ["weight", "price"],
           "references": [
             {"object_attribute": "product", "catalogue": "product", "o2o": "is a", "tag_along": true,
-             "pick": "uniform",
              "with": {"weight": "weight", "price": "price"}}
           ]
         },

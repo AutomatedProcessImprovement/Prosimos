@@ -66,7 +66,7 @@ def test_object_and_event_types_are_listed_with_their_attributes(order_managemen
     # only the listed attributes: none of the attributes that route messages (order_id, item_index, item_ids, items)
     assert {t["name"]: t["attributes"] for t in ocel["objectTypes"]} == {
         "item": [{"name": "price", "type": "float"}, {"name": "weight", "type": "float"}],
-        "order": [],
+        "order": [{"name": "price", "type": "float"}],
         "package": [{"name": "weight", "type": "float"}],
         "customer": [],
         "product": [{"name": "price", "type": "float"}, {"name": "weight", "type": "float"}],

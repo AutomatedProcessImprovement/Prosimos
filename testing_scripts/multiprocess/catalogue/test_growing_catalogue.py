@@ -22,7 +22,8 @@ def _order_management(orders, pick):
     """Order Management whose customers are a growing catalogue of Sales, from which each order picks with pick."""
     config = _config(orders)
     return dataclasses.replace(config, organizations=one_organization([
-        dataclasses.replace(spec, references=(dataclasses.replace(spec.references[0], pick=pick),))
+        dataclasses.replace(spec, references=(dataclasses.replace(spec.references[0], pick=pick),
+                                              *spec.references[1:]))
         if spec.name == "Sales" else spec for spec in config.processes], {**config.catalogue, "customer": CUSTOMERS}))
 
 

@@ -229,7 +229,8 @@
         "event_id": "Throw_ItemOrdered",
         "type": "ItemOrdered",
         "count": {
-          "object_attribute": "items"
+          "list": "products",
+          "as": "product"
         },
         "attributes": [
           "object_id",
