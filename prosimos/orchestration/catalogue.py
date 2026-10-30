@@ -313,6 +313,15 @@ def _settings_problems(verb, attribute, process, specs):
     return []
 
 
+def _appended_by(process, specs):
+    """The attributes process's consume entries append to: lists of the values its messages bring."""
+    with open(specs[process].json_path) as file:
+        messages = json.load(file).get("messages")
+    consume = messages.get("consume", []) if isinstance(messages, dict) else []
+    return {target for entry in consume if isinstance(entry, dict) and isinstance(entry.get("append"), dict)
+            for target in entry["append"]}
+
+
 def _brought_names(reference):
     """The attributes a reference's with gives its cases (none if with is malformed, which _with_problems reports)."""
     pairs = reference.with_attributes
@@ -345,6 +354,10 @@ def _with_problems(reference, entry, specs, picked, brought):
     if reference.count is not None and copied:
         return [f"copies {copied} on a pick with count; a list pick needs a function over the picked objects, "
                 f'e.g. {{"sum": "price"}}']
+    if reference.pick is None and copied and reference.object_attribute in _appended_by(reference.process, specs):
+        return [f"copies {copied} from {reference.object_attribute}, a list process {reference.process} appends to "
+                f'from messages; a list needs a function over its objects, e.g. {{"sum": "price"}}, recomputed at '
+                f"every claim"]
     sources = list(dict.fromkeys(source.source if isinstance(source, Computed) else source for _, source in pairs))
     numeric = list(dict.fromkeys(source.source for _, source in pairs
                                  if isinstance(source, Computed) and source.function != "count"))

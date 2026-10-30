@@ -161,10 +161,10 @@ class EngineMessaging:
         aggregated = self._apply_aggregate(point, values, parked_event.p_case, case_values)
         self._copied_later.extend((parked_event.p_case, target, values[source], now)
                                   for target, source in point.copy if source in values)
-        if self._received:  # a value copied now brings what its catalogue object gives, at the claim
-            copied = {target for target, source in point.copy if source in values}
+        if self._received:  # a value copied or appended now brings what its catalogue objects give, at the claim
+            changed = {target for target, source in (*point.copy, *point.append) if source in values}
             self._copied_later.extend((parked_event.p_case, name, case_values[name], now)
-                                      for name in self._apply_received(case_values, copied))
+                                      for name in self._apply_received(case_values, changed))
         self._copied_later.extend((parked_event.p_case, target, case_values[target], now)
                                   for target, source in point.append if source in values)
         self._copied_later.extend((parked_event.p_case, target, case_values[target], now) for target in aggregated)
@@ -443,6 +443,12 @@ class EngineMessaging:
                 given.append(name)
         return given
 
+    def _started_received(self, case_values):
+        """The values 'with' brings that a new case only starts with: a function over a list its messages append to,
+        still empty, like an aggregate's starting value (see only_started_values)."""
+        return tuple(name for name, source, _, function, _ in self._received
+                     if source in self._appended and case_values.get(source) == [] and name in case_values)
+
     def _starting_values(self):
         """What a case's appended and aggregated attributes start with: an empty list, and an aggregate's initial,
         else 0 for a sum or count (a min or max without initial has no value until the first message)."""
@@ -658,7 +664,7 @@ class EngineMessaging:
     def only_started_values(self):
         """Case id -> the aggregated attributes whose value when it was created is only their start, 0 or their
         initial: no message had written them yet (a message that starts a case writes its own aggregates into the
-        new case)."""
+        new case); and the values 'with' brings from a list its messages append to, still empty."""
         return dict(self._only_started)
 
     def stalled_at(self, parked_event):

@@ -187,7 +187,8 @@ class SimBPMEnv(EngineMessaging):
                                                          if name in self._case_attribute_names})
         self._only_started[p_case] = tuple(
             target for target in self._starting_values()
-            if target in self._aggregated and (p_case, target) not in self._aggregated_values)
+            if target in self._aggregated and (p_case, target) not in self._aggregated_values) + \
+            self._started_received(case_values)
         for task in enabled_tasks:
             task_id = task.task_id
             self.events_queue.append_event(

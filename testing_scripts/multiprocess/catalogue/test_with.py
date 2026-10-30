@@ -282,3 +282,55 @@ def test_a_value_copied_at_a_catch_brings_its_values_at_the_claim_and_a_later_co
     # each at the time of its claim, in the OCEL file too
     assert [(value["value"], value["time"][11:16]) for value in written["attributes"]
             if value["name"] == "last_price"] == [(2.5, "09:20"), (4, "09:30"), (10, "09:40")]
+
+
+ITEM_PRICES = {"i17": 2.5, "i23": 4, "i12": 10}
+
+
+def _appending(settings):
+    settings["messages"]["consume"][0]["append"] = {"item_ids": "item_id"}
+
+
+def _collecting_items(tmp_path, with_attributes, change, ocel_attributes=()):
+    """order-0 collecting 3 ItemReady at Catch_Items, at 09:20, 09:30 and 09:40, with its settings changed by change,
+    and a reference on item_ids, without a pick, with this with; the run report and the OCEL objects by id."""
+    reference = Reference("item_ids", "item", with_attributes=with_attributes)
+    shop = Organization("Shop", [ProcessSpec("Orders", ORDERS, _settings(tmp_path, change), 1, "order",
+                                             ocel_attributes=ocel_attributes, references=(reference,))],
+                        {"item": [CatalogueObject(item, (("price", price),)) for item, price in ITEM_PRICES.items()]})
+    picking = ScriptedEngine("Picking")
+    for minutes, item in zip((20, 30, 40), ITEM_PRICES):
+        picking.publish_at(at(f"09:{minutes}"), "ItemReady", order_id="order-0", item_id=item)
+    report = run_multiprocess_simulation(SimulationConfig([shop], START, 1, extra_processes=["Picking"]),
+                                         tmp_path / "log.csv", {"Picking": picking},
+                                         ocel_out_path=tmp_path / "log.json")
+    with open(tmp_path / "log.json") as file:
+        return report, {obj["id"]: obj for obj in json.load(file)["objects"]}
+
+
+def test_a_function_over_a_list_the_case_appends_to_is_recomputed_at_every_claim(tmp_path):
+    report, objects = _collecting_items(tmp_path, (("total", Computed("sum", "price")),
+                                                   ("lines", Computed("count", "price"))),
+                                        _appending, ocel_attributes=("total", "lines"))
+
+    [order] = [case for name, case in report.objects if name == "Orders"]
+    assert [(value, time.strftime("%H:%M")) for name, value, time in order.attributes if name == "total"] == [
+        (0, "09:00"), (2.5, "09:20"), (6.5, "09:30"), (16.5, "09:40")]
+    assert [value for name, value, _ in order.attributes if name == "lines"] == [0, 1, 2, 3]
+    # like an aggregate's, the starting 0 of the empty list is left out of the OCEL file
+    assert [(value["name"], value["value"], value["time"][11:16]) for value in objects["order-0"]["attributes"]] == [
+        ("total", 2.5, "09:20"), ("lines", 1, "09:20"), ("total", 6.5, "09:30"), ("lines", 2, "09:30"),
+        ("total", 16.5, "09:40"), ("lines", 3, "09:40")]
+
+
+def test_a_plain_copy_from_a_list_the_process_appends_to_is_rejected(tmp_path):
+    # Packaging appends each ItemPicked's object_id to item_ids
+    path = _config_with(tmp_path, catalogues={"item": [{"id": "i1", "attributes": {"price": 1}}]},
+                        references={"Packaging": [{"object_attribute": "item_ids", "catalogue": "item",
+                                                   "with": {"price": "price"}}]})
+
+    with pytest.raises(ValueError, match=r"organizations\[0\].processes\[2\].references\[0\] copies \['price'\] from "
+                                         r"item_ids, a list process Packaging appends to from messages; a list needs a "
+                                         r'function over its objects, e.g. \{"sum": "price"\}, recomputed at every '
+                                         r"claim"):
+        SimulationConfig.from_json(path)
