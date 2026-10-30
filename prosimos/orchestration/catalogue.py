@@ -321,13 +321,9 @@ def _settings_problems(verb, attribute, process, specs):
 
 def _consumed_into(process, specs, key):
     """The attributes process's consume entries write with key: "append" (lists of the values its messages bring) or
-    "aggregate" (numbers computed over them). Settings that can't be read have none: building the process's engine
-    reports the missing file (a process only checked, never built, may name none)."""
-    try:
-        with open(specs[process].json_path) as file:
-            messages = json.load(file).get("messages")
-    except FileNotFoundError:
-        return set()
+    "aggregate" (numbers computed over them)."""
+    with open(specs[process].json_path) as file:
+        messages = json.load(file).get("messages")
     consume = messages.get("consume", []) if isinstance(messages, dict) else []
     return {target for entry in consume if isinstance(entry, dict) and isinstance(entry.get(key), dict)
             for target in entry[key]}

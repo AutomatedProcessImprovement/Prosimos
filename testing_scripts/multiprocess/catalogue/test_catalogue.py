@@ -101,11 +101,19 @@ def test_pm4py_reads_the_customers(order_management):
 # the join on its own, with one process P, the Sales model, whose cases are objects of type p
 
 SALES = str(Path(CONFIG).parent / "sales.bpmn")
+SETTINGS = None  # the path of P's JSON settings, {}: the configuration's checks read them, nothing runs them
+
+
+@pytest.fixture(autouse=True)
+def _empty_settings(tmp_path, monkeypatch):
+    path = tmp_path / "p.json"
+    path.write_text("{}")
+    monkeypatch.setattr(f"{__name__}.SETTINGS", str(path))
 
 
 def _links(references, objects, rows, processes=None, catalogues=None):
     config = SimulationConfig(one_organization(
-        [ProcessSpec("P", SALES, "p.json", 1, references=tuple(references))],
+        [ProcessSpec("P", SALES, SETTINGS, 1, references=tuple(references))],
         catalogues or {"customer": [CatalogueObject("c1"), CatalogueObject("c2")]}), START)
     warnings = []
     static_objects, object_links, event_links = _reference_links(
@@ -269,7 +277,7 @@ def _instant_row(process, activity, at):
 
 def test_with_tag_along_every_event_of_another_case_that_links_the_object_links_its_catalogue_object(tmp_path):
     config = SimulationConfig(one_organization([
-        ProcessSpec("P", SALES, "p.json", 1,
+        ProcessSpec("P", SALES, SETTINGS, 1,
                     references=(Reference("product", "product", link_events=(), tag_along=True),
                                                  Reference("colour", "colour"))),
         ProcessSpec("Q", SALES, "q.json", 1)],
@@ -297,7 +305,7 @@ def test_with_tag_along_every_event_of_another_case_that_links_the_object_links_
 
 def test_with_tag_along_an_event_links_each_id_of_the_list_the_object_held_once(tmp_path):
     config = SimulationConfig(one_organization([
-        ProcessSpec("P", SALES, "p.json", 1,
+        ProcessSpec("P", SALES, SETTINGS, 1,
                     references=(Reference("products", "product", link_events=(), tag_along=True),)),
         ProcessSpec("Q", SALES, "q.json", 1)],
         {"product": [CatalogueObject("phone"), CatalogueObject("tablet")]}), START)
