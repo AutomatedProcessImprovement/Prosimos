@@ -131,7 +131,7 @@ def test_the_same_seed_gives_the_same_objects(tmp_path):
 # load errors
 
 GROWING = {"customer": {"attributes": []}}
-SALES = r"processes\[0\].references"
+SALES = r"organizations\[0\].processes\[0\].references"
 
 
 def test_a_growing_catalogue_reads_from_attributes_without_a_count(tmp_path):
@@ -176,8 +176,23 @@ def test_a_growing_catalogue_that_no_reference_creates_from_is_rejected(tmp_path
 
 
 def test_two_references_creating_from_one_growing_catalogue_are_rejected(tmp_path):
-    _rejected(tmp_path, r"growing catalogue 'customer' needs exactly one reference that creates its objects .*got 2",
+    _rejected(tmp_path, rf"growing catalogue 'customer' has more than one reference that creates its objects .*: "
+                        rf"{SALES}\[0\], {SALES}\[1\]; one creates them, the others learn their ids from messages",
               references=[{**PICKING, "pick": "new"}, {"object_attribute": "buyer", "catalogue": "customer", "pick": "new"}])
+
+
+def test_a_second_process_of_the_organization_creating_from_its_growing_catalogue_is_rejected(tmp_path):
+    # Sales creates the customers; Packaging, of the same organization, would create its own under the same ids
+    path = _config_with(tmp_path, catalogues=GROWING,
+                        references={"Sales": [{**PICKING, "pick": "new"}],
+                                    "Packaging": [{"object_attribute": "recipient", "catalogue": "customer",
+                                                   "pick": {"new_share": 0.5}}]})
+
+    with pytest.raises(ValueError, match=r"growing catalogue 'customer' has more than one reference that creates its "
+                                         r'objects \("new" or new_share\): organizations\[0\].processes\[0\].references'
+                                         r"\[0\], organizations\[0\].processes\[2\].references\[0\]; one creates them, "
+                                         r"the others learn their ids from messages"):
+        SimulationConfig.from_json(path)
 
 
 def test_a_growing_catalogue_named_like_an_object_type_is_rejected(tmp_path):

@@ -128,8 +128,9 @@ def _checked_catalogue(organizations):
     organization and, in link_events, tasks of their process (by name or id). A
     pick is "uniform" or weights on known ids of a listed catalogue, "uniform" on a pool, or "new" or new_share on
     a growing catalogue, for an attribute that the process's object_attributes don't have and its consume entries
-    don't copy, append or aggregate into, and at most one per process and attribute. A growing catalogue's objects are created by exactly one reference, and no other id looks like
-    them (<catalogue name>-<number>). with gives attributes that the process doesn't otherwise pick, draw, copy,
+    don't copy, append or aggregate into, and at most one per process and attribute. A growing catalogue's objects
+    are created by exactly one reference of its organization, and no other id looks like them
+    (<catalogue name>-<number>). with gives attributes that the process doesn't otherwise pick, draw, copy,
     append or aggregate into, and not object_id, from attributes that every object of the picked listed catalogue
     or pool has, as numbers for a sum, min or max; a pick with count only computes them."""
     # (where it is in the configuration, process)
@@ -178,10 +179,15 @@ def _checked_catalogue(organizations):
         if like_created:
             problems.append(f"catalogue ids look like the ids growing catalogue {name!r} creates "
                             f"({name}-<number>): {like_created}")
-        creators = [reference for _, reference in references if reference.catalogue == name and reference.creates]
-        if len(creators) != 1:
+        creators = [where for where, reference in references if reference.catalogue == name and reference.creates]
+        if not creators:
             problems.append(f"growing catalogue {name!r} needs exactly one reference that creates its objects "
-                            f'("new" or new_share), got {len(creators)}')
+                            f'("new" or new_share), got 0')
+        elif len(creators) > 1:
+            # in an organization, one process creates the objects; the others learn their ids from messages
+            problems.append(f"growing catalogue {name!r} has more than one reference that creates its objects "
+                            f'("new" or new_share): {", ".join(creators)}; one creates them, the others learn their '
+                            f"ids from messages")
     for name in catalogue:
         if name in object_types:
             problems.append(f"catalogue {name!r} is the object type of process {object_types[name]}")
