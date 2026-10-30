@@ -17,7 +17,7 @@ from testing_scripts.multiprocess.catalogue.test_pick import (CUSTOMERS, PICKING
                                                               _run, _starting_values)
 from testing_scripts.multiprocess.catalogue.test_pick_count import PRODUCTS, SALES, _at_creation, _sales_picking
 from testing_scripts.multiprocess.examples.test_order_management import CONFIG
-from testing_scripts.multiprocess.messaging.test_collect import START, at
+from testing_scripts.multiprocess.messaging.test_collect import ORDERS, START, _settings, at
 from testing_scripts.multiprocess.orchestrator_settings import one_organization
 from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
@@ -255,3 +255,30 @@ def test_a_drawn_value_brings_its_object_attributes_at_creation(tmp_path):
     orders = [values for values, _ in _received(report, "Sales").values()]
     assert len(orders) == 20 and len({order["city"] for order in orders}) > 1
     assert all(order["region"] == regions[order["city"]] for order in orders)
+
+
+def test_a_value_copied_at_a_catch_brings_its_values_at_the_claim_and_a_later_copy_replaces_them(tmp_path):
+    # order-0 collects 3 ItemReady at Catch_Items, from 09:20, copying last_item from each; a reference on last_item,
+    # without a pick, brings the item's price as last_price at every claim
+    prices = {"i17": 2.5, "i23": 4, "i12": 10}
+    reference = Reference("last_item", "item", with_attributes=(("last_price", "price"),))
+    shop = Organization("Shop", [ProcessSpec("Orders", ORDERS, _settings(tmp_path, lambda settings: None), 1, "order",
+                                             ocel_attributes=("last_price",), references=(reference,))],
+                        {"item": [CatalogueObject(item, (("price", price),)) for item, price in prices.items()]})
+    picking = ScriptedEngine("Picking")
+    for minutes, item in zip((20, 30, 40), prices):
+        picking.publish_at(at(f"09:{minutes}"), "ItemReady", order_id="order-0", item_id=item)
+
+    report = run_multiprocess_simulation(SimulationConfig([shop], START, 1, extra_processes=["Picking"]),
+                                         tmp_path / "log.csv", {"Picking": picking},
+                                         ocel_out_path=tmp_path / "log.json")
+
+    [order] = [case for name, case in report.objects if name == "Orders"]
+    claims = [(value, time.strftime("%H:%M")) for name, value, time in order.attributes
+              if name == "last_price" and value is not None]
+    assert claims == [(2.5, "09:20"), (4, "09:30"), (10, "09:40")]
+    with open(tmp_path / "log.json") as file:
+        [written] = [obj for obj in json.load(file)["objects"] if obj["id"] == "order-0"]
+    # each at the time of its claim, in the OCEL file too
+    assert [(value["value"], value["time"][11:16]) for value in written["attributes"]
+            if value["name"] == "last_price"] == [(2.5, "09:20"), (4, "09:30"), (10, "09:40")]

@@ -188,14 +188,15 @@ def _referred(processes, rows, message_links):
 
 def _written(case_object, listed):
     """The values of a case's object that the output writes: those of the listed attributes, without the starting 0
-    of a sum or count no message had written yet, and of several values of one attribute at the same moment only
-    the last (aggregate writes its running total after every message, and a case may take many at once)."""
+    of a sum or count no message had written yet, without a missing value (None: e.g. what a with brings from a
+    value the case doesn't have yet), and of several values of one attribute at the same moment only the last
+    (aggregate writes its running total after every message, and a case may take many at once)."""
     only_started = set(case_object.only_started)
     values = []
     for name, value, time in case_object.attributes:
         if name in only_started:  # its first value is the one it was created with
             only_started.discard(name)
-        elif name in listed:
+        elif name in listed and value is not None:
             values.append((name, value, time))
     last = {(name, time): place for place, (name, _, time) in enumerate(values)}
     return [value for place, value in enumerate(values) if last[(value[0], value[2])] == place]
