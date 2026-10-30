@@ -116,8 +116,8 @@ def test_copy_is_allowed_on_a_catch_event_too(tmp_path):
 
 def test_a_configuration_can_leave_out_arrivals(tmp_path):
     config_file = tmp_path / "simulation.json"
-    config_file.write_text(json.dumps({"processes": [
-        {"name": "TartuWarehouse", "bpmn_path": "warehouse.bpmn", "json_path": "warehouse.json"}],
+    config_file.write_text(json.dumps({"organizations": [{"name": "Organization", "processes": [
+        {"name": "TartuWarehouse", "bpmn_path": "warehouse.bpmn", "json_path": "warehouse.json"}]}],
         "start_time": "2024-01-01T09:00:00+00:00"}))
 
     assert SimulationConfig.from_json(config_file).processes[0].arrivals is None

@@ -17,6 +17,7 @@ from click.testing import CliRunner
 from cli.diff_res_bpsim import cli
 from prosimos.orchestration.config import SimulationConfig
 from prosimos.orchestration.simulation import run_multiprocess_simulation
+from testing_scripts.multiprocess.orchestrator_settings import one_organization
 CONFIG = "testing_scripts/assets/order_management/simulation.json"  # 2,000 orders, 1,450 packing rounds; seed 1
 ORDERS = 100
 # enough rounds to pack every item: restocked items are picked up to a week after the last order
@@ -36,8 +37,8 @@ WORK = {"place order": (0, 0), "confirm order": (5, 15), "payment reminder": (2,
 def _config(orders=ORDERS, rounds=ROUNDS):
     config = SimulationConfig.from_json(CONFIG)
     cases = {"Sales": orders, "Packaging": rounds}
-    return dataclasses.replace(config, processes=[
-        dataclasses.replace(spec, arrivals=cases.get(spec.name, spec.arrivals)) for spec in config.processes])
+    return dataclasses.replace(config, organizations=one_organization([
+        dataclasses.replace(spec, arrivals=cases.get(spec.name, spec.arrivals)) for spec in config.processes]))
 
 
 @pytest.fixture(scope="module")
@@ -155,7 +156,7 @@ def test_an_item_weighs_what_its_product_weighs_and_a_package_the_sum_of_its_ite
 
 def test_product_weights_are_written_only_in_the_catalogue():
     folder = Path(CONFIG).parent
-    [warehouse] = [process for process in json.loads(Path(CONFIG).read_text())["processes"] if process["name"] == "Warehouse"]
+    [warehouse] = [process for process in json.loads(Path(CONFIG).read_text())["organizations"][0]["processes"] if process["name"] == "Warehouse"]
     products = [product["id"] for product in warehouse["catalogues"]["product"]]
     for settings in folder.glob("*.json"):
         if settings.name != "simulation.json":
@@ -288,7 +289,7 @@ def test_the_same_seed_gives_the_same_run_through_start_orchestration(tmp_path):
     with open(CONFIG) as file:
         settings = json.load(file)
     folder = Path(CONFIG).parent.resolve()
-    for process in settings["processes"]:
+    for process in settings["organizations"][0]["processes"]:
         process["bpmn_path"] = str(folder / process["bpmn_path"])
         process["json_path"] = str(folder / process["json_path"])
         if process["name"] in ("Sales", "Packaging"):

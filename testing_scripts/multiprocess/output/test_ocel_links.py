@@ -25,7 +25,7 @@ from testing_scripts.multiprocess.examples.test_order_management import _config,
 from testing_scripts.multiprocess.messaging.test_append import _run as _run_orders
 from testing_scripts.multiprocess.messaging.test_item_verdicts import (PICKING, PICKING_JSON, SALES, SALES_JSON,
                                                                        _picking_in)
-from testing_scripts.multiprocess.orchestrator_settings import with_qualifiers
+from testing_scripts.multiprocess.orchestrator_settings import one_organization, with_qualifiers
 from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
 ASSETS = "testing_scripts/assets/messaging"
@@ -155,7 +155,8 @@ def test_a_process_without_objects_attaches_nothing_and_warns_nothing():
     # Noted at once; attached, every claim and publish would warn
     config = _config(20)
     relay = ProcessSpec("Relay", f"{GATEWAYS}/relay.bpmn", f"{GATEWAYS}/relay.json", None)
-    report = run_multiprocess_simulation(dataclasses.replace(config, processes=[*config.processes, relay],
+    report = run_multiprocess_simulation(dataclasses.replace(config,
+                                                             organizations=one_organization([*config.processes, relay]),
                                                              consumer_groups=None), None)
 
     elements = [element for record in report.message_records
@@ -192,8 +193,9 @@ def _verdicts(picking_json=PICKING_JSON):
 def _ocel_of_verdicts(tmp_path, sales_json, picking_json, picking_type="item"):
     """The OCEL file and the CSV log of the run of _verdicts, Sales's orders of type order, Picking's items of
     picking_type."""
-    config = SimulationConfig([ProcessSpec("Sales", SALES, sales_json, 1, "order"),
-                               ProcessSpec("Picking", PICKING, picking_json, None, picking_type)], START, 1)
+    config = SimulationConfig(one_organization([ProcessSpec("Sales", SALES, sales_json, 1, "order"),
+                                                ProcessSpec("Picking", PICKING, picking_json, None, picking_type)]),
+                              START, 1)
     run_multiprocess_simulation(config, tmp_path / "log.csv", ocel_out_path=tmp_path / "log.json")
     with open(tmp_path / "log.json") as file:
         return json.load(file), pd.read_csv(tmp_path / "log.csv")

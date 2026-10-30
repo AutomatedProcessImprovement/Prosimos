@@ -19,6 +19,7 @@ from prosimos.orchestration.protocol import CaseObject
 from prosimos.orchestration.simulation import run_multiprocess_simulation
 from testing_scripts.multiprocess.examples.test_order_management import CONFIG, _config
 from testing_scripts.multiprocess.messaging.test_collect import ORDERS, _settings, at
+from testing_scripts.multiprocess.orchestrator_settings import one_organization
 from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
 START = pytz.utc.localize(datetime(2024, 1, 1, 9))
@@ -103,9 +104,9 @@ SALES = str(Path(CONFIG).parent / "sales.bpmn")
 
 
 def _links(references, objects, rows, processes=None, catalogues=None):
-    config = SimulationConfig([ProcessSpec(
+    config = SimulationConfig(one_organization([ProcessSpec(
         "P", SALES, "p.json", 1, catalogues=catalogues or {"customer": [CatalogueObject("c1"), CatalogueObject("c2")]},
-        references=tuple(references))], START)
+        references=tuple(references))]), START)
     warnings = []
     static_objects, object_links, event_links = _reference_links(
         config, config.catalogue, processes or {"P": OcelProcess("p")}, objects, rows, {"P": ["Place_Order", "Confirm_Order"]},
@@ -240,10 +241,10 @@ def test_a_list_appended_from_messages_links_each_item_it_collected(tmp_path):
     picking = ScriptedEngine("Picking")
     for minutes, item in zip((20, 30, 40), ("i17", "i23", "i12")):
         picking.publish_at(at(f"09:{minutes}"), "ItemReady", order_id="order-0", item_id=item)
-    config = SimulationConfig([ProcessSpec(
+    config = SimulationConfig(one_organization([ProcessSpec(
         "Orders", ORDERS, _settings(tmp_path, appending), 1, "order",
         catalogues={"item": [CatalogueObject(item) for item in ("i12", "i17", "i23", "i99")]},
-        references=(Reference("item_ids", "item", o2o="contains"),))], START, 1, extra_processes=["Picking"])
+        references=(Reference("item_ids", "item", o2o="contains"),))]), START, 1, extra_processes=["Picking"])
     run_multiprocess_simulation(config, None, {"Picking": picking}, ocel_out_path=tmp_path / "log.json")
     with open(tmp_path / "log.json") as file:
         ocel = json.load(file)
@@ -266,13 +267,13 @@ def _instant_row(process, activity, at):
 # Q's case q-0 links p-0 through a message at its first event and, with carry_links, at its second
 
 def test_with_tag_along_every_event_of_another_case_that_links_the_object_links_its_catalogue_object(tmp_path):
-    config = SimulationConfig([
+    config = SimulationConfig(one_organization([
         ProcessSpec("P", SALES, "p.json", 1,
                     catalogues={"product": [CatalogueObject("phone"), CatalogueObject("tablet")],
-                                "colour": [CatalogueObject("red")]},
+                                                 "colour": [CatalogueObject("red")]},
                     references=(Reference("product", "product", link_events=(), tag_along=True),
-                                Reference("colour", "colour"))),
-        ProcessSpec("Q", SALES, "q.json", 1)], START)
+                                                 Reference("colour", "colour"))),
+        ProcessSpec("Q", SALES, "q.json", 1)]), START)
     processes = {"P": OcelProcess("p"), "Q": OcelProcess("q", carry_links=True)}
     # the product changes from phone to tablet between Q's two events
     objects = [("P", CaseObject("p-0", START, [("product", "phone", START), ("colour", "red", START),
@@ -295,11 +296,11 @@ def test_with_tag_along_every_event_of_another_case_that_links_the_object_links_
 
 
 def test_with_tag_along_an_event_links_each_id_of_the_list_the_object_held_once(tmp_path):
-    config = SimulationConfig([
+    config = SimulationConfig(one_organization([
         ProcessSpec("P", SALES, "p.json", 1,
                     catalogues={"product": [CatalogueObject("phone"), CatalogueObject("tablet")]},
                     references=(Reference("products", "product", link_events=(), tag_along=True),)),
-        ProcessSpec("Q", SALES, "q.json", 1)], START)
+        ProcessSpec("Q", SALES, "q.json", 1)]), START)
     processes = {"P": OcelProcess("p"), "Q": OcelProcess("q")}
     objects = [("P", CaseObject("p-0", START, [("products", ["phone", "tablet", "phone"], START)])),
                ("Q", CaseObject("q-0", START))]
@@ -325,7 +326,7 @@ def _config_with(tmp_path, catalogues=None, references=None, **changes):
     with open(CONFIG) as file:
         data = json.load(file)
     data.update(changes)
-    for process in data["processes"]:  # the paths are relative to the configuration's folder
+    for process in data["organizations"][0]["processes"]:  # the paths are relative to the configuration's folder
         process["bpmn_path"], process["json_path"] = (str(Path(CONFIG).resolve().parent / process[key]) for key in ("bpmn_path", "json_path"))
         for key, given in (("catalogues", catalogues), ("references", references)):
             if given is not None:

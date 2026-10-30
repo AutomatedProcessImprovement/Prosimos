@@ -16,6 +16,7 @@ import pytz
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.simulation import run_multiprocess_simulation
 from prosimos.simulation_engine import SimBPMEnv, run_simulation
+from testing_scripts.multiprocess.orchestrator_settings import one_organization
 from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
 EXAMPLE = "testing_scripts/assets/running_example"
@@ -34,8 +35,9 @@ def _rows(tmp_path, processes, seed=SEED, name="log", extra_engines=None):
     """The merged log of a run, without the process column, keyed by process."""
     path = tmp_path / f"{name}.csv"
     extra_engines = extra_engines or {}
-    run_multiprocess_simulation(SimulationConfig(processes, START, seed, extra_processes=tuple(extra_engines)), path,
-                                extra_engines=extra_engines)
+    run_multiprocess_simulation(SimulationConfig(one_organization(processes), START, seed,
+                                                 extra_processes=tuple(extra_engines)),
+                                path, extra_engines=extra_engines)
     with open(path, encoding="utf-8") as file:
         rows = list(csv.DictReader(file))
     by_process = {}

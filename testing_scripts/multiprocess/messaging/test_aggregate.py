@@ -16,6 +16,7 @@ from prosimos.orchestration.simulation import run_multiprocess_simulation
 from testing_scripts.multiprocess.catalogue.test_catalogue import _config_with
 from testing_scripts.multiprocess.messaging.test_append import _run as _run_orders
 from testing_scripts.multiprocess.messaging.test_count_over_list import PACKAGES, PACKAGES_JSON, START, at
+from testing_scripts.multiprocess.orchestrator_settings import one_organization
 from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
 
@@ -37,8 +38,8 @@ def _run(tmp_path, sent, aggregate):
     picking = ScriptedEngine("Picking")
     for minutes, attributes in zip(range(0, 60, 10), sent):
         picking.publish_at(at(f"09:{minutes:02}"), "ItemPicked", **attributes)
-    config = SimulationConfig([ProcessSpec("Packages", PACKAGES, _settings(tmp_path, aggregate), None, "package",
-                                           ocel_attributes=tuple(aggregate))],
+    config = SimulationConfig(one_organization([ProcessSpec("Packages", PACKAGES, _settings(tmp_path, aggregate), None,
+                                                            "package", ocel_attributes=tuple(aggregate))]),
                               START, 1, extra_processes=["Picking"])
     report = run_multiprocess_simulation(config, tmp_path / "log.csv", {"Picking": picking},
                                          ocel_out_path=tmp_path / "log.json")
@@ -236,7 +237,7 @@ def test_picking_an_attribute_the_process_aggregates_into_is_rejected(tmp_path):
     path = _config_with(tmp_path, catalogues={"Packaging": {"customer": {"count": 10}}}, references={
         "Packaging": [{"object_attribute": "segment", "catalogue": "customer", "pick": "uniform"}]})
     data = json.loads(path.read_text())
-    next(process for process in data["processes"] if process["name"] == "Packaging")["json_path"] = str(packaging)
+    next(process for process in data["organizations"][0]["processes"] if process["name"] == "Packaging")["json_path"] = str(packaging)
     path.write_text(json.dumps(data))
 
     with pytest.raises(ValueError, match=r"processes\[2\].references\[0\] picks segment, which process Packaging also aggregates "

@@ -6,11 +6,11 @@ from datetime import datetime
 import pytest
 import pytz
 
-from prosimos.orchestration.config import ProcessSpec, SimulationConfig
+from prosimos.orchestration.config import Organization, ProcessSpec, SimulationConfig
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import Message, SimulationEngine, Verdict
 from prosimos.orchestration.simulation import run_multiprocess_simulation
-from testing_scripts.multiprocess.orchestrator_settings import orchestrator_settings
+from testing_scripts.multiprocess.orchestrator_settings import one_organization, orchestrator_settings
 from testing_scripts.test_batching_stats import get_path
 
 START = pytz.utc.localize(datetime(2024, 1, 1, 9, 30))
@@ -55,7 +55,7 @@ def _read_log(path):
 
 def test_two_different_models_both_produce_events(tmp_path):
     log_path = tmp_path / "merged.csv"
-    executed = run_multiprocess_simulation(SimulationConfig([_batch_process("batch"), _gateway_process("gateway")], START, SEED), str(log_path)).executed
+    executed = run_multiprocess_simulation(SimulationConfig(one_organization([_batch_process("batch"), _gateway_process("gateway")]), START, SEED), str(log_path)).executed
 
     assert {name for _, name in executed} == {"batch", "gateway"}
     header, *rows = _read_log(log_path)
@@ -71,11 +71,11 @@ def test_merged_log_is_sorted_by_start_time(tmp_path):
     log_path = tmp_path / "merged.csv"
     run_multiprocess_simulation(
         SimulationConfig(
-            [
-                ProcessSpec("stock", str(assets / "stock_replenishment.bpmn"),
-                            orchestrator_settings(assets / "stock_replenishment_logs.json"), 10),
-                ProcessSpec("timer", str(assets / "timer_with_task.bpmn"), orchestrator_settings(assets / "timer_with_task.json"), 10),
-            ],
+            one_organization([
+                                 ProcessSpec("stock", str(assets / "stock_replenishment.bpmn"),
+                                             orchestrator_settings(assets / "stock_replenishment_logs.json"), 10),
+                                 ProcessSpec("timer", str(assets / "timer_with_task.bpmn"), orchestrator_settings(assets / "timer_with_task.json"), 10),
+                             ]),
             START, SEED,
         ),
         str(log_path),
@@ -88,7 +88,7 @@ def test_merged_log_is_sorted_by_start_time(tmp_path):
 
 
 def test_events_are_executed_in_global_time_order():
-    executed = run_multiprocess_simulation(SimulationConfig([_batch_process("batch"), _gateway_process("gateway")], START, SEED)).executed
+    executed = run_multiprocess_simulation(SimulationConfig(one_organization([_batch_process("batch"), _gateway_process("gateway")]), START, SEED)).executed
 
     times = [event_time for event_time, _ in executed]
     assert times == sorted(times)
@@ -96,7 +96,7 @@ def test_events_are_executed_in_global_time_order():
 
 def test_ties_are_broken_alphabetically_by_process_name():
     # the same model twice: fixed daily arrivals make both report the same batch times
-    executed = run_multiprocess_simulation(SimulationConfig([_batch_process("zeta"), _batch_process("alpha")], START, SEED)).executed
+    executed = run_multiprocess_simulation(SimulationConfig(one_organization([_batch_process("zeta"), _batch_process("alpha")]), START, SEED)).executed
 
     ties = [(a, b) for a, b in zip(executed, executed[1:]) if a[0] == b[0]]
     assert ties, "expected the two identical processes to tie at least once"
@@ -108,9 +108,9 @@ def test_same_seed_gives_the_same_run_regardless_of_input_order(tmp_path):
     gateway_a = _random_arrival_gateway_process("gateway_a", tmp_path)
     gateway_b = _random_arrival_gateway_process("gateway_b", tmp_path)
 
-    first = run_multiprocess_simulation(SimulationConfig([gateway_a, gateway_b], START, SEED),
+    first = run_multiprocess_simulation(SimulationConfig(one_organization([gateway_a, gateway_b]), START, SEED),
                                         str(tmp_path / "first.csv"))
-    second = run_multiprocess_simulation(SimulationConfig([gateway_b, gateway_a], START, SEED),
+    second = run_multiprocess_simulation(SimulationConfig(one_organization([gateway_b, gateway_a]), START, SEED),
                                          str(tmp_path / "second.csv"))
 
     assert first == second
@@ -120,11 +120,17 @@ def test_same_seed_gives_the_same_run_regardless_of_input_order(tmp_path):
 
 def test_duplicate_process_names_are_rejected():
     with pytest.raises(ValueError):
-        SimulationConfig([_batch_process("same"), _gateway_process("same")], START, SEED)
+        SimulationConfig(one_organization([_batch_process("same"), _gateway_process("same")]), START, SEED)
+
+
+def test_duplicate_organization_names_are_rejected():
+    with pytest.raises(ValueError, match=r"Organization names must be unique, repeated: \['Shop'\]"):
+        SimulationConfig([Organization("Shop", [_batch_process("batch")]),
+                          Organization("Shop", [_gateway_process("gateway")])], START, SEED)
 
 
 def test_runs_without_a_seed():
-    executed = run_multiprocess_simulation(SimulationConfig([_batch_process("batch"), _gateway_process("gateway")], START)).executed
+    executed = run_multiprocess_simulation(SimulationConfig(one_organization([_batch_process("batch"), _gateway_process("gateway")]), START)).executed
 
     assert {name for _, name in executed} == {"batch", "gateway"}
     times = [event_time for event_time, _ in executed]
@@ -148,22 +154,22 @@ def _spec(name):
 
 def test_config_rejects_a_process_missing_from_the_groups():
     with pytest.raises(ValueError, match=r"\['Billing'\] are in no group"):
-        SimulationConfig([_spec("Sales"), _spec("Billing")], START, SEED, {"Sales": ["Sales"]})
+        SimulationConfig(one_organization([_spec("Sales"), _spec("Billing")]), START, SEED, {"Sales": ["Sales"]})
 
 
 def test_config_rejects_a_process_listed_in_two_groups():
     with pytest.raises(ValueError, match="listed more than once"):
-        SimulationConfig([_spec("Sales"), _spec("Billing")], START, SEED,
+        SimulationConfig(one_organization([_spec("Sales"), _spec("Billing")]), START, SEED,
                          {"Sales": ["Sales"], "Billing": ["Billing"], "Everyone": ["Sales"]})
 
 
 def test_config_rejects_a_group_naming_an_unknown_process():
     with pytest.raises(ValueError, match=r"unknown processes \['Shipping'\]"):
-        SimulationConfig([_spec("Sales")], START, SEED, {"Sales": ["Sales", "Shipping"]})
+        SimulationConfig(one_organization([_spec("Sales")]), START, SEED, {"Sales": ["Sales", "Shipping"]})
 
 
 def test_config_puts_every_process_in_its_own_group_by_default():
-    config = SimulationConfig([_spec("Sales"), _spec("Billing")], START, SEED)
+    config = SimulationConfig(one_organization([_spec("Sales"), _spec("Billing")]), START, SEED)
 
     assert config.consumer_groups == {"Sales": ["Sales"], "Billing": ["Billing"]}
 
@@ -172,7 +178,7 @@ def test_config_accepts_processes_sharing_a_group():
     names = ["Sales", "Billing", "TartuWarehouse", "TallinnWarehouse"]
     groups = {"Sales": ["Sales"], "Billing": ["Billing"], "Warehouses": ["TartuWarehouse", "TallinnWarehouse"]}
 
-    config = SimulationConfig([_spec(name) for name in names], START, SEED, groups)
+    config = SimulationConfig(one_organization([_spec(name) for name in names]), START, SEED, groups)
 
     assert config.consumer_groups == groups
 
@@ -180,22 +186,22 @@ def test_config_accepts_processes_sharing_a_group():
 def test_config_groups_may_name_the_extra_processes_it_declares():
     groups = {"Sales": ["Sales"], "Warehouses": ["TartuWarehouse", "TallinnWarehouse"]}
 
-    config = SimulationConfig([_spec("Sales")], START, SEED, groups,
+    config = SimulationConfig(one_organization([_spec("Sales")]), START, SEED, groups,
                               extra_processes=["TartuWarehouse", "TallinnWarehouse"])
 
     assert config.consumer_groups == groups
     with pytest.raises(ValueError, match=r"unknown processes \['TallinnWarehouse'\]"):
-        SimulationConfig([_spec("Sales")], START, SEED, groups, extra_processes=["TartuWarehouse"])
+        SimulationConfig(one_organization([_spec("Sales")]), START, SEED, groups, extra_processes=["TartuWarehouse"])
 
 
 def test_config_rejects_an_extra_process_with_the_name_of_a_configured_one():
     with pytest.raises(ValueError, match=r"repeated: \['Sales'\]"):
-        SimulationConfig([_spec("Sales")], START, SEED, extra_processes=["Sales"])
+        SimulationConfig(one_organization([_spec("Sales")]), START, SEED, extra_processes=["Sales"])
 
 
 @pytest.mark.parametrize("given", [{}, {"Billing": None, "Carrier": None}])
 def test_run_orchestrator_rejects_extra_engines_other_than_the_declared_ones(given):
-    config = SimulationConfig([_spec("Sales")], START, SEED, extra_processes=["Billing"])
+    config = SimulationConfig(one_organization([_spec("Sales")]), START, SEED, extra_processes=["Billing"])
 
     # checked before anything is built, so the files and the engines needn't exist
     with pytest.raises(ValueError, match=r"exactly the configuration's extra_processes \['Billing'\]"):
@@ -207,7 +213,7 @@ def test_config_loads_from_a_json_file_and_runs(tmp_path):
     config_file = tmp_path / "simulation.json"
     with open(config_file, "w") as f:
         json.dump({
-            "processes": [
+            "organizations": [{"name": "Organization", "processes": [
                 {"name": "batch", "bpmn_path": os.path.relpath(assets / "1_task-batch.bpmn", tmp_path),
                  "json_path": os.path.relpath(orchestrator_settings(assets / "1_task-batch.json"), tmp_path), "arrivals": 10},
                 {"name": "gateway",
@@ -215,7 +221,7 @@ def test_config_loads_from_a_json_file_and_runs(tmp_path):
                  "json_path": os.path.relpath(orchestrator_settings(assets / "gateway_conditions/gateway_one_true_condition.json"),
                                               tmp_path),
                  "arrivals": 10},
-            ],
+            ]}],
             "seed": SEED,
             "start_time": "2024-01-01T09:30:00",
             "consumer_groups": {"batch": ["batch"], "gateway": ["gateway"]},
@@ -233,7 +239,8 @@ def test_config_file_missing_a_required_field_is_rejected(tmp_path):
     config_file = tmp_path / "simulation.json"
     with open(config_file, "w") as f:
         # arrivals is optional (a process started by messages has none), json_path isn't
-        json.dump({"processes": [{"name": "Sales", "bpmn_path": "sales.bpmn", "arrivals": 5}],
+        json.dump({"organizations": [{"name": "Organization",
+                                      "processes": [{"name": "Sales", "bpmn_path": "sales.bpmn", "arrivals": 5}]}],
                    "start_time": "2024-01-01T09:30:00+00:00"}, f)
 
     with pytest.raises(ValueError, match=r"Sales is missing \['json_path'\]"):

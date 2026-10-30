@@ -12,6 +12,7 @@ from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.simulation import run_multiprocess_simulation
+from testing_scripts.multiprocess.orchestrator_settings import one_organization
 from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
 ASSETS = "testing_scripts/assets/messaging"
@@ -46,8 +47,9 @@ def _packed(report):
 
 
 def test_a_package_of_3_items_publishes_packed_to_each_and_each_item_gets_exactly_its_own():
-    config = SimulationConfig([ProcessSpec("Items", ITEMS, ITEMS_JSON, 6, "item"),
-                               ProcessSpec("Packages", PACKAGES, PACKAGES_JSON, None, "package")], START, 1)
+    config = SimulationConfig(one_organization([ProcessSpec("Items", ITEMS, ITEMS_JSON, 6, "item"),
+                                                ProcessSpec("Packages", PACKAGES, PACKAGES_JSON, None, "package")]),
+                              START, 1)
 
     report = run_multiprocess_simulation(config, None)
 
@@ -71,8 +73,8 @@ def _run(tmp_path, sent, change=lambda settings: None):
     picking = ScriptedEngine("Picking")
     for minutes, attributes in zip(range(0, 60, 10), sent):
         picking.publish_at(at(f"09:{minutes:02}"), "ItemPicked", **attributes)
-    config = SimulationConfig([ProcessSpec("Packages", PACKAGES, _settings(tmp_path, change), None)], START, 1,
-                              extra_processes=["Picking"])
+    config = SimulationConfig(one_organization([ProcessSpec("Packages", PACKAGES, _settings(tmp_path, change), None)]),
+                              START, 1, extra_processes=["Picking"])
     return run_multiprocess_simulation(config, None, {"Picking": picking})
 
 

@@ -13,6 +13,7 @@ from prosimos.orchestration.config import SimulationConfig
 from testing_scripts.multiprocess.catalogue.test_catalogue import _config_with
 from testing_scripts.multiprocess.catalogue.test_pick import POOL, PICKING, _customers_of_cases, _loans, _run
 from testing_scripts.multiprocess.examples.test_order_management import _config
+from testing_scripts.multiprocess.orchestrator_settings import one_organization
 
 CUSTOMERS = GrowingCatalogue(POOL.attributes)  # segment and credit_limit
 
@@ -20,10 +21,10 @@ CUSTOMERS = GrowingCatalogue(POOL.attributes)  # segment and credit_limit
 def _order_management(orders, pick):
     """Order Management whose customers are a growing catalogue of Sales, from which each order picks with pick."""
     config = _config(orders)
-    return dataclasses.replace(config, processes=[
+    return dataclasses.replace(config, organizations=one_organization([
         dataclasses.replace(spec, catalogues={"customer": CUSTOMERS},
                             references=(dataclasses.replace(spec.references[0], pick=pick),))
-        if spec.name == "Sales" else spec for spec in config.processes])
+        if spec.name == "Sales" else spec for spec in config.processes]))
 
 
 def _created(ocel):

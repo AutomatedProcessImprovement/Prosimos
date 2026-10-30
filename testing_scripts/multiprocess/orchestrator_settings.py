@@ -1,12 +1,13 @@
 """
 Models moved between single-process Prosimos and the orchestrator in tests: Prosimos's JSON settings name the drawn
 attributes case_attributes and may carry keys Prosimos ignores, while the orchestrator reads object_attributes and
-rejects keys it doesn't know.
+rejects keys it doesn't know. And configurations built in Python, whose processes all go in one organization.
 """
 import json
 import tempfile
 from pathlib import Path
 
+from prosimos.orchestration.config import Organization
 from prosimos.orchestration.prosimos_engine import PROCESS_SETTINGS_KEYS
 
 _FOLDER = Path(tempfile.mkdtemp(prefix="orchestrator_settings_"))
@@ -46,3 +47,8 @@ def with_qualifiers(json_path, name=None):
     path = _FOLDER / (name or f"qualified_{Path(json_path).name}")
     path.write_text(json.dumps(settings))
     return str(path)
+
+
+def one_organization(processes):
+    """The organizations of a configuration built in Python: one, holding all its processes."""
+    return [Organization("Organization", list(processes))]

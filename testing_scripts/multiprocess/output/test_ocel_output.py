@@ -18,6 +18,7 @@ from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import CaseObject
 from prosimos.orchestration.simulation import run_multiprocess_simulation
 from testing_scripts.multiprocess.examples.test_order_management import _config
+from testing_scripts.multiprocess.orchestrator_settings import one_organization
 from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
 START = pytz.utc.localize(datetime(2024, 1, 1, 9))
@@ -145,12 +146,14 @@ def test_a_process_has_an_object_type_only_where_it_is_given(tmp_path):
     config_path = tmp_path / "simulation.json"
     processes = [{"name": "Sales", "bpmn_path": "s.bpmn", "json_path": "s.json", "arrivals": 1},
                  {"name": "Warehouse", "bpmn_path": "w.bpmn", "json_path": "w.json", "object_type": "item"}]
-    config_path.write_text(json.dumps({"start_time": "2024-01-01T09:00:00+00:00", "processes": processes}))
+    config_path.write_text(json.dumps({"start_time": "2024-01-01T09:00:00+00:00",
+                                       "organizations": [{"name": "Organization", "processes": processes}]}))
 
     assert [spec.object_type for spec in SimulationConfig.from_json(config_path).processes] == [None, "item"]
 
     processes[0]["object_type"] = None
-    config_path.write_text(json.dumps({"start_time": "2024-01-01T09:00:00+00:00", "processes": processes}))
+    config_path.write_text(json.dumps({"start_time": "2024-01-01T09:00:00+00:00",
+                                       "organizations": [{"name": "Organization", "processes": processes}]}))
     with pytest.raises(ValueError, match=r"processes\[0\]: 'object_type' must be a non-empty string, got None"):
         SimulationConfig.from_json(config_path)
 
@@ -169,9 +172,9 @@ def test_an_object_is_named_after_its_type_or_without_one_after_its_process(obje
 
 def test_processes_of_one_object_type_get_ids_numbered_across_them_by_creation_time(tmp_path):
     # Sales and Returns both make orders and each numbers its own from order-0; the output numbers them together
-    config = SimulationConfig([ProcessSpec(name, "testing_scripts/assets/messaging/sales.bpmn",
-                                           "testing_scripts/assets/messaging/sales.json", 4, "order")
-                               for name in ("Sales", "Returns")], START, 1)
+    config = SimulationConfig(one_organization([ProcessSpec(name, "testing_scripts/assets/messaging/sales.bpmn",
+                                                            "testing_scripts/assets/messaging/sales.json", 4, "order")
+                                                for name in ("Sales", "Returns")]), START, 1)
     report = run_multiprocess_simulation(config, tmp_path / "log.csv", ocel_out_path=tmp_path / "log.json")
 
     assert sorted(case.object_id for _, case in report.objects) == [f"order-{case}" for case in range(4) for _ in "SR"]
@@ -279,9 +282,9 @@ def test_every_order_management_package_with_items_has_one_weight_the_sum_of_its
 @pytest.mark.parametrize("listed, written", [(("city",), {"city"}), ((), set())])
 def test_only_the_listed_attributes_become_object_attributes(tmp_path, listed, written):
     # Sales draws a city for every order; its objects carry it only if ocel_attributes lists it
-    config = SimulationConfig([ProcessSpec("Sales", "testing_scripts/assets/messaging/sales.bpmn",
-                                           "testing_scripts/assets/messaging/sales.json", 3, "order",
-                                           ocel_attributes=listed)], START, 1)
+    config = SimulationConfig(one_organization([ProcessSpec("Sales", "testing_scripts/assets/messaging/sales.bpmn",
+                                                            "testing_scripts/assets/messaging/sales.json", 3, "order",
+                                                            ocel_attributes=listed)]), START, 1)
     run_multiprocess_simulation(config, None, ocel_out_path=tmp_path / "log.json")
 
     with open(tmp_path / "log.json") as file:
@@ -299,8 +302,9 @@ def test_only_the_listed_attributes_become_object_attributes(tmp_path, listed, w
 ])
 def test_ocel_attributes_may_name_every_attribute_the_objects_have(process, name):
     config = _config(10)
-    config = SimulationConfig([dataclasses.replace(spec, ocel_attributes=(name,)) if spec.name == process else spec
-                               for spec in config.processes], config.start_datetime, config.seed)
+    config = SimulationConfig(one_organization([dataclasses.replace(spec, ocel_attributes=(name,))
+                                                if spec.name == process else spec for spec in config.processes]),
+                              config.start_datetime, config.seed)
 
     assert next(spec for spec in config.processes if spec.name == process).ocel_attributes == (name,)
 
@@ -310,15 +314,16 @@ def test_ocel_attributes_naming_an_attribute_the_objects_never_have_are_rejected
     processes = [dataclasses.replace(spec, ocel_attributes=("weight", "colour")) if spec.name == "Warehouse" else spec
                  for spec in config.processes]
 
-    with pytest.raises(ValueError, match=r"Invalid ocel_attributes: processes\[1\].ocel_attributes names \['colour'\], "
-                                         r"which the objects of process Warehouse never have"):
-        SimulationConfig(processes, config.start_datetime, config.seed)
+    with pytest.raises(ValueError, match=r"Invalid ocel_attributes: organizations\[0\].processes\[1\].ocel_attributes "
+                                         r"names \['colour'\], which the objects of process Warehouse never have"):
+        SimulationConfig(one_organization(processes), config.start_datetime, config.seed)
 
 
 def test_ocel_attributes_that_arent_a_list_of_names_are_rejected(tmp_path):
     config_path = tmp_path / "simulation.json"
-    config_path.write_text(json.dumps({"start_time": "2024-01-01T09:00:00+00:00", "processes": [
-        {"name": "Sales", "bpmn_path": "s.bpmn", "json_path": "s.json", "arrivals": 1, "ocel_attributes": "city"}]}))
+    config_path.write_text(json.dumps({"start_time": "2024-01-01T09:00:00+00:00", "organizations": [
+        {"name": "Organization", "processes": [
+            {"name": "Sales", "bpmn_path": "s.bpmn", "json_path": "s.json", "arrivals": 1, "ocel_attributes": "city"}]}]}))
 
     with pytest.raises(ValueError, match=r"processes\[0\]: 'ocel_attributes' must be a list of attribute names, got 'city'"):
         SimulationConfig.from_json(config_path)

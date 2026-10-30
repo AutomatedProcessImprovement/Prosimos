@@ -14,6 +14,7 @@ from testing_scripts.multiprocess.catalogue.test_catalogue import _config_with
 from testing_scripts.multiprocess.catalogue.test_pick import (CUSTOMERS, PICKING, POOL, PRODUCTS_LIST, RATED, _loans,
                                                               _run, _starting_values)
 from testing_scripts.multiprocess.catalogue.test_pick_count import PRODUCTS, SALES, _at_creation, _sales_picking
+from testing_scripts.multiprocess.orchestrator_settings import one_organization
 
 PRICE = {obj["id"]: obj["attributes"]["price"] for obj in PRODUCTS_LIST}
 
@@ -35,7 +36,8 @@ def test_a_plain_name_copies_the_attribute_and_may_rename_it(tmp_path):
     config = _loans(200, RATED, "uniform")
     [loans] = config.processes
     reference = dataclasses.replace(loans.references[0], with_attributes=(("segment", "segment"), ("credit", "limit")))
-    config = dataclasses.replace(config, processes=[dataclasses.replace(loans, references=(reference,))])
+    config = dataclasses.replace(config,
+                                 organizations=one_organization([dataclasses.replace(loans, references=(reference,))]))
 
     report, _, _ = _run(config, tmp_path)
 

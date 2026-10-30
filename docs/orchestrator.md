@@ -11,20 +11,26 @@ There are two examples: the [running example](running-example.md), with orders, 
 
 ## Quick start
 
-A configuration file lists the processes, the shared start time and, optionally, a seed and the
-consumer groups. This is the [running example](running-example.md)'s,
+A configuration file lists the organizations, each with its processes, the shared start time and,
+optionally, a seed and the consumer groups. This is the [running example](running-example.md)'s,
 `testing_scripts/assets/running_example/simulation.json`: Sales's orders are billed by Billing and
 packed by one of two warehouses, which are started by those orders, so they have no `arrivals`:
 
 ```json
 {
-  "processes": [
-    {"name": "Sales", "bpmn_path": "sales.bpmn", "json_path": "sales.json", "arrivals": 20, "object_type": "order"},
-    {"name": "Billing", "bpmn_path": "billing.bpmn", "json_path": "billing.json", "object_type": "invoice"},
-    {"name": "TartuWarehouse", "bpmn_path": "tartu_warehouse.bpmn", "json_path": "tartu_warehouse.json",
-     "object_type": "shipment"},
-    {"name": "TallinnWarehouse", "bpmn_path": "tallinn_warehouse.bpmn", "json_path": "tallinn_warehouse.json",
-     "object_type": "shipment"}
+  "organizations": [
+    {"name": "Our company",
+     "processes": [
+       {"name": "Sales", "bpmn_path": "sales.bpmn", "json_path": "sales.json", "arrivals": 20, "object_type": "order"},
+       {"name": "Billing", "bpmn_path": "billing.bpmn", "json_path": "billing.json", "object_type": "invoice"},
+       {"name": "TartuWarehouse", "bpmn_path": "tartu_warehouse.bpmn", "json_path": "tartu_warehouse.json",
+        "object_type": "shipment"}
+     ]},
+    {"name": "Tallinn partner",
+     "processes": [
+       {"name": "TallinnWarehouse", "bpmn_path": "tallinn_warehouse.bpmn", "json_path": "tallinn_warehouse.json",
+        "object_type": "shipment"}
+     ]}
   ],
   "seed": 1,
   "start_time": "2024-01-01T09:00:00+00:00",

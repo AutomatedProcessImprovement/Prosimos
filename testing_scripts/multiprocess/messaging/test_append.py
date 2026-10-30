@@ -17,6 +17,7 @@ from testing_scripts.multiprocess.catalogue.test_catalogue import _config_with
 from testing_scripts.multiprocess.examples.test_order_management import _config, package_items
 from testing_scripts.multiprocess.messaging.test_collect import ORDERS, START, _settings, at
 from testing_scripts.multiprocess.messaging.test_count_over_list import PACKAGES, PACKAGES_JSON
+from testing_scripts.multiprocess.orchestrator_settings import one_organization
 from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
 
@@ -30,8 +31,8 @@ def _run(tmp_path, sent, change=_appending, ocel_attributes=("item_ids",)):
     picking = ScriptedEngine("Picking")
     for minutes, attributes in zip(range(20, 60, 10), sent):
         picking.publish_at(at(f"09:{minutes}"), "ItemReady", order_id="order-0", **attributes)
-    config = SimulationConfig([ProcessSpec("Orders", ORDERS, _settings(tmp_path, change), 1, "order",
-                                           ocel_attributes=ocel_attributes)], START, 1,
+    config = SimulationConfig(one_organization([ProcessSpec("Orders", ORDERS, _settings(tmp_path, change), 1, "order",
+                                                            ocel_attributes=ocel_attributes)]), START, 1,
                               extra_processes=["Picking"])
     report = run_multiprocess_simulation(config, tmp_path / "log.csv", {"Picking": picking},
                                          ocel_out_path=tmp_path / "log.json")

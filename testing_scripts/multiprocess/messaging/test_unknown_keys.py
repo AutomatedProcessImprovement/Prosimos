@@ -15,9 +15,10 @@ from prosimos.messaging.parser import parse_messages
 from prosimos.orchestration.catalogue import CataloguePool, _checked_catalogue
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.prosimos_engine import load_process
+from testing_scripts.multiprocess.catalogue.test_catalogue import _config_with
 from testing_scripts.multiprocess.messaging.test_messaging_parser import (  # noqa: F401 (bpmn is a fixture)
     bpmn, consume, publish)
-from testing_scripts.multiprocess.catalogue.test_catalogue import _config_with
+from testing_scripts.multiprocess.orchestrator_settings import one_organization
 
 START = pytz.utc.localize(datetime(2024, 1, 1, 9))
 
@@ -37,13 +38,29 @@ def test_the_top_level(tmp_path):
     def misspelled(data):
         data["sead"] = data.pop("seed")
 
-    _config_rejected(tmp_path, r"simulation.json: top level: unknown key 'sead'; allowed: consumer_groups, processes, "
-                               r"seed, start_time$", misspelled)
+    _config_rejected(tmp_path, r"simulation.json: top level: unknown key 'sead'; allowed: consumer_groups, "
+                               r"organizations, seed, start_time$", misspelled)
+
+
+def test_processes_belong_to_an_organization_not_to_the_top_level(tmp_path):
+    def at_the_top_level(data):
+        data["processes"] = data.pop("organizations")[0]["processes"]
+
+    _config_rejected(tmp_path, r"simulation.json: top level: unknown key 'processes'; allowed: consumer_groups, "
+                               r"organizations, seed, start_time$", at_the_top_level)
+
+
+def test_an_organization_entry(tmp_path):
+    def misspelled(data):
+        data["organizations"][0]["proceses"] = data["organizations"][0].pop("processes")
+
+    _config_rejected(tmp_path, r"simulation.json: organizations\[0\]: unknown key 'proceses'; allowed: name, "
+                               r"processes$", misspelled)
 
 
 def test_a_process_entry(tmp_path):
     def misspelled(data):
-        data["processes"][2]["object_typ"] = data["processes"][2].pop("object_type")
+        data["organizations"][0]["processes"][2]["object_typ"] = data["organizations"][0]["processes"][2].pop("object_type")
 
     _config_rejected(tmp_path, r"processes\[2\]: unknown key 'object_typ'; allowed: arrivals, bpmn_path, "
                                r"carry_links, catalogues, json_path, name, object_type, ocel_attributes, qualifier, "
@@ -53,7 +70,7 @@ def test_a_process_entry(tmp_path):
 
 def test_an_object_of_a_listed_catalogue(tmp_path):
     def misspelled(data):
-        customers = data["processes"][0]["catalogues"]["customer"]
+        customers = data["organizations"][0]["processes"][0]["catalogues"]["customer"]
         customers[2]["attribute"] = {}
 
     _config_rejected(tmp_path, r"processes\[0\].catalogues.customer\[2\]: unknown key 'attribute'; allowed: attributes, id$",
@@ -62,7 +79,7 @@ def test_an_object_of_a_listed_catalogue(tmp_path):
 
 def test_a_pool(tmp_path):
     def misspelled(data):
-        data["processes"][0]["catalogues"]["customer"] = {"count": 10, "atributes": []}
+        data["organizations"][0]["processes"][0]["catalogues"]["customer"] = {"count": 10, "atributes": []}
 
     _config_rejected(tmp_path, r"processes\[0\].catalogues.customer: unknown key 'atributes'; allowed: attributes, count$",
                      misspelled)
@@ -71,7 +88,7 @@ def test_a_pool(tmp_path):
 def test_a_growing_catalogue(tmp_path):
     # a misspelled count would otherwise make the pool a growing catalogue
     def misspelled(data):
-        data["processes"][0]["catalogues"]["customer"] = {"cont": 10, "attributes": []}
+        data["organizations"][0]["processes"][0]["catalogues"]["customer"] = {"cont": 10, "attributes": []}
 
     _config_rejected(tmp_path, r"processes\[0\].catalogues.customer: unknown key 'cont'; allowed: attributes, count$",
                      misspelled)
@@ -79,7 +96,7 @@ def test_a_growing_catalogue(tmp_path):
 
 def test_a_reference(tmp_path):
     def misspelled(data):
-        reference = data["processes"][0]["references"][0]
+        reference = data["organizations"][0]["processes"][0]["references"][0]
         reference["link_event"] = reference.pop("link_events")
         reference["revers"] = reference.pop("reverse")
 
@@ -90,7 +107,7 @@ def test_a_reference(tmp_path):
 
 def test_a_pick_object(tmp_path):
     def misspelled(data):
-        data["processes"][0]["references"][0]["pick"] = {"weight": {"c1": 1}}
+        data["organizations"][0]["processes"][0]["references"][0]["pick"] = {"weight": {"c1": 1}}
 
     _config_rejected(tmp_path, r"processes\[0\].references\[0\].pick: unknown key 'weight'; allowed: new_share, weights$",
                      misspelled)
@@ -98,14 +115,14 @@ def test_a_pick_object(tmp_path):
 
 def test_catalogues_and_references_are_keys_of_a_process_not_of_the_top_level(tmp_path):
     def at_the_top_level(data):
-        data["references"] = data["processes"][0].pop("references")
+        data["references"] = data["organizations"][0]["processes"][0].pop("references")
 
     _config_rejected(tmp_path, r"simulation.json: top level: unknown key 'references'; allowed: ", at_the_top_level)
 
 
 def test_a_reference_names_no_process_its_entry_is_its_process(tmp_path):
     def naming_its_process(data):
-        data["processes"][0]["references"][0]["process"] = "Sales"
+        data["organizations"][0]["processes"][0]["references"][0]["process"] = "Sales"
 
     _config_rejected(tmp_path, r"processes\[0\].references\[0\]: unknown key 'process'; allowed: ", naming_its_process)
 
@@ -174,14 +191,14 @@ def test_the_top_level_of_a_processs_settings(tmp_path):
 
 def test_total_cases_is_no_key_of_a_process_entry(tmp_path):
     def prosimos_name(data):
-        data["processes"][0]["total_cases"] = data["processes"][0].pop("arrivals")
+        data["organizations"][0]["processes"][0]["total_cases"] = data["organizations"][0]["processes"][0].pop("arrivals")
 
     _config_rejected(tmp_path, r"processes\[0\]: unknown key 'total_cases'; allowed: arrivals, ", prosimos_name)
 
 
 def test_case_attribute_is_no_key_of_a_reference(tmp_path):
     def prosimos_name(data):
-        reference = data["processes"][0]["references"][0]
+        reference = data["organizations"][0]["processes"][0]["references"][0]
         reference["case_attribute"] = reference.pop("object_attribute")
 
     _config_rejected(tmp_path, r"processes\[0\].references\[0\]: unknown key 'case_attribute'; allowed: catalogue, ",
@@ -220,6 +237,6 @@ def test_a_pool_of_100000_passes_the_catalogue_check_well_under_a_second():
              for name in ("Sales", "Warehouse", "Packaging")]
 
     started = time.perf_counter()
-    _checked_catalogue(specs)
+    _checked_catalogue(one_organization(specs))
 
     assert time.perf_counter() - started < 0.5

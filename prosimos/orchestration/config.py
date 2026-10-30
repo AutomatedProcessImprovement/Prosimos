@@ -52,19 +52,22 @@ class ProcessSpec:
         return self.object_type or self.name
 
 
-CONFIG_KEYS = {"processes", "start_time", "seed", "consumer_groups"}
+CONFIG_KEYS = {"organizations", "start_time", "seed", "consumer_groups"}
+ORGANIZATION_KEYS = {"name", "processes"}
 PROCESS_KEYS = {"name", "bpmn_path", "json_path", "arrivals", "object_type", "qualifier", "qualifier_by_activity",
                 "carry_links", "ocel_attributes", "catalogues", "references"}
 REFERENCE_KEYS = {"object_attribute", "catalogue", "o2o", "reverse", "link_events", "pick", "count", "with",
                   "tag_along"}
 
 
-def _checked_ocel_attributes(processes):
+def _checked_ocel_attributes(organizations):
     """Each name in a process's ocel_attributes is an attribute its objects have: drawn in its object_attributes,
     picked or brought (with) by one of its references, or copied, appended or aggregated into by one of its consume
     entries."""
     problems = []
-    for index, spec in enumerate(processes):
+    placed = [(f"organizations[{number}].processes[{index}]", spec)
+              for number, organization in enumerate(organizations) for index, spec in enumerate(organization.processes)]
+    for where, spec in placed:
         if not spec.ocel_attributes:
             continue
         with open(spec.json_path) as file:
@@ -79,7 +82,7 @@ def _checked_ocel_attributes(processes):
                     has.update(entry[key])
         unknown = [name for name in spec.ocel_attributes if name not in has]
         if unknown:
-            problems.append(f"processes[{index}].ocel_attributes names {unknown}, which the objects of process "
+            problems.append(f"{where}.ocel_attributes names {unknown}, which the objects of process "
                             f"{spec.name} never have (they have {sorted(has)})")
     if problems:
         raise ValueError("Invalid ocel_attributes: " + "; ".join(problems))
@@ -112,23 +115,37 @@ def _checked_consumer_groups(names, consumer_groups):
 
 
 @dataclass(frozen=True)
+class Organization:
+    """A business: a box around its processes. Its processes exchange messages with every other process, of this
+    organization or another; engines never learn their organization."""
+
+    name: str
+    processes: List[ProcessSpec] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
 class SimulationConfig:
     """
-    Everything needed for one multi-process run. Each consumer group maps a group name to the
-    processes in it; without consumer_groups, every process is its own group. Every process must
-    be in exactly one group, and groups may only name known processes. extra_processes names the
-    processes that run_multiprocess_simulation receives as ready-made engines instead of building them from a
-    ProcessSpec (e.g. scripted test engines), so that groups can name them too. Each process's catalogues map a
+    Everything needed for one multi-process run: the organizations, each with its processes. Each consumer group
+    maps a group name to the processes in it, of any organization; without consumer_groups, every process is its own
+    group. Every process must be in exactly one group, and groups may only name known processes. extra_processes
+    names the processes that run_multiprocess_simulation receives as ready-made engines instead of building them from
+    a ProcessSpec (e.g. scripted test engines), so that groups can name them too. Each process's catalogues map a
     name (the OCEL object type) to the objects with no events of their own, a list of CatalogueObject, a
     CataloguePool or a GrowingCatalogue, and its references say which of its attributes hold their ids, and may
     pick them (see _checked_catalogue for what is rejected).
     """
 
-    processes: List[ProcessSpec]
+    organizations: List[Organization]
     start_datetime: datetime
     seed: Optional[int] = None
     consumer_groups: Optional[Dict[str, List[str]]] = None
     extra_processes: Tuple[str, ...] = ()
+
+    @property
+    def processes(self) -> List[ProcessSpec]:
+        """Every organization's processes, in the order of the organizations."""
+        return [spec for organization in self.organizations for spec in organization.processes]
 
     @property
     def catalogue(self) -> Dict[str, Union[List[CatalogueObject], CataloguePool, GrowingCatalogue]]:
@@ -145,21 +162,26 @@ class SimulationConfig:
 
     def __post_init__(self):
         object.__setattr__(self, "extra_processes", tuple(self.extra_processes))
+        organizations = [organization.name for organization in self.organizations]
+        repeated = sorted({name for name in organizations if organizations.count(name) > 1})
+        if repeated:
+            raise ValueError(f"Organization names must be unique, repeated: {repeated}")
         names = [spec.name for spec in self.processes] + list(self.extra_processes)
         duplicates = sorted({name for name in names if names.count(name) > 1})
         if duplicates:
             raise ValueError(f"Process names must be unique, repeated: {duplicates}")
 
         object.__setattr__(self, "consumer_groups", _checked_consumer_groups(names, self.consumer_groups))
-        _checked_catalogue(self.processes)
-        _checked_ocel_attributes(self.processes)
+        _checked_catalogue(self.organizations)
+        _checked_ocel_attributes(self.organizations)
 
     @classmethod
     def from_json(cls, path) -> "SimulationConfig":
         """
         Load a configuration file such as
-            {"processes": [{"name": "Sales", "bpmn_path": "sales.bpmn",
-                            "json_path": "sales.json", "arrivals": 100}, ...],
+            {"organizations": [{"name": "Our company",
+                                "processes": [{"name": "Sales", "bpmn_path": "sales.bpmn",
+                                               "json_path": "sales.json", "arrivals": 100}, ...]}, ...],
              "seed": 42, "start_time": "2024-01-01T09:00:00+00:00",
              "consumer_groups": {"Sales": ["Sales"], ...}}
         BPMN and JSON paths are relative to the configuration file's folder. seed and
@@ -182,34 +204,42 @@ class SimulationConfig:
             data = json.load(f)
 
         _check_keys(path, "top level", data, CONFIG_KEYS)
-        missing = [key for key in ("processes", "start_time") if key not in data]
+        missing = [key for key in ("organizations", "start_time") if key not in data]
         if missing:
             raise ValueError(f"{path}: missing {missing}")
 
         folder = path.parent
-        processes = []
-        for number, entry in enumerate(data["processes"]):
-            _check_keys(path, f"processes[{number}]", entry, PROCESS_KEYS)
-            missing = [key for key in ("name", "bpmn_path", "json_path") if key not in entry]
+        organizations = []
+        for organization_number, organization in enumerate(data["organizations"]):
+            in_organization = f"organizations[{organization_number}]"
+            _check_keys(path, in_organization, organization, ORGANIZATION_KEYS)
+            missing = [key for key in ("name", "processes") if key not in organization]
             if missing:
-                raise ValueError(f"{path}: process {entry.get('name', '?')} is missing {missing}")
-            where = f"processes[{number}]"
-            catalogues = {name: _catalogue(path, f"{where}.catalogues.{name}", entries)
-                          for name, entries in entry.get("catalogues", {}).items()}
-            references = [_reference(path, f"{where}.references[{index}]", reference)
-                          for index, reference in enumerate(entry.get("references", []))]
-            processes.append(ProcessSpec(
-                entry["name"], str(folder / entry["bpmn_path"]), str(folder / entry["json_path"]), entry.get("arrivals"),
-                _object_type(path, f"processes[{number}]", entry), entry.get("qualifier"),
-                tuple(sorted(entry.get("qualifier_by_activity", {}).items())), entry.get("carry_links", False),
-                _ocel_attributes(path, where, entry), catalogues, tuple(references)
-            ))
+                raise ValueError(f"{path}: {in_organization} is missing {missing}")
+            processes = []
+            for number, entry in enumerate(organization["processes"]):
+                where = f"{in_organization}.processes[{number}]"
+                _check_keys(path, where, entry, PROCESS_KEYS)
+                missing = [key for key in ("name", "bpmn_path", "json_path") if key not in entry]
+                if missing:
+                    raise ValueError(f"{path}: process {entry.get('name', '?')} is missing {missing}")
+                catalogues = {name: _catalogue(path, f"{where}.catalogues.{name}", entries)
+                              for name, entries in entry.get("catalogues", {}).items()}
+                references = [_reference(path, f"{where}.references[{index}]", reference)
+                              for index, reference in enumerate(entry.get("references", []))]
+                processes.append(ProcessSpec(
+                    entry["name"], str(folder / entry["bpmn_path"]), str(folder / entry["json_path"]),
+                    entry.get("arrivals"), _object_type(path, where, entry), entry.get("qualifier"),
+                    tuple(sorted(entry.get("qualifier_by_activity", {}).items())), entry.get("carry_links", False),
+                    _ocel_attributes(path, where, entry), catalogues, tuple(references)
+                ))
+            organizations.append(Organization(organization["name"], processes))
 
         start = parse_datetime(data["start_time"], True)
         if start.tzinfo is None:
             start = pytz.utc.localize(start)
 
-        return cls(processes, start, data.get("seed"), data.get("consumer_groups"))
+        return cls(organizations, start, data.get("seed"), data.get("consumer_groups"))
 
 
 def _ocel_attributes(path, where, entry):

@@ -14,6 +14,7 @@ from prosimos.orchestration.config import SimulationConfig
 from prosimos.orchestration.simulation import run_multiprocess_simulation
 from testing_scripts.multiprocess.catalogue.test_catalogue import _config_with
 from testing_scripts.multiprocess.catalogue.test_pick import CUSTOMERS, PICKING, PRODUCTS_LIST
+from testing_scripts.multiprocess.orchestrator_settings import one_organization
 
 PRODUCTS = {"object_attribute": "products", "catalogue": "product", "pick": "uniform"}
 SALES = r"processes\[0\].references\[1\]"
@@ -26,9 +27,9 @@ def _sales_picking(tmp_path, products, orders=100):
     path = _config_with(tmp_path, catalogues={"Sales": {"customer": CUSTOMERS, "product": PRODUCTS_LIST}},
                         references={"Sales": [{**PICKING, "pick": "uniform"}, *([products] if products else [])]})
     config = SimulationConfig.from_json(path)
-    return dataclasses.replace(config, processes=[
+    return dataclasses.replace(config, organizations=one_organization([
         dataclasses.replace(spec, arrivals=orders if spec.name == "Sales" else spec.arrivals)
-        for spec in config.processes if spec.name == "Sales"], consumer_groups=None)
+        for spec in config.processes if spec.name == "Sales"]), consumer_groups=None)
 
 
 def _run(tmp_path, products, name="log"):

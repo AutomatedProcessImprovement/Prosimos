@@ -18,6 +18,7 @@ from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.simulation import run_multiprocess_simulation
 from testing_scripts.multiprocess.catalogue.test_catalogue import _config_with
 from testing_scripts.multiprocess.examples.test_order_management import CONFIG, _config
+from testing_scripts.multiprocess.orchestrator_settings import one_organization
 
 ASSETS = Path("testing_scripts/assets")
 LOANS = (str(ASSETS / "LoanApp_sequential_9-5.bpmn"), str(ASSETS / "LoanApp_arrival_fix_10.json"))  # no object attributes
@@ -33,13 +34,13 @@ THREE = [CatalogueObject("c1"), CatalogueObject("c2"), CatalogueObject("c3")]
 
 def _loans(cases, catalogue, pick, seed=1, with_attributes=()):
     """A config of one process, Loans, whose cases pick a customer."""
-    return SimulationConfig([ProcessSpec("Loans", *LOANS, cases, "loan", ocel_attributes=("customer", *with_attributes),
-                                         catalogues={"customer": catalogue},
-                                         references=(Reference("customer", "customer", o2o="applies for", reverse=True,
-                                                               link_events=(), pick=pick,
-                                                               with_attributes=tuple((name, name) for name in
-                                                                                     with_attributes)),))],
-                            START, seed)
+    return SimulationConfig(one_organization([
+        ProcessSpec("Loans", *LOANS, cases, "loan", ocel_attributes=("customer", *with_attributes),
+                    catalogues={"customer": catalogue},
+                    references=(Reference("customer", "customer", o2o="applies for", reverse=True, link_events=(),
+                                          pick=pick,
+                                          with_attributes=tuple((name, name) for name in with_attributes)),))]),
+        START, seed)
 
 
 def _run(config, tmp_path, name="log"):
@@ -162,8 +163,9 @@ def test_picking_doesnt_change_the_processs_other_draws(tmp_path):
     spec = ProcessSpec("Loans", LOANS[0], str(tmp_path / "loans.json"), 200, "loan", catalogues={"customer": THREE},
                        references=(Reference("customer", "customer", pick="uniform"),))
 
-    _, with_pick, _ = _run(SimulationConfig([spec], START, 1), tmp_path, "with")
-    _, without, _ = _run(SimulationConfig([dataclasses.replace(spec, references=())], START, 1), tmp_path, "without")
+    _, with_pick, _ = _run(SimulationConfig(one_organization([spec]), START, 1), tmp_path, "with")
+    _, without, _ = _run(SimulationConfig(one_organization([dataclasses.replace(spec, references=())]), START, 1),
+                         tmp_path, "without")
 
     assert set(with_pick["customer"]) == {"c1", "c2", "c3"} and "customer" not in without
     assert set(without["size"]) == {"small", "large"}
@@ -221,7 +223,7 @@ def test_bringing_attributes_doesnt_change_what_is_picked_or_the_rest_of_the_log
 
 PICKING = {"object_attribute": "customer", "catalogue": "customer"}
 OM = json.loads(Path(CONFIG).read_text())
-CUSTOMERS, PRODUCTS_LIST = (next(entry["catalogues"][name] for entry in OM["processes"] if name in entry.get("catalogues", {}))
+CUSTOMERS, PRODUCTS_LIST = (next(entry["catalogues"][name] for entry in OM["organizations"][0]["processes"] if name in entry.get("catalogues", {}))
                             for name in ("customer", "product"))
 
 
@@ -265,7 +267,7 @@ def test_picking_an_attribute_also_in_object_attributes_is_rejected(tmp_path):
     (tmp_path / "sales.json").write_text(json.dumps(sales))
     path = _config_with(tmp_path, references={"Sales": [{**PICKING, "pick": "uniform"}]})
     data = json.loads(path.read_text())
-    next(process for process in data["processes"] if process["name"] == "Sales")["json_path"] = str(tmp_path / "sales.json")
+    next(process for process in data["organizations"][0]["processes"] if process["name"] == "Sales")["json_path"] = str(tmp_path / "sales.json")
     path.write_text(json.dumps(data))
 
     with pytest.raises(ValueError, match=r"processes\[0\].references\[0\] picks customer, which process Sales also draws "
@@ -306,7 +308,7 @@ def test_two_references_picking_the_same_attribute_are_rejected(tmp_path):
 
 
 PRODUCTS = {"object_attribute": "product", "catalogue": "product", "pick": "uniform"}
-WAREHOUSE = r"processes\[1\].references"
+WAREHOUSE = r"organizations\[0\].processes\[1\].references"
 
 
 def _products_with(tmp_path, names, *other_references, attributes=None, process="Warehouse"):
@@ -385,7 +387,7 @@ def test_bringing_an_attribute_the_process_draws_in_its_object_attributes_is_rej
     (tmp_path / "warehouse.json").write_text(json.dumps(warehouse))
     path = _products_with(tmp_path, ["weight", "price"])
     data = json.loads(path.read_text())
-    next(process for process in data["processes"] if process["name"] == "Warehouse")["json_path"] = \
+    next(process for process in data["organizations"][0]["processes"] if process["name"] == "Warehouse")["json_path"] = \
         str(tmp_path / "warehouse.json")
     path.write_text(json.dumps(data))
 

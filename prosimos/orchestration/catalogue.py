@@ -120,17 +120,22 @@ def _catalogue_ids(name, entry) -> List[str]:
     return [obj.id for obj in entry]
 
 
-def _checked_catalogue(processes):
-    """Catalogue names unique across the processes and unlike their object types, since both are OCEL object types;
-    ids unique across all catalogues and unlike the processes' object ids (<object type>-<number>), since both are
-    OCEL object ids; pools with a count of at least 1 and attributes in the format of object_attributes; and
-    references only naming catalogues of their own process and, in link_events, tasks of it (by name or id). A
+def _checked_catalogue(organizations):
+    """Of the processes of the organizations: catalogue names unique across the processes and unlike their object
+    types, since both are OCEL object types; ids unique across all catalogues and unlike the processes' object ids
+    (<object type>-<number>), since both are OCEL object ids; pools with a count of at least 1 and attributes in the
+    format of object_attributes; and references only naming catalogues of their own process and, in link_events,
+    tasks of it (by name or id). A
     pick is "uniform" or weights on known ids of a listed catalogue, "uniform" on a pool, or "new" or new_share on
     a growing catalogue, for an attribute that the process's object_attributes don't have and its consume entries
     don't copy, append or aggregate into, and at most one per process and attribute. A growing catalogue's objects are created by exactly one reference, and no other id looks like
     them (<catalogue name>-<number>). with gives attributes that the process doesn't otherwise pick, draw, copy,
     append or aggregate into, and not object_id, from attributes that every object of the picked listed catalogue
     or pool has, as numbers for a sum, min or max; a pick with count only computes them."""
+    # (where it is in the configuration, process)
+    placed = [(f"organizations[{number}].processes[{index}]", spec)
+              for number, organization in enumerate(organizations) for index, spec in enumerate(organization.processes)]
+    processes = [spec for _, spec in placed]
     problems = []
     owners = defaultdict(list)  # catalogue name -> the processes declaring it
     for spec in processes:
@@ -141,8 +146,8 @@ def _checked_catalogue(processes):
             problems.append(f"catalogue {name!r} is declared by more than one process: {', '.join(declaring)}")
     catalogue = {name: entry for spec in processes for name, entry in spec.catalogues.items()}
     # (where it is in the configuration, reference)
-    references = [(f"processes[{index}].references[{number}]", reference)
-                  for index, spec in enumerate(processes) for number, reference in enumerate(spec.references)]
+    references = [(f"{where}.references[{number}]", reference)
+                  for where, spec in placed for number, reference in enumerate(spec.references)]
     for name, entry in catalogue.items():
         if not isinstance(entry, (CataloguePool, GrowingCatalogue)):
             continue
