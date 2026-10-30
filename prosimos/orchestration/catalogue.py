@@ -338,11 +338,9 @@ def _with_problems(reference, entry, specs, picked, brought):
                  and isinstance(pair[1].source, str) and pair[1].source) for pair in pairs)):
         return ['with must map attribute names to an attribute of the picked object or to one function of one, '
                 f'{{"sum" | "count" | "min" | "max": <attribute>}}, got {_with_json(pairs)!r}']
-    if reference.pick is None:
-        return ["has with but no pick; a catalogue object brings its attributes only when the reference picks it"]
     if isinstance(entry, GrowingCatalogue):
-        return [f"has with on growing catalogue {reference.catalogue!r}, whose objects don't exist yet when a "
-                f"case is created"]
+        return [f"has with on growing catalogue {reference.catalogue!r}; with doesn't read a growing catalogue yet, "
+                f"a known limitation"]
     copied = [name for name, source in pairs if isinstance(source, str)]
     if reference.count is not None and copied:
         return [f"copies {copied} on a pick with count; a list pick needs a function over the picked objects, "
@@ -446,6 +444,20 @@ class _Brought:
         return _aggregated(self._function, [self._values[object_id] for object_id in picked], self._initial)
 
 
+class _Received:
+    """A value with gives the case from the catalogue object its attribute source names when it isn't picked: copied
+    from the message that starts the case, or drawn in its object_attributes. values: object id -> the object's
+    attribute it brings. It holds a column of the log, but draws nothing: the engine fills it in when the case's
+    values are known (see EngineMessaging._apply_received), from the table it gets when it is built."""
+
+    def __init__(self, name: str, source: str, values: Dict[str, Any], function: Optional[str] = None,
+                 initial: Optional[float] = None):
+        self.name, self.source, self.values, self.function, self.initial = name, source, values, function, initial
+
+    def get_next_value(self):
+        return None
+
+
 class _NewPick:
     """A case attribute that a reference picks from a growing catalogue: a new id, <catalogue name>-<number> in
     creation order, for every case ("new") or for share of them, the rest reusing one created so far, uniformly.
@@ -466,13 +478,19 @@ class _NewPick:
 
 def _picks(spec: ProcessSpec, seed: Optional[int], catalogues: Dict[str, List[CatalogueObject]]) -> List[_Pick]:
     """The attributes a process's references pick, from its organization's catalogues as the run starts (see
-    _drawn_catalogues)."""
+    _drawn_catalogues), and those their 'with' gives a case from the object its attribute names without a pick."""
     picks = []
     for reference in spec.references:
         if reference.creates:
             share = reference.pick.share if isinstance(reference.pick, NewShare) else 1
             picks.append(_NewPick(reference.object_attribute, reference.catalogue, share, seed, spec.name))
-        elif reference.pick is not None:
+        elif reference.pick is None:
+            for name, source in reference.with_attributes:
+                function, attribute, initial = ((source.function, source.source, source.initial)
+                                                if isinstance(source, Computed) else (None, source, None))
+                values = {obj.id: dict(obj.attributes)[attribute] for obj in catalogues[reference.catalogue]}
+                picks.append(_Received(name, reference.object_attribute, values, function, initial))
+        else:
             ids = [obj.id for obj in catalogues[reference.catalogue]]
             weights = None if reference.pick == "uniform" else [dict(reference.pick).get(object_id, 0) for object_id in ids]
             pick = _Pick(reference.object_attribute, ids, weights, seed, spec.name, reference.count)

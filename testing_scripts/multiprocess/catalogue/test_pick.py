@@ -324,22 +324,29 @@ def _products_with(tmp_path, names, *other_references, attributes=None, process=
                         references={process: [{**PRODUCTS, "with": names}, *other_references]})
 
 
-def test_with_without_a_pick_is_rejected(tmp_path):
-    path = _config_with(tmp_path, references={"Warehouse": [{"object_attribute": "product", "catalogue": "product",
-                                                             "with": {"weight": "weight"}}]})
+def test_with_without_a_pick_loads(tmp_path):
+    # the product comes in a message or is drawn; with brings its weight once the item has it
+    path = _config_with(tmp_path, catalogues={"product": PRODUCTS_LIST},
+                        references={"Warehouse": [{"object_attribute": "product", "catalogue": "product",
+                                                   "with": {"weight": "weight"}}]})
 
-    with pytest.raises(ValueError, match=rf"{WAREHOUSE}\[0\] has with but no pick; a catalogue object brings its "
-                                         r"attributes only when the reference picks it"):
-        SimulationConfig.from_json(path)
+    [warehouse] = [spec for spec in SimulationConfig.from_json(path).processes if spec.name == "Warehouse"]
+    [reference] = warehouse.references
+
+    assert reference.pick is None and reference.with_attributes == (("weight", "weight"),)
 
 
-def test_with_on_a_growing_catalogue_is_rejected(tmp_path):
+@pytest.mark.parametrize("pick", [{"pick": "new"}, {}])  # a pick creating its objects, or a value received
+def test_with_on_a_growing_catalogue_is_rejected_as_a_known_limitation(tmp_path, pick):
+    references = [{"object_attribute": "product", "catalogue": "product", **pick, "with": {"weight": "weight"}}]
+    if not pick:  # the growing catalogue's objects are created by another reference
+        references.append({"object_attribute": "gift", "catalogue": "product", "pick": "new"})
     path = _config_with(tmp_path, catalogues={"product": {"attributes": [
         {"name": "weight", "type": "discrete", "values": [{"key": 1, "value": 1}]}]}},
-                        references={"Warehouse": [{**PRODUCTS, "pick": "new", "with": {"weight": "weight"}}]})
+                        references={"Warehouse": references})
 
-    with pytest.raises(ValueError, match=rf"{WAREHOUSE}\[0\] has with on growing catalogue 'product', whose objects "
-                                         r"don't exist yet when a case is created"):
+    with pytest.raises(ValueError, match=rf"{WAREHOUSE}\[0\] has with on growing catalogue 'product'; with doesn't "
+                                         r"read a growing catalogue yet, a known limitation"):
         SimulationConfig.from_json(path)
 
 

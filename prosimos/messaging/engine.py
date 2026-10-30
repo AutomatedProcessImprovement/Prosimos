@@ -411,6 +411,27 @@ class EngineMessaging:
         self._update_initial_event_info(self.sim_setup, p_case, self.simulation_at_from_datetime(now))
         return p_case
 
+    def receive_catalogue_values(self, received):
+        """Takes its organization's catalogue values for the 'with' of references that don't pick, as (attribute, source
+        attribute, object id -> value, function, initial): given once, when the engine is built."""
+        self._received = list(received)
+
+    def _apply_received(self, case_values):
+        """Gives a new case the values with brings from the catalogue object its source attribute names, copied from
+        the starting message or drawn: the object's value, or with function, the function over the objects of a list
+        (each as often as it holds it) and over initial, as a pick's with does. A source without a value, or naming
+        no object of the catalogue, leaves the attribute as it is."""
+        for name, source, values, function, initial in self._received:
+            value = case_values.get(source)
+            named = value if isinstance(value, list) else [value]
+            if value is None or not all(object_id in values for object_id in named):
+                continue
+            if function is None:
+                if not isinstance(value, list):  # a plain copy names one object
+                    case_values[name] = values[value]
+            elif named or function not in ("min", "max") or initial is not None:
+                case_values[name] = _aggregated(function, [values[object_id] for object_id in named], initial)
+
     def _starting_values(self):
         """What a case's appended and aggregated attributes start with: an empty list, and an aggregate's initial,
         else 0 for a sum or count (a min or max without initial has no value until the first message)."""

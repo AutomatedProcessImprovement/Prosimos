@@ -1,20 +1,25 @@
 """
 with (docs/catalogue.md, "With"): a picking reference gives the case starting values from the objects it picked,
 as {attribute: source}: a plain name copies the picked object's attribute, under any name; {function: attribute}
-computes over the picked objects, as aggregate does over messages.
+computes over the picked objects, as aggregate does over messages. A reference that doesn't pick gives them from
+the object its attribute names when it gets its value: copied from the message that starts the case, or drawn.
 """
 import dataclasses
 import json
 
 import pytest
 
-from prosimos.orchestration.catalogue import CatalogueObject, Computed, _Brought, _Pick
-from prosimos.orchestration.config import SimulationConfig
+from prosimos.orchestration.catalogue import CatalogueObject, Computed, Reference, _Brought, _Pick
+from prosimos.orchestration.config import Organization, ProcessSpec, SimulationConfig
+from prosimos.orchestration.simulation import run_multiprocess_simulation
 from testing_scripts.multiprocess.catalogue.test_catalogue import _config_with
 from testing_scripts.multiprocess.catalogue.test_pick import (CUSTOMERS, PICKING, POOL, PRODUCTS_LIST, RATED, _loans,
                                                               _run, _starting_values)
 from testing_scripts.multiprocess.catalogue.test_pick_count import PRODUCTS, SALES, _at_creation, _sales_picking
+from testing_scripts.multiprocess.examples.test_order_management import CONFIG
+from testing_scripts.multiprocess.messaging.test_collect import START, at
 from testing_scripts.multiprocess.orchestrator_settings import one_organization
+from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
 PRICE = {obj["id"]: obj["attributes"]["price"] for obj in PRODUCTS_LIST}
 
@@ -187,3 +192,66 @@ def test_a_sum_of_a_pool_attribute_that_draws_numbers_is_allowed(tmp_path):
                                                "with": {"limit": {"sum": "credit_limit"}}}]})
 
     SimulationConfig.from_json(path)
+
+
+# with for a received value: a reference without pick
+
+PRODUCT_OBJECTS = [CatalogueObject(obj["id"], tuple(obj["attributes"].items())) for obj in PRODUCTS_LIST]
+WEIGHT = {obj["id"]: obj["attributes"]["weight"] for obj in PRODUCTS_LIST}
+
+
+def _received(report, process):
+    """Case id -> its values when it was created, and when that was."""
+    return {case.object_id: ({name: value for name, value, time in case.attributes if time == case.created},
+                             case.created)
+            for name, case in report.objects if name == process}
+
+
+def test_an_item_started_by_a_message_naming_its_product_gets_its_weight_and_price_at_creation(tmp_path):
+    # Picking sends one ItemOrdered per product; the Warehouse copies product from it, and its reference, without a
+    # pick, brings that product's weight and price into the item when it is created
+    folder = CONFIG.replace("simulation.json", "")
+    with open(folder + "warehouse.json") as file:
+        warehouse = json.load(file)
+    warehouse["messages"]["consume"][0]["copy"]["product"] = "product"
+    (tmp_path / "warehouse.json").write_text(json.dumps(warehouse))
+    reference = Reference("product", "product", o2o="is a", with_attributes=(("weight", "weight"), ("price", "price")))
+    shop = Organization("Shop", [ProcessSpec("Warehouse", folder + "warehouse.bpmn", str(tmp_path / "warehouse.json"),
+                                             None, "item", ocel_attributes=("weight", "price"),
+                                             references=(reference,))], {"product": PRODUCT_OBJECTS})
+    picking = ScriptedEngine("Picking")
+    sent = ["Kindle", "iPad", "Kindle", "Echo Dot"]
+    for number, product in enumerate(sent):
+        picking.publish_at(at(f"09:{10 * number:02}"), "ItemOrdered", object_id=f"order-{number}", index=1,
+                           customer="c1", product=product)
+
+    report = run_multiprocess_simulation(SimulationConfig([shop], START, 1, extra_processes=["Picking"]),
+                                         tmp_path / "log.csv", {"Picking": picking},
+                                         ocel_out_path=tmp_path / "log.json")
+
+    items = _received(report, "Warehouse")
+    assert sorted(values["product"] for values, _ in items.values()) == sorted(sent)
+    assert all(values["weight"] == WEIGHT[values["product"]] and values["price"] == PRICE[values["product"]]
+               for values, _ in items.values())
+    with open(tmp_path / "log.json") as file:
+        objects = {obj["id"]: obj for obj in json.load(file)["objects"] if obj["type"] == "item"}
+    # written on the item, at its creation
+    assert all({(value["name"], value["value"]) for value in objects[item]["attributes"]} ==
+               {("weight", WEIGHT[values["product"]]), ("price", PRICE[values["product"]])} for item, (values, _) in
+               items.items())
+
+
+def test_a_drawn_value_brings_its_object_attributes_at_creation(tmp_path):
+    # Sales draws each order's city in its object_attributes; a city catalogue gives the order its city's region
+    regions = {"Tartu": "south", "Tallinn": "north", "Tapa": "north", "Pärnu": "west"}
+    cities = [CatalogueObject(city, (("region", region),)) for city, region in regions.items()]
+    reference = Reference("city", "city", with_attributes=(("region", "region"),))
+    shop = Organization("Shop", [ProcessSpec("Sales", "testing_scripts/assets/messaging/sales.bpmn",
+                                             "testing_scripts/assets/messaging/sales.json", 20, "order",
+                                             references=(reference,))], {"city": cities})
+
+    report = run_multiprocess_simulation(SimulationConfig([shop], START, 1), tmp_path / "log.csv")
+
+    orders = [values for values, _ in _received(report, "Sales").values()]
+    assert len(orders) == 20 and len({order["city"] for order in orders}) > 1
+    assert all(order["region"] == regions[order["city"]] for order in orders)

@@ -153,6 +153,9 @@ class SimBPMEnv(EngineMessaging):
         self._consume_order = {id(point): index for index, point in enumerate(sim_setup.messaging.consume)}
         self._warned_overlapping_races = set()
         self._warned_races_won_at_once = set()
+        # (attribute, source attribute, object id -> value, function, initial) for the 'with' of references that
+        # don't pick (see receive_catalogue_values)
+        self._received = []
 
     def _full_process(self):
         """The generator that runs this engine's events one by one (execute_full_process), for step()."""
@@ -177,6 +180,8 @@ class SimBPMEnv(EngineMessaging):
             case_values = sim_setup.bpmn_graph.all_attributes.setdefault(p_case, {})
             for target, value in self._starting_values().items():
                 case_values.setdefault(target, value)
+        if self._received:  # what the case's values name brings along, now that they are known
+            self._apply_received(sim_setup.bpmn_graph.all_attributes.setdefault(p_case, {}))
         case_values = sim_setup.bpmn_graph.all_attributes.get(p_case, {})
         self._case_created[p_case] = (enabled_datetime, {name: value for name, value in case_values.items()
                                                          if name in self._case_attribute_names})
