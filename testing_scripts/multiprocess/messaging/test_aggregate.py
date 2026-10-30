@@ -234,7 +234,7 @@ def test_picking_an_attribute_the_process_aggregates_into_is_rejected(tmp_path):
     settings["messages"]["consume"][0]["aggregate"] = {"segment": {"max": "customer"}}
     packaging = tmp_path / "packaging.json"
     packaging.write_text(json.dumps(settings))
-    path = _config_with(tmp_path, catalogues={"Packaging": {"customer": {"count": 10}}}, references={
+    path = _config_with(tmp_path, catalogues={"customer": {"count": 10}}, references={
         "Packaging": [{"object_attribute": "segment", "catalogue": "customer", "pick": "uniform"}]})
     data = json.loads(path.read_text())
     next(process for process in data["organizations"][0]["processes"] if process["name"] == "Packaging")["json_path"] = str(packaging)

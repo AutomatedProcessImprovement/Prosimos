@@ -37,7 +37,8 @@ def test_a_plain_name_copies_the_attribute_and_may_rename_it(tmp_path):
     [loans] = config.processes
     reference = dataclasses.replace(loans.references[0], with_attributes=(("segment", "segment"), ("credit", "limit")))
     config = dataclasses.replace(config,
-                                 organizations=one_organization([dataclasses.replace(loans, references=(reference,))]))
+                                 organizations=one_organization([dataclasses.replace(loans, references=(reference,))],
+                                                                config.catalogue))
 
     report, _, _ = _run(config, tmp_path)
 
@@ -148,7 +149,7 @@ def test_a_sum_min_or_max_of_an_attribute_that_isnt_a_number_is_rejected(tmp_pat
     products = json.loads(json.dumps(PRODUCTS_LIST))
     products[2]["attributes"]["price"] = "39.99"  # text, not a number
 
-    path = _config_with(tmp_path, catalogues={"Sales": {"customer": CUSTOMERS, "product": products}},
+    path = _config_with(tmp_path, catalogues={"customer": CUSTOMERS, "product": products},
                         references={"Sales": [{**PICKING, "pick": "uniform"},
                                               {**PRODUCTS, "count": 3, "with": {"price": {function: "price"}}}]})
 
@@ -160,7 +161,7 @@ def test_a_sum_min_or_max_of_an_attribute_that_isnt_a_number_is_rejected(tmp_pat
 def test_a_count_of_an_attribute_that_isnt_a_number_is_allowed(tmp_path):
     # count only needs the attribute to be there
     customers = [{"id": customer["id"], "attributes": {"region": "north"}} for customer in CUSTOMERS]
-    path = _config_with(tmp_path, catalogues={"Sales": {"customer": customers}},
+    path = _config_with(tmp_path, catalogues={"customer": customers},
                         references={"Sales": [{**PICKING, "pick": "uniform", "with": {"regions": {"count": "region"}}}]})
 
     SimulationConfig.from_json(path)
@@ -172,7 +173,7 @@ POOL_OF_TEXT = {"count": 10, "attributes": [{"name": "segment", "type": "discret
 
 
 def test_a_sum_of_a_pool_attribute_that_draws_text_is_rejected(tmp_path):
-    path = _config_with(tmp_path, catalogues={"Sales": {"customer": POOL_OF_TEXT}},
+    path = _config_with(tmp_path, catalogues={"customer": POOL_OF_TEXT},
                         references={"Sales": [{**PICKING, "pick": "uniform", "with": {"segments": {"max": "segment"}}}]})
 
     with pytest.raises(ValueError, match=r"processes\[0\].references\[0\] with sums, or takes the min or max of, "
@@ -181,7 +182,7 @@ def test_a_sum_of_a_pool_attribute_that_draws_text_is_rejected(tmp_path):
 
 
 def test_a_sum_of_a_pool_attribute_that_draws_numbers_is_allowed(tmp_path):
-    path = _config_with(tmp_path, catalogues={"Sales": {"customer": {"count": 10, "attributes": list(POOL.attributes)}}},
+    path = _config_with(tmp_path, catalogues={"customer": {"count": 10, "attributes": list(POOL.attributes)}},
                         references={"Sales": [{**PICKING, "pick": "uniform",
                                                "with": {"limit": {"sum": "credit_limit"}}}]})
 

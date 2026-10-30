@@ -23,7 +23,7 @@ from prosimos.simulation_properties_parser import parse_simulation_model
 from prosimos.warning_logger import warning_logger
 
 if TYPE_CHECKING:
-    from prosimos.orchestration.config import ProcessSpec
+    from prosimos.orchestration.config import Organization, ProcessSpec
 
 
 @dataclass(frozen=True)
@@ -121,11 +121,11 @@ def _catalogue_ids(name, entry) -> List[str]:
 
 
 def _checked_catalogue(organizations):
-    """Of the processes of the organizations: catalogue names unique across the processes and unlike their object
-    types, since both are OCEL object types; ids unique across all catalogues and unlike the processes' object ids
-    (<object type>-<number>), since both are OCEL object ids; pools with a count of at least 1 and attributes in the
-    format of object_attributes; and references only naming catalogues of their own process and, in link_events,
-    tasks of it (by name or id). A
+    """Of the organizations and their processes: catalogue names unique across the organizations and unlike the
+    processes' object types, since both are OCEL object types; ids unique across all catalogues and unlike the
+    processes' object ids (<object type>-<number>), since both are OCEL object ids; pools with a count of at least 1
+    and attributes in the format of object_attributes; and references only naming catalogues of their own
+    organization and, in link_events, tasks of their process (by name or id). A
     pick is "uniform" or weights on known ids of a listed catalogue, "uniform" on a pool, or "new" or new_share on
     a growing catalogue, for an attribute that the process's object_attributes don't have and its consume entries
     don't copy, append or aggregate into, and at most one per process and attribute. A growing catalogue's objects are created by exactly one reference, and no other id looks like
@@ -137,14 +137,17 @@ def _checked_catalogue(organizations):
               for number, organization in enumerate(organizations) for index, spec in enumerate(organization.processes)]
     processes = [spec for _, spec in placed]
     problems = []
-    owners = defaultdict(list)  # catalogue name -> the processes declaring it
-    for spec in processes:
-        for name in spec.catalogues:
-            owners[name].append(spec.name)
+    owners = defaultdict(list)  # catalogue name -> the organizations declaring it
+    for organization in organizations:
+        for name in organization.catalogues:
+            owners[name].append(organization.name)
     for name, declaring in owners.items():
         if len(declaring) > 1:
-            problems.append(f"catalogue {name!r} is declared by more than one process: {', '.join(declaring)}")
-    catalogue = {name: entry for spec in processes for name, entry in spec.catalogues.items()}
+            problems.append(f"catalogue {name!r} is declared by more than one organization: {', '.join(declaring)}")
+    catalogue = {name: entry for organization in organizations for name, entry in organization.catalogues.items()}
+    # process name -> the catalogues of its organization, the ones its references may name
+    catalogues_of = {spec.name: organization.catalogues for organization in organizations
+                     for spec in organization.processes}
     # (where it is in the configuration, reference)
     references = [(f"{where}.references[{number}]", reference)
                   for where, spec in placed for number, reference in enumerate(spec.references)]
@@ -185,10 +188,11 @@ def _checked_catalogue(organizations):
     specs = {spec.name: spec for spec in processes}
     tasks_of = {}
     for where, reference in references:
-        if reference.catalogue not in specs[reference.process].catalogues:
-            # what another process knows reaches this one only in messages
-            problems.append(f"{where} names catalogue {reference.catalogue!r} of process "
-                            f"{', '.join(owners[reference.catalogue])}; a reference names a catalogue of its own process"
+        if reference.catalogue not in catalogues_of[reference.process]:
+            # what another organization knows reaches this one only in messages
+            problems.append(f"{where} names catalogue {reference.catalogue!r} of organization "
+                            f"{', '.join(owners[reference.catalogue])}; a reference names a catalogue of its own "
+                            f"organization"
                             if reference.catalogue in owners else f"{where} names unknown catalogue {reference.catalogue!r}")
             continue
         if reference.link_events:
@@ -209,7 +213,7 @@ def _checked_catalogue(organizations):
         problems.append(f"more than one reference picks {attribute} of process {process}")
     brought = [(reference.process, name) for _, reference in references for name in _brought_names(reference)]
     for where, reference in references:
-        if reference.with_attributes and reference.catalogue in specs[reference.process].catalogues:
+        if reference.with_attributes and reference.catalogue in catalogues_of[reference.process]:
             problems.extend(f"{where} {problem}" for problem in _with_problems(
                 reference, catalogue[reference.catalogue], specs, set(picked), brought))
     if problems:
@@ -455,7 +459,7 @@ class _NewPick:
 
 
 def _picks(spec: ProcessSpec, seed: Optional[int], catalogues: Dict[str, List[CatalogueObject]]) -> List[_Pick]:
-    """The attributes a process's references pick, from its own catalogues as the run starts (see
+    """The attributes a process's references pick, from its organization's catalogues as the run starts (see
     _drawn_catalogues)."""
     picks = []
     for reference in spec.references:
@@ -475,23 +479,25 @@ def _picks(spec: ProcessSpec, seed: Optional[int], catalogues: Dict[str, List[Ca
     return picks
 
 
-def _drawn_catalogues(spec: ProcessSpec, seed: Optional[int]) -> Dict[str, List[CatalogueObject]]:
-    """A process's catalogues, name -> their objects when the run starts: a listed catalogue's as given, a pool's
-    with their attributes drawn (see _drawn_objects), none yet for a growing catalogue."""
+def _drawn_catalogues(organization: Organization, seed: Optional[int]) -> Dict[str, List[CatalogueObject]]:
+    """An organization's catalogues, name -> their objects when the run starts: a listed catalogue's as given, a
+    pool's with their attributes drawn (see _drawn_objects), none yet for a growing catalogue."""
     return {name: list(entry) if isinstance(entry, list) else _drawn_objects(seed, name, entry.attributes,
                                                                             _catalogue_ids(name, entry))
-            for name, entry in spec.catalogues.items()}
+            for name, entry in organization.catalogues.items()}
 
 
-def _grown_catalogues(spec: ProcessSpec, seed: Optional[int], catalogues: Dict[str, List[CatalogueObject]],
+def _grown_catalogues(organization: Organization, seed: Optional[int], catalogues: Dict[str, List[CatalogueObject]],
                       picks: List[_Pick]) -> Dict[str, List[CatalogueObject]]:
-    """A process's catalogues after the run: each growing catalogue with the objects its pick created, <name>-1 to
-    <name>-<created>, their attributes drawn in creation order (see _drawn_objects). Drawing them now rather
-    than when each was created gives the same values, since nothing else draws from their generators."""
+    """An organization's catalogues after the run, picks being its processes' picks: each growing catalogue with the
+    objects its pick created, <name>-1 to <name>-<created>, their attributes drawn in creation order (see
+    _drawn_objects). Drawing them now rather than when each was created gives the same values, since nothing else
+    draws from their generators."""
     grown = dict(catalogues)
     for pick in picks:
         if isinstance(pick, _NewPick):
-            grown[pick.catalogue] = _drawn_objects(seed, pick.catalogue, spec.catalogues[pick.catalogue].attributes,
+            attribute_specs = organization.catalogues[pick.catalogue].attributes
+            grown[pick.catalogue] = _drawn_objects(seed, pick.catalogue, attribute_specs,
                                                    [f"{pick.catalogue}-{number}" for number in range(1, pick.created + 1)])
     return grown
 

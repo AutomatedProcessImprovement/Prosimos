@@ -161,7 +161,7 @@ def test_an_appended_attribute_counts_as_declared_so_messages_can_publish_it():
 
 
 def test_picking_an_attribute_the_process_appends_to_is_rejected(tmp_path):
-    path = _config_with(tmp_path, catalogues={"Packaging": {"customer": {"count": 10}}}, references={
+    path = _config_with(tmp_path, catalogues={"customer": {"count": 10}}, references={
         "Packaging": [{"object_attribute": "item_ids", "catalogue": "customer", "pick": "uniform"}]})
 
     with pytest.raises(ValueError, match=r"processes\[2\].references\[0\] picks item_ids, which process Packaging also appends to "

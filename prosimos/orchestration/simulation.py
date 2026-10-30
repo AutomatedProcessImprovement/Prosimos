@@ -42,10 +42,11 @@ def run_multiprocess_simulation(config: SimulationConfig, log_out_path: Optional
     # every engine has its own random generators, seeded from the seed and its process name; without a
     # seed they are seeded from the global generators, so build them in name order rather than input
     # order to keep the result independent of how the list was written
-    # each process's picks come from its own entry only: its references and its catalogues. All catalogues are
-    # drawn before any pick, and the picks before any engine, as without a seed each draws from the global generators
-    drawn = {spec.name: _drawn_catalogues(spec, config.seed) for spec in config.processes}
-    picks = {spec.name: _picks(spec, config.seed, drawn[spec.name]) for spec in config.processes}
+    # each process's picks come from its references and its organization's catalogues. All catalogues are drawn
+    # before any pick, and the picks before any engine, as without a seed each draws from the global generators
+    drawn = {organization.name: _drawn_catalogues(organization, config.seed) for organization in config.organizations}
+    picks = {spec.name: _picks(spec, config.seed, drawn[organization.name])
+             for organization in config.organizations for spec in organization.processes}
     engines: Dict[str, SimulationEngine] = {}
     for spec in sorted(config.processes, key=lambda p: p.name):
         log_writer = merged_log.writer_for(spec.name) if merged_log is not None else None
@@ -54,9 +55,11 @@ def run_multiprocess_simulation(config: SimulationConfig, log_out_path: Optional
     engines.update(extra_engines)
 
     report = orchestrate(engines, config.consumer_groups, config.seed)
-    # the OCEL output needs every process's catalogue objects, the growing ones as the run left them
-    catalogue = {name: objects for spec in config.processes
-                 for name, objects in _grown_catalogues(spec, config.seed, drawn[spec.name], picks[spec.name]).items()}
+    # the OCEL output needs every organization's catalogue objects, the growing ones as the run left them
+    catalogue = {name: objects for organization in config.organizations
+                 for name, objects in _grown_catalogues(organization, config.seed, drawn[organization.name],
+                                                        [pick for spec in organization.processes
+                                                         for pick in picks[spec.name]]).items()}
 
     if log_out_path is not None:
         merged_log.write(log_out_path)

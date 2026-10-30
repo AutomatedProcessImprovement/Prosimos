@@ -35,10 +35,7 @@ class ProcessSpec:
     carry_links: bool = False
     # the attributes written to its objects in the OCEL output; the others, e.g. those only routing messages, aren't
     ocel_attributes: Tuple[str, ...] = ()
-    # its catalogues, name -> objects with no events of their own (see SimulationConfig), and its references, each
-    # naming one of its own catalogues
-    catalogues: Dict[str, Union[List["CatalogueObject"], "CataloguePool", "GrowingCatalogue"]] = field(
-        default_factory=dict, hash=False)
+    # its references, each naming one of its organization's catalogues
     references: Tuple["Reference", ...] = ()
 
     def __post_init__(self):
@@ -53,9 +50,9 @@ class ProcessSpec:
 
 
 CONFIG_KEYS = {"organizations", "start_time", "seed", "consumer_groups"}
-ORGANIZATION_KEYS = {"name", "processes"}
+ORGANIZATION_KEYS = {"name", "catalogues", "processes"}
 PROCESS_KEYS = {"name", "bpmn_path", "json_path", "arrivals", "object_type", "qualifier", "qualifier_by_activity",
-                "carry_links", "ocel_attributes", "catalogues", "references"}
+                "carry_links", "ocel_attributes", "references"}
 REFERENCE_KEYS = {"object_attribute", "catalogue", "o2o", "reverse", "link_events", "pick", "count", "with",
                   "tag_along"}
 
@@ -121,6 +118,8 @@ class Organization:
 
     name: str
     processes: List[ProcessSpec] = field(default_factory=list)
+    # its catalogues, name -> objects with no events of their own, shared by its processes (see SimulationConfig)
+    catalogues: Dict[str, Union[List[CatalogueObject], CataloguePool, GrowingCatalogue]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -130,10 +129,11 @@ class SimulationConfig:
     maps a group name to the processes in it, of any organization; without consumer_groups, every process is its own
     group. Every process must be in exactly one group, and groups may only name known processes. extra_processes
     names the processes that run_multiprocess_simulation receives as ready-made engines instead of building them from
-    a ProcessSpec (e.g. scripted test engines), so that groups can name them too. Each process's catalogues map a
-    name (the OCEL object type) to the objects with no events of their own, a list of CatalogueObject, a
-    CataloguePool or a GrowingCatalogue, and its references say which of its attributes hold their ids, and may
-    pick them (see _checked_catalogue for what is rejected).
+    a ProcessSpec (e.g. scripted test engines), so that groups can name them too. Each organization's catalogues map
+    a name (the OCEL object type) to the objects with no events of their own, a list of CatalogueObject, a
+    CataloguePool or a GrowingCatalogue, shared by its processes, and a process's references say which of its
+    attributes hold the ids of its organization's catalogues, and may pick them (see _checked_catalogue for what is
+    rejected).
     """
 
     organizations: List[Organization]
@@ -149,10 +149,10 @@ class SimulationConfig:
 
     @property
     def catalogue(self) -> Dict[str, Union[List[CatalogueObject], CataloguePool, GrowingCatalogue]]:
-        """Every process's catalogues, name -> objects; the names are unique across the processes. Only for the
-        OCEL output at the end of the run, which writes and links the objects of all of them: building a process
-        uses its own entry (ProcessSpec.catalogues)."""
-        return {name: entry for spec in self.processes for name, entry in spec.catalogues.items()}
+        """Every organization's catalogues, name -> objects; the names are unique across the organizations. Only for
+        the OCEL output at the end of the run, which writes and links the objects of all of them: building a process
+        uses its organization's (Organization.catalogues)."""
+        return {name: entry for organization in self.organizations for name, entry in organization.catalogues.items()}
 
     @property
     def references(self) -> Tuple[Reference, ...]:
@@ -192,12 +192,12 @@ class SimulationConfig:
         qualify each event's link to its own case's object, and carry_links (false by default) makes every
         later event of a case also link the objects the case is linked to through its messages. Its optional
         ocel_attributes list the attributes written to its objects; without it, none.
-        A process's optional catalogues ({name: [{"id": ..., "attributes": {...}}]}, {name: {"count": ...,
+        An organization's optional catalogues ({name: [{"id": ..., "attributes": {...}}]}, {name: {"count": ...,
         "attributes": [as in object_attributes]}} for a generated pool, or {name: {"attributes": [...]}} for a
-        growing one) declare objects with no events of their own, and its references ([{"object_attribute",
-        "catalogue", "o2o", "reverse", "link_events", "pick", "with", "tag_along"}], the last six optional) say
-        which of its attributes hold the ids of its catalogues' objects, and may pick them and bring their
-        attributes in.
+        growing one) declare objects with no events of their own, shared by its processes, and a process's
+        references ([{"object_attribute", "catalogue", "o2o", "reverse", "link_events", "pick", "with",
+        "tag_along"}], the last six optional) say which of its attributes hold the ids of its organization's
+        catalogues' objects, and may pick them and bring their attributes in.
         """
         path = Path(path)
         with open(path) as f:
@@ -223,17 +223,17 @@ class SimulationConfig:
                 missing = [key for key in ("name", "bpmn_path", "json_path") if key not in entry]
                 if missing:
                     raise ValueError(f"{path}: process {entry.get('name', '?')} is missing {missing}")
-                catalogues = {name: _catalogue(path, f"{where}.catalogues.{name}", entries)
-                              for name, entries in entry.get("catalogues", {}).items()}
                 references = [_reference(path, f"{where}.references[{index}]", reference)
                               for index, reference in enumerate(entry.get("references", []))]
                 processes.append(ProcessSpec(
                     entry["name"], str(folder / entry["bpmn_path"]), str(folder / entry["json_path"]),
                     entry.get("arrivals"), _object_type(path, where, entry), entry.get("qualifier"),
                     tuple(sorted(entry.get("qualifier_by_activity", {}).items())), entry.get("carry_links", False),
-                    _ocel_attributes(path, where, entry), catalogues, tuple(references)
+                    _ocel_attributes(path, where, entry), tuple(references)
                 ))
-            organizations.append(Organization(organization["name"], processes))
+            catalogues = {name: _catalogue(path, f"{in_organization}.catalogues.{name}", entries)
+                          for name, entries in organization.get("catalogues", {}).items()}
+            organizations.append(Organization(organization["name"], processes, catalogues))
 
         start = parse_datetime(data["start_time"], True)
         if start.tzinfo is None:

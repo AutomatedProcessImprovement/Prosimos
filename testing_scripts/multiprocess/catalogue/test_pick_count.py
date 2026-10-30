@@ -24,12 +24,12 @@ def _sales_picking(tmp_path, products, orders=100):
     """Order Management's Sales alone, with 100 orders: it picks its customer and, with the reference products, its
     products from the 20. Without the Warehouse, which picks its own products, ItemOrdered finds no
     recipient."""
-    path = _config_with(tmp_path, catalogues={"Sales": {"customer": CUSTOMERS, "product": PRODUCTS_LIST}},
+    path = _config_with(tmp_path, catalogues={"customer": CUSTOMERS, "product": PRODUCTS_LIST},
                         references={"Sales": [{**PICKING, "pick": "uniform"}, *([products] if products else [])]})
     config = SimulationConfig.from_json(path)
     return dataclasses.replace(config, organizations=one_organization([
         dataclasses.replace(spec, arrivals=orders if spec.name == "Sales" else spec.arrivals)
-        for spec in config.processes if spec.name == "Sales"]), consumer_groups=None)
+         for spec in config.processes if spec.name == "Sales"], config.catalogue), consumer_groups=None)
 
 
 def _run(tmp_path, products, name="log"):
@@ -181,7 +181,7 @@ def test_an_invalid_count_is_rejected(tmp_path, products, problem):
 
 @pytest.mark.parametrize("pick", ["new", {"new_share": 0.5}])
 def test_count_on_a_growing_catalogue_is_rejected(tmp_path, pick):
-    path = _config_with(tmp_path, catalogues={"Sales": {"customer": CUSTOMERS, "product": {"attributes": []}}},
+    path = _config_with(tmp_path, catalogues={"customer": CUSTOMERS, "product": {"attributes": []}},
                         references={"Sales": [{**PICKING, "pick": "uniform"}, {**PRODUCTS, "pick": pick, "count": 3}]})
 
     with pytest.raises(ValueError, match=rf'{SALES} has count with "new" or new_share; count works with "uniform" or '

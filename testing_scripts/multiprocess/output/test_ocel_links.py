@@ -156,7 +156,8 @@ def test_a_process_without_objects_attaches_nothing_and_warns_nothing():
     config = _config(20)
     relay = ProcessSpec("Relay", f"{GATEWAYS}/relay.bpmn", f"{GATEWAYS}/relay.json", None)
     report = run_multiprocess_simulation(dataclasses.replace(config,
-                                                             organizations=one_organization([*config.processes, relay]),
+                                                             organizations=one_organization([*config.processes, relay],
+                                                                                            config.catalogue),
                                                              consumer_groups=None), None)
 
     elements = [element for record in report.message_records

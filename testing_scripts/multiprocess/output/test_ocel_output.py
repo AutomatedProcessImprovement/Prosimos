@@ -303,7 +303,8 @@ def test_only_the_listed_attributes_become_object_attributes(tmp_path, listed, w
 def test_ocel_attributes_may_name_every_attribute_the_objects_have(process, name):
     config = _config(10)
     config = SimulationConfig(one_organization([dataclasses.replace(spec, ocel_attributes=(name,))
-                                                if spec.name == process else spec for spec in config.processes]),
+                                                if spec.name == process else spec for spec in config.processes],
+                                               config.catalogue),
                               config.start_datetime, config.seed)
 
     assert next(spec for spec in config.processes if spec.name == process).ocel_attributes == (name,)
@@ -316,7 +317,7 @@ def test_ocel_attributes_naming_an_attribute_the_objects_never_have_are_rejected
 
     with pytest.raises(ValueError, match=r"Invalid ocel_attributes: organizations\[0\].processes\[1\].ocel_attributes "
                                          r"names \['colour'\], which the objects of process Warehouse never have"):
-        SimulationConfig(one_organization(processes), config.start_datetime, config.seed)
+        SimulationConfig(one_organization(processes, config.catalogue), config.start_datetime, config.seed)
 
 
 def test_ocel_attributes_that_arent_a_list_of_names_are_rejected(tmp_path):

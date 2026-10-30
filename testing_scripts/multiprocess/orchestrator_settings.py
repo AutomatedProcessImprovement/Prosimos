@@ -49,6 +49,6 @@ def with_qualifiers(json_path, name=None):
     return str(path)
 
 
-def one_organization(processes):
-    """The organizations of a configuration built in Python: one, holding all its processes."""
-    return [Organization("Organization", list(processes))]
+def one_organization(processes, catalogues=None):
+    """The organizations of a configuration built in Python: one, holding all its processes and the catalogues."""
+    return [Organization("Organization", list(processes), dict(catalogues or {}))]

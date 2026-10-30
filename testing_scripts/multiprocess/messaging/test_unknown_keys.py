@@ -54,8 +54,8 @@ def test_an_organization_entry(tmp_path):
     def misspelled(data):
         data["organizations"][0]["proceses"] = data["organizations"][0].pop("processes")
 
-    _config_rejected(tmp_path, r"simulation.json: organizations\[0\]: unknown key 'proceses'; allowed: name, "
-                               r"processes$", misspelled)
+    _config_rejected(tmp_path, r"simulation.json: organizations\[0\]: unknown key 'proceses'; allowed: catalogues, "
+                               r"name, processes$", misspelled)
 
 
 def test_a_process_entry(tmp_path):
@@ -63,34 +63,34 @@ def test_a_process_entry(tmp_path):
         data["organizations"][0]["processes"][2]["object_typ"] = data["organizations"][0]["processes"][2].pop("object_type")
 
     _config_rejected(tmp_path, r"processes\[2\]: unknown key 'object_typ'; allowed: arrivals, bpmn_path, "
-                               r"carry_links, catalogues, json_path, name, object_type, ocel_attributes, qualifier, "
+                               r"carry_links, json_path, name, object_type, ocel_attributes, qualifier, "
                                r"qualifier_by_activity, references$",
                      misspelled)
 
 
 def test_an_object_of_a_listed_catalogue(tmp_path):
     def misspelled(data):
-        customers = data["organizations"][0]["processes"][0]["catalogues"]["customer"]
+        customers = data["organizations"][0]["catalogues"]["customer"]
         customers[2]["attribute"] = {}
 
-    _config_rejected(tmp_path, r"processes\[0\].catalogues.customer\[2\]: unknown key 'attribute'; allowed: attributes, id$",
+    _config_rejected(tmp_path, r"organizations\[0\].catalogues.customer\[2\]: unknown key 'attribute'; allowed: attributes, id$",
                      misspelled)
 
 
 def test_a_pool(tmp_path):
     def misspelled(data):
-        data["organizations"][0]["processes"][0]["catalogues"]["customer"] = {"count": 10, "atributes": []}
+        data["organizations"][0]["catalogues"]["customer"] = {"count": 10, "atributes": []}
 
-    _config_rejected(tmp_path, r"processes\[0\].catalogues.customer: unknown key 'atributes'; allowed: attributes, count$",
+    _config_rejected(tmp_path, r"organizations\[0\].catalogues.customer: unknown key 'atributes'; allowed: attributes, count$",
                      misspelled)
 
 
 def test_a_growing_catalogue(tmp_path):
     # a misspelled count would otherwise make the pool a growing catalogue
     def misspelled(data):
-        data["organizations"][0]["processes"][0]["catalogues"]["customer"] = {"cont": 10, "attributes": []}
+        data["organizations"][0]["catalogues"]["customer"] = {"cont": 10, "attributes": []}
 
-    _config_rejected(tmp_path, r"processes\[0\].catalogues.customer: unknown key 'cont'; allowed: attributes, count$",
+    _config_rejected(tmp_path, r"organizations\[0\].catalogues.customer: unknown key 'cont'; allowed: attributes, count$",
                      misspelled)
 
 
@@ -232,11 +232,10 @@ def test_case_id_is_no_reserved_name_of_a_message(bpmn):
 
 def test_a_pool_of_100000_passes_the_catalogue_check_well_under_a_second():
     assets = "testing_scripts/assets/order_management"
-    specs = [ProcessSpec(name, f"{assets}/{name.lower()}.bpmn", f"{assets}/{name.lower()}.json",
-                         catalogues={"customer": CataloguePool(100_000, ())} if name == "Sales" else {})
+    specs = [ProcessSpec(name, f"{assets}/{name.lower()}.bpmn", f"{assets}/{name.lower()}.json")
              for name in ("Sales", "Warehouse", "Packaging")]
 
     started = time.perf_counter()
-    _checked_catalogue(one_organization(specs))
+    _checked_catalogue(one_organization(specs, {"customer": CataloguePool(100_000, ())}))
 
     assert time.perf_counter() - started < 0.5

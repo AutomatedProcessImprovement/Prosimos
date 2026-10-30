@@ -1,4 +1,5 @@
 import csv
+import dataclasses
 import json
 import os
 from datetime import datetime
@@ -181,6 +182,18 @@ def test_config_accepts_processes_sharing_a_group():
     config = SimulationConfig(one_organization([_spec(name) for name in names]), START, SEED, groups)
 
     assert config.consumer_groups == groups
+
+
+def test_a_group_across_two_organizations_routes_as_within_one():
+    # the running example's Warehouses group: Our company's TartuWarehouse and Tallinn partner's TallinnWarehouse
+    config = SimulationConfig.from_json("testing_scripts/assets/running_example/simulation.json")
+    organization_of = {spec.name: organization.name for organization in config.organizations
+                       for spec in organization.processes}
+    assert {organization_of[name] for name in config.consumer_groups["Warehouses"]} == {"Our company",
+                                                                                         "Tallinn partner"}
+    together = dataclasses.replace(config, organizations=one_organization(config.processes, config.catalogue))
+
+    assert run_multiprocess_simulation(config).to_dict() == run_multiprocess_simulation(together).to_dict()
 
 
 def test_config_groups_may_name_the_extra_processes_it_declares():

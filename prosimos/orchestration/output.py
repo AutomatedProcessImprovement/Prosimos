@@ -135,7 +135,7 @@ def _object_links(records: List[MessageRecord], processes: Dict[str, OcelProcess
 def _reference_links(config: SimulationConfig, catalogue: Dict[str, List[CatalogueObject]],
                      processes: Dict[str, OcelProcess], objects, rows, logged_elements, warn):
     """
-    The catalogue's objects (catalogue: every process's, as _grown_catalogues gives them), as (catalogue name, id, [(attribute,
+    The catalogue's objects (catalogue: every organization's, as _grown_catalogues gives them), as (catalogue name, id, [(attribute,
     value, time)]): every object of a listed catalogue, and the objects of a pool or a growing catalogue that some
     case's referenced attribute names; their attributes are timed at the start of the run, a growing catalogue's
     when the first case took its id; and the links its references give, joined with the case objects and log rows

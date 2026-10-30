@@ -22,9 +22,8 @@ def _order_management(orders, pick):
     """Order Management whose customers are a growing catalogue of Sales, from which each order picks with pick."""
     config = _config(orders)
     return dataclasses.replace(config, organizations=one_organization([
-        dataclasses.replace(spec, catalogues={"customer": CUSTOMERS},
-                            references=(dataclasses.replace(spec.references[0], pick=pick),))
-        if spec.name == "Sales" else spec for spec in config.processes]))
+        dataclasses.replace(spec, references=(dataclasses.replace(spec.references[0], pick=pick),))
+        if spec.name == "Sales" else spec for spec in config.processes], {**config.catalogue, "customer": CUSTOMERS}))
 
 
 def _created(ocel):
@@ -136,18 +135,19 @@ SALES = r"processes\[0\].references"
 
 
 def test_a_growing_catalogue_reads_from_attributes_without_a_count(tmp_path):
-    path = _config_with(tmp_path, catalogues={"Sales": GROWING}, references={"Sales": [{**PICKING, "pick": {"new_share": 0.3}}]})
+    path = _config_with(tmp_path, catalogues=GROWING, references={"Sales": [{**PICKING, "pick": {"new_share": 0.3}}]})
 
-    [sales] = [spec for spec in SimulationConfig.from_json(path).processes if spec.name == "Sales"]
+    config = SimulationConfig.from_json(path)
+    [sales] = [spec for spec in config.processes if spec.name == "Sales"]
 
-    assert sales.catalogues == {"customer": GrowingCatalogue()}
+    assert config.organizations[0].catalogues == {"customer": GrowingCatalogue()}
     assert sales.references[0].pick == NewShare(0.3)
 
 
 def _rejected(tmp_path, message, catalogues=None, references=None):
     """The Order Management configuration whose only catalogues are those of Sales, GROWING by default, and whose only
     references are those of Sales, a "new" pick of its customer by default, is rejected with message."""
-    path = _config_with(tmp_path, catalogues={"Sales": catalogues or GROWING},
+    path = _config_with(tmp_path, catalogues=catalogues or GROWING,
                         references={"Sales": references or [{**PICKING, "pick": "new"}]})
     with pytest.raises(ValueError, match=message):
         SimulationConfig.from_json(path)

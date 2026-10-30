@@ -76,7 +76,7 @@ def test_with_an_initial_that_isnt_a_number_is_rejected(tmp_path, initial):
 
 
 def test_initial_on_a_plain_copy_is_rejected(tmp_path):
-    path = _config_with(tmp_path, catalogues={"Sales": {"customer": CUSTOMERS, "product": PRODUCTS_LIST}},
+    path = _config_with(tmp_path, catalogues={"customer": CUSTOMERS, "product": PRODUCTS_LIST},
                         references={"Sales": [{**PICKING, "pick": "uniform"},
                                               {**PRODUCTS, "with": {"price": {"initial": 5}}}]})
 
