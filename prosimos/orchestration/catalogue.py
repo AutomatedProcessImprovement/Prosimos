@@ -201,6 +201,12 @@ def _checked_catalogue(organizations):
                             f"organization"
                             if reference.catalogue in owners else f"{where} names unknown catalogue {reference.catalogue!r}")
             continue
+        if reference.pick is None and reference.object_attribute in _consumed_into(reference.process, specs,
+                                                                                   "aggregate"):
+            # a number computed over the messages, not catalogue ids: nothing to link or to look up
+            problems.append(f"{where} {reference.object_attribute} is computed by aggregate; a reference needs an "
+                            f"attribute holding catalogue ids (copy, append, drawn or picked)")
+            continue
         if reference.link_events:
             if reference.process not in tasks_of:
                 graph = parse_simulation_model(specs[reference.process].bpmn_path)
@@ -313,13 +319,18 @@ def _settings_problems(verb, attribute, process, specs):
     return []
 
 
-def _appended_by(process, specs):
-    """The attributes process's consume entries append to: lists of the values its messages bring."""
-    with open(specs[process].json_path) as file:
-        messages = json.load(file).get("messages")
+def _consumed_into(process, specs, key):
+    """The attributes process's consume entries write with key: "append" (lists of the values its messages bring) or
+    "aggregate" (numbers computed over them). Settings that can't be read have none: building the process's engine
+    reports the missing file (a process only checked, never built, may name none)."""
+    try:
+        with open(specs[process].json_path) as file:
+            messages = json.load(file).get("messages")
+    except FileNotFoundError:
+        return set()
     consume = messages.get("consume", []) if isinstance(messages, dict) else []
-    return {target for entry in consume if isinstance(entry, dict) and isinstance(entry.get("append"), dict)
-            for target in entry["append"]}
+    return {target for entry in consume if isinstance(entry, dict) and isinstance(entry.get(key), dict)
+            for target in entry[key]}
 
 
 def _brought_names(reference):
@@ -354,7 +365,8 @@ def _with_problems(reference, entry, specs, picked, brought):
     if reference.count is not None and copied:
         return [f"copies {copied} on a pick with count; a list pick needs a function over the picked objects, "
                 f'e.g. {{"sum": "price"}}']
-    if reference.pick is None and copied and reference.object_attribute in _appended_by(reference.process, specs):
+    if reference.pick is None and copied and reference.object_attribute in _consumed_into(reference.process, specs,
+                                                                                          "append"):
         return [f"copies {copied} from {reference.object_attribute}, a list process {reference.process} appends to "
                 f'from messages; a list needs a function over its objects, e.g. {{"sum": "price"}}, recomputed at '
                 f"every claim"]
@@ -460,12 +472,14 @@ class _Brought:
 class _Received:
     """A value with gives the case from the catalogue object its attribute source names when it isn't picked: copied
     from the message that starts the case, or drawn in its object_attributes. values: object id -> the object's
-    attribute it brings. It holds a column of the log, but draws nothing: the engine fills it in when the case's
-    values are known (see EngineMessaging._apply_received), from the table it gets when it is built."""
+    attribute it brings; catalogue: the catalogue's name. It holds a column of the log, but draws nothing: the
+    engine fills it in when the case's values are known (see EngineMessaging._apply_received), from the table it gets
+    when it is built."""
 
     def __init__(self, name: str, source: str, values: Dict[str, Any], function: Optional[str] = None,
-                 initial: Optional[float] = None):
+                 initial: Optional[float] = None, catalogue: str = ""):
         self.name, self.source, self.values, self.function, self.initial = name, source, values, function, initial
+        self.catalogue = catalogue
 
     def get_next_value(self):
         return None
@@ -502,7 +516,8 @@ def _picks(spec: ProcessSpec, seed: Optional[int], catalogues: Dict[str, List[Ca
                 function, attribute, initial = ((source.function, source.source, source.initial)
                                                 if isinstance(source, Computed) else (None, source, None))
                 values = {obj.id: dict(obj.attributes)[attribute] for obj in catalogues[reference.catalogue]}
-                picks.append(_Received(name, reference.object_attribute, values, function, initial))
+                picks.append(_Received(name, reference.object_attribute, values, function, initial,
+                                       reference.catalogue))
         else:
             ids = [obj.id for obj in catalogues[reference.catalogue]]
             weights = None if reference.pick == "uniform" else [dict(reference.pick).get(object_id, 0) for object_id in ids]

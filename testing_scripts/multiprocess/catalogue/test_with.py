@@ -207,9 +207,9 @@ def _received(report, process):
             for name, case in report.objects if name == process}
 
 
-def test_an_item_started_by_a_message_naming_its_product_gets_its_weight_and_price_at_creation(tmp_path):
-    # Picking sends one ItemOrdered per product; the Warehouse copies product from it, and its reference, without a
-    # pick, brings that product's weight and price into the item when it is created
+def _warehouse_receiving(tmp_path, sent):
+    """Picking sends one ItemOrdered per product of sent, from 09:00, ten minutes apart; the Warehouse copies product
+    from it, and its reference, without a pick, brings that product's weight and price into the item. The report."""
     folder = CONFIG.replace("simulation.json", "")
     with open(folder + "warehouse.json") as file:
         warehouse = json.load(file)
@@ -220,14 +220,16 @@ def test_an_item_started_by_a_message_naming_its_product_gets_its_weight_and_pri
                                              None, "item", ocel_attributes=("weight", "price"),
                                              references=(reference,))], {"product": PRODUCT_OBJECTS})
     picking = ScriptedEngine("Picking")
-    sent = ["Kindle", "iPad", "Kindle", "Echo Dot"]
     for number, product in enumerate(sent):
         picking.publish_at(at(f"09:{10 * number:02}"), "ItemOrdered", object_id=f"order-{number}", index=1,
                            customer="c1", product=product)
+    return run_multiprocess_simulation(SimulationConfig([shop], START, 1, extra_processes=["Picking"]),
+                                       tmp_path / "log.csv", {"Picking": picking}, ocel_out_path=tmp_path / "log.json")
 
-    report = run_multiprocess_simulation(SimulationConfig([shop], START, 1, extra_processes=["Picking"]),
-                                         tmp_path / "log.csv", {"Picking": picking},
-                                         ocel_out_path=tmp_path / "log.json")
+
+def test_an_item_started_by_a_message_naming_its_product_gets_its_weight_and_price_at_creation(tmp_path):
+    sent = ["Kindle", "iPad", "Kindle", "Echo Dot"]
+    report = _warehouse_receiving(tmp_path, sent)
 
     items = _received(report, "Warehouse")
     assert sorted(values["product"] for values, _ in items.values()) == sorted(sent)
@@ -333,4 +335,29 @@ def test_a_plain_copy_from_a_list_the_process_appends_to_is_rejected(tmp_path):
                                          r"item_ids, a list process Packaging appends to from messages; a list needs a "
                                          r'function over its objects, e.g. \{"sum": "price"\}, recomputed at every '
                                          r"claim"):
+        SimulationConfig.from_json(path)
+
+
+def test_an_id_not_in_the_catalogue_leaves_the_values_unset_with_one_warning_per_reference(tmp_path):
+    report = _warehouse_receiving(tmp_path, ["Kindle", "Walkman", "Walkman", "Gramophone", "iPad"])
+
+    items = sorted(_received(report, "Warehouse").values(), key=lambda item: item[1])
+    assert [(values["product"], values["weight"], values["price"]) for values, _ in items] == [
+        ("Kindle", WEIGHT["Kindle"], PRICE["Kindle"]), ("Walkman", None, None), ("Walkman", None, None),
+        ("Gramophone", None, None), ("iPad", WEIGHT["iPad"], PRICE["iPad"])]
+    # once for the reference, however many unknown values; the run goes on
+    assert [warning for process, warning in report.engine_warnings if "not in catalogue" in warning] == [
+        ("object attribute product has the value 'Walkman', which is not in catalogue product; 'with' leaves weight, "
+         "price unset")]
+
+
+def test_a_reference_on_an_aggregated_attribute_is_rejected(tmp_path):
+    # Packaging sums its items' weights into weight: a number, not the id of a catalogue object
+    path = _config_with(tmp_path, catalogues={"product": PRODUCTS_LIST},
+                        references={"Packaging": [{"object_attribute": "weight", "catalogue": "product",
+                                                   "with": {"price": "price"}}]})
+
+    with pytest.raises(ValueError, match=r"organizations\[0\].processes\[2\].references\[0\] weight is computed by "
+                                         r"aggregate; a reference needs an attribute holding catalogue ids \(copy, "
+                                         r"append, drawn or picked\)"):
         SimulationConfig.from_json(path)

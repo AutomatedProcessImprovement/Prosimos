@@ -92,8 +92,8 @@ class ProsimosEngine(SimulationEngine):
                                               if attribute.name == pick.count.object_attribute))
             self._env = SimBPMEnv(sim_setup, None, log_writer, id_prefix=spec.id_prefix)
             # its organization's catalogue values, for the 'with' of references that don't pick (see _Received)
-            self._env.receive_catalogue_values([(pick.name, pick.source, pick.values, pick.function, pick.initial)
-                                                for pick in picks if isinstance(pick, _Received)])
+            self._env.receive_catalogue_values([(pick.name, pick.source, pick.values, pick.function, pick.initial,
+                                                 pick.catalogue) for pick in picks if isinstance(pick, _Received)])
         tasks = {element_id for element_id, element in sim_setup.bpmn_graph.element_info.items()
                  if element.type is BPMN.TASK}
         unknown = sorted(task_id for task_id, _ in spec.qualifier_by_activity if task_id not in tasks)

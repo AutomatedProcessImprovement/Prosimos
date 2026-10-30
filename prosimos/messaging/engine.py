@@ -417,22 +417,27 @@ class EngineMessaging:
 
     def receive_catalogue_values(self, received):
         """Takes its organization's catalogue values for the 'with' of references that don't pick, as (attribute, source
-        attribute, object id -> value, function, initial): given once, when the engine is built."""
+        attribute, object id -> value, function, initial, catalogue): given once, when the engine is built."""
         self._received = list(received)
 
     def _apply_received(self, case_values, sources=None):
         """Gives a case the values with brings from the catalogue object its source attribute names: the object's
         value, or with function, the function over the objects of a list (each as often as it holds it) and over
         initial, as a pick's with does. All of them for a new case, whose sources were copied from the starting message
-        or drawn; at a claim, those whose source is in sources, the attributes just copied. A source without a value,
-        or naming no object of the catalogue, leaves the attribute as it is. Returns the attributes it set."""
+        or drawn; at a claim, those whose source is in sources, the attributes just copied. A source without a value
+        leaves the attribute as it is; one naming no object of the catalogue too, with one warning per reference.
+        Returns the attributes it set."""
         given = []
-        for name, source, values, function, initial in self._received:
+        for name, source, values, function, initial, catalogue in self._received:
             if sources is not None and source not in sources:
                 continue
             value = case_values.get(source)
             named = value if isinstance(value, list) else [value]
-            if value is None or not all(object_id in values for object_id in named):
+            if value is None:
+                continue
+            unknown = [object_id for object_id in named if object_id not in values]
+            if unknown:
+                self._warn_unknown_received(source, catalogue, value, unknown)
                 continue
             if function is None:
                 if not isinstance(value, list):  # a plain copy names one object
@@ -443,10 +448,22 @@ class EngineMessaging:
                 given.append(name)
         return given
 
+    def _warn_unknown_received(self, source, catalogue, value, unknown):
+        """One warning per reference, (source attribute, catalogue), whose value names no object of its catalogue: the
+        values its 'with' would bring stay unset, and the run goes on."""
+        if (source, catalogue) in self._warned_unknown_received:
+            return
+        self._warned_unknown_received.add((source, catalogue))
+        unset = [name for name, other_source, *_, other_catalogue in self._received
+                 if (other_source, other_catalogue) == (source, catalogue)]
+        named = f"whose entries {unknown} are" if isinstance(value, list) else "which is"
+        warning_logger.add_warning(f"object attribute {source} has the value {value!r}, {named} not in catalogue "
+                                   f"{catalogue}; 'with' leaves {', '.join(unset)} unset")
+
     def _started_received(self, case_values):
         """The values 'with' brings that a new case only starts with: a function over a list its messages append to,
         still empty, like an aggregate's starting value (see only_started_values)."""
-        return tuple(name for name, source, _, function, _ in self._received
+        return tuple(name for name, source, *_ in self._received
                      if source in self._appended and case_values.get(source) == [] and name in case_values)
 
     def _starting_values(self):

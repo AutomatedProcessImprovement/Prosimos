@@ -143,12 +143,15 @@ the picked one. A process JSON whose messages publish a picked attribute only ru
 run on its own, the attribute isn't declared (Order Management's `sales.json` is an example).
 
 **Without `pick`, the reference interprets a value that is already there**: drawn by the process's
-`object_attributes`, or copied from a message. If Sales drew `customer` in its `object_attributes` from c1 to c15,
-the same reference without `pick` would make the drawn text an object:
+`object_attributes`, or copied or appended from a message (not computed by `aggregate`, a number rather than an
+id). If Sales drew `customer` in its `object_attributes` from c1 to c15, the same reference without `pick` would
+make the drawn text an object:
 
 ```json
 {"object_attribute": "customer", "catalogue": "customer", "o2o": "places", "reverse": true}
 ```
+
+With `with`, the object's attributes come along too (see "With for a received value").
 
 **A reference names a catalogue of its own organization**, any of them, never another organization's: the
 processes of one organization share its catalogues, and what one organization knows reaches another only in
@@ -278,8 +281,9 @@ of the first 4 orders of Order Management's Sales with seed 1, with its 20 produ
 
 ### With
 
-`with` gives the case starting values from the objects its reference picks. It maps the case's attribute, on the
-left, to where the value comes from, on the right, in the shape of `copy` and `aggregate`
+`with` gives the case values from the objects its reference picks, or the received ones: those its attribute
+names when it gets its value without a pick (see "With for a received value" below). It maps the case's
+attribute, on the left, to where the value comes from, on the right, in the shape of `copy` and `aggregate`
 ([messaging.md](messaging.md)):
 
 - **a plain name copies** that attribute of the picked object, under the case's name for it:
@@ -323,20 +327,52 @@ left, to where the value comes from, on the right, in the shape of `copy` and `a
   order-1 picks Fire Stick, Echo, iPhone 11  ->  price = 5.00 + 39.99 + 99.99 + 799 = 943.98
   ```
 
-  Over no objects, each function gives `initial`. `with` computes everything when the case is created, so its
-  value is written to the OCEL output as it is.
+  Over no objects, each function gives `initial`. A pick's `with` computes everything when the case is created,
+  so its value is written to the OCEL output as it is.
 
 The values are case values like those drawn in `object_attributes` from then on: columns of the log, attributes
 of the case's OCEL object if the process lists them in `ocel_attributes`, and usable in conditions, `copy`,
 published messages and `aggregate`.
 
-- `with` needs a `pick` on a list or a pool, whose objects and attributes exist when the case is created, and
-  every object of the catalogue must have each attribute it names; a sum, a min or a max needs it as a number
-  (on a pool: a continuous attribute, or a discrete one whose keys are numbers).
+- `with` reads a list or a pool, whose objects and attributes exist from the start of the run, not a growing
+  catalogue (a known limitation), and every object of the catalogue must have each attribute it names; a sum, a
+  min or a max needs it as a number (on a pool: a continuous attribute, or a discrete one whose keys are numbers).
 - On a pick with `count`, a plain name is a load error: say what to compute over the objects. On a single pick
   a function is allowed, over the one object: a sum is its value, a count is 1.
 - `initial` is a number, negative too, and only next to a function: a plain copy has none.
 - `with` draws nothing: adding it changes neither the picks nor any other draw.
+
+#### With for a received value
+
+A reference without `pick` may have `with` too. Its attribute gets its value some other way, and whenever it does,
+the attributes of the catalogue object it names come along. The Warehouse, which reads the same product list as
+Sales in its organization, can look up the weight and price of the product an `ItemOrdered` message names:
+
+```json
+"references": [{"object_attribute": "product", "catalogue": "product",
+                "with": {"weight": "weight", "price": "price"}}]
+```
+
+| How the attribute gets its value             | When the `with` values follow                                     |
+|----------------------------------------------|-------------------------------------------------------------------|
+| copied from the message that starts the case | at once, when the case is created                                 |
+| copied at a catch event later                | at the claim, written with that time in the OCEL output           |
+| appended at a catch event (a list)           | at every claim, recomputed over the whole list, like `aggregate`  |
+| drawn in `object_attributes`                 | when the case is created                                          |
+
+- **A later value replaces the earlier one**: a substitute product copied at a later catch brings its own weight
+  and price, at the new time, as `copy` does.
+- **A list needs a function**, as a pick with `count` does: an attribute that consume entries append to takes
+  `{"total_price": {"sum": "price"}}`, recomputed at every claim; a plain copy from it is a load error. Like an
+  aggregate's starting value, the value over a list still empty when the case is created (a sum's or count's 0,
+  or `initial`) stays out of the OCEL output until a message changes it.
+- **An id not in the catalogue** leaves the `with` values unset, with one warning per reference (see "Errors and
+  warnings"); the run goes on.
+- **The attribute must hold catalogue ids**: copied, appended, drawn or picked. One that `aggregate` computes is a
+  number over the messages, not an id, and a reference on it is a load error.
+
+The engine gets its organization's catalogue values once, when it is built: its own company's data, given at
+setup. The orchestrator sees nothing of them during the run.
 
 ## Worked example: Order Management
 
@@ -546,11 +582,12 @@ The messages, by the key they are about:
 | `new_share`                  | `organizations[0].processes[0].references[0] new_share must be a number above 0 and at most 1, got 1.5`                                                                                                                                                        |
 | `with`                       | `organizations[0].processes[1].references[0] with must map attribute names to an attribute of the picked object or to one function of one, {"sum" \| "count" \| "min" \| "max": <attribute>}, got ['weight', 'price']`                                         |
 | `with`                       | `organizations[0].processes[0].references[1] copies ['price'] on a pick with count; a list pick needs a function over the picked objects, e.g. {"sum": "price"}`                                                                                               |
+| `with`                       | `organizations[0].processes[2].references[0] copies ['price'] from item_ids, a list process Packaging appends to from messages; a list needs a function over its objects, e.g. {"sum": "price"}, recomputed at every claim`                                    |
+| `object_attribute`           | `organizations[0].processes[2].references[0] weight is computed by aggregate; a reference needs an attribute holding catalogue ids (copy, append, drawn or picked)`                                                                                            |
 | `with`                       | `organizations[0].processes[0].references[1] with sums, or takes the min or max of, ['price'], which not every object of catalogue 'product' has as a number`                                                                                                  |
 | `with`                       | `organizations[0].processes[0].references[1] with 'price' initial must be a number, got '5'`                                                                                                                                                                   |
 | `with`                       | `organizations[0].processes[0].references[1] with 'price' has initial but no function; initial is the first value a sum, count, min or max works over, and a plain copy has none`                                                                              |
-| `with`                       | `organizations[0].processes[1].references[0] has with but no pick; a catalogue object brings its attributes only when the reference picks it`                                                                                                                  |
-| `with`                       | `organizations[0].processes[1].references[0] has with on growing catalogue 'product', whose objects don't exist yet when a case is created`                                                                                                                    |
+| `with`                       | `organizations[0].processes[1].references[0] has with on growing catalogue 'product'; with doesn't read a growing catalogue yet, a known limitation`                                                                                                           |
 | `with`                       | `organizations[0].processes[1].references[0] with names ['volume'], which not every object of catalogue 'product' has`                                                                                                                                         |
 | `with`                       | `organizations[0].processes[1].references[0] brings price, which process Warehouse also draws in its object_attributes`                                                                                                                                        |
 | `with`                       | `organizations[0].processes[1].references[0] brings customer, which process Warehouse also copies from a message (consume entries at ['Start_Item'])`                                                                                                          |
@@ -560,7 +597,7 @@ The messages, by the key they are about:
 
 `link_events` is not checked for extra engines, which have no BPMN model.
 
-**Warnings.** Two kinds, during the run, in the run report's `warnings`. A value not in the catalogue, once per
+**Warnings.** Three kinds, during the run, in the run report's warnings. A value not in the catalogue, once per
 attribute and value:
 
 ```
@@ -575,6 +612,13 @@ number of at least 0, once per pick; the pick then chooses one object:
 items is 2.5, no whole number of at least 0; the pick of products picks one
 ```
 
+And a value received by a reference without `pick` that names no object of its catalogue, once per reference;
+its `with` values stay unset and the run goes on:
+
+```
+object attribute product has the value 'Walkman', which is not in catalogue product; 'with' leaves weight, price unset
+```
+
 **Outside the configuration.** A process JSON whose messages publish a picked attribute fails on its own,
 when Prosimos reads its messages: `... 'customer' not declared as an object, global or event attribute`. Run
 it through its configuration, where the pick declares the attribute.
@@ -587,3 +631,4 @@ it through its configuration, where the pick declares the attribute.
   what one knows reaches another in messages.
 - **The organization isn't written in the OCEL output** yet: catalogue objects and the processes' objects don't
   say whose they are.
+- **`with` doesn't read a growing catalogue** yet, picked or received: its objects are created during the run.
