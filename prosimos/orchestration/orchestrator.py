@@ -204,10 +204,10 @@ def orchestrate(
         report.logged_elements[name] = engine_report.logged_elements
         for record in engine_report.published:
             publishers[record.message_id] = CaseElement(name, record.object_id, record.element_id, record.qualifier,
-                                                        record.task_rows, record.o2o)
+                                                        record.task_rows, record.o2o, record.carry)
         for record in engine_report.claimed:
             claimers[record.message_id].append(CaseElement(name, record.object_id, record.element_id, record.qualifier,
-                                                           record.task_rows, record.o2o))
+                                                           record.task_rows, record.o2o, record.carry))
     report.message_records = [MessageRecord(message.id, message.type, publishers.get(message.id), claimers[message.id])
                               for message in report.published]
     return report

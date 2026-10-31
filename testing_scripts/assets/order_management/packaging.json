@@ -217,6 +217,7 @@
           }
         },
         "qualifier": "item",
+        "carry": true,
         "o2o": "contains"
       }
     ]

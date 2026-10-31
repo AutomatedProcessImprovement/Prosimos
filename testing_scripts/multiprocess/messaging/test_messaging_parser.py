@@ -231,3 +231,29 @@ def test_a_model_with_two_arrows_into_a_message_end_or_catch_event_is_rejected(t
 
     with pytest.raises(InvalidSimScenarioException, match=f"draw an explicit gateway before {event_id}$"):
         _load(tmp_path, f"testing_scripts/assets/messaging/{model}", messages)
+
+
+# carry: which later events of the case also link what an entry's messages link
+
+def test_carry_is_true_or_a_list_of_tasks_by_name_or_id(bpmn):
+    model = parse_messages({**publish(qualifier="order", carry=True),
+                            **consume(qualifier="shipment", carry=["Place_Order"])}, bpmn, DECLARED)
+
+    assert model.publish[0].carry is True and model.consume[0].carry == ("Place_Order",)
+    assert parse_messages(publish(), bpmn, DECLARED).publish[0].carry is False
+
+
+def test_carry_without_a_qualifier_is_rejected(bpmn):
+    assert "messages.publish[0]: carry needs a qualifier on the same entry; a carried link needs its role word" in \
+        rejected(publish(carry=True), bpmn)
+
+
+def test_carry_naming_an_unknown_activity_is_rejected(bpmn):
+    assert "messages.consume[0]: carry names ['close order'], which are no tasks of the process" in \
+        rejected(consume(qualifier="shipment", carry=["close order"]), bpmn)
+
+
+@pytest.mark.parametrize("carry", ["yes", 1, ["Place_Order", ""], [3], {"Place_Order": True}])
+def test_carry_that_isnt_true_or_a_list_of_names_is_rejected(bpmn, carry):
+    assert "messages.publish[0]: 'carry' must be true or a list of activities (task names or ids)" in \
+        rejected(publish(qualifier="order", carry=carry), bpmn)

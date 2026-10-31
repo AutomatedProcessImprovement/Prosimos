@@ -273,7 +273,7 @@ def _instant_row(process, activity, at):
 
 
 # tag_along: P's object p-0 names a product (tag_along, none of its own events) and a colour (every own event);
-# Q's case q-0 links p-0 through a message at its first event and, with carry_links, at its second
+# Q's case q-0 links p-0 through a message at its first event and, its entry carrying it, at its second
 
 def test_with_tag_along_every_event_of_another_case_that_links_the_object_links_its_catalogue_object(tmp_path):
     config = SimulationConfig(one_organization([
@@ -282,7 +282,7 @@ def test_with_tag_along_every_event_of_another_case_that_links_the_object_links_
                                                  Reference("colour", "colour"))),
         ProcessSpec("Q", SALES, "q.json", 1)],
         {"product": [CatalogueObject("phone"), CatalogueObject("tablet")], "colour": [CatalogueObject("red")]}), START)
-    processes = {"P": OcelProcess("p"), "Q": OcelProcess("q", carry_links=True)}
+    processes = {"P": OcelProcess("p"), "Q": OcelProcess("q")}
     # the product changes from phone to tablet between Q's two events
     objects = [("P", CaseObject("p-0", START, [("product", "phone", START), ("colour", "red", START),
                                                ("product", "tablet", START + timedelta(minutes=15))])),
@@ -291,8 +291,8 @@ def test_with_tag_along_every_event_of_another_case_that_links_the_object_links_
             for process, activity, end in (("P", "place order", 5), ("Q", "a", 10), ("Q", "b", 20))]
     _, _, event_links = _reference_links(config, config.catalogue, processes, objects, rows, {}, [].append)
 
-    write_ocel(tmp_path / "log.json", processes, objects, rows, None, {("Q", 0): [(("P", "p-0"), "item")]}, None,
-               None, event_links, _tag_along(config, config.catalogue, objects))
+    write_ocel(tmp_path / "log.json", processes, objects, rows, None, {("Q", 0): [(("P", "p-0"), "item", True)]},
+               None, None, event_links, _tag_along(config, config.catalogue, objects))
     with open(tmp_path / "log.json") as file:
         events = [[(link["objectId"], link["qualifier"]) for link in event["relationships"]]
                   for event in json.load(file)["events"]]
@@ -315,8 +315,8 @@ def test_with_tag_along_an_event_links_each_id_of_the_list_the_object_held_once(
     rows = [_instant_row(process, activity, START + timedelta(minutes=end))
             for process, activity, end in (("P", "place order", 5), ("Q", "a", 10))]
 
-    write_ocel(tmp_path / "log.json", processes, objects, rows, None, {("Q", 0): [(("P", "p-0"), "item")]}, None,
-               None, None, _tag_along(config, config.catalogue, objects))
+    write_ocel(tmp_path / "log.json", processes, objects, rows, None, {("Q", 0): [(("P", "p-0"), "item", False)]},
+               None, None, None, _tag_along(config, config.catalogue, objects))
     with open(tmp_path / "log.json") as file:
         events = [[(link["objectId"], link["qualifier"]) for link in event["relationships"]]
                   for event in json.load(file)["events"]]

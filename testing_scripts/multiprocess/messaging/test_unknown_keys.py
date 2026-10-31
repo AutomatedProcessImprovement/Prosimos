@@ -63,7 +63,7 @@ def test_a_process_entry(tmp_path):
         data["organizations"][0]["processes"][2]["object_typ"] = data["organizations"][0]["processes"][2].pop("object_type")
 
     _config_rejected(tmp_path, r"processes\[2\]: unknown key 'object_typ'; allowed: arrivals, bpmn_path, "
-                               r"carry_links, json_path, name, object_type, ocel_attributes, qualifier, "
+                               r"json_path, name, object_type, ocel_attributes, qualifier, "
                                r"qualifier_by_activity, references$",
                      misspelled)
 
@@ -136,14 +136,14 @@ def _messages_rejected(section, bpmn_path, message):
 
 def test_a_publish_entry(bpmn):
     _messages_rejected(publish(atributes=["object_id"]), bpmn,
-                       r"messages.publish\[0\]: unknown key 'atributes'; allowed: attributes, count, event_id, o2o, "
-                       r"qualifier, type$")
+                       r"messages.publish\[0\]: unknown key 'atributes'; allowed: attributes, carry, count, event_id, "
+                       r"o2o, qualifier, type$")
 
 
 def test_a_consume_entry(bpmn):
     _messages_rejected(consume(colect="all"), bpmn,
-                       r"messages.consume\[0\]: unknown key 'colect'; allowed: aggregate, append, capacity, collect, "
-                       r"condition, copy, event_id, o2o, qualifier, same, type$")
+                       r"messages.consume\[0\]: unknown key 'colect'; allowed: aggregate, append, capacity, carry, "
+                       r"collect, condition, copy, event_id, o2o, qualifier, same, type$")
 
 
 def test_a_count_object(bpmn):
@@ -194,6 +194,14 @@ def test_total_cases_is_no_key_of_a_process_entry(tmp_path):
         data["organizations"][0]["processes"][0]["total_cases"] = data["organizations"][0]["processes"][0].pop("arrivals")
 
     _config_rejected(tmp_path, r"processes\[0\]: unknown key 'total_cases'; allowed: arrivals, ", prosimos_name)
+
+
+def test_carry_links_is_no_key_of_a_process_entry(tmp_path):
+    # carry is set on the message entry whose links it passes on
+    def on_the_process(data):
+        data["organizations"][0]["processes"][0]["carry_links"] = True
+
+    _config_rejected(tmp_path, r"processes\[0\]: unknown key 'carry_links'; allowed: arrivals, ", on_the_process)
 
 
 def test_case_attribute_is_no_key_of_a_reference(tmp_path):

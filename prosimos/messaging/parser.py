@@ -17,9 +17,9 @@ MESSAGE_DEFINITION = BPMN_NS + "messageEventDefinition"
 PUBLISHING_EVENTS = {"intermediateThrowEvent": "an intermediate message throw event", "endEvent": "a message end event"}
 CONSUMING_EVENTS = {"intermediateCatchEvent": "an intermediate message catch event", "startEvent": "a message start event"}
 TERM_KEYS = {"attribute", "comparison", "value", "object_attribute"}
-PUBLISH_KEYS = {"event_id", "type", "attributes", "count", "qualifier", "o2o"}
+PUBLISH_KEYS = {"event_id", "type", "attributes", "count", "qualifier", "o2o", "carry"}
 CONSUME_KEYS = {"event_id", "type", "condition", "copy", "append", "aggregate", "capacity", "collect", "same",
-                "qualifier", "o2o"}
+                "qualifier", "o2o", "carry"}
 
 
 def parse_messages_file(json_path, bpmn_path, also_declared=()) -> MessagingModel:
@@ -57,6 +57,7 @@ def parse_messages(messages_json, bpmn_path, declared_attributes, case_attribute
     _check_keys("messages", messages_json, {"publish", "consume"})
 
     events, gateway_branches = _bpmn_events(bpmn_path)
+    tasks = _tasks(bpmn_path)
     # consume first, so that a malformed copy (whose targets publish entries may use) is reported
     # as such rather than as an undeclared published attribute
     consume, collecting = [], []
@@ -69,7 +70,8 @@ def parse_messages(messages_json, bpmn_path, declared_attributes, case_attribute
                              starts_case, most, most_attribute, low, low_attribute,
                              _name(entry, "qualifier", where), _name(entry, "o2o", where),
                              _append(entry, where, case_attributes), _aggregate(entry, where, case_attributes),
-                             high, high_attribute, _same(entry, where), fewest, fewest_attribute)
+                             high, high_attribute, _same(entry, where), fewest, fewest_attribute,
+                             _carry(entry, where, tasks))
         if "count" in entry:
             _fail(f"{where}: count is only for publish entries, on throw and end events: only they publish, and a "
                   f"start event starts exactly one case per message")
@@ -85,7 +87,7 @@ def parse_messages(messages_json, bpmn_path, declared_attributes, case_attribute
     publish = tuple(
         PublishPoint(entry["event_id"], entry["type"], _attributes(entry, where, declared_attributes),
                      *_count(entry, where, declared_attributes), _name(entry, "qualifier", where),
-                     _name(entry, "o2o", where))
+                     _name(entry, "o2o", where), _carry(entry, where, tasks))
         for where, entry in _entries(messages_json, "publish", PUBLISH_KEYS, events, PUBLISHING_EVENTS)
     )
     return MessagingModel(publish, tuple(consume))
@@ -402,6 +404,30 @@ def _name(entry, key, where):
     if not isinstance(entry[key], str) or not entry[key].strip():
         _fail(f"{where}: '{key}' must be a non-empty string")
     return entry[key]
+
+
+def _carry(entry, where, tasks):
+    """The optional 'carry' of an entry: true, every later event of the case also links what the entry's messages
+    link; a list of activities (task names or ids, as in a reference's link_events), only those later events. The
+    links it carries need their role word, so the entry needs a qualifier."""
+    if "carry" not in entry:
+        return False
+    carry = entry["carry"]
+    if not (isinstance(carry, bool)
+            or isinstance(carry, list) and all(isinstance(name, str) and name.strip() for name in carry)):
+        _fail(f"{where}: 'carry' must be true or a list of activities (task names or ids), got {carry!r}")
+    unknown = [name for name in carry if name not in tasks] if isinstance(carry, list) else []
+    if unknown:
+        _fail(f"{where}: carry names {unknown}, which are no tasks of the process")
+    if carry and "qualifier" not in entry:
+        _fail(f"{where}: carry needs a qualifier on the same entry; a carried link needs its role word")
+    return tuple(carry) if isinstance(carry, list) else carry
+
+
+def _tasks(bpmn_path):
+    """The ids and names of the model's tasks."""
+    return {key for element in ET.parse(bpmn_path).getroot().iter() if element.tag == BPMN_NS + "task"
+            for key in (element.attrib.get("id"), element.attrib.get("name")) if key}
 
 
 def _count(entry, where, declared):

@@ -4,7 +4,7 @@ and for which messages, and what it does with those it takes. The parser builds 
 engine acts on them.
 """
 from dataclasses import dataclass
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple, Union
 
 COMPARISONS = ("=", "!=", "<", "<=", ">", ">=", "in")  # the ones branch rules understand
 AGGREGATE_FUNCTIONS = {"sum", "count", "min", "max"}
@@ -32,6 +32,9 @@ class PublishPoint:
     count_as: Optional[str] = None  # the attribute under which each of those messages carries its entry
     qualifier: Optional[str] = None  # of the OCEL links its messages give; None: no links
     o2o: Optional[str] = None  # OCEL object link from the publishing case's object to each claimer's; None: none
+    # the later events of the publishing case that also link each claimer's object: True for every one, else the
+    # activities (task names or ids) named; False for none
+    carry: Union[bool, Tuple[str, ...]] = False
 
     @property
     def counted(self):
@@ -71,6 +74,9 @@ class ConsumePoint:
     # message attribute capacity_min_attribute
     capacity_min: int = 1
     capacity_min_attribute: Optional[str] = None
+    # the later events of the claiming case that also link the publisher's object: True for every one, else the
+    # activities (task names or ids) named; False for none
+    carry: Union[bool, Tuple[str, ...]] = False
 
 
 @dataclass(frozen=True)

@@ -31,8 +31,6 @@ class ProcessSpec:
     # qualifier_by_activity overrides it, e.g. (("Create_Package", "creates"),)
     qualifier: Optional[str] = None
     qualifier_by_activity: Tuple[Tuple[str, str], ...] = ()
-    # every later event of a case also links the objects the case is linked to through its messages
-    carry_links: bool = False
     # the attributes written to its objects in the OCEL output; the others, e.g. those only routing messages, aren't
     ocel_attributes: Tuple[str, ...] = ()
     # its references, each naming one of its organization's catalogues
@@ -52,7 +50,7 @@ class ProcessSpec:
 CONFIG_KEYS = {"organizations", "start_time", "seed", "consumer_groups"}
 ORGANIZATION_KEYS = {"name", "catalogues", "processes"}
 PROCESS_KEYS = {"name", "bpmn_path", "json_path", "arrivals", "object_type", "qualifier", "qualifier_by_activity",
-                "carry_links", "ocel_attributes", "references"}
+                "ocel_attributes", "references"}
 REFERENCE_KEYS = {"object_attribute", "catalogue", "o2o", "reverse", "link_events", "pick", "count", "with",
                   "tag_along"}
 
@@ -189,9 +187,9 @@ class SimulationConfig:
         started by messages has no arrivals. A process's optional object_type names the OCEL object
         type of its cases; without one, it writes no objects and no events. Its
         optional qualifier (by default the object type) and qualifier_by_activity ({task id: qualifier})
-        qualify each event's link to its own case's object, and carry_links (false by default) makes every
-        later event of a case also link the objects the case is linked to through its messages. Its optional
-        ocel_attributes list the attributes written to its objects; without it, none.
+        qualify each event's link to its own case's object (which later events also link the objects a message
+        entry links is the entry's carry, in the process's JSON settings). Its optional ocel_attributes list the
+        attributes written to its objects; without it, none.
         An organization's optional catalogues ({name: [{"id": ..., "attributes": {...}}]}, {name: {"count": ...,
         "attributes": [as in object_attributes]}} for a generated pool, or {name: {"attributes": [...]}} for a
         growing one) declare objects with no events of their own, shared by its processes, and a process's
@@ -228,7 +226,7 @@ class SimulationConfig:
                 processes.append(ProcessSpec(
                     entry["name"], str(folder / entry["bpmn_path"]), str(folder / entry["json_path"]),
                     entry.get("arrivals"), _object_type(path, where, entry), entry.get("qualifier"),
-                    tuple(sorted(entry.get("qualifier_by_activity", {}).items())), entry.get("carry_links", False),
+                    tuple(sorted(entry.get("qualifier_by_activity", {}).items())),
                     _ocel_attributes(path, where, entry), tuple(references)
                 ))
             catalogues = {name: _catalogue(path, f"{in_organization}.catalogues.{name}", entries)

@@ -175,11 +175,11 @@ A value that isn't an id of the catalogue gets no link, and a warning (see "Erro
   order doesn't. `"Confirm_Order"`, the task's id, works as well as its name. Without the key, every
   event of the case is linked; with `[]`, none.
 - **`tag_along`**: every event of another case, of any process, that links the case's object, through its
-  messages or `carry_links`, also links the catalogue object of the value the attribute had when the event
+  messages or what their entries carry, also links the catalogue object of the value the attribute had when the event
   completed, with the attribute's name as qualifier. With `"tag_along": true` on the Warehouse's product
   reference, place order, which links its items, links their products too. The case's own events follow
-  `link_events` alone. Only references tag along; links between two processes' objects are passed on by
-  `carry_links`.
+  `link_events` alone. Only references tag along; links between two processes' objects are passed on by a
+  message entry's `carry`.
 - A process without an `object_type` writes no objects and no events, so its references link nothing;
   their values still count as referred to, so the pool objects they name are written.
 
@@ -423,7 +423,6 @@ configuration, `testing_scripts/assets/order_management/simulation.json`:
           "arrivals": 2000,
           "object_type": "order",
           "qualifier": "order",
-          "carry_links": true,
           "ocel_attributes": ["price"],
           "references": [
             {"object_attribute": "customer", "catalogue": "customer",
@@ -460,8 +459,7 @@ configuration, `testing_scripts/assets/order_management/simulation.json`:
             "Resend_Package": "shipped package",
             "Failed_Delivery": "shipped package",
             "Package_Delivered": "shipped package"
-          },
-          "carry_links": true
+          }
         }
       ]
     }

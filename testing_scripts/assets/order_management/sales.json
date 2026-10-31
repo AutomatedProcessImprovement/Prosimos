@@ -238,6 +238,7 @@
           "customer"
         ],
         "qualifier": "item",
+        "carry": true,
         "o2o": "comprises"
       }
     ]

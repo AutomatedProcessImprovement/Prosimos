@@ -155,11 +155,11 @@ product (`product`); customers don't tag along, so pay order links no customer:
 | Event                                            | Linked to                                                                                                              |
 |--------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|
 | place order                                      | its order (`order`), the items its ItemOrdered messages started (`item`), their products and its customer (`customer`) |
-| confirm order                                    | its order, its customer and, with `carry_links`, its items and their products                                          |
-| payment reminder, pay order                      | its order and, with `carry_links`, its items and their products                                                        |
+| confirm order                                    | its order, its customer and, carried, its items and their products                                                     |
+| payment reminder, pay order                      | its order and, carried, its items and their products                                                                   |
 | every event of an item                           | its item (`item`) and its product (`product`), from the Warehouse's product reference; not its order or its package    |
 | create package                                   | its package (`creates`), the items it collected (`item`) and their products                                            |
-| send package, failed delivery, package delivered | its package (`shipped package`) and, with `carry_links`, its items and their products                                  |
+| send package, failed delivery, package delivered | its package (`shipped package`) and, carried, its items and their products                                             |
 
 Objects are linked to each other too: each order **comprises** its items (`"o2o": "comprises"` on Sales's
 ItemOrdered entry), each package **contains** its items (`"o2o": "contains"` on Packaging's ItemPicked entry),
@@ -191,6 +191,7 @@ links already (`customer`, `product`), and stay in the CSV log only. A packing r
 same moment, so its package gets one weight, the sum of its items', without the running totals in between or the
 starting 0.
 
-Sales and Packaging have `carry_links`; Warehouse doesn't, so a reorder is linked only to its item and its
-product. A packing round that never took an item has no events and no links, so the OCEL file leaves its package
-out; the run report still lists it as stalled.
+Sales's ItemOrdered entry and Packaging's ItemPicked entry carry their links to the later events of their case
+(`"carry": true`, see [messaging.md](messaging.md)); the Warehouse's entries don't, so a reorder is linked only to
+its item and its product. A packing round that never took an item has no events and no links, so the OCEL file
+leaves its package out; the run report still lists it as stalled.

@@ -212,9 +212,10 @@ class ProsimosEngine(SimulationEngine):
             return tuple(found)
 
         published = [PublishRecord(message.id, self._env.object_id(p_case), element_id, point.qualifier or "",
-                                   task_rows(p_case, element_id, when, False, point.qualifier), point.o2o)
+                                   task_rows(p_case, element_id, when, False, point.qualifier), point.o2o,
+                                   point.carry)
                      for message, p_case, element_id, point, when in self._published]
         claimed = [ClaimRecord(message_id, self._env.object_id(p_case), element_id, point.qualifier or "",
-                               task_rows(p_case, element_id, when, True, point.qualifier), point.o2o)
+                               task_rows(p_case, element_id, when, True, point.qualifier), point.o2o, point.carry)
                    for message_id, p_case, element_id, point, when in self._claimed]
         return published, claimed

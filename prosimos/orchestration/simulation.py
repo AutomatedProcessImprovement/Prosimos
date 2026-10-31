@@ -65,7 +65,7 @@ def run_multiprocess_simulation(config: SimulationConfig, log_out_path: Optional
         merged_log.write(log_out_path)
     if ocel_out_path is not None:
         processes = {spec.name: OcelProcess(spec.object_type, spec.qualifier, dict(spec.qualifier_by_activity),
-                                            spec.carry_links, spec.ocel_attributes) for spec in config.processes}
+                                            spec.ocel_attributes) for spec in config.processes}
         static_objects, reference_object_links, reference_event_links = _reference_links(
             config, catalogue, processes, report.objects, merged_log.rows, report.logged_elements,
             report.warnings.append)

@@ -142,6 +142,6 @@ def test_the_records_are_in_the_report_as_json():
     # the links attach to row 0 of each log: order-0's place order and item-0's pick item
     assert first == {"message": report.published[0].id, "type": "ItemOrdered",
                      "publisher": {"process": "Sales", "object_id": "order-0", "element_id": "Throw_Items",
-                                   "qualifier": "ItemOrdered", "task_rows": [0], "o2o": None},
+                                   "qualifier": "ItemOrdered", "task_rows": [0], "o2o": None, "carry": False},
                      "claimers": [{"process": "Picking", "object_id": "item-0", "element_id": "Start_Item",
-                                   "qualifier": "ItemOrdered", "task_rows": [0], "o2o": None}]}
+                                   "qualifier": "ItemOrdered", "task_rows": [0], "o2o": None, "carry": False}]}

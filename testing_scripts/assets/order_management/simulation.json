@@ -39,7 +39,6 @@
           "arrivals": 2000,
           "object_type": "order",
           "qualifier": "order",
-          "carry_links": true,
           "ocel_attributes": ["price"],
           "references": [
             {"object_attribute": "customer", "catalogue": "customer",
@@ -76,8 +75,7 @@
             "Resend_Package": "shipped package",
             "Failed_Delivery": "shipped package",
             "Package_Delivered": "shipped package"
-          },
-          "carry_links": true
+          }
         }
       ]
     }

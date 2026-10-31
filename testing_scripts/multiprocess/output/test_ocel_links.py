@@ -1,7 +1,7 @@
 """
 One event linked to many objects (docs/orchestrator.md, "OCEL output"): the task next to a message's throw or
-catch event links the objects on the other end of the message, and with carry_links every later event of the
-case links them too.
+catch event links the objects on the other end of the message, and with carry on its message entry every later
+event of the case, or those it names, links them too.
 """
 import dataclasses
 import json
@@ -106,7 +106,7 @@ def test_every_create_package_is_linked_to_exactly_the_items_its_package_collect
     assert any(len(items_of_package[_owner(event)[0]]) > 1 for event in events)
 
 
-def test_with_carry_links_the_later_events_of_a_package_link_its_items_too(order_management):
+def test_carried_the_later_events_of_a_package_link_its_items_too(order_management):
     _, ocel, items_of_package = order_management
 
     for activity in ("send package", "package delivered", "failed delivery"):
@@ -118,7 +118,7 @@ def test_with_carry_links_the_later_events_of_a_package_link_its_items_too(order
             assert _linked(event, "item") == items_of_package[package]
 
 
-def test_with_carry_links_the_later_events_of_an_order_link_its_items_too(order_management):
+def test_carried_the_later_events_of_an_order_link_its_items_too(order_management):
     report, ocel, _ = order_management
     items_of_order = _items_of_orders(report)
 
@@ -128,8 +128,8 @@ def test_with_carry_links_the_later_events_of_an_order_link_its_items_too(order_
             assert _linked(event, "item") == items_of_order[order]
 
 
-def test_without_carry_links_an_event_links_only_what_its_own_messages_linked(order_management):
-    # Warehouse has no carry_links: a reorder takes and sends no message, so it links only its own item, and the
+def test_not_carried_an_event_links_only_what_its_own_messages_linked(order_management):
+    # the Warehouse's entries don't carry: a reorder takes and sends no message, so it links only its own item, and the
     # item's product, from the reference that picks it
     _, ocel, _ = order_management
 
@@ -289,26 +289,51 @@ def _row(case, activity, end):
                  "end_time": at}
 
 
-def _relationships(tmp_path, process):
-    """Case 0 of P logs A then B; A's message linked object q-0. Each event's (object, qualifier) links."""
+def _relationships(tmp_path, process, carry=False):
+    """Case 0 of P logs A then B; A's message linked object q-0, its entry carrying it with carry. Each event's
+    (object, qualifier) links."""
     rows = [_row(0, "a", 1), _row(0, "b", 2), _row(1, "b", 3)]
     objects = [(name, CaseObject(f"{object_type}-{case}", START.replace(minute=case)))
                for name, object_type in (("P", "p"), ("Q", "q")) for case in range(2)]
     write_ocel(tmp_path / "log.json", {"P": process, "Q": OcelProcess("q")}, objects, rows, {"P": ["A", "B", "B"]},
-               {("P", 0): [(("Q", "q-0"), "item")]})
+               {("P", 0): [(("Q", "q-0"), "item", carry)]})
     with open(tmp_path / "log.json") as file:
         return [[(link["objectId"], link["qualifier"]) for link in event["relationships"]]
                 for event in json.load(file)["events"]]
 
 
-def test_carry_links_is_off_by_default(tmp_path):
+def test_without_carry_a_link_stays_on_its_own_event(tmp_path):
     assert _relationships(tmp_path, OcelProcess("p")) == [
         [("p-0", "p"), ("q-0", "item")], [("p-0", "p")], [("p-1", "p")]]
 
 
-def test_carry_links_passes_a_cases_links_to_its_later_events_only(tmp_path):
-    assert _relationships(tmp_path, OcelProcess("p", carry_links=True)) == [
+def test_carry_passes_an_entry_s_links_to_the_later_events_of_its_case_only(tmp_path):
+    assert _relationships(tmp_path, OcelProcess("p"), True) == [
         [("p-0", "p"), ("q-0", "item")], [("p-0", "p"), ("q-0", "item")], [("p-1", "p")]]
+
+
+def _carried(tmp_path, links):
+    """Case 0 of P logs A, B, C and D; links are those of A's messages, as (object, qualifier, carry). Each later
+    event's links to Q's objects."""
+    rows = [_row(0, activity, minute) for minute, activity in enumerate("abcd", start=1)]
+    objects = [("P", CaseObject("p-0", START))] + [("Q", CaseObject(f"q-{case}", START)) for case in range(2)]
+    write_ocel(tmp_path / "log.json", {"P": OcelProcess("p"), "Q": OcelProcess("q")}, objects, rows,
+               {"P": ["A", "B", "C", "D"]}, {("P", 0): links})
+    with open(tmp_path / "log.json") as file:
+        return [[(link["objectId"], link["qualifier"]) for link in event["relationships"][1:]]
+                for event in json.load(file)["events"]][1:]
+
+
+def test_a_case_with_two_message_entries_carries_only_the_marked_one(tmp_path):
+    # A published to q-0 (items, carried) and claimed from q-1 (a shipment, not carried)
+    assert _carried(tmp_path, [(("Q", "q-0"), "item", True), (("Q", "q-1"), "shipment", False)]) == [
+        [("q-0", "item")], [("q-0", "item")], [("q-0", "item")]]
+
+
+def test_a_list_of_activities_carries_only_to_those_events(tmp_path):
+    # by name or by task id, as in link_events
+    assert _carried(tmp_path, [(("Q", "q-0"), "item", ("b",)), (("Q", "q-1"), "shipment", ("D",))]) == [
+        [("q-0", "item")], [], [("q-1", "shipment")]]
 
 
 def test_the_own_qualifier_defaults_to_the_object_type_and_can_be_set_per_activity(tmp_path):
@@ -464,4 +489,5 @@ def test_a_message_attached_to_several_tasks_links_its_objects_from_each():
                            [CaseElement("P", "P-0", "Catch_Go", "sender", (1, 2))])
 
     assert _message_links([record], {"S": OcelProcess("s"), "P": OcelProcess("p")}) == {
-        ("S", 4): [(("P", "P-0"), "go")], ("P", 1): [(("S", "S-0"), "sender")], ("P", 2): [(("S", "S-0"), "sender")]}
+        ("S", 4): [(("P", "P-0"), "go", False)], ("P", 1): [(("S", "S-0"), "sender", False)],
+        ("P", 2): [(("S", "S-0"), "sender", False)]}

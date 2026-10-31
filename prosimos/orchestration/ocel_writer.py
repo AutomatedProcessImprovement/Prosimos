@@ -31,7 +31,6 @@ class OcelProcess:
     object_type: Optional[str]  # of its cases; None leaves the process out
     qualifier: Optional[str] = None  # of each event's link to its own case's object; None means object_type
     qualifier_by_activity: Dict[str, str] = field(default_factory=dict)  # task id -> qualifier, overriding it
-    carry_links: bool = False  # later events of a case also link the objects its messages linked
     attributes: Tuple[str, ...] = ()  # the attributes written to its objects; the others are left out
 
 
@@ -61,17 +60,18 @@ def write_ocel(path, processes, objects, rows, logged_elements=None, message_lin
     rows: (process, {column: value}) for every logged task, as in the merged CSV log, each process's in the
     order it logged them;
     logged_elements: process -> the element id of each of its rows, in order (for qualifier_by_activity);
-    message_links: (process, row of that process) -> [((process, object id), qualifier)], the links the event of
-    that row gets through its messages;
+    message_links: (process, row of that process) -> [((process, object id), qualifier, carry)], the links the event
+    of that row gets through its messages, and which later events of its case link them too (carry: True for every
+    one, else the activities, task names or ids, it names; False for none);
     object_links: object -> [(object, qualifier)], its links to other objects, each a case's object as (process,
     object id) or a catalogue object as its id;
     static_objects: (object type, id, attributes as (attribute, value, time)) for every object with no events
     of its own, all its attributes written;
     reference_links: (process, row of that process) -> [(object id, qualifier)], the links the event of that
-    row gets to such objects (never carried by carry_links);
+    row gets to such objects (never carried);
     tag_along: (process, object id) -> [(qualifier, [(time, [object id, ...])])], the objects with no events of their
     own that a case's object names, each list from its time on: every event of another case that links the case's
-    object, through its messages or carry_links, also links those named when the event completed, with that
+    object, through its messages or what they carry, also links those named when the event completed, with that
     qualifier.
     """
     processes = {name: _settings(processes, name) for name in processes}
@@ -115,19 +115,22 @@ def write_ocel(path, processes, objects, rows, logged_elements=None, message_lin
             continue
         element_id = logged_elements[process][number] if process in logged_elements else None
         own_qualifier = settings.qualifier_by_activity.get(element_id, settings.qualifier or settings.object_type)
+        links = message_links.get((process, number), [])
         logged.append({"time": _as_datetime(row["end_time"]), "process": process, "number": number, "row": row,
                        "own": (ids[(process, f"{settings.object_type}-{row['case_id']}")], own_qualifier),
-                       "links": [(ids[end], qualifier) for end, qualifier in message_links.get((process, number), [])],
+                       "links": [(ids[end], qualifier) for end, qualifier, _ in links],
+                       "carries": [(ids[end], qualifier, carry) for end, qualifier, carry in links if carry],
+                       "activities": {row["activity"], element_id},
                        "carried": [],
                        "references": list(reference_links.get((process, number), []))})
 
-    # with carry_links, every later event of a case also links what its earlier events linked through messages
-    linked_so_far = {}
+    # a link whose message entry carries it passes on to the later events of the case: every one, or those it names
+    carried_so_far = {}
     for event in sorted(logged, key=lambda event: (event["time"], event["number"])):
-        if processes[event["process"]].carry_links:
-            case_links = linked_so_far.setdefault((event["process"], event["row"]["case_id"]), [])
-            event["carried"] = list(case_links)
-            case_links.extend(event["links"])
+        case_links = carried_so_far.setdefault((event["process"], event["row"]["case_id"]), [])
+        event["carried"] = [(object_id, qualifier) for object_id, qualifier, carry in case_links
+                            if carry is True or event["activities"] & set(carry)]
+        case_links.extend(event["carries"])
 
     # the rows come in the order events were executed; events are listed in time order, a task's
     # event at the time it was completed
@@ -175,14 +178,14 @@ def write_ocel(path, processes, objects, rows, logged_elements=None, message_lin
 
 def _referred(processes, rows, message_links):
     """(process, object id) of every case's object some event refers to: the own object of each logged task of a
-    process with an object type, and the objects its messages link (carry_links only passes those on)."""
+    process with an object type, and the objects its messages link (carry only passes those on)."""
     referred, rows_so_far = set(), {}
     for process, row in rows:
         number = rows_so_far[process] = rows_so_far.get(process, -1) + 1
         settings = processes.get(process)
         if settings is not None and settings.object_type is not None:
             referred.add((process, f"{settings.object_type}-{row['case_id']}"))
-            referred.update(end for end, _ in message_links.get((process, number), []))
+            referred.update(end for end, *_ in message_links.get((process, number), []))
     return referred
 
 

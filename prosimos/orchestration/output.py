@@ -87,10 +87,10 @@ def _plain(element: CaseElement) -> Dict[str, Any]:
 
 
 def _message_links(records: List[MessageRecord], processes: Dict[str, OcelProcess]):
-    """(process, row of that process) -> [((process, object id), qualifier)]: the tasks a publisher's records
+    """(process, row of that process) -> [((process, object id), qualifier, carry)]: the tasks a publisher's records
     attach to link the object of every case that claimed the message, and the tasks a claimer's records attach to
-    link the publisher's object, each with its own end's qualifier. Ends without a qualifier or a task, or whose other
-    end's process writes no objects, link nothing."""
+    link the publisher's object, each with its own end's qualifier and carry (which later events of its case link
+    it too). Ends without a qualifier or a task, or whose other end's process writes no objects, link nothing."""
     def has_object(element):
         return element.process in processes and processes[element.process].object_type is not None
 
@@ -101,9 +101,11 @@ def _message_links(records: List[MessageRecord], processes: Dict[str, OcelProces
         publisher = record.publisher
         for claimer in record.claimers:
             for row in publisher.task_rows if has_object(claimer) else ():
-                links[(publisher.process, row)].append(((claimer.process, claimer.object_id), publisher.qualifier))
+                links[(publisher.process, row)].append(((claimer.process, claimer.object_id), publisher.qualifier,
+                                                        publisher.carry))
             for row in claimer.task_rows if has_object(publisher) else ():
-                links[(claimer.process, row)].append(((publisher.process, publisher.object_id), claimer.qualifier))
+                links[(claimer.process, row)].append(((publisher.process, publisher.object_id), claimer.qualifier,
+                                                      claimer.carry))
     return dict(links)
 
 

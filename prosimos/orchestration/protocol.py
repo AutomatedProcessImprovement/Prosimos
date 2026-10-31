@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 
 @dataclass
@@ -55,6 +55,9 @@ class PublishRecord:
     qualifier: str = ""
     task_rows: Tuple[int, ...] = ()
     o2o: Optional[str] = None  # qualifier of the OCEL link from its case's object to the other end's, if any
+    # the later events of its case that also link the other end's object: True for every one, else the activities
+    # (task names or ids) named; False for none
+    carry: Union[bool, Tuple[str, ...]] = False
 
 
 @dataclass(frozen=True)
@@ -70,6 +73,9 @@ class ClaimRecord:
     qualifier: str = ""
     task_rows: Tuple[int, ...] = ()
     o2o: Optional[str] = None  # qualifier of the OCEL link from its case's object to the other end's, if any
+    # the later events of its case that also link the other end's object: True for every one, else the activities
+    # (task names or ids) named; False for none
+    carry: Union[bool, Tuple[str, ...]] = False
 
 
 @dataclass
@@ -109,6 +115,9 @@ class CaseElement:
     qualifier: str = ""
     task_rows: Tuple[int, ...] = ()
     o2o: Optional[str] = None  # qualifier of the OCEL link from its case's object to the other end's, if any
+    # the later events of its case that also link the other end's object: True for every one, else the activities
+    # (task names or ids) named; False for none
+    carry: Union[bool, Tuple[str, ...]] = False
 
 
 @dataclass

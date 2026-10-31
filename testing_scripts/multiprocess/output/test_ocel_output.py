@@ -234,7 +234,7 @@ def test_an_object_no_event_refers_to_is_left_out_with_its_links_but_catalogue_o
     objects = [("P", CaseObject(f"p-{case}", START)) for case in range(2)] + [
         ("Q", CaseObject(f"q-{case}", START.replace(minute=case))) for case in range(2)]
     write_ocel(tmp_path / "log.json", {"P": OcelProcess("p"), "Q": OcelProcess("q")}, objects,
-               [_row("P", 0, START.replace(minute=5))], None, {("P", 0): [(("Q", "q-1"), "item")]},
+               [_row("P", 0, START.replace(minute=5))], None, {("P", 0): [(("Q", "q-1"), "item", False)]},
                {("P", "p-0"): [(("Q", "q-0"), "waits for"), (("Q", "q-1"), "ships")],
                 ("P", "p-1"): [("c1", "placed by")], "c1": [(("P", "p-0"), "places"), (("P", "p-1"), "places")]},
                [("customer", "c1", []), ("customer", "c2", [])])

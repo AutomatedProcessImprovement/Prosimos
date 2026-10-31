@@ -276,6 +276,17 @@ from the taking case's object to the publisher's. Without it, no such link is wr
 `"o2o": "contains"` on Packaging's `ItemPicked` entry, each package contains the items whose messages it
 took. A link is written once, however many messages give it. It must be a non-empty string.
 
+**carry** (optional, on an entry with a `qualifier`) passes this end's links on to the later events of the same
+case ([orchestrator.md](orchestrator.md), "One event linked to many objects"): with `true`, every later event of
+the case also links the objects this entry's messages linked; with a list of activities (task names or ids, as
+in a reference's `link_events`), only those. Later means after the task the entry's links attach to. Without it, a
+link stays on its own event. In Order Management, Sales's `ItemOrdered` entry and Packaging's `ItemPicked` entry
+have `"carry": true`: confirm order, payment reminder and pay order link the order's items, and send package and
+its delivery events the package's items. A case with several entries carries only the links of those that say
+so, e.g. an order's items to every later event but a shipment it received only to `["confirm delivery"]`. A
+carried link needs its role word, so `carry` without a `qualifier` on the same entry is a load error, as is an
+activity that isn't a task of the model.
+
 One event may appear in several entries: under `publish`, passing it publishes one message per
 entry (or `count` messages); under `consume`, a case waiting there accepts any of the entries' types. To wait for all of
 them, use one catch event per message.
@@ -317,7 +328,7 @@ The section is checked when the model is loaded. An invalid section stops loadin
 - The section holds only `publish` and `consume`, each a list.
 - No key is unknown: in the section, its entries, their `count`, `collect` and `capacity`, and condition
   terms. A misspelled key would otherwise be ignored and change the run without any message:
-  `messages.consume[0]: unknown key 'colect'; allowed: aggregate, append, capacity, collect, condition, copy, event_id, o2o, qualifier, same, type`.
+  `messages.consume[0]: unknown key 'colect'; allowed: aggregate, append, capacity, carry, collect, condition, copy, event_id, o2o, qualifier, same, type`.
 - Every `event_id` exists in the BPMN model.
 - A `publish` event is an intermediate message throw event or a message end event.
 - A `consume` event is an intermediate message catch event or a message start event.
@@ -359,7 +370,8 @@ The section is checked when the model is loaded. An invalid section stops loadin
 - `collect` and `capacity` aren't on the same entry (see "Many messages for many cases").
 - `same` is a non-empty list of message attribute names, each listed once, on an entry with `collect`:
   without one, a case takes a single message, so there is nothing to compare it with.
-- `qualifier` and `o2o`, where given, are non-empty strings.
+- `qualifier` and `o2o`, where given, are non-empty strings; `carry` is `true`, `false` or a list of the model's
+  tasks (names or ids), and only on an entry with a `qualifier`.
 - A process started by messages (a `consume` entry on its start event) has exactly one start event,
   and the start event's condition uses only fixed values and `source`, not `object_attribute`: there
   is no case yet to compare with.
