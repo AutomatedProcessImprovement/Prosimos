@@ -11,7 +11,7 @@ from heapq import heappop, heappush
 from prosimos.branch_condition_rules import BranchConditionRule
 from prosimos.control_flow_manager import BPMN
 from prosimos.execution_info import EnabledEvent
-from prosimos.messaging.parser import is_whole_number, is_whole_number_of_at_least_one
+from prosimos.messaging.parser import is_number, is_whole_number, is_whole_number_of_at_least_one
 from prosimos.warning_logger import warning_logger
 
 
@@ -491,7 +491,7 @@ class EngineMessaging:
                         f"{target}; {target} is left unchanged")
                 continue
             value = values[source_name]
-            if function != "count" and not _is_number(value):
+            if function != "count" and not is_number(value):
                 if (point.event_id, source_name) not in self._warned_not_numbers:
                     self._warned_not_numbers.add((point.event_id, source_name))
                     warning_logger.add_warning(
@@ -716,10 +716,6 @@ class EngineMessaging:
     def waiting_for(self, event_id):
         """The message types a case waiting at event_id accepts."""
         return sorted({point.type for point in self._consume_points[event_id]})
-
-
-def _is_number(value):
-    return isinstance(value, numbers.Real) and not isinstance(value, bool)
 
 
 def _aggregated(function, values, initial=None):

@@ -16,7 +16,7 @@ import numpy as np
 
 from prosimos.case_attributes import CaseAttribute
 from prosimos.control_flow_manager import BPMN
-from prosimos.messaging.engine import _aggregated, _is_number
+from prosimos.messaging.engine import _aggregated
 from prosimos.messaging.model import AGGREGATE_FUNCTIONS
 from prosimos.messaging.parser import is_number, is_whole_number
 from prosimos.orchestration.catalogue.model import (CatalogueChange, CatalogueObject, CataloguePool, Computed, CountFrom,
@@ -168,7 +168,7 @@ def _change_problems(change, catalogues, owners):
         missing = [obj.id for obj in changed if change.attribute not in dict(obj.attributes)]
         if missing:
             return [f"changes {change.attribute!r}, which objects {missing} of catalogue {name!r} don't have"]
-        not_numbers = [obj.id for obj in changed if not _is_number(dict(obj.attributes)[change.attribute])]
+        not_numbers = [obj.id for obj in changed if not is_number(dict(obj.attributes)[change.attribute])]
         if arithmetic and not_numbers:
             return [f"{change.operation} needs a number, and {change.attribute!r} of objects {not_numbers} of catalogue "
                     f"{name!r} isn't one"]
@@ -245,7 +245,7 @@ def _drawn_as_numbers(attribute):
     if attribute.get("type") == "continuous":
         return True
     values = attribute.get("values")
-    return isinstance(values, list) and all(isinstance(value, dict) and _is_number(value.get("key")) for value in values)
+    return isinstance(values, list) and all(isinstance(value, dict) and is_number(value.get("key")) for value in values)
 
 
 def _settings_problems(verb, attribute, process, specs):
@@ -327,7 +327,7 @@ def _with_problems(reference, entry, specs, picked, brought):
         else:
             missing = [name for name in sources if not all(name in dict(obj.attributes) for obj in entry)]
             not_numbers = [name for name in numeric if name not in missing
-                           and not all(_is_number(dict(obj.attributes)[name]) for obj in entry)]
+                           and not all(is_number(dict(obj.attributes)[name]) for obj in entry)]
         if missing:
             return [f"with names {missing}, which not every object of catalogue {reference.catalogue!r} has"]
         if not_numbers:

@@ -5,6 +5,7 @@ it publishes or accepts. Parsing and validation only; the engine acts on the res
 """
 import json
 import math
+import numbers
 import xml.etree.ElementTree as ET
 from collections import Counter
 
@@ -239,7 +240,7 @@ def _check_collect_has_its_own_event(collecting, consume):
 
 
 def is_number(value):
-    return isinstance(value, (int, float)) and not isinstance(value, bool)
+    return isinstance(value, numbers.Real) and not isinstance(value, bool)
 
 
 def is_whole_number(value, minimum):
