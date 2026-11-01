@@ -1,8 +1,4 @@
-"""
-The optional 'messages' section of a process's JSON settings (docs/messaging.md). The BPMN
-model says where a process publishes, waits or is started (message events); this section says what
-it publishes or accepts. Parsing and validation only; the engine acts on the result.
-"""
+"""Reads a process's 'messages' section and checks it against its BPMN model (docs/messaging.md)."""
 import json
 import math
 import numbers
@@ -24,9 +20,8 @@ CONSUME_KEYS = {"event_id", "type", "condition", "copy", "append", "aggregate", 
 
 
 def parse_messages_file(json_path, bpmn_path, also_declared=()) -> MessagingModel:
-    """also_declared: names of case attributes given from outside the JSON settings (e.g. picked by the
-    orchestrator's references), which messages may use too. The settings are read in Prosimos's names
-    (case_attributes), as the orchestrator's loader hands them over (load_process)."""
+    """Reads the 'messages' section of json_path, in Prosimos's names (case_attributes), as load_process hands
+    them over. also_declared: attributes given from outside the settings, e.g. picked, which messages may use too."""
     with open(json_path) as json_file:
         settings = json.load(json_file)
     return parse_messages(settings.get("messages"), bpmn_path, declared_attributes(settings) | set(also_declared),
@@ -39,7 +34,7 @@ def declared_attributes(settings):
              for attribute in settings.get(section, [])}
     names.update(attribute["name"] for event in settings.get("event_attributes", [])
                  for attribute in event["attributes"])
-    # attributes a consume entry copies or appends from a message into the case can be published too
+    # attributes a consume entry copies, appends or aggregates into can be published too
     messages = settings.get("messages")
     consume = messages.get("consume", []) if isinstance(messages, dict) else []
     names.update(target for entry in consume if isinstance(entry, dict) for key in ("copy", "append", "aggregate")
@@ -48,9 +43,8 @@ def declared_attributes(settings):
 
 
 def parse_messages(messages_json, bpmn_path, declared_attributes, case_attributes=()) -> MessagingModel:
-    """Validates the 'messages' section against the BPMN model and the declared attribute names; case_attributes
-    are the names drawn by the process's case_attributes, which append can't add to. None (no section) gives an
-    empty model, so processes without messages behave as before."""
+    """Checks the 'messages' section against the BPMN model and the declared attributes; None gives an empty
+    model. case_attributes: the attributes the process draws, which append can't add to."""
     if messages_json is None:
         return MessagingModel()
     if not isinstance(messages_json, dict):
@@ -59,8 +53,7 @@ def parse_messages(messages_json, bpmn_path, declared_attributes, case_attribute
 
     events, gateway_branches = _bpmn_events(bpmn_path)
     tasks = _tasks(bpmn_path)
-    # consume first, so that a malformed copy (whose targets publish entries may use) is reported
-    # as such rather than as an undeclared published attribute
+    # consume first, so a malformed copy is reported as such, not as an undeclared published attribute
     consume, collecting = [], []
     # count gets its own reason below
     for where, entry in _entries(messages_json, "consume", CONSUME_KEYS, events, CONSUMING_EVENTS, ("count",)):
@@ -95,8 +88,7 @@ def parse_messages(messages_json, bpmn_path, declared_attributes, case_attribute
 
 
 def _check_start(where, point, events):
-    # Prosimos runs one start event per process, so a process is started either by its arrival
-    # schedule or by messages, and there is no case yet for a condition to compare with
+    # Prosimos runs one start event per process, and at the start there is no case to compare with yet
     starts = sorted(event_id for event_id, (kind, *_) in events.items() if kind == "startEvent")
     if len(starts) > 1:
         _fail(f"{where}: a process started by messages must have exactly one start event; "
@@ -108,9 +100,8 @@ def _check_start(where, point, events):
 
 
 def _capacity(entry, where, starts_case):
-    """(min, message attribute holding it, max, message attribute holding it), each bound fixed or read from the
-    message: {"min": 2, "max": {"attribute": "capacity"}}, {"min": 2} for (2, no limit), 2 for (1, 2),
-    {"attribute": "capacity"} for (1, capacity)."""
+    """(min, its message attribute, max, its message attribute): e.g. {"min": 2, "max": {"attribute": "capacity"}},
+    2 for (1, 2), {"min": 2} for (2, no limit)."""
     if "capacity" not in entry:
         return 1, None, 1, None
     if starts_case:
@@ -139,8 +130,6 @@ def _capacity(entry, where, starts_case):
 
 
 def _capacity_bound(capacity, name, where):
-    """(fixed number, message attribute holding it) of capacity's bound name (min or max): 2 or
-    {"attribute": "capacity"}."""
     bound = capacity[name]
     if isinstance(bound, dict):
         _check_keys(f"{where}.capacity.{name}", bound, {"attribute"})
@@ -153,10 +142,8 @@ def _capacity_bound(capacity, name, where):
 
 
 def _collect(entry, where, starts_case):
-    """(min, case attribute holding it, max, case attribute holding it), each bound fixed or read from the case:
-    {"min": 2, "max": 5}, {"min": {"object_attribute": "items"}}, 3 for (3, 3), {"object_attribute":
-    "items"} for both from items, "all" for (1, no limit), 0 for (0, 0). A max of None means the same as min, and
-    math.inf no limit."""
+    """(min, its case attribute, max, its case attribute): e.g. {"min": 2, "max": 5}, 3 for (3, 3), "all" for
+    (1, no limit). A max of None means the same as min."""
     if "collect" not in entry:
         return 1, None, None, None
     if starts_case:
@@ -214,8 +201,6 @@ def _same(entry, where):
 
 
 def _bound(collect, name, where):
-    """(fixed number, case attribute holding it) of collect's bound name (min or max): 2 or
-    {"object_attribute": "items"}."""
     bound = collect[name]
     if isinstance(bound, dict):
         _check_keys(f"{where}.collect.{name}", bound, {"object_attribute"})
@@ -228,8 +213,7 @@ def _bound(collect, name, where):
 
 
 def _check_collect_has_its_own_event(collecting, consume):
-    """collect is allowed only on a catch event with exactly one consume entry: a waiting case keeps one
-    count there, so it must be clear which messages it counts."""
+    """collect needs a catch event with exactly one consume entry: a waiting case keeps one count there."""
     for where, event_id in collecting:
         entries = sum(point.event_id == event_id for point in consume)
         if entries > 1:
@@ -306,8 +290,7 @@ def _aggregate(entry, where, case_attributes):
 
 
 def _check_aggregated_only(consume):
-    """An attribute some entry aggregates into is computed over the messages claimed, so no other entry may copy or
-    append into it, and every entry aggregating into it uses the same function and the same initial."""
+    """An attribute aggregated into is neither copied nor appended into, and has one function and one initial."""
     written_at = {}
     for index, point in enumerate(consume):
         for key, pairs in (("copies", point.copy), ("appends to", point.append)):
@@ -348,8 +331,7 @@ def _check_appended_only(consume):
 
 
 def _entries(messages_json, section, allowed_keys, events, allowed_kinds, own_reasons=()):
-    """Each entry of the section, with where it is; own_reasons are keys the caller rejects with a reason of their
-    own rather than as unknown."""
+    """Each entry of the section, with where it is; own_reasons: keys the caller rejects with its own reason."""
     entries = messages_json.get(section, [])
     if not isinstance(entries, list):
         _fail(f"messages.{section} must be a list")
@@ -372,17 +354,15 @@ def _check_event(where, event_id, events, allowed_kinds):
         expected = " or ".join(allowed_kinds.values())
         found = f"a message {kind}" if is_message else f"{'an' if kind[0] in 'aeiou' else 'a'} {kind}"
         _fail(f"{where}: event_id {event_id!r} is {found}, expected {expected}")
-    # several arrows into an end or catch event mean "once per arriving token" in BPMN, but Prosimos
-    # joins them (OR for end events, AND for catch events); requiring an explicit gateway avoids the
-    # question. Throw events need no rule: they get a hidden XOR join, as the standard says
+    # BPMN means once per token, but Prosimos joins several arrows into an end or catch event: ask for a gateway
     if kind in ("endEvent", "intermediateCatchEvent") and incoming != 1:
         _fail(f"{where}: event_id {event_id!r} has {incoming} incoming arrows, expected exactly one; "
               f"draw an explicit gateway before {event_id}")
 
 
 def _check_races(consume, events, gateway_branches):
-    """An event-based gateway with a branch that waits for a message is a race: every branch must be a
-    message catch event or a timer, and no branch may have a fixed collect of 0."""
+    """A race (an event-based gateway with a message branch) has only message and timer branches, none with a
+    fixed collect of 0."""
     waiting = {point.event_id for point in consume if not point.starts_case}
     for gateway_id in sorted({events[event_id][3] for event_id in waiting if events[event_id][3]}):
         branches = gateway_branches[gateway_id]
@@ -398,8 +378,7 @@ def _check_races(consume, events, gateway_branches):
 
 
 def _name(entry, key, where):
-    """An optional OCEL qualifier on the entry: 'qualifier' (of its messages' event-to-object links) or 'o2o'
-    (of the object-to-object link they give); None without the key."""
+    """The entry's optional OCEL qualifier, 'qualifier' or 'o2o'; None without the key."""
     if key not in entry:
         return None
     if not isinstance(entry[key], str) or not entry[key].strip():
@@ -408,9 +387,7 @@ def _name(entry, key, where):
 
 
 def _carry(entry, where, tasks):
-    """The optional 'carry' of an entry: true, every later event of the case also links what the entry's messages
-    link; a list of activities (task names or ids, as in a reference's link_events), only those later events. The
-    links it carries need their role word, so the entry needs a qualifier."""
+    """The entry's optional 'carry': true, or a list of activities; it needs a qualifier on the entry."""
     if "carry" not in entry:
         return False
     carry = entry["carry"]
@@ -432,9 +409,8 @@ def _tasks(bpmn_path):
 
 
 def _count(entry, where, declared):
-    """(fixed number of messages, case attribute holding it, case attribute holding a list, the name each
-    message carries its entry under): 3, {"object_attribute": "items"} or {"list": "item_ids", "as": "item_id"}; all
-    None without count."""
+    """(number, its case attribute, a list attribute, the name each message carries its entry under): e.g. 3,
+    {"object_attribute": "items"} or {"list": "item_ids", "as": "item_id"}; all None without count."""
     if "count" not in entry:
         return None, None, None, None
     count = entry["count"]
@@ -546,8 +522,8 @@ def _bpmn_events(bpmn_path):
 
 
 def unknown_keys(where, mapping, allowed):
-    """The load error for the keys of mapping that aren't allowed, naming them, where they are and the allowed
-    keys; None if there are none. Ignored, a misspelled key would change the run without any message."""
+    """The load error naming the keys of mapping that aren't allowed; None if there are none. A misspelled key
+    would otherwise change the run silently."""
     unknown = [key for key in mapping if key not in allowed]
     if not unknown:
         return None
