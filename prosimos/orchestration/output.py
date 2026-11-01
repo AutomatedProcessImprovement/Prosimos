@@ -6,9 +6,9 @@ import csv
 from collections import defaultdict
 from dataclasses import asdict
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
-from prosimos.orchestration.catalogue import CatalogueObject, GrowingCatalogue
+from prosimos.orchestration.catalogue import CatalogueObject, GrowingCatalogue, _Timetable
 from prosimos.orchestration.config import SimulationConfig
 from prosimos.orchestration.ocel_writer import OcelProcess
 from prosimos.orchestration.protocol import CaseElement, MessageRecord
@@ -135,13 +135,15 @@ def _object_links(records: List[MessageRecord], processes: Dict[str, OcelProcess
 
 
 def _reference_links(config: SimulationConfig, catalogue: Dict[str, List[CatalogueObject]],
-                     processes: Dict[str, OcelProcess], objects, rows, logged_elements, warn):
+                     processes: Dict[str, OcelProcess], objects, rows, logged_elements, warn,
+                     timetables: Optional[Dict[str, _Timetable]] = None):
     """
     The catalogue's objects (catalogue: every organization's, as _grown_catalogues gives them), as (catalogue name, id, [(attribute,
     value, time)]): every object of a listed catalogue, and the objects of a pool or a growing catalogue that some
     case's referenced attribute names; their attributes are timed at the start of the run, a growing catalogue's
-    when the first case took its id; and the links its references give, joined with the case objects and log rows
-    after the run:
+    when the first case took its id, each with the value valid then (timetables: catalogue name -> its
+    organization's timetable; none, values that never change); and the links its references give, joined with the
+    case objects and log rows after the run:
     - object -> [(object, qualifier)]: a reference with o2o links the object of every case of its process, as
       (process, object id), to the catalogue object of each value its attribute took, as its id (reverse: from
       the catalogue object);
@@ -215,7 +217,12 @@ def _reference_links(config: SimulationConfig, catalogue: Dict[str, List[Catalog
         growing = isinstance(config.catalogue[name], GrowingCatalogue)
         return first_taken[(name, object_id)] if growing else config.start_datetime
 
-    static_objects = [(name, obj.id, [(attribute, value, time_of(name, obj.id)) for attribute, value in obj.attributes])
+    def valid(name, object_id, attribute, value):
+        time = time_of(name, object_id)
+        return value if timetables is None else timetables[name].value(name, attribute, object_id, value, time), time
+
+    static_objects = [(name, obj.id, [(attribute, *valid(name, obj.id, attribute, value))
+                                      for attribute, value in obj.attributes])
                       for name, catalogue_objects in catalogue.items() for obj in catalogue_objects
                       if isinstance(config.catalogue[name], list) or (name, obj.id) in referred]
     return static_objects, dict(object_links), dict(event_links)

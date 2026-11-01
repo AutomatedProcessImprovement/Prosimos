@@ -207,9 +207,10 @@ def _received(report, process):
             for name, case in report.objects if name == process}
 
 
-def _warehouse_receiving(tmp_path, sent):
+def _warehouse_receiving(tmp_path, sent, changes=()):
     """Picking sends one ItemOrdered per product of sent, from 09:00, ten minutes apart; the Warehouse copies product
-    from it, and its reference, without a pick, brings that product's weight and price into the item. The report."""
+    from it, and its reference, without a pick, brings that product's weight and price into the item, as 'changes'
+    change them. The report."""
     folder = CONFIG.replace("simulation.json", "")
     with open(folder + "warehouse.json") as file:
         warehouse = json.load(file)
@@ -218,7 +219,8 @@ def _warehouse_receiving(tmp_path, sent):
     reference = Reference("product", "product", o2o="is a", with_attributes=(("weight", "weight"), ("price", "price")))
     shop = Organization("Shop", [ProcessSpec("Warehouse", folder + "warehouse.bpmn", str(tmp_path / "warehouse.json"),
                                              None, "item", ocel_attributes=("weight", "price"),
-                                             references=(reference,))], {"product": PRODUCT_OBJECTS})
+                                             references=(reference,))], {"product": PRODUCT_OBJECTS},
+                        tuple(changes))
     picking = ScriptedEngine("Picking")
     for number, product in enumerate(sent):
         picking.publish_at(at(f"09:{10 * number:02}"), "ItemOrdered", object_id=f"order-{number}", index=1,

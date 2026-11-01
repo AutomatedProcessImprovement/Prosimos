@@ -7,8 +7,10 @@ from __future__ import annotations
 import json
 import random
 import re
+from bisect import bisect_right
 from collections import Counter, defaultdict
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -80,6 +82,33 @@ class CountFrom:
 
 
 @dataclass(frozen=True)
+class CatalogueChange:
+    """A change of one attribute of a catalogue's objects on the clock, from an organization's catalogue_changes:
+    repeated every period (every), counted from the start of the run, or once, at a moment (at); operation
+    ("multiply", "add" or "set") by value, the result rounded to round decimal places if round is given; for the
+    objects with these ids, or every object of the catalogue (objects None)."""
+
+    catalogue: str
+    attribute: str
+    operation: str
+    value: Any
+    every: Optional[timedelta] = None
+    at: Optional[datetime] = None
+    round: Optional[int] = None
+    objects: Optional[Tuple[str, ...]] = None
+
+    def applied(self, value):
+        """The attribute's value after this change, value before it."""
+        if self.operation == "multiply":
+            value = value * self.value
+        elif self.operation == "add":
+            value = value + self.value
+        else:
+            value = self.value
+        return value if self.round is None else round(value, self.round)
+
+
+@dataclass(frozen=True)
 class Reference:
     """Says that a case attribute's value of its process is the id of an object of one of its catalogues, or a list
     of such ids (each one linked as a single value is), and which OCEL links to write for it: from the case's object
@@ -132,7 +161,9 @@ def _checked_catalogue(organizations):
     are created by exactly one reference of its organization, and no other id looks like them
     (<catalogue name>-<number>). with gives attributes that the process doesn't otherwise pick, draw, copy,
     append or aggregate into, and not object_id, from attributes that every object of the picked listed catalogue
-    or pool has, as numbers for a sum, min or max; a pick with count only computes them."""
+    or pool has, as numbers for a sum, min or max; a pick with count only computes them. A catalogue change names a
+    catalogue of its own organization and an attribute that its objects have, as a number to multiply or add to,
+    and only ids of the catalogue in objects."""
     # (where it is in the configuration, process)
     placed = [(f"organizations[{number}].processes[{index}]", spec)
               for number, organization in enumerate(organizations) for index, spec in enumerate(organization.processes)]
@@ -228,8 +259,47 @@ def _checked_catalogue(organizations):
         if reference.with_attributes and reference.catalogue in catalogues_of[reference.process]:
             problems.extend(f"{where} {problem}" for problem in _with_problems(
                 reference, catalogue[reference.catalogue], specs, set(picked), brought))
+    for number, organization in enumerate(organizations):
+        for index, change in enumerate(organization.catalogue_changes):
+            problems.extend(f"organizations[{number}].catalogue_changes[{index}] {problem}"
+                            for problem in _change_problems(change, organization.catalogues, owners))
     if problems:
         raise ValueError("Invalid catalogue: " + "; ".join(problems))
+
+
+def _change_problems(change, catalogues, owners):
+    """catalogues: those of the change's organization; owners: catalogue name -> the organizations declaring it."""
+    name = change.catalogue
+    if name not in catalogues:
+        # an organization's data is its own; another learns of it only in messages
+        return [f"changes catalogue {name!r} of organization {', '.join(owners[name])}; an organization changes "
+                f"its own catalogues" if name in owners else f"changes unknown catalogue {name!r}"]
+    entry = catalogues[name]
+    arithmetic = change.operation in ("multiply", "add")
+    if change.objects is not None:
+        if isinstance(entry, GrowingCatalogue):
+            return [f"names objects {list(change.objects)} of growing catalogue {name!r}, which has none when the run "
+                    f"starts; without objects, the change applies to every object it creates"]
+        unknown = [object_id for object_id in change.objects if object_id not in _catalogue_ids(name, entry)]
+        if unknown:
+            return [f"names objects {unknown}, which are no ids of catalogue {name!r}"]
+    if isinstance(entry, list):
+        changed = [obj for obj in entry if change.objects is None or obj.id in change.objects]
+        missing = [obj.id for obj in changed if change.attribute not in dict(obj.attributes)]
+        if missing:
+            return [f"changes {change.attribute!r}, which objects {missing} of catalogue {name!r} don't have"]
+        not_numbers = [obj.id for obj in changed if not _is_number(dict(obj.attributes)[change.attribute])]
+        if arithmetic and not_numbers:
+            return [f"{change.operation} needs a number, and {change.attribute!r} of objects {not_numbers} of catalogue "
+                    f"{name!r} isn't one"]
+        return []
+    specs_of = {attribute.get("name"): attribute for attribute in entry.attributes}
+    if change.attribute not in specs_of:
+        return [f"changes {change.attribute!r}, which catalogue {name!r} doesn't draw in its attributes"]
+    if arithmetic and not _drawn_as_numbers(specs_of[change.attribute]):
+        return [f"{change.operation} needs a number, and catalogue {name!r} doesn't always draw {change.attribute!r} "
+                f"as one"]
+    return []
 
 
 def _pick_problems(reference, entry, specs):
@@ -450,25 +520,33 @@ class _Brought:
     was picked (a single pick is a list of one), and over initial, if given, as aggregate computes over messages.
     It comes right after its pick in the case's attributes, which are drawn in order, so it reads the pick's last
     value; it draws nothing. Over no objects, a sum and a count are 0 and a min or max has no value (None), unless
-    initial gives them one."""
+    initial gives them one. Drawn from the values before any change, since a planned case's attributes are drawn
+    before its arrival time is known; the engine works it out again when the case is created, from the values valid
+    then (see _Received)."""
 
     def __init__(self, name: str, pick: _Pick, values: Dict[str, Any], function: Optional[str] = None,
-                 initial: Optional[float] = None):
-        self.name, self._pick, self._values, self._function, self._initial = name, pick, values, function, initial
+                 initial: Optional[float] = None, catalogue: str = ""):
+        self.name, self._pick, self.values, self.function, self.initial = name, pick, values, function, initial
+        self.catalogue = catalogue
+
+    @property
+    def source(self) -> str:
+        """The attribute whose objects it reads: its pick's."""
+        return self._pick.name
 
     def get_next_value(self):
-        if self._function is None:
-            return self._values[self._pick.last]
+        if self.function is None:
+            return self.values[self._pick.last]
         picked = self._pick.last if isinstance(self._pick.last, list) else [self._pick.last]
-        if not picked and self._function in ("min", "max") and self._initial is None:
+        if not picked and self.function in ("min", "max") and self.initial is None:
             return None
-        return _aggregated(self._function, [self._values[object_id] for object_id in picked], self._initial)
+        return _aggregated(self.function, [self.values[object_id] for object_id in picked], self.initial)
 
 
 class _Received:
     """A value with gives the case from the catalogue object its attribute source names when it isn't picked: copied
-    from the message that starts the case, or drawn in its object_attributes. values: object id -> the object's
-    attribute it brings; catalogue: the catalogue's name. It holds a column of the log, but draws nothing: the
+    from the message that starts the case, or drawn in its object_attributes. values: the catalogue attribute's
+    values (_CatalogueValues); catalogue: the catalogue's name. It holds a column of the log, but draws nothing: the
     engine fills it in when the case's values are known (see EngineMessaging._apply_received), from the table it gets
     when it is built."""
 
@@ -479,6 +557,66 @@ class _Received:
 
     def get_next_value(self):
         return None
+
+
+class _Timetable:
+    """The values of an organization's catalogue attributes over the run, worked out from its catalogue_changes
+    instead of changed as the run goes: whoever reads a value reads the one valid at that moment. A change at a
+    moment is valid from that moment on, inclusive, and changes at the same moment apply in the order they are
+    listed. An object's values are worked out once, as far as the latest moment read so far."""
+
+    def __init__(self, changes: Tuple[CatalogueChange, ...], start: datetime):
+        self._start = start
+        # (catalogue, attribute) -> [(its place in the list, change)]
+        self._changes = defaultdict(list)
+        for index, change in enumerate(changes):
+            self._changes[(change.catalogue, change.attribute)].append((index, change))
+        # (catalogue, attribute, object id) -> [[moment of each change so far], [the value from then on], read up to]
+        self._series = {}
+
+    def value(self, catalogue: str, attribute: str, object_id: str, value, when: datetime):
+        """What the attribute of one catalogue object is at the moment 'when', given value, what it was before any
+        change: e.g. a Kindle's price of 129, read 61 days into the run with a 3% rise every 60 days, is 132.87."""
+        changes = [(index, change) for index, change in self._changes.get((catalogue, attribute), ())
+                   if change.objects is None or object_id in change.objects]
+        if not changes:
+            return value
+        series = self._series.setdefault((catalogue, attribute, object_id), [[], [], None])
+        moments, values, read_up_to = series
+        if read_up_to is None or when > read_up_to:
+            current = values[-1] if values else value
+            for moment, _, change in sorted(self._moments(changes, read_up_to, when), key=lambda found: found[:2]):
+                current = change.applied(current)
+                moments.append(moment)
+                values.append(current)
+            series[2] = when
+        number = bisect_right(moments, when)
+        return values[number - 1] if number else value
+
+    def _moments(self, changes, after, until):
+        """(moment, place in the list, change) of every change in changes after 'after' (None: from the beginning) and
+        at most at until."""
+        for index, change in changes:
+            if change.at is not None:
+                if (after is None or change.at > after) and change.at <= until:
+                    yield change.at, index, change
+                continue
+            number = 1 if after is None or after < self._start else (after - self._start) // change.every + 1
+            while self._start + number * change.every <= until:
+                yield self._start + number * change.every, index, change
+                number += 1
+
+
+class _CatalogueValues(dict):
+    """One attribute of a catalogue's objects, as a 'with' reads it: a dict of object id -> the value before any
+    change, and at(object_id, when), the value at the moment when, from its organization's timetable."""
+
+    def __init__(self, values: Dict[str, Any], catalogue: str, attribute: str, timetable: _Timetable):
+        super().__init__(values)
+        self.catalogue, self.attribute, self._timetable = catalogue, attribute, timetable
+
+    def at(self, object_id: str, when: datetime):
+        return self._timetable.value(self.catalogue, self.attribute, object_id, self[object_id], when)
 
 
 class _NewPick:
@@ -499,9 +637,15 @@ class _NewPick:
         return f"{self.catalogue}-{self._generator.randint(1, self.created)}"
 
 
-def _picks(spec: ProcessSpec, seed: Optional[int], catalogues: Dict[str, List[CatalogueObject]]) -> List[_Pick]:
+def _picks(spec: ProcessSpec, seed: Optional[int], catalogues: Dict[str, List[CatalogueObject]],
+           timetable: _Timetable) -> List[_Pick]:
     """The attributes a process's references pick, from its organization's catalogues as the run starts (see
-    _drawn_catalogues), and those their 'with' gives a case from the object its attribute names without a pick."""
+    _drawn_catalogues), and those their 'with' gives a case from the objects its attribute names, picked or not, as
+    timetable says they change."""
+    def values(reference, attribute):
+        return _CatalogueValues({obj.id: dict(obj.attributes)[attribute] for obj in catalogues[reference.catalogue]},
+                                reference.catalogue, attribute, timetable)
+
     picks = []
     for reference in spec.references:
         if reference.creates:
@@ -511,9 +655,8 @@ def _picks(spec: ProcessSpec, seed: Optional[int], catalogues: Dict[str, List[Ca
             for name, source in reference.with_attributes:
                 function, attribute, initial = ((source.function, source.source, source.initial)
                                                 if isinstance(source, Computed) else (None, source, None))
-                values = {obj.id: dict(obj.attributes)[attribute] for obj in catalogues[reference.catalogue]}
-                picks.append(_Received(name, reference.object_attribute, values, function, initial,
-                                       reference.catalogue))
+                picks.append(_Received(name, reference.object_attribute, values(reference, attribute), function,
+                                       initial, reference.catalogue))
         else:
             ids = [obj.id for obj in catalogues[reference.catalogue]]
             weights = None if reference.pick == "uniform" else [dict(reference.pick).get(object_id, 0) for object_id in ids]
@@ -522,8 +665,8 @@ def _picks(spec: ProcessSpec, seed: Optional[int], catalogues: Dict[str, List[Ca
             for name, source in reference.with_attributes:
                 function, attribute, initial = ((source.function, source.source, source.initial)
                                                 if isinstance(source, Computed) else (None, source, None))
-                values = {obj.id: dict(obj.attributes)[attribute] for obj in catalogues[reference.catalogue]}
-                picks.append(_Brought(name, pick, values, function, initial))
+                picks.append(_Brought(name, pick, values(reference, attribute), function, initial,
+                                      reference.catalogue))
     return picks
 
 

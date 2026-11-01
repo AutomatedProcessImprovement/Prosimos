@@ -13,7 +13,7 @@ from typing import List, Optional, Tuple
 from prosimos.control_flow_manager import BPMN
 from prosimos.messaging.model import ConsumePoint, PublishPoint
 from prosimos.messaging.parser import unknown_keys
-from prosimos.orchestration.catalogue import CountFrom, _Pick, _Received
+from prosimos.orchestration.catalogue import CountFrom, _Brought, _Pick, _Received
 from prosimos.orchestration.config import ProcessSpec
 from prosimos.orchestration.protocol import (CaseObject, ClaimRecord, EngineReport, Message, PublishRecord,
                                            SimulationEngine, StalledCase, Verdict)
@@ -91,9 +91,11 @@ class ProsimosEngine(SimulationEngine):
                     pick.read_count_from(next(attribute for attribute in sim_setup.case_attributes.attributes
                                               if attribute.name == pick.count.object_attribute))
             self._env = SimBPMEnv(sim_setup, None, log_writer, id_prefix=spec.id_prefix)
-            # its organization's catalogue values, for the 'with' of references that don't pick (see _Received)
+            # its organization's catalogue values, for the 'with' of its references, read when a case is created or
+            # claims a message (see _Received and _Brought)
             self._env.receive_catalogue_values([(pick.name, pick.source, pick.values, pick.function, pick.initial,
-                                                 pick.catalogue) for pick in picks if isinstance(pick, _Received)])
+                                                 pick.catalogue) for pick in picks
+                                                if isinstance(pick, (_Received, _Brought))])
         tasks = {element_id for element_id, element in sim_setup.bpmn_graph.element_info.items()
                  if element.type is BPMN.TASK}
         unknown = sorted(task_id for task_id, _ in spec.qualifier_by_activity if task_id not in tasks)

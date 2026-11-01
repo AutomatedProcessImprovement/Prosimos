@@ -5,16 +5,16 @@ catalogues and references, and the consumer groups.
 import dataclasses
 import json
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
 import pytz
 
 from prosimos.messaging.model import AGGREGATE_FUNCTIONS
-from prosimos.messaging.parser import is_number, unknown_keys
-from prosimos.orchestration.catalogue import (CatalogueObject, CataloguePool, Computed, CountFrom, GrowingCatalogue,
-                                            NewShare, Reference, _brought_names, _checked_catalogue)
+from prosimos.messaging.parser import is_number, is_whole_number, unknown_keys
+from prosimos.orchestration.catalogue import (CatalogueChange, CatalogueObject, CataloguePool, Computed, CountFrom,
+                                            GrowingCatalogue, NewShare, Reference, _brought_names, _checked_catalogue)
 from prosimos.simulation_properties_parser import parse_datetime
 
 
@@ -48,11 +48,14 @@ class ProcessSpec:
 
 
 CONFIG_KEYS = {"organizations", "start_time", "seed", "consumer_groups"}
-ORGANIZATION_KEYS = {"name", "catalogues", "processes"}
+ORGANIZATION_KEYS = {"name", "catalogues", "catalogue_changes", "processes"}
 PROCESS_KEYS = {"name", "bpmn_path", "json_path", "arrivals", "object_type", "qualifier", "qualifier_by_activity",
                 "ocel_attributes", "references"}
 REFERENCE_KEYS = {"object_attribute", "catalogue", "o2o", "reverse", "link_events", "pick", "count", "with",
                   "tag_along"}
+CHANGE_KEYS = {"catalogue", "attribute", "every", "at", "multiply", "add", "set", "round", "objects"}
+PERIODS = ("weeks", "days", "hours")
+OPERATIONS = ("multiply", "add", "set")
 
 
 def _checked_ocel_attributes(organizations):
@@ -118,6 +121,8 @@ class Organization:
     processes: List[ProcessSpec] = field(default_factory=list)
     # its catalogues, name -> objects with no events of their own, shared by its processes (see SimulationConfig)
     catalogues: Dict[str, Union[List[CatalogueObject], CataloguePool, GrowingCatalogue]] = field(default_factory=dict)
+    # how its catalogues' attributes change over the run, in order (see _Timetable)
+    catalogue_changes: Tuple[CatalogueChange, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -195,7 +200,10 @@ class SimulationConfig:
         growing one) declare objects with no events of their own, shared by its processes, and a process's
         references ([{"object_attribute", "catalogue", "o2o", "reverse", "link_events", "pick", "with",
         "tag_along"}], the last six optional) say which of its attributes hold the ids of its organization's
-        catalogues' objects, and may pick them and bring their attributes in.
+        catalogues' objects, and may pick them and bring their attributes in. Its optional catalogue_changes
+        ([{"catalogue", "attribute", "every" or "at", "multiply", "add" or "set", "round", "objects"}], the last two
+        optional) change its catalogues' attributes on the clock: every {"weeks" | "days" | "hours": n} from the
+        start of the run, or once at a time.
         """
         path = Path(path)
         with open(path) as f:
@@ -231,11 +239,11 @@ class SimulationConfig:
                 ))
             catalogues = {name: _catalogue(path, f"{in_organization}.catalogues.{name}", entries)
                           for name, entries in organization.get("catalogues", {}).items()}
-            organizations.append(Organization(organization["name"], processes, catalogues))
+            changes = tuple(_catalogue_change(path, f"{in_organization}.catalogue_changes[{index}]", change)
+                            for index, change in enumerate(organization.get("catalogue_changes", [])))
+            organizations.append(Organization(organization["name"], processes, catalogues, changes))
 
-        start = parse_datetime(data["start_time"], True)
-        if start.tzinfo is None:
-            start = pytz.utc.localize(start)
+        start = _utc_if_naive(parse_datetime(data["start_time"], True))
 
         return cls(organizations, start, data.get("seed"), data.get("consumer_groups"))
 
@@ -269,6 +277,66 @@ def _catalogue_object(path, where, entry):
     if not isinstance(entry.get("id"), str) or not entry["id"]:
         raise ValueError(f"{path}: {where}: 'id' must be a non-empty string")
     return CatalogueObject(entry["id"], tuple(entry.get("attributes", {}).items()))
+
+
+def _utc_if_naive(moment):
+    """A time without a time zone, taken as UTC."""
+    return pytz.utc.localize(moment) if moment.tzinfo is None else moment
+
+
+def _catalogue_change(path, where, entry):
+    """A catalogue change as JSON gives it, checked for everything but what it names (see _checked_catalogue)."""
+    _check_keys(path, where, entry, CHANGE_KEYS)
+    missing = [key for key in ("catalogue", "attribute") if key not in entry]
+    if missing:
+        raise ValueError(f"{path}: {where} is missing {missing}")
+    for key in ("catalogue", "attribute"):
+        if not isinstance(entry[key], str) or not entry[key]:
+            raise ValueError(f"{path}: {where}: '{key}' must be a non-empty string, got {entry[key]!r}")
+    when = [key for key in ("every", "at") if key in entry]
+    if len(when) != 1:
+        raise ValueError(f"{path}: {where} needs exactly one of every (repeated) and at (once), got "
+                         f"{' and '.join(when) or 'neither'}")
+    operations = [key for key in OPERATIONS if key in entry]
+    if len(operations) != 1:
+        raise ValueError(f"{path}: {where} needs exactly one of multiply, add and set, got "
+                         f"{', '.join(operations) or 'none'}")
+    [operation] = operations
+    value = entry[operation]
+    if operation != "set" and not is_number(value):
+        raise ValueError(f"{path}: {where}: {operation} must be a number, got {value!r}")
+    rounding = entry.get("round")
+    if "round" in entry and not is_whole_number(rounding, minimum=0):
+        raise ValueError(f"{path}: {where}: round must be a whole number of at least 0 (decimal places), got "
+                         f"{rounding!r}")
+    if "round" in entry and not is_number(value):
+        raise ValueError(f"{path}: {where}: round needs a number to round, and set gives {value!r}")
+    objects = entry.get("objects")
+    if "objects" in entry and not (isinstance(objects, list) and objects
+                                   and all(isinstance(object_id, str) and object_id for object_id in objects)):
+        raise ValueError(f"{path}: {where}: objects must be a non-empty list of object ids, got {objects!r}")
+    every, at = None, None
+    if "every" in entry:
+        every = _period(path, f"{where}.every", entry["every"])
+    else:
+        try:
+            at = _utc_if_naive(parse_datetime(entry["at"], True))
+        except (ValueError, TypeError, OverflowError):
+            raise ValueError(f"{path}: {where}: at must be a date and time, e.g. \"2024-12-01T00:00:00+00:00\", got "
+                             f"{entry['at']!r}") from None
+    return CatalogueChange(entry["catalogue"], entry["attribute"], operation, value, every, at,
+                           None if rounding is None else int(rounding), None if objects is None else tuple(objects))
+
+
+def _period(path, where, period):
+    if isinstance(period, dict):
+        _check_keys(path, where, period, set(PERIODS))
+    if not (isinstance(period, dict) and len(period) == 1 and is_number(next(iter(period.values())))
+            and next(iter(period.values())) > 0):
+        raise ValueError(f'{path}: {where} must be {{"weeks" | "days" | "hours": n}}, n a number above 0, got '
+                         f"{period!r}")
+    [(unit, amount)] = period.items()
+    return timedelta(**{unit: amount})
 
 
 def _reference(path, where, entry):

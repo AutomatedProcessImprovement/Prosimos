@@ -54,8 +54,8 @@ def test_an_organization_entry(tmp_path):
     def misspelled(data):
         data["organizations"][0]["proceses"] = data["organizations"][0].pop("processes")
 
-    _config_rejected(tmp_path, r"simulation.json: organizations\[0\]: unknown key 'proceses'; allowed: catalogues, "
-                               r"name, processes$", misspelled)
+    _config_rejected(tmp_path, r"simulation.json: organizations\[0\]: unknown key 'proceses'; allowed: "
+                               r"catalogue_changes, catalogues, name, processes$", misspelled)
 
 
 def test_a_process_entry(tmp_path):
@@ -92,6 +92,24 @@ def test_a_growing_catalogue(tmp_path):
 
     _config_rejected(tmp_path, r"organizations\[0\].catalogues.customer: unknown key 'cont'; allowed: attributes, count$",
                      misspelled)
+
+
+def test_a_catalogue_change(tmp_path):
+    def misspelled(data):
+        data["organizations"][0]["catalogue_changes"] = [{"catalogue": "product", "attribute": "price",
+                                                          "every": {"days": 60}, "multiply": 1.03, "rond": 2}]
+
+    _config_rejected(tmp_path, r"organizations\[0\].catalogue_changes\[0\]: unknown key 'rond'; allowed: add, at, "
+                               r"attribute, catalogue, every, multiply, objects, round, set$", misspelled)
+
+
+def test_the_period_of_a_catalogue_change(tmp_path):
+    def misspelled(data):
+        data["organizations"][0]["catalogue_changes"] = [{"catalogue": "product", "attribute": "price",
+                                                          "every": {"day": 60}, "multiply": 1.03}]
+
+    _config_rejected(tmp_path, r"organizations\[0\].catalogue_changes\[0\].every: unknown key 'day'; allowed: days, "
+                               r"hours, weeks$", misspelled)
 
 
 def test_a_reference(tmp_path):

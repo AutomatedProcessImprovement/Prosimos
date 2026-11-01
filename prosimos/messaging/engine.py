@@ -164,7 +164,7 @@ class EngineMessaging:
         if self._received:  # a value copied or appended now brings what its catalogue objects give, at the claim
             changed = {target for target, source in (*point.copy, *point.append) if source in values}
             self._copied_later.extend((parked_event.p_case, name, case_values[name], now)
-                                      for name in self._apply_received(case_values, changed))
+                                      for name in self._apply_received(case_values, now, changed))
         self._copied_later.extend((parked_event.p_case, target, case_values[target], now)
                                   for target, source in point.append if source in values)
         self._copied_later.extend((parked_event.p_case, target, case_values[target], now) for target in aggregated)
@@ -416,17 +416,19 @@ class EngineMessaging:
         return p_case
 
     def receive_catalogue_values(self, received):
-        """Takes its organization's catalogue values for the 'with' of references that don't pick, as (attribute, source
-        attribute, object id -> value, function, initial, catalogue): given once, when the engine is built."""
+        """Takes its organization's catalogue values for the 'with' of references, as (attribute, source attribute,
+        values, function, initial, catalogue): given once, when the engine is built. values holds an object's id if the
+        catalogue has it, and values.at(object id, when) is the object's value at the moment when, since catalogue
+        values may change during the run."""
         self._received = list(received)
 
-    def _apply_received(self, case_values, sources=None):
-        """Gives a case the values with brings from the catalogue object its source attribute names: the object's
-        value, or with function, the function over the objects of a list (each as often as it holds it) and over
-        initial, as a pick's with does. All of them for a new case, whose sources were copied from the starting message
-        or drawn; at a claim, those whose source is in sources, the attributes just copied. A source without a value
-        leaves the attribute as it is; one naming no object of the catalogue too, with one warning per reference.
-        Returns the attributes it set."""
+    def _apply_received(self, case_values, when, sources=None):
+        """Gives a case the values with brings from the catalogue object its source attribute names, as valid at
+        when: the object's value, or with function, the function over the objects of a list (each as often as it
+        holds it) and over initial, as a pick's with does. All of them for a new case, whose sources were picked,
+        copied from the starting message or drawn; at a claim, those whose source is in sources, the attributes just
+        copied. A source without a value leaves the attribute as it is; one naming no object of the catalogue too,
+        with one warning per reference. Returns the attributes it set."""
         given = []
         for name, source, values, function, initial, catalogue in self._received:
             if sources is not None and source not in sources:
@@ -441,10 +443,10 @@ class EngineMessaging:
                 continue
             if function is None:
                 if not isinstance(value, list):  # a plain copy names one object
-                    case_values[name] = values[value]
+                    case_values[name] = values.at(value, when)
                     given.append(name)
             elif named or function not in ("min", "max") or initial is not None:
-                case_values[name] = _aggregated(function, [values[object_id] for object_id in named], initial)
+                case_values[name] = _aggregated(function, [values.at(object_id, when) for object_id in named], initial)
                 given.append(name)
         return given
 

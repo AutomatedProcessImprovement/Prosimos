@@ -5,7 +5,7 @@ Prosimos engine for each process, runs them in the run loop, and writes the merg
 import random
 from typing import Dict, Optional
 
-from prosimos.orchestration.catalogue import _drawn_catalogues, _grown_catalogues, _picks
+from prosimos.orchestration.catalogue import _Timetable, _drawn_catalogues, _grown_catalogues, _picks
 from prosimos.orchestration.config import SimulationConfig
 from prosimos.orchestration.ocel_writer import OcelProcess, write_ocel
 from prosimos.orchestration.orchestrator import RunReport, orchestrate
@@ -44,8 +44,12 @@ def run_multiprocess_simulation(config: SimulationConfig, log_out_path: Optional
     # order to keep the result independent of how the list was written
     # each process's picks come from its references and its organization's catalogues. All catalogues are drawn
     # before any pick, and the picks before any engine, as without a seed each draws from the global generators
+    # each organization's catalogue_changes are worked out into a timetable, which every reader of a catalogue value
+    # reads the value valid at that moment from
     drawn = {organization.name: _drawn_catalogues(organization, config.seed) for organization in config.organizations}
-    picks = {spec.name: _picks(spec, config.seed, drawn[organization.name])
+    timetables = {organization.name: _Timetable(organization.catalogue_changes, config.start_datetime)
+                  for organization in config.organizations}
+    picks = {spec.name: _picks(spec, config.seed, drawn[organization.name], timetables[organization.name])
              for organization in config.organizations for spec in organization.processes}
     engines: Dict[str, SimulationEngine] = {}
     for spec in sorted(config.processes, key=lambda p: p.name):
@@ -68,7 +72,8 @@ def run_multiprocess_simulation(config: SimulationConfig, log_out_path: Optional
                                             spec.ocel_attributes) for spec in config.processes}
         static_objects, reference_object_links, reference_event_links = _reference_links(
             config, catalogue, processes, report.objects, merged_log.rows, report.logged_elements,
-            report.warnings.append)
+            report.warnings.append, {name: timetables[organization.name] for organization in config.organizations
+                                     for name in organization.catalogues})
         object_links = _object_links(report.message_records, processes)
         for source, links in reference_object_links.items():
             object_links.setdefault(source, []).extend(links)
