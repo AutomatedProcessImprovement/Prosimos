@@ -1,7 +1,4 @@
-"""
-The run loop (docs/orchestrator.md, "Message routing"): a shared clock that steps any engines, always the one with
-the earliest next event, and offers the messages they publish to the consumer groups.
-"""
+"""The run loop: a shared clock that steps the engines and routes their messages (docs/orchestrator.md)."""
 import copy
 import itertools
 import random
@@ -43,8 +40,7 @@ class RunReport:
         return dict(Counter((type_of[message_id], process) for message_id, process, _ in self.discards))
 
     def to_dict(self) -> Dict[str, Any]:
-        """The whole report as plain lists and dicts, with times as ISO strings, e.g. to save as JSON.
-        Messages are referred to by id, except in published."""
+        """The whole report as plain lists and dicts, e.g. to save as JSON; messages by id, except in published."""
         def when(time):
             return time.isoformat()
 
@@ -87,16 +83,8 @@ def orchestrate(
     consumer_groups: Optional[Dict[str, List[str]]] = None,
     seed: Optional[int] = None,
 ) -> RunReport:
-    """
-    The orchestrator loop of the Orchestrator Protocol, over already-built engines keyed by
-    process name. After each step, every published message is stamped (id, source, time), one
-    copy per subscribed group goes into the pool, and the new copies plus the pooled copies of the
-    stepping engine's group are offered, oldest first, to their group's members in random order until one
-    claims them. A message is never offered to the process that published it. A copy is removed when
-    claimed, or when every member subscribed to its type other than the publisher has discarded it; nobody
-    is offered a copy they already discarded. Member order comes from the orchestrator's own generator,
-    never the global random module the engines use.
-    """
+    """Runs built engines, keyed by process name, on one clock (docs/orchestrator.md, "Message routing"). The
+    order members are offered a message in comes from the orchestrator's own generator, not the engines'."""
     names = sorted(engines)
     consumer_groups = checked_consumer_groups(names, consumer_groups)
     group_of = {member: group for group, members in consumer_groups.items() for member in members}
@@ -148,8 +136,7 @@ def orchestrate(
             for message in published:
                 message.id, message.source, message.time = f"m{next(next_id)}", name, now
                 report.published.append(message)
-                # a message never comes back to the process that published it, so a group whose only member
-                # subscribed to the type is the publisher gets no copy
+                # a message never goes back to its publisher, so a group with no other subscriber gets no copy
                 groups = [group for group in routing.get(message.type, []) if recipients_of(group, message)]
                 if not groups:
                     if message.type in subscriptions[name]:

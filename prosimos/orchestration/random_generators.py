@@ -1,8 +1,7 @@
 """
-The random generators: each engine, pick and catalogue draws from generators of its own, seeded from the run's seed
-and its name, so that one doesn't change the others' draws. Prosimos draws from the global Python and NumPy
-generators, so an engine's states are put into them while it is called, and the caller's back afterward
-(_GlobalGenerators).
+Each engine, pick and catalogue draws from generators of its own, seeded from the seed and its name, so that one
+doesn't change the others' draws. Prosimos draws from the global generators, so an engine's states are put there
+while it is called.
 """
 import hashlib
 import random
@@ -22,12 +21,9 @@ def engine_random_states(seed, process_name):
 
 
 class _GlobalGenerators:
-    """Whose states the global Python and NumPy generators hold: the caller's (holder None) or a ProsimosEngine's.
-    Swapping them copies both states, which costs more than many engine calls themselves, so while keep is set
-    an engine leaves its states there after a call, and its next call finds them in place: they are swapped only
-    when another engine is called. Each engine still draws from its own states only, so nothing it draws
-    changes. keep is only for code that draws nothing from the global generators between engine calls, like
-    the orchestrator loop."""
+    """Whose states the global Python and NumPy generators hold: the caller's (holder None) or an engine's.
+    Swapping costs more than many engine calls, so with keep set the states are swapped only when another engine
+    is called; keep is only for code that draws nothing in between, like the orchestrator loop."""
 
     def __init__(self):
         self.holder, self.keep, self._callers = None, False, None
