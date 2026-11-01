@@ -8,8 +8,8 @@ from collections import Counter
 
 import pytest
 
-from prosimos.orchestration.catalogue import NewPick
 from prosimos.orchestration.catalogue.model import GrowingCatalogue, NewShare
+from prosimos.orchestration.catalogue.picks import NewPick
 from prosimos.orchestration.config import SimulationConfig
 from testing_scripts.multiprocess.catalogue.test_catalogue import config_with
 from testing_scripts.multiprocess.catalogue.test_pick import PICKING, POOL, customers_of_cases, loans_config, run

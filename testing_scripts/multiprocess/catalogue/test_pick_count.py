@@ -9,8 +9,8 @@ from collections import Counter
 import pandas as pd
 import pytest
 
-from prosimos.orchestration.catalogue import Pick
 from prosimos.orchestration.catalogue.model import CountFrom
+from prosimos.orchestration.catalogue.picks import Pick
 from prosimos.orchestration.config import SimulationConfig
 from prosimos.orchestration.simulation import run_multiprocess_simulation
 from testing_scripts.multiprocess.catalogue.test_catalogue import config_with
@@ -112,7 +112,7 @@ def test_a_count_read_from_an_attribute_takes_the_value_drawn_for_the_same_case(
 
 def test_a_count_attribute_without_a_whole_number_picks_one_with_one_warning(monkeypatch):
     warnings = []
-    monkeypatch.setattr("prosimos.orchestration.catalogue.warning_logger.add_warning", warnings.append)
+    monkeypatch.setattr("prosimos.orchestration.catalogue.picks.warning_logger.add_warning", warnings.append)
     items = _Drawn("items", [2.5, -1])
     pick = Pick("products", ["a", "b"], None, seed=1, process="P", count=CountFrom("items"))
     pick.read_count_from(items)

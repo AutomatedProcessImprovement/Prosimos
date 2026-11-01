@@ -5,7 +5,7 @@ objects (with).
 """
 import pytest
 
-from prosimos.orchestration.catalogue import Brought
+from prosimos.orchestration.catalogue.picks import Brought
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import Message
