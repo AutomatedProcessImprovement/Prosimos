@@ -11,8 +11,8 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from prosimos.orchestration.catalogue import Timetable
 from prosimos.orchestration.catalogue.model import CatalogueChange, CatalogueObject, GrowingCatalogue, Reference
+from prosimos.orchestration.catalogue.timetable import Timetable
 from prosimos.orchestration.config import Organization, ProcessSpec, SimulationConfig
 from prosimos.orchestration.simulation import run_multiprocess_simulation
 from testing_scripts.multiprocess.catalogue.test_catalogue import config_with, with_partner

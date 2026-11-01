@@ -5,7 +5,8 @@ Prosimos engine for each process, runs them in the run loop, and writes the merg
 import random
 from typing import Dict, Optional
 
-from prosimos.orchestration.catalogue import Timetable, drawn_catalogues, grown_catalogues, picks_of
+from prosimos.orchestration.catalogue import drawn_catalogues, grown_catalogues, picks_of
+from prosimos.orchestration.catalogue.timetable import Timetable
 from prosimos.orchestration.config import SimulationConfig
 from prosimos.orchestration.ocel_writer import OcelProcess, write_ocel
 from prosimos.orchestration.orchestrator import RunReport, orchestrate

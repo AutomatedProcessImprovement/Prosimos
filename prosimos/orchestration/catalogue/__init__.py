@@ -7,10 +7,8 @@ from __future__ import annotations
 import json
 import random
 import re
-from bisect import bisect_right
 from collections import Counter, defaultdict
-from datetime import datetime
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import numpy as np
 
@@ -19,8 +17,9 @@ from prosimos.control_flow_manager import BPMN
 from prosimos.messaging.engine import aggregate_of
 from prosimos.messaging.model import AGGREGATE_FUNCTIONS
 from prosimos.messaging.parser import is_number, is_whole_number
-from prosimos.orchestration.catalogue.model import (CatalogueChange, CatalogueObject, CataloguePool, Computed,
-                                                    CountFrom, GrowingCatalogue, NewShare, catalogue_ids)
+from prosimos.orchestration.catalogue.model import (CatalogueObject, CataloguePool, Computed, CountFrom,
+                                                    GrowingCatalogue, NewShare, catalogue_ids)
+from prosimos.orchestration.catalogue.timetable import CatalogueValues, Timetable
 from prosimos.orchestration.random_generators import engine_random_states
 from prosimos.simulation_properties_parser import parse_simulation_model
 from prosimos.warning_logger import warning_logger
@@ -426,7 +425,7 @@ class Brought:
 class Received:
     """A value with gives the case from the catalogue object its attribute source names when it isn't picked: copied
     from the message that starts the case, or drawn in its object_attributes. values: the catalogue attribute's
-    values (_CatalogueValues); catalogue: the catalogue's name. It holds a column of the log, but draws nothing: the
+    values (CatalogueValues); catalogue: the catalogue's name. It holds a column of the log, but draws nothing: the
     engine fills it in when the case's values are known (see EngineMessaging._apply_received), from the table it gets
     when it is built."""
 
@@ -437,76 +436,6 @@ class Received:
 
     def get_next_value(self):
         return None
-
-
-class Timetable:
-    """The values of an organization's catalogue attributes over the run, worked out from its catalogue_changes
-    instead of changed as the run goes: whoever reads a value reads the one valid at that moment. A change at a
-    moment is valid from that moment on, inclusive, and changes at the same moment apply in the order they are
-    listed. An object's values are worked out once, as far as the latest moment read so far."""
-
-    def __init__(self, changes: Tuple[CatalogueChange, ...], start: datetime):
-        self._start = start
-        # (catalogue, attribute) -> [(its place in the list, change)]
-        self._changes = defaultdict(list)
-        for index, change in enumerate(changes):
-            self._changes[(change.catalogue, change.attribute)].append((index, change))
-        # (catalogue, attribute, object id) -> [[moment of each change so far], [the value from then on], read up to]
-        self._series = {}
-
-    def value(self, catalogue: str, attribute: str, object_id: str, value, when: datetime):
-        """What the attribute of one catalogue object is at the moment 'when', given value, what it was before any
-        change: e.g. a Kindle's price of 129, read 61 days into the run with a 3% rise every 60 days, is 132.87."""
-        changes = self._changes_of(catalogue, attribute, object_id)
-        if not changes:
-            return value
-        series = self._series.setdefault((catalogue, attribute, object_id), [[], [], None])
-        moments, values, read_up_to = series
-        if read_up_to is None or when > read_up_to:
-            current = values[-1] if values else value
-            for moment, _, change in sorted(self._moments(changes, read_up_to, when), key=lambda found: found[:2]):
-                current = change.applied(current)
-                moments.append(moment)
-                values.append(current)
-            series[2] = when
-        number = bisect_right(moments, when)
-        return values[number - 1] if number else value
-
-    def changed_at(self, catalogue: str, attribute: str, object_id: str, after: datetime, until: datetime):
-        """The moments after 'after' and at most at 'until' at which a change changes the attribute of one catalogue
-        object, in order, each once however many changes it has."""
-        changes = self._changes_of(catalogue, attribute, object_id)
-        return sorted({moment for moment, _, _ in self._moments(changes, after, until)})
-
-    def _changes_of(self, catalogue, attribute, object_id):
-        """(place in the list, change) of every change of the attribute of one catalogue object."""
-        return [(index, change) for index, change in self._changes.get((catalogue, attribute), ())
-                if change.objects is None or object_id in change.objects]
-
-    def _moments(self, changes, after, until):
-        """(moment, place in the list, change) of every change in changes after 'after' (None: from the beginning) and
-        at most at until."""
-        for index, change in changes:
-            if change.at is not None:
-                if (after is None or change.at > after) and change.at <= until:
-                    yield change.at, index, change
-                continue
-            number = 1 if after is None or after < self._start else (after - self._start) // change.every + 1
-            while self._start + number * change.every <= until:
-                yield self._start + number * change.every, index, change
-                number += 1
-
-
-class _CatalogueValues(dict):
-    """One attribute of a catalogue's objects, as a 'with' reads it: a dict of object id -> the value before any
-    change, and at(object_id, when), the value at the moment when, from its organization's timetable."""
-
-    def __init__(self, values: Dict[str, Any], catalogue: str, attribute: str, timetable: Timetable):
-        super().__init__(values)
-        self.catalogue, self.attribute, self._timetable = catalogue, attribute, timetable
-
-    def at(self, object_id: str, when: datetime):
-        return self._timetable.value(self.catalogue, self.attribute, object_id, self[object_id], when)
 
 
 class NewPick:
@@ -533,7 +462,7 @@ def picks_of(spec: ProcessSpec, seed: Optional[int], catalogues: Dict[str, List[
     drawn_catalogues), and those their 'with' gives a case from the objects its attribute names, picked or not, as
     timetable says they change."""
     def values(reference, attribute):
-        return _CatalogueValues({obj.id: dict(obj.attributes)[attribute] for obj in catalogues[reference.catalogue]},
+        return CatalogueValues({obj.id: dict(obj.attributes)[attribute] for obj in catalogues[reference.catalogue]},
                                 reference.catalogue, attribute, timetable)
 
     picks = []
