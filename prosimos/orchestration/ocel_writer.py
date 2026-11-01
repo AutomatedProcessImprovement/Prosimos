@@ -1,17 +1,8 @@
 """
-Writes a multi-process run as an OCEL 2.0 JSON file (docs/orchestrator.md): one object per case, typed by its
-process's object type, and one event per task, linked to its case's object and to the objects on the other end
-of its messages, and objects to each other where a message entry asks for it (o2o); plus the catalogue's
-objects, which have no events of their own, linked where a reference says a case attribute holds their ids, and,
-with tag_along, wherever an event of another case links that case's object.
-
-A case's object is written only when an event refers to it: its own, or one its messages link. A case with
-neither, e.g. a packing round still waiting for its first item when the run ends, is left out (the run report
-still lists it as stalled), as pm4py would leave it out on reading. Catalogue objects are always written.
-
-Engines number their cases each on their own, so two processes of one object type both have an item-0. The writer
-names the objects of the output: <object type>-0, <object type>-1, ... per object type across all its processes
-(object_ids). A case's object comes in named (process, its id in the engine), a catalogue object by its id.
+Writes a multi-process run as an OCEL 2.0 JSON file (docs/orchestrator.md, "Output"). A case's object is written
+only when an event refers to it, as pm4py would leave it out on reading; catalogue objects always are. Engines
+number their cases on their own, so the writer names the objects <object type>-<number> per object type across its
+processes (object_ids).
 """
 import json
 from collections import defaultdict
@@ -35,10 +26,8 @@ class OcelProcess:
 
 
 def object_ids(processes, objects):
-    """(process, object id in its engine) -> the object's id in the output: <object type>-<number>, numbered per
-    object type across all its processes in order of creation. Objects created at the same moment go by the order
-    of their processes in processes, and those of one process by its own case number. processes and objects are
-    as write_ocel takes them; a process left out has no ids."""
+    """(process, object id in its engine) -> its id in the output, numbered per object type in order of creation;
+    at the same moment by the order of processes, then by case number."""
     order = {name: place for place, name in enumerate(processes)}
     of_type = defaultdict(list)
     for place, (process, case_object) in enumerate(objects):
@@ -51,29 +40,10 @@ def object_ids(processes, objects):
 
 def write_ocel(path, processes, objects, rows, logged_elements=None, message_links=None, object_links=None,
                static_objects=None, reference_links=None, tag_along=None):
-    """
-    processes: process -> OcelProcess, or its object type (None to leave the process out), in the order of the
-    configuration;
-    objects: (process, case object with its object_id in its engine, creation time and attributes as (attribute,
-    value, time)) for every case; only those some event refers to are written (see _referred), and of those only
-    the attributes their process's OcelProcess lists (see _written);
-    rows: (process, {column: value}) for every logged task, as in the merged CSV log, each process's in the
-    order it logged them;
-    logged_elements: process -> the element id of each of its rows, in order (for qualifier_by_activity);
-    message_links: (process, row of that process) -> [((process, object id), qualifier, carry)], the links the event
-    of that row gets through its messages, and which later events of its case link them too (carry: True for every
-    one, else the activities, task names or ids, it names; False for none);
-    object_links: object -> [(object, qualifier)], its links to other objects, each a case's object as (process,
-    object id) or a catalogue object as its id;
-    static_objects: (object type, id, attributes as (attribute, value, time)) for every object with no events
-    of its own, all its attributes written;
-    reference_links: (process, row of that process) -> [(object id, qualifier)], the links the event of that
-    row gets to such objects (never carried);
-    tag_along: (process, object id) -> [(qualifier, [(time, [object id, ...])])], the objects with no events of their
-    own that a case's object names, each list from its time on: every event of another case that links the case's
-    object, through its messages or what they carry, also links those named when the event completed, with that
-    qualifier.
-    """
+    """Writes the OCEL file. processes: process -> OcelProcess, or its object type, in the configuration's order;
+    objects, rows and logged_elements as the run report and the merged log hold them; the links and the catalogue
+    objects (static_objects) as output.py builds them. With tag_along, an event linking a case's object also links
+    the catalogue objects that object named when the event completed."""
     processes = {name: _settings(processes, name) for name in processes}
     logged_elements, message_links = logged_elements or {}, message_links or {}
     referred = _referred(processes, rows, message_links)
@@ -132,8 +102,7 @@ def write_ocel(path, processes, objects, rows, logged_elements=None, message_lin
                             if carry is True or event["activities"] & set(carry)]
         case_links.extend(event["carries"])
 
-    # the rows come in the order events were executed; events are listed in time order, a task's
-    # event at the time it was completed
+    # events are listed in time order, a task's at its completion; the rows came in execution order
     events = []
     for number, event in enumerate(sorted(logged, key=lambda event: (event["time"], event["process"])), start=1):
         # with tag_along, an event linking another case's object also links what that object named then
@@ -177,8 +146,7 @@ def write_ocel(path, processes, objects, rows, logged_elements=None, message_lin
 
 
 def _referred(processes, rows, message_links):
-    """(process, object id) of every case's object some event refers to: the own object of each logged task of a
-    process with an object type, and the objects its messages link (carry only passes those on)."""
+    """(process, object id) of every case's object some event refers to: its own, or one its messages link."""
     referred, rows_so_far = set(), {}
     for process, row in rows:
         number = rows_so_far[process] = rows_so_far.get(process, -1) + 1
@@ -190,10 +158,8 @@ def _referred(processes, rows, message_links):
 
 
 def _written(case_object, listed):
-    """The values of a case's object that the output writes: those of the listed attributes, without the starting 0
-    of a sum or count no message had written yet, without a missing value (None: e.g. what a with brings from a
-    value the case doesn't have yet), and of several values of one attribute at the same moment only the last
-    (aggregate writes its running total after every message, and a case may take many at once)."""
+    """The values of a case's object the output writes: the listed attributes, without None or a start no message
+    wrote, and of one attribute's values at one moment only the last (aggregate writes a total per message)."""
     only_started = set(case_object.only_started)
     values = []
     for name, value, time in case_object.attributes:
@@ -219,8 +185,7 @@ def _json_value(value):
 
 
 def _ocel_type(values):
-    """The OCEL attribute type of a column of values: integers mixed with floats are floats; any other mix,
-    or a type OCEL doesn't know, is a string. Times are already strings here, so they are strings too."""
+    """The OCEL type of a column of values: integers mixed with floats are floats; any other mix is a string."""
     types = {OCEL_TYPES.get(type(value), "string") for value in values if value is not None}
     if types == {"integer", "float"}:
         return "float"
@@ -233,6 +198,5 @@ def _time(moment):
 
 
 def _as_datetime(value):
-    # the engine hands over timestamps as datetimes, or as preformatted strings when they have no
-    # fractional seconds
+    # timestamps come as datetimes, or as strings when they have no fractional seconds
     return value if isinstance(value, datetime) else datetime.fromisoformat(value)

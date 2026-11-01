@@ -1,7 +1,4 @@
-"""
-The run's output (docs/orchestrator.md, "Output"): the merged log of every process, and the links of the OCEL file
-between events and objects.
-"""
+"""The run's output: the merged log and the links of the OCEL file (docs/orchestrator.md, "Output")."""
 import csv
 from collections import defaultdict
 from dataclasses import asdict
@@ -16,10 +13,8 @@ from prosimos.orchestration.protocol import CaseElement, MessageRecord
 
 
 class MergedLog:
-    """Collects the rows of every process and writes them to one CSV, sorted by start time,
-    with the process name as the first column. Models can add different extra columns
-    (batch_id, case attributes, ...), so the header is the union of them all and a process
-    leaves blank any column it doesn't produce."""
+    """Collects every process's rows and writes them to one CSV, sorted by start time, process name first. The
+    header is the union of the processes' columns; a process leaves the others blank."""
 
     def __init__(self):
         self._process_columns = {}
@@ -45,9 +40,7 @@ class MergedLog:
         for process_columns in self._process_columns.values():
             columns.extend(c for c in process_columns if c not in columns)
 
-        # rows arrive in the order events are executed, which is not start-time order: a task
-        # can wait for a busy resource while another process carries on. The sort is stable,
-        # so rows with the same start time and process keep the order they were executed in.
+        # rows arrive in execution order, not start-time order; the stable sort keeps the execution order of ties
         rows = sorted(self._rows, key=lambda row: (_as_datetime(row[1]["start_time"]), row[0]))
 
         with open(path, mode="w", newline="", encoding="utf-8") as log_file:
@@ -58,8 +51,7 @@ class MergedLog:
 
 
 def _as_datetime(value):
-    # the engine hands over timestamps as datetimes, or as preformatted strings when they
-    # have no fractional seconds (see verify_miliseconds)
+    # timestamps come as datetimes, or as strings when they have no fractional seconds (see verify_miliseconds)
     return value if isinstance(value, datetime) else datetime.fromisoformat(value)
 
 
@@ -88,10 +80,8 @@ def plain(element: CaseElement) -> Dict[str, Any]:
 
 
 def message_links(records: List[MessageRecord], processes: Dict[str, OcelProcess]):
-    """(process, row of that process) -> [((process, object id), qualifier, carry)]: the tasks a publisher's records
-    attach to link the object of every case that claimed the message, and the tasks a claimer's records attach to
-    link the publisher's object, each with its own end's qualifier and carry (which later events of its case link
-    it too). Ends without a qualifier or a task, or whose other end's process writes no objects, link nothing."""
+    """(process, row of that process) -> [((process, object id), qualifier, carry)]: the objects at the other end of
+    the messages the row's task published or took. Ends without a qualifier or a task link nothing."""
     def has_object(element):
         return element.process in processes and processes[element.process].object_type is not None
 
@@ -111,11 +101,8 @@ def message_links(records: List[MessageRecord], processes: Dict[str, OcelProcess
 
 
 def message_object_links(records: List[MessageRecord], processes: Dict[str, OcelProcess]):
-    """(process, object id) -> [((process, object id), qualifier)]: the OCEL links between objects that the
-    messages' o2o keys give.
-    A publish entry's o2o links the publisher's object to the object of every case that claimed the
-    message, a consume entry's links the claimer's object to the publisher's. A link is written once, however
-    many messages give it; ends whose process writes no objects link nothing."""
+    """(process, object id) -> [((process, object id), qualifier)]: the links between objects the messages' o2o keys
+    give, each once: a publish entry's from the publisher, a consume entry's from the claimer."""
     def has_object(element):
         return element.process in processes and processes[element.process].object_type is not None
 
@@ -138,24 +125,9 @@ def message_object_links(records: List[MessageRecord], processes: Dict[str, Ocel
 def reference_links(config: SimulationConfig, catalogue: Dict[str, List[CatalogueObject]],
                     processes: Dict[str, OcelProcess], objects, rows, logged_elements, warn,
                     timetables: Optional[Dict[str, Timetable]] = None):
-    """
-    The catalogue's objects (catalogue: every organization's, as grown_catalogues gives them), as (catalogue name, id, [(attribute,
-    value, time)]): every object of a listed catalogue, and the objects of a pool or a growing catalogue that some
-    case's referenced attribute names; their attributes are timed at the start of the run, a growing catalogue's
-    when the first case took its id, each with the value valid then, and an attribute that changes again at every
-    change up to the run's last event (timetables: catalogue name -> its organization's timetable; none, values
-    that never change); and the links its references give, joined with the case objects and log rows after the
-    run:
-    - object -> [(object, qualifier)]: a reference with o2o links the object of every case of its process, as
-      (process, object id), to the catalogue object of each value its attribute took, as its id (reverse: from
-      the catalogue object);
-    - (process, row of that process) -> [(object id, qualifier)]: each event of those cases named in
-      link_events (every event without the key) links the catalogue object of the value the attribute had when
-      the event completed, with the attribute's name as qualifier.
-    A value that is a list (appended, or picked) stands for each of its entries, and an entry it repeats is linked
-    once. A value that is not in its catalogue gets no link, and a warning, once per attribute and value.
-    Processes that write no objects link nothing.
-    """
+    """The catalogue objects to write, as (catalogue name, id, [(attribute, value, time)]), and the links the
+    references give: object -> [(object, qualifier)] and (process, row) -> [(object id, qualifier)] (docs/catalogue.md,
+    "The links"). timetables: catalogue name -> its organization's timetable; None: values that never change."""
     ids_of = {name: {obj.id for obj in catalogue_objects} for name, catalogue_objects in catalogue.items()}
     history = {(process, case_object.object_id): case_object.attributes for process, case_object in objects}
     object_links, event_links, warned, referred = defaultdict(list), defaultdict(list), set(), set()
@@ -171,8 +143,7 @@ def reference_links(config: SimulationConfig, catalogue: Dict[str, List[Catalogu
         return False
 
     def values(case, attribute, until=None):
-        """The ids the attribute of case, (process, object id), named, in order and each once: all it ever named, or
-        only those of the value it had at until."""
+        """The ids the attribute of case named, in order and each once: all of them, or those of its value at until."""
         taken = [value for name, value, time in history.get(case, [])
                  if name == attribute and value is not None and (until is None or time <= until)]
         return list(dict.fromkeys(entry for value in (taken[-1:] if until is not None else taken)
@@ -222,8 +193,8 @@ def reference_links(config: SimulationConfig, catalogue: Dict[str, List[Catalogu
     end = max((_as_datetime(row["end_time"]) for _, row in rows), default=config.start_datetime)
 
     def timed(name, object_id, attributes):
-        """An object's attributes, (attribute, value, time): each with its value when the object is written, then,
-        if it changes, its value from each change on, up to the end of the run, its last event."""
+        """An object's attributes, (attribute, value, time): its values when written, then at each change up to the
+        end of the run, its last event."""
         time = time_of(name, object_id)
         if timetables is None:
             return [(attribute, value, time) for attribute, value in attributes]
@@ -244,10 +215,7 @@ def reference_links(config: SimulationConfig, catalogue: Dict[str, List[Catalogu
 
 def tag_along(config: SimulationConfig, catalogue: Dict[str, List[CatalogueObject]], objects):
     """(process, object id) -> [(qualifier, [(time, [catalogue object id, ...])])]: for each reference with
-    tag_along, the catalogue objects its attribute named on the case's object, from when, with the attribute's name
-    as qualifier: one for a single value, each entry once for a list. The OCEL output links every event of another
-    case that links the object to those named when the event completed (see write_ocel). Ids not in the catalogue
-    are left out, and a value with none at all; reference_links warns about them."""
+    tag_along, the catalogue objects the case's object named, from when (see write_ocel)."""
     ids_of = {name: {obj.id for obj in catalogue_objects} for name, catalogue_objects in catalogue.items()}
     tagged = defaultdict(list)
     for reference in config.references:
@@ -267,6 +235,5 @@ def tag_along(config: SimulationConfig, catalogue: Dict[str, List[CatalogueObjec
 
 
 def _entries(value):
-    """The catalogue ids a referenced attribute's value names: a list's entries (an appended or picked list), or the
-    value itself."""
+    """The catalogue ids a referenced attribute's value names: a list's entries, or the value itself."""
     return [entry for entry in value if entry is not None] if isinstance(value, (list, tuple)) else [value]

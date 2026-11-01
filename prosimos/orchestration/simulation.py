@@ -1,7 +1,4 @@
-"""
-A multi-process simulation of a whole configuration (docs/orchestrator.md): draws the catalogues and picks, builds a
-Prosimos engine for each process, runs them in the run loop, and writes the merged CSV log and the OCEL file.
-"""
+"""A whole configuration's run: catalogues, picks, engines, the run loop and the output (docs/orchestrator.md)."""
 import random
 from typing import Dict, Optional
 
@@ -18,21 +15,9 @@ from prosimos.orchestration.protocol import SimulationEngine
 def run_multiprocess_simulation(config: SimulationConfig, log_out_path: Optional[str] = None,
                                 extra_engines: Optional[Dict[str, SimulationEngine]] = None,
                                 ocel_out_path: Optional[str] = None) -> RunReport:
-    """
-    Simulate the configured processes side by side on one shared clock (see orchestrate),
-    stepping the engine whose next_event_time() is earliest, ties broken by process name, so runs
-    given the same seed are repeatable; without a seed each run draws different random values.
-    When log_out_path is given, every process's events are written to that one CSV, sorted
-    by start time, with the process name as the first column. When ocel_out_path is given, the run
-    is also written as an OCEL 2.0 JSON file: one object per case, typed by its process's object_type,
-    and one event per task, linked to its case's object and to the objects on the other end of its
-    messages; objects are linked to each other where a message entry has an o2o key, and the catalogue's
-    objects are written and linked where references say a case attribute holds their ids (see
-    prosimos/orchestration/ocel_writer.py).
-    extra_engines are ready-made engines, keyed by process name, that run alongside the ones built
-    from config.processes; their names must be exactly config.extra_processes. They get no log
-    writer, so the merged log holds only the configured processes.
-    """
+    """Simulates the configured processes on one clock (see orchestrate), and writes the merged CSV log and the OCEL
+    file to the paths given (docs/orchestrator.md, "Output"). extra_engines: ready-made engines, keyed by process
+    name, exactly config.extra_processes; they write no log."""
     extra_engines = dict(extra_engines or {})
     if sorted(extra_engines) != sorted(config.extra_processes):
         raise ValueError(f"extra_engines must be exactly the configuration's extra_processes "
@@ -40,13 +25,8 @@ def run_multiprocess_simulation(config: SimulationConfig, log_out_path: Optional
 
     merged_log = MergedLog() if log_out_path is not None or ocel_out_path is not None else None
 
-    # every engine has its own random generators, seeded from the seed and its process name; without a
-    # seed they are seeded from the global generators, so build them in name order rather than input
-    # order to keep the result independent of how the list was written
-    # each process's picks come from its references and its organization's catalogues. All catalogues are drawn
-    # before any pick, and the picks before any engine, as without a seed each draws from the global generators
-    # each organization's catalogue_changes are worked out into a timetable, which every reader of a catalogue value
-    # reads the value valid at that moment from
+    # without a seed, every generator is seeded from the global ones, so the order is fixed: all catalogues, then
+    # all picks, then the engines in name order, whatever the order of the configuration
     drawn = {organization.name: drawn_catalogues(organization, config.seed) for organization in config.organizations}
     timetables = {organization.name: Timetable(organization.catalogue_changes, config.start_datetime)
                   for organization in config.organizations}
