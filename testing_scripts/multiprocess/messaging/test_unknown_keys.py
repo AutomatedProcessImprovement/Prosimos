@@ -12,11 +12,11 @@ import pytz
 
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.messaging.parser import parse_messages
-from prosimos.orchestration.catalogue import _checked_catalogue
+from prosimos.orchestration.catalogue import checked_catalogue
 from prosimos.orchestration.catalogue.model import CataloguePool
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.prosimos_engine import load_process
-from testing_scripts.multiprocess.catalogue.test_catalogue import _config_with
+from testing_scripts.multiprocess.catalogue.test_catalogue import config_with
 from testing_scripts.multiprocess.messaging.test_messaging_parser import (  # noqa: F401 (bpmn is a fixture)
     bpmn, consume, publish)
 from testing_scripts.multiprocess.orchestrator_settings import one_organization
@@ -25,7 +25,7 @@ START = pytz.utc.localize(datetime(2024, 1, 1, 9))
 
 
 def _config_rejected(tmp_path, message, change):
-    path = _config_with(tmp_path)
+    path = config_with(tmp_path)
     data = json.loads(path.read_text())
     change(data)
     path.write_text(json.dumps(data))
@@ -263,6 +263,6 @@ def test_a_pool_of_100000_passes_the_catalogue_check_well_under_a_second():
              for name in ("Sales", "Warehouse", "Packaging")]
 
     started = time.perf_counter()
-    _checked_catalogue(one_organization(specs, {"customer": CataloguePool(100_000, ())}))
+    checked_catalogue(one_organization(specs, {"customer": CataloguePool(100_000, ())}))
 
     assert time.perf_counter() - started < 0.5

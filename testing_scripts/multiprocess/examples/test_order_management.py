@@ -34,7 +34,7 @@ WORK = {"place order": (0, 0), "confirm order": (5, 15), "payment reminder": (2,
         "send package": (60, 240), "failed delivery": (0, 0), "package delivered": (0, 0)}
 
 
-def _config(orders=ORDERS, rounds=ROUNDS):
+def order_management_config(orders=ORDERS, rounds=ROUNDS):
     config = SimulationConfig.from_json(CONFIG)
     cases = {"Sales": orders, "Packaging": rounds}
     [shop] = config.organizations  # with its catalogues and their changes
@@ -46,7 +46,8 @@ def _config(orders=ORDERS, rounds=ROUNDS):
 def run(tmp_path_factory):
     """One 100-order run: the report, the merged log, and the path of the OCEL file."""
     folder = tmp_path_factory.mktemp("order_management")
-    report = run_multiprocess_simulation(_config(), folder / "log.csv", ocel_out_path=folder / "log.json")
+    report = run_multiprocess_simulation(order_management_config(), folder / "log.csv",
+                                         ocel_out_path=folder / "log.json")
     log = pd.read_csv(folder / "log.csv", parse_dates=["enable_time", "start_time", "end_time"])
     return report, log, folder / "log.json"
 
@@ -212,7 +213,8 @@ def inflation_run(tmp_path_factory):
     """One 1,000-order run, placed over about six and a half months, through three price rises: the report, the
     merged log, and the OCEL file."""
     folder = tmp_path_factory.mktemp("inflation")
-    report = run_multiprocess_simulation(_config(1000), folder / "log.csv", ocel_out_path=folder / "log.json")
+    report = run_multiprocess_simulation(order_management_config(1000), folder / "log.csv",
+                                         ocel_out_path=folder / "log.json")
     with open(folder / "log.json") as file:
         return report, pd.read_csv(folder / "log.csv"), json.load(file)
 
@@ -391,8 +393,8 @@ def test_every_task_s_work_time_is_within_its_range(run):
 
 
 def test_the_same_seed_gives_the_same_run(tmp_path):
-    first = run_multiprocess_simulation(_config(), tmp_path / "first.csv")
-    second = run_multiprocess_simulation(_config(), tmp_path / "second.csv")
+    first = run_multiprocess_simulation(order_management_config(), tmp_path / "first.csv")
+    second = run_multiprocess_simulation(order_management_config(), tmp_path / "second.csv")
 
     assert first.to_dict() == second.to_dict()
     assert (tmp_path / "first.csv").read_text() == (tmp_path / "second.csv").read_text()
@@ -416,7 +418,7 @@ def test_the_same_seed_gives_the_same_run_through_start_orchestration(tmp_path):
                                           "--log_out_path", str(tmp_path / f"{name}.csv"),
                                           "--report_out_path", str(tmp_path / f"{name}.json")])
         assert result.exit_code == 0, result.output
-    run_multiprocess_simulation(_config(), tmp_path / "python.csv")
+    run_multiprocess_simulation(order_management_config(), tmp_path / "python.csv")
 
     assert (tmp_path / "first.csv").read_text() == (tmp_path / "second.csv").read_text()
     assert (tmp_path / "first.json").read_text() == (tmp_path / "second.json").read_text()

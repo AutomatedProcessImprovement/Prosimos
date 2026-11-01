@@ -10,7 +10,7 @@ import random
 import numpy as np
 
 
-def _engine_random_states(seed, process_name):
+def engine_random_states(seed, process_name):
     """Initial Python and NumPy generator states for one engine. A stable hash of the seed and the
     process name, not Python's hash(), which differs between runs."""
     if seed is None:
@@ -54,4 +54,4 @@ class _GlobalGenerators:
         self.holder, self._callers = None, None
 
 
-_generators = _GlobalGenerators()
+generators = _GlobalGenerators()

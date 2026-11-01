@@ -47,7 +47,7 @@ def _time(logged):
     return logged if isinstance(logged, datetime) else datetime.fromisoformat(logged)
 
 
-def _settings(tmp_path, change):
+def settings_with(tmp_path, change):
     with open(ORDERS_JSON) as file:
         settings = json.load(file)
     change(settings)
@@ -56,12 +56,12 @@ def _settings(tmp_path, change):
     return str(path)
 
 
-def _orders(cases, json_path=ORDERS_JSON):
+def order_messages(cases, json_path=ORDERS_JSON):
     log = _Log()
     return ProsimosEngine(ProcessSpec("Orders", ORDERS, json_path, cases), START, log, seed=1), log
 
 
-def _run_until_idle(engine):
+def run_until_idle(engine):
     while engine.next_event_time() is not None:
         engine.step()
 
@@ -70,27 +70,27 @@ def truck(object_id="Carrier-0", **attributes):
     return Message("Truck", {"object_id": object_id, "dock": "Tartu", **attributes}, source="Carrier")
 
 
-def _truck_ids(engine, cases):
+def truck_ids(engine, cases):
     return [engine._env.sim_setup.bpmn_graph.all_attributes[case].get("truck_id") for case in cases]
 
 
 def test_a_truck_of_capacity_2_resumes_the_two_oldest_of_three_waiting_orders():
-    engine, log = _orders(3)
-    _run_until_idle(engine)  # orders 0, 1, 2 wait from 09:01, 09:11, 09:21
+    engine, log = order_messages(3)
+    run_until_idle(engine)  # orders 0, 1, 2 wait from 09:01, 09:11, 09:21
 
     assert engine.deliver(truck(), at("12:00")) is Verdict.CLAIMED
-    _run_until_idle(engine)
+    run_until_idle(engine)
 
     assert log.loaded() == {0: at("12:00"), 1: at("12:00")}
     assert sorted(engine._env._parked_events) == [(2, "Catch_Truck")]  # the third keeps waiting
 
 
 def test_a_truck_that_finds_one_order_resumes_one():
-    engine, log = _orders(1)
-    _run_until_idle(engine)
+    engine, log = order_messages(1)
+    run_until_idle(engine)
 
     assert engine.deliver(truck(), at("12:00")) is Verdict.CLAIMED
-    _run_until_idle(engine)
+    run_until_idle(engine)
 
     assert log.loaded() == {0: at("12:00")}
 
@@ -98,7 +98,7 @@ def test_a_truck_that_finds_one_order_resumes_one():
 def test_a_truck_that_finds_none_is_pending_and_resumes_the_first_order_to_arrive():
     # the truck comes at 08:30, before any order; it doesn't wait to fill up, so it takes order 0
     # when that order starts waiting at 09:01, and order 1 is left waiting
-    orders, log = _orders(2)
+    orders, log = order_messages(2)
     carrier = ScriptedEngine("Carrier")
     carrier.publish_at(START.replace(hour=8, minute=30), "Truck", object_id="Carrier-0", dock="Tartu")
 
@@ -110,26 +110,26 @@ def test_a_truck_that_finds_none_is_pending_and_resumes_the_first_order_to_arriv
 
 
 def test_capacity_can_be_read_from_the_message(tmp_path):
-    from_message = _settings(tmp_path, lambda settings: settings["messages"]["consume"][0].update(
+    from_message = settings_with(tmp_path, lambda settings: settings["messages"]["consume"][0].update(
         capacity={"attribute": "capacity"}))
-    engine, log = _orders(4, json_path=from_message)
-    _run_until_idle(engine)
+    engine, log = order_messages(4, json_path=from_message)
+    run_until_idle(engine)
 
     engine.deliver(truck(capacity=3), at("12:00"))
-    _run_until_idle(engine)
+    run_until_idle(engine)
 
     assert log.loaded() == {0: at("12:00"), 1: at("12:00"), 2: at("12:00")}
 
 
 def test_a_missing_or_invalid_capacity_in_the_message_counts_as_1_with_one_warning(tmp_path):
-    from_message = _settings(tmp_path, lambda settings: settings["messages"]["consume"][0].update(
+    from_message = settings_with(tmp_path, lambda settings: settings["messages"]["consume"][0].update(
         capacity={"attribute": "capacity"}))
-    engine, log = _orders(3, json_path=from_message)
-    _run_until_idle(engine)
+    engine, log = order_messages(3, json_path=from_message)
+    run_until_idle(engine)
 
     engine.deliver(truck("Carrier-0"), at("12:00"))  # no capacity
     engine.deliver(truck("Carrier-1", capacity=0), at("13:00"))  # not at least 1
-    _run_until_idle(engine)
+    run_until_idle(engine)
 
     assert log.loaded() == {0: at("12:00"), 1: at("13:00")}
     assert engine.finish().warnings == [
@@ -137,18 +137,18 @@ def test_a_missing_or_invalid_capacity_in_the_message_counts_as_1_with_one_warni
 
 
 def test_every_resumed_order_gets_the_trucks_id():
-    engine, _ = _orders(3)
-    _run_until_idle(engine)
+    engine, _ = order_messages(3)
+    run_until_idle(engine)
 
     engine.deliver(truck("Carrier-0"), at("12:00"))
     engine.deliver(truck("Carrier-1"), at("13:00"))
 
-    assert _truck_ids(engine, (0, 1, 2)) == ["Carrier-0", "Carrier-0", "Carrier-1"]
+    assert truck_ids(engine, (0, 1, 2)) == ["Carrier-0", "Carrier-0", "Carrier-1"]
 
 
 def test_a_truck_for_another_dock_resumes_nobody():
-    engine, _ = _orders(2)
-    _run_until_idle(engine)
+    engine, _ = order_messages(2)
+    run_until_idle(engine)
 
     assert engine.deliver(truck(dock="Tallinn"), at("12:00")) is Verdict.DISCARDED
     assert sorted(engine._env._parked_events) == [(0, "Catch_Truck"), (1, "Catch_Truck")]
@@ -159,7 +159,7 @@ def test_a_truck_for_another_dock_resumes_nobody():
     ({"attribute": ""}, r"'capacity' attribute must be a message attribute name"),
 ])
 def test_an_invalid_capacity_is_rejected_when_the_model_is_loaded(tmp_path, capacity, reason):
-    settings = _settings(tmp_path, lambda settings: settings["messages"]["consume"][0].update(capacity=capacity))
+    settings = settings_with(tmp_path, lambda settings: settings["messages"]["consume"][0].update(capacity=capacity))
 
     with pytest.raises(InvalidSimScenarioException, match=reason):
         load_process(ORDERS, settings, 1, START)

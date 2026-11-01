@@ -10,11 +10,11 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from prosimos.orchestration.config import _checked_consumer_groups
-from prosimos.orchestration.output import _plain
+from prosimos.orchestration.config import checked_consumer_groups
+from prosimos.orchestration.output import plain
 from prosimos.orchestration.protocol import (CaseElement, CaseObject, EngineReport, Message, MessageRecord,
                                            SimulationEngine, StalledCase, Verdict)
-from prosimos.orchestration.random_generators import _generators
+from prosimos.orchestration.random_generators import generators
 
 
 @dataclass
@@ -67,8 +67,8 @@ class RunReport:
             "warnings": list(self.warnings),
             "engine_warnings": [{"process": process, "warning": warning} for process, warning in self.engine_warnings],
             "message_records": [{"message": record.message_id, "type": record.type,
-                                 "publisher": _plain(record.publisher) if record.publisher else None,
-                                 "claimers": [_plain(claimer) for claimer in record.claimers]}
+                                 "publisher": plain(record.publisher) if record.publisher else None,
+                                 "claimers": [plain(claimer) for claimer in record.claimers]}
                                 for record in self.message_records],
         }
 
@@ -98,7 +98,7 @@ def orchestrate(
     never the global random module the engines use.
     """
     names = sorted(engines)
-    consumer_groups = _checked_consumer_groups(names, consumer_groups)
+    consumer_groups = checked_consumer_groups(names, consumer_groups)
     group_of = {member: group for group, members in consumer_groups.items() for member in members}
     subscriptions = {name: set(engines[name].subscriptions()) for name in names}
     routing = {}
@@ -130,11 +130,11 @@ def orchestrate(
         """engines[name], with the caller's generator states back in the global generators first for an engine
         that may draw from them itself: any that doesn't put its own states there (manages_global_generators)."""
         if not getattr(engines[name], "manages_global_generators", False):
-            _generators.give_back()
+            generators.give_back()
         return engines[name]
 
     # nothing here draws from the global generators, so the engines may leave their states in them
-    _generators.keep = True
+    generators.keep = True
     try:
         while True:
             due = [(t, name) for name in engines if (t := engine(name).next_event_time()) is not None]
@@ -188,8 +188,8 @@ def orchestrate(
                     if all(m in pooled.discarded_by for m in recipients):
                         resolve(pooled)
     finally:
-        _generators.keep = False
-        _generators.give_back()
+        generators.keep = False
+        generators.give_back()
 
     report.unclaimed = [(pooled.group, pooled.message) for pooled in pool]
     # the engines' records are only joined here, once the run is over: nothing during the run uses them

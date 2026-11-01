@@ -446,7 +446,7 @@ class EngineMessaging:
                     case_values[name] = values.at(value, when)
                     given.append(name)
             elif named or function not in ("min", "max") or initial is not None:
-                case_values[name] = _aggregated(function, [values.at(object_id, when) for object_id in named], initial)
+                case_values[name] = aggregate_of(function, [values.at(object_id, when) for object_id in named], initial)
                 given.append(name)
         return given
 
@@ -500,7 +500,7 @@ class EngineMessaging:
                 continue
             aggregated = self._aggregated_values.setdefault((p_case, target), [])
             aggregated.append(value)
-            case_values[target] = _aggregated(function, aggregated, initial)
+            case_values[target] = aggregate_of(function, aggregated, initial)
             written.append(target)
         return written
 
@@ -718,7 +718,7 @@ class EngineMessaging:
         return sorted({point.type for point in self._consume_points[event_id]})
 
 
-def _aggregated(function, values, initial=None):
+def aggregate_of(function, values, initial=None):
     """function over values: count, sum, min or max, and over initial, if given, a number already among them: a
     count adds the values to it, a sum, min or max takes it as one more value. A sum of whole numbers is a whole
     number; any other is rounded once, at the end (math.fsum), so it doesn't depend on the order of the messages:

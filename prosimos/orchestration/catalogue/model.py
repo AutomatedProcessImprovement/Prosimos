@@ -121,7 +121,7 @@ class Reference:
         return self.pick == "new" or isinstance(self.pick, NewShare)
 
 
-def _catalogue_ids(name, entry) -> List[str]:
+def catalogue_ids(name, entry) -> List[str]:
     """The ids known when the run starts: none yet for a growing catalogue."""
     if isinstance(entry, GrowingCatalogue):
         return []

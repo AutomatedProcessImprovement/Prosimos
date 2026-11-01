@@ -6,18 +6,18 @@ objects (with).
 import pytest
 
 from prosimos.exceptions import InvalidSimScenarioException
-from prosimos.orchestration.catalogue import _Brought
+from prosimos.orchestration.catalogue import Brought
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import Message
-from testing_scripts.multiprocess.catalogue.test_catalogue import _config_with
+from testing_scripts.multiprocess.catalogue.test_catalogue import config_with
 from testing_scripts.multiprocess.catalogue.test_pick import CUSTOMERS, PICKING, PRODUCTS_LIST
-from testing_scripts.multiprocess.catalogue.test_pick_count import PRODUCTS, SALES, _at_creation, _sales_picking
+from testing_scripts.multiprocess.catalogue.test_pick_count import PRODUCTS, SALES, at_creation, sales_picking
 from testing_scripts.multiprocess.catalogue.test_with import PRICE
-from testing_scripts.multiprocess.catalogue.test_with import _run as _run_picking
-from testing_scripts.multiprocess.messaging.test_aggregate import (WEIGHTS, _history, _ocel_history, _rejected, _run,
-                                                                   _settings)
-from testing_scripts.multiprocess.messaging.test_append import _run as _run_orders
+from testing_scripts.multiprocess.catalogue.test_with import run as _run_picking
+from testing_scripts.multiprocess.messaging.test_aggregate import (WEIGHTS, aggregate_history, ocel_history, rejected,
+                                                                   run, settings_with)
+from testing_scripts.multiprocess.messaging.test_append import run as _run_orders
 from testing_scripts.multiprocess.messaging.test_count_over_list import PACKAGES, START
 
 # the examples of docs/catalogue.md: initial 5, over the values 476 and 99.99, and over none
@@ -35,34 +35,34 @@ class _Picked:
 
 @pytest.mark.parametrize("function, expected", OVER_TWO.items())
 def test_with_works_over_initial_and_the_picked_objects(function, expected):
-    brought = _Brought("price", _Picked(["iPad", "Echo"]), {"iPad": 476, "Echo": 99.99}, function, 5)
+    brought = Brought("price", _Picked(["iPad", "Echo"]), {"iPad": 476, "Echo": 99.99}, function, 5)
 
     assert brought.get_next_value() == pytest.approx(expected)
 
 
 @pytest.mark.parametrize("function", ["sum", "count", "min", "max"])
 def test_with_over_no_objects_gives_initial(function):
-    assert _Brought("price", _Picked([]), {"iPad": 476}, function, 5).get_next_value() == 5
+    assert Brought("price", _Picked([]), {"iPad": 476}, function, 5).get_next_value() == 5
 
 
 def test_with_works_over_initial_and_a_single_pick():
-    brought = _Brought("price", _Picked("iPad"), {"iPad": 476}, "sum", 5)
+    brought = Brought("price", _Picked("iPad"), {"iPad": 476}, "sum", 5)
 
     assert brought.get_next_value() == 481
 
 
 def test_without_initial_with_stays_as_before():
-    assert [_Brought("price", _Picked([]), {}, function).get_next_value()
+    assert [Brought("price", _Picked([]), {}, function).get_next_value()
             for function in ("sum", "count", "min", "max")] == [0, 0, None, None]
 
 
 def test_every_order_costs_its_products_prices_plus_a_fee(tmp_path):
     # an order's price: the sum of its items' prices plus a fee of 5.00
-    report, _, _ = _run_picking(_sales_picking(tmp_path, {**PRODUCTS, "count": {"object_attribute": "items"},
-                                                          "with": {"price": {"sum": "price", "initial": 5.0}}}),
+    report, _, _ = _run_picking(sales_picking(tmp_path, {**PRODUCTS, "count": {"object_attribute": "items"},
+                                                         "with": {"price": {"sum": "price", "initial": 5.0}}}),
                                 tmp_path)
 
-    products, prices = _at_creation(report, "Sales", "products"), _at_creation(report, "Sales", "price")
+    products, prices = at_creation(report, "Sales", "products"), at_creation(report, "Sales", "price")
 
     assert len(prices) == 100
     assert all(prices[order] == pytest.approx(5.0 + sum(PRICE[product] for product in products[order]))
@@ -72,12 +72,12 @@ def test_every_order_costs_its_products_prices_plus_a_fee(tmp_path):
 @pytest.mark.parametrize("initial", ["5", True, None])
 def test_with_an_initial_that_isnt_a_number_is_rejected(tmp_path, initial):
     with pytest.raises(ValueError, match=rf"{SALES} with 'price' initial must be a number, got {initial!r}"):
-        _sales_picking(tmp_path, {**PRODUCTS, "count": 3, "with": {"price": {"sum": "price", "initial": initial}}})
+        sales_picking(tmp_path, {**PRODUCTS, "count": 3, "with": {"price": {"sum": "price", "initial": initial}}})
 
 
 def test_initial_on_a_plain_copy_is_rejected(tmp_path):
-    path = _config_with(tmp_path, catalogues={"customer": CUSTOMERS, "product": PRODUCTS_LIST},
-                        references={"Sales": [{**PICKING, "pick": "uniform"},
+    path = config_with(tmp_path, catalogues={"customer": CUSTOMERS, "product": PRODUCTS_LIST},
+                       references={"Sales": [{**PICKING, "pick": "uniform"},
                                               {**PRODUCTS, "with": {"price": {"initial": 5}}}]})
 
     with pytest.raises(ValueError, match=rf"{SALES} with 'price' has initial but no function; initial is the first "
@@ -94,10 +94,10 @@ def test_initial_on_a_plain_copy_is_rejected(tmp_path):
     ("max", [5, 5, 5]),  # and as a floor
 ])
 def test_aggregate_works_over_initial_and_the_claimed_messages(tmp_path, function, values):
-    report, _ = _run(tmp_path, WEIGHTS, {"result": {function: "weight", "initial": 5}})
+    report, _ = run(tmp_path, WEIGHTS, {"result": {function: "weight", "initial": 5}})
 
-    assert _history(report, "result") == [(pytest.approx(value), at) for value, at in
-                                          zip(values, ["09:00", "09:10", "09:20"])]
+    assert aggregate_history(report, "result") == [(pytest.approx(value), at) for value, at in
+                                                   zip(values, ["09:00", "09:10", "09:20"])]
 
 
 @pytest.mark.parametrize("function", ["sum", "count", "min", "max"])
@@ -105,7 +105,7 @@ def test_aggregate_starts_with_initial_before_the_first_message(tmp_path, functi
     def collecting_only(settings):
         del settings["messages"]["consume"][0]["aggregate"]
 
-    engine = ProsimosEngine(ProcessSpec("Packages", PACKAGES, _settings(
+    engine = ProsimosEngine(ProcessSpec("Packages", PACKAGES, settings_with(
         tmp_path, {"result": {function: "weight", "initial": 5}}, collecting_only)), START, seed=1)
     engine.deliver(Message("ItemPicked", {"weight": 0.8}, source="Picking"), START)
 
@@ -128,27 +128,27 @@ def test_the_ocel_output_leaves_out_an_aggregates_initial_until_the_first_messag
         (0.5, "09:00"), (1.3, "09:20"), (pytest.approx(3.4), "09:30"), (4.6, "09:40")]
     assert [(value, at) for name, value, at in history if name == "heaviest"] == [
         (1, "09:00"), (1, "09:20"), (2.1, "09:30"), (2.1, "09:40")]
-    assert _ocel_history(tmp_path, "order-0", "weight") == [(1.3, "09:20"), (pytest.approx(3.4), "09:30"),
+    assert ocel_history(tmp_path, "order-0", "weight") == [(1.3, "09:20"), (pytest.approx(3.4), "09:30"),
                                                             (4.6, "09:40")]
-    assert _ocel_history(tmp_path, "order-0", "heaviest") == [(1, "09:20"), (2.1, "09:30"), (2.1, "09:40")]
+    assert ocel_history(tmp_path, "order-0", "heaviest") == [(1, "09:20"), (2.1, "09:30"), (2.1, "09:40")]
     assert 0.5 in log["weight"].tolist()
 
 
 @pytest.mark.parametrize("initial", ["5", True, None])
 def test_an_aggregate_initial_that_isnt_a_number_is_rejected(tmp_path, initial):
-    _rejected(tmp_path, {"weight": {"sum": "weight", "initial": initial}},
-              rf"messages.consume\[0\]: aggregate 'weight' initial must be a number, got {initial!r}")
+    rejected(tmp_path, {"weight": {"sum": "weight", "initial": initial}},
+             rf"messages.consume\[0\]: aggregate 'weight' initial must be a number, got {initial!r}")
 
 
 def test_an_aggregate_with_initial_but_no_function_is_rejected(tmp_path):
-    _rejected(tmp_path, {"weight": {"initial": 5}},
-              r"messages.consume\[0\]: aggregate 'weight' must be one function and a message attribute")
+    rejected(tmp_path, {"weight": {"initial": 5}},
+             r"messages.consume\[0\]: aggregate 'weight' must be one function and a message attribute")
 
 
 def test_two_entries_aggregating_into_one_attribute_with_different_initials_are_rejected(tmp_path):
     def different(settings):
         settings["messages"]["consume"][1]["aggregate"] = {"weight": {"sum": "weight", "initial": 1}}
 
-    _rejected(tmp_path, {"weight": {"sum": "weight"}},
-              r"messages.consume\[1\]: aggregate writes 'weight' with initial 1, but messages.consume\[0\] with "
-              r"initial None: an attribute starts from one value", different)
+    rejected(tmp_path, {"weight": {"sum": "weight"}},
+             r"messages.consume\[1\]: aggregate writes 'weight' with initial 1, but messages.consume\[0\] with "
+             r"initial None: an attribute starts from one value", different)

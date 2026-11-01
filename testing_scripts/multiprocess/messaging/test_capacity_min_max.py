@@ -11,10 +11,10 @@ from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.prosimos_engine import load_process
 from prosimos.orchestration.protocol import Verdict
-from testing_scripts.multiprocess.messaging.test_capacity import (ASSETS, ORDERS, START, _orders, _run_until_idle,
-                                                                  _settings, _truck_ids, at, truck)
-from testing_scripts.multiprocess.messaging.test_race import AFTER_TIES, TRUCK_RACE, TRUCK_RACE_JSON, _race_orders
-from testing_scripts.multiprocess.messaging.test_race import _settings as _race_settings
+from testing_scripts.multiprocess.messaging.test_capacity import (ASSETS, ORDERS, START, at, order_messages,
+                                                                  run_until_idle, settings_with, truck, truck_ids)
+from testing_scripts.multiprocess.messaging.test_race import AFTER_TIES, TRUCK_RACE, TRUCK_RACE_JSON, race_orders
+from testing_scripts.multiprocess.messaging.test_race import settings_with as _race_settings
 from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
 
@@ -25,7 +25,7 @@ def _capacity(capacity):
 def _with_carrier(tmp_path, capacity, cases, trucks):
     """Orders (one every 10 minutes from 09:00, waiting at Catch_Truck from 09:01, 09:11, ...) and a Carrier
     publishing a truck at each (time, attributes) of trucks; the report and the log."""
-    orders, log = _orders(cases, json_path=_settings(tmp_path, _capacity(capacity)))
+    orders, log = order_messages(cases, json_path=settings_with(tmp_path, _capacity(capacity)))
     carrier = ScriptedEngine("Carrier")
     for number, (time, attributes) in enumerate(trucks):
         carrier.publish_at(at(time), "Truck", object_id=f"Carrier-{number}", dock="Tartu", **attributes)
@@ -42,26 +42,26 @@ def test_2_4_with_1_order_waiting_stays_pending_then_resumes_2_when_the_2nd_orde
 
 
 def test_2_4_answers_pending_while_fewer_than_2_are_waiting(tmp_path):
-    engine, log = _orders(1, json_path=_settings(tmp_path, _capacity({"min": 2, "max": 4})))
-    _run_until_idle(engine)  # order 0 waits from 09:01
+    engine, log = order_messages(1, json_path=settings_with(tmp_path, _capacity({"min": 2, "max": 4})))
+    run_until_idle(engine)  # order 0 waits from 09:01
 
     assert engine.deliver(truck(), at("12:00")) is Verdict.PENDING
-    _run_until_idle(engine)
+    run_until_idle(engine)
 
     assert log.loaded() == {}
     assert sorted(engine._env._parked_events) == [(0, "Catch_Truck")]
 
 
 def test_2_4_with_5_waiting_resumes_the_4_oldest(tmp_path):
-    engine, log = _orders(5, json_path=_settings(tmp_path, _capacity({"min": 2, "max": 4})))
-    _run_until_idle(engine)  # orders 0..4 wait from 09:01, 09:11, ..., 09:41
+    engine, log = order_messages(5, json_path=settings_with(tmp_path, _capacity({"min": 2, "max": 4})))
+    run_until_idle(engine)  # orders 0..4 wait from 09:01, 09:11, ..., 09:41
 
     assert engine.deliver(truck(), at("12:00")) is Verdict.CLAIMED
-    _run_until_idle(engine)
+    run_until_idle(engine)
 
     assert log.loaded() == {case: at("12:00") for case in range(4)}
     assert sorted(engine._env._parked_events) == [(4, "Catch_Truck")]
-    assert _truck_ids(engine, range(5)) == ["Carrier-0"] * 4 + [None]
+    assert truck_ids(engine, range(5)) == ["Carrier-0"] * 4 + [None]
 
 
 def test_1_2_behaves_exactly_like_capacity_2(tmp_path):
@@ -85,44 +85,46 @@ def test_a_message_still_waiting_at_the_end_is_reported_unclaimed(tmp_path):
 
 
 def test_a_min_without_max_resumes_every_waiting_case(tmp_path):
-    engine, log = _orders(5, json_path=_settings(tmp_path, _capacity({"min": 2})))
-    _run_until_idle(engine)
+    engine, log = order_messages(5, json_path=settings_with(tmp_path, _capacity({"min": 2})))
+    run_until_idle(engine)
 
     engine.deliver(truck(), at("12:00"))
-    _run_until_idle(engine)
+    run_until_idle(engine)
 
     assert log.loaded() == {case: at("12:00") for case in range(5)}
 
 
 def test_both_bounds_can_be_read_from_the_message(tmp_path):
     capacity = {"min": {"attribute": "fewest"}, "max": {"attribute": "capacity"}}
-    engine, log = _orders(4, json_path=_settings(tmp_path, _capacity(capacity)))
-    _run_until_idle(engine)  # orders 0..3 wait
+    engine, log = order_messages(4, json_path=settings_with(tmp_path, _capacity(capacity)))
+    run_until_idle(engine)  # orders 0..3 wait
 
     assert engine.deliver(truck("Carrier-0", fewest=5, capacity=6), at("12:00")) is Verdict.PENDING
     assert engine.deliver(truck("Carrier-1", fewest=2, capacity=3), at("12:00")) is Verdict.CLAIMED
-    _run_until_idle(engine)
+    run_until_idle(engine)
 
     assert log.loaded() == {0: at("12:00"), 1: at("12:00"), 2: at("12:00")}
 
 
 def test_a_min_of_2_and_a_max_from_the_message(tmp_path):
-    engine, log = _orders(4, json_path=_settings(tmp_path, _capacity({"min": 2, "max": {"attribute": "capacity"}})))
-    _run_until_idle(engine)
+    engine, log = order_messages(4, json_path=settings_with(tmp_path, _capacity({"min": 2,
+                                                                                 "max": {"attribute": "capacity"}})))
+    run_until_idle(engine)
 
     engine.deliver(truck(capacity=3), at("12:00"))
-    _run_until_idle(engine)
+    run_until_idle(engine)
 
     assert log.loaded() == {0: at("12:00"), 1: at("12:00"), 2: at("12:00")}
 
 
 def test_an_invalid_min_in_the_message_counts_as_1_with_one_warning(tmp_path):
-    engine, log = _orders(2, json_path=_settings(tmp_path, _capacity({"min": {"attribute": "fewest"}, "max": 1})))
-    _run_until_idle(engine)
+    engine, log = order_messages(2, json_path=settings_with(tmp_path, _capacity({"min": {"attribute": "fewest"},
+                                                                                 "max": 1})))
+    run_until_idle(engine)
 
     engine.deliver(truck("Carrier-0"), at("12:00"))  # no fewest
     engine.deliver(truck("Carrier-1", fewest=0), at("13:00"))
-    _run_until_idle(engine)
+    run_until_idle(engine)
 
     assert log.loaded() == {0: at("12:00"), 1: at("13:00")}
     assert engine.finish().warnings == [
@@ -137,11 +139,11 @@ def test_an_invalid_min_in_the_message_counts_as_1_with_one_warning(tmp_path):
      "Truck message accepted at Catch_Truck has no valid max (got 2, min 3); it resumes no more than 3 waiting cases"),
 ])
 def test_a_max_below_min_counts_as_min_with_one_warning(tmp_path, capacity, attributes, warning):
-    engine, log = _orders(4, json_path=_settings(tmp_path, _capacity(capacity)))
-    _run_until_idle(engine)
+    engine, log = order_messages(4, json_path=settings_with(tmp_path, _capacity(capacity)))
+    run_until_idle(engine)
 
     engine.deliver(truck(**attributes), at("12:00"))
-    _run_until_idle(engine)
+    run_until_idle(engine)
 
     min_ = capacity["min"] if isinstance(capacity["min"], int) else attributes["fewest"]
     assert log.loaded() == {case: at("12:00") for case in range(min_)}
@@ -156,7 +158,7 @@ def test_a_max_below_min_counts_as_min_with_one_warning(tmp_path, capacity, attr
 ])
 def test_in_a_race_a_truck_waits_for_min_orders_while_their_deadlines_run(tmp_path, cases, loaded, by_courier):
     json_path = _race_settings(tmp_path, _capacity({"min": 3, "max": 3}), base=TRUCK_RACE_JSON)
-    orders, log = _race_orders(TRUCK_RACE, json_path, cases)
+    orders, log = race_orders(TRUCK_RACE, json_path, cases)
     carrier = ScriptedEngine("Carrier")
     carrier.publish_at(at("08:30"), "Truck", dock="Tartu", object_id="Carrier-0")
 
@@ -184,7 +186,7 @@ def test_in_a_race_a_truck_waits_for_min_orders_while_their_deadlines_run(tmp_pa
 ])
 def test_an_invalid_capacity_is_rejected(tmp_path, capacity, reason):
     with pytest.raises(InvalidSimScenarioException, match=r"messages.consume\[0\](: |\.)" + reason):
-        load_process(ORDERS, _settings(tmp_path, _capacity(capacity)), 1, START)
+        load_process(ORDERS, settings_with(tmp_path, _capacity(capacity)), 1, START)
 
 
 @pytest.mark.parametrize("capacity", [2, {"min": 2, "max": 4}])
@@ -205,4 +207,4 @@ def test_capacity_with_collect_is_rejected(tmp_path, capacity):
         settings["messages"]["consume"][0].update(capacity=capacity, collect=2)
 
     with pytest.raises(InvalidSimScenarioException, match="collect and capacity can't be combined"):
-        load_process(ORDERS, _settings(tmp_path, with_collect), 1, START)
+        load_process(ORDERS, settings_with(tmp_path, with_collect), 1, START)

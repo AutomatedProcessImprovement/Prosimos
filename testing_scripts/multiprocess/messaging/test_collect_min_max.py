@@ -9,9 +9,9 @@ from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.messaging.parser import parse_messages
 from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.protocol import Message, Verdict
-from testing_scripts.multiprocess.messaging.test_collect import _orders, _settings, at
-from testing_scripts.multiprocess.messaging.test_race import ITEMS_RACE, ITEMS_RACE_JSON, _race_orders
-from testing_scripts.multiprocess.messaging.test_race import _settings as _race_settings
+from testing_scripts.multiprocess.messaging.test_collect import at, order_messages, settings_with
+from testing_scripts.multiprocess.messaging.test_race import ITEMS_RACE, ITEMS_RACE_JSON, race_orders
+from testing_scripts.multiprocess.messaging.test_race import settings_with as _race_settings
 from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
 
@@ -27,7 +27,7 @@ def _run(tmp_path, collect, published, change=lambda settings: None, more_engine
     publishing an ItemReady for it per (time, item id) of published, those with the same time in one step; the
     report, the log and the item ids claimed with their times. The orchestrator steps engines due at the same
     time in the order of their names, the orders engine's being orders_name."""
-    orders, log = _orders(json_path=_settings(tmp_path, _collecting(collect, change)))
+    orders, log = order_messages(json_path=settings_with(tmp_path, _collecting(collect, change)))
     picking = ScriptedEngine("Picking")
     for time in sorted({time for time, _ in published}):
         items = [item_id for item_time, item_id in published if item_time == time]
@@ -126,7 +126,7 @@ def test_the_collection_closes_once_the_offers_of_the_step_that_reached_min_are_
 
 
 def test_a_message_offered_at_a_later_time_finds_the_collection_closed(tmp_path):
-    orders, _ = _orders(json_path=_settings(tmp_path, _collecting({"min": 2, "max": 5})))
+    orders, _ = order_messages(json_path=settings_with(tmp_path, _collecting({"min": 2, "max": 5})))
     while orders.next_event_time() is not None:
         orders.step()  # order 0 waits at Catch_Items from 09:10
 
@@ -184,8 +184,8 @@ def test_a_case_stalled_below_min_reports_how_many_of_min_it_collected(tmp_path)
 
 def test_in_a_race_the_message_branch_wins_when_min_is_reached(tmp_path):
     # order 0 reaches the gateway at 09:10, its deadline is 11:10; one item at 09:20, three at 09:40 at once
-    orders, log = _race_orders(ITEMS_RACE, _race_settings(tmp_path, _collecting({"min": 2, "max": 5}),
-                                                          base=ITEMS_RACE_JSON), 1)
+    orders, log = race_orders(ITEMS_RACE, _race_settings(tmp_path, _collecting({"min": 2, "max": 5}),
+                                                         base=ITEMS_RACE_JSON), 1)
     shelf = ScriptedEngine("Shelf")
     shelf.at(at("09:20"), lambda now: [_item("a")])
     shelf.at(at("09:40"), lambda now: [_item(item_id) for item_id in ("b", "c", "d")])
@@ -215,7 +215,7 @@ def test_in_a_race_the_message_branch_wins_when_min_is_reached(tmp_path):
 ])
 def test_an_invalid_collect_is_rejected(tmp_path, collect, reason):
     with pytest.raises(InvalidSimScenarioException, match=r"messages.consume\[0\]" + r"(: |\.)" + reason):
-        _orders(json_path=_settings(tmp_path, _collecting(collect)))
+        order_messages(json_path=settings_with(tmp_path, _collecting(collect)))
 
 
 @pytest.mark.parametrize("collect", [{"min": 2, "max": 5}, "all", 3])
@@ -224,7 +224,7 @@ def test_collect_with_capacity_is_rejected(tmp_path, collect):
         settings["messages"]["consume"][0]["capacity"] = 2
 
     with pytest.raises(InvalidSimScenarioException, match=r"collect and capacity can't be combined"):
-        _orders(json_path=_settings(tmp_path, _collecting(collect, with_capacity)))
+        order_messages(json_path=settings_with(tmp_path, _collecting(collect, with_capacity)))
 
 
 @pytest.mark.parametrize("collect", [{"min": 2, "max": 5}, "all", 3])

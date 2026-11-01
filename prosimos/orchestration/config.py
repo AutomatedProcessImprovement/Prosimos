@@ -13,7 +13,7 @@ import pytz
 
 from prosimos.messaging.model import AGGREGATE_FUNCTIONS
 from prosimos.messaging.parser import is_number, is_whole_number, unknown_keys
-from prosimos.orchestration.catalogue import _brought_names, _checked_catalogue
+from prosimos.orchestration.catalogue import brought_names, checked_catalogue
 from prosimos.orchestration.catalogue.model import (CatalogueChange, CatalogueObject, CataloguePool, Computed,
                                                     CountFrom, GrowingCatalogue, NewShare, Reference)
 from prosimos.simulation_properties_parser import parse_datetime
@@ -73,7 +73,7 @@ def _checked_ocel_attributes(organizations):
             settings = json.load(file)
         has = {entry.get("name") for entry in settings.get("object_attributes", [])}
         has.update(reference.object_attribute for reference in spec.references if reference.pick is not None)
-        has.update(name for reference in spec.references for name in _brought_names(reference))
+        has.update(name for reference in spec.references for name in brought_names(reference))
         messages = settings.get("messages")
         for entry in messages.get("consume", []) if isinstance(messages, dict) else []:
             for key in ("copy", "append", "aggregate"):
@@ -87,7 +87,7 @@ def _checked_ocel_attributes(organizations):
         raise ValueError("Invalid ocel_attributes: " + "; ".join(problems))
 
 
-def _checked_consumer_groups(names, consumer_groups):
+def checked_consumer_groups(names, consumer_groups):
     """Every process in exactly one group, and groups only naming known processes. Without
     groups, every process is its own group."""
     if consumer_groups is None:
@@ -122,7 +122,7 @@ class Organization:
     processes: List[ProcessSpec] = field(default_factory=list)
     # its catalogues, name -> objects with no events of their own, shared by its processes (see SimulationConfig)
     catalogues: Dict[str, Union[List[CatalogueObject], CataloguePool, GrowingCatalogue]] = field(default_factory=dict)
-    # how its catalogues' attributes change over the run, in order (see _Timetable)
+    # how its catalogues' attributes change over the run, in order (see Timetable)
     catalogue_changes: Tuple[CatalogueChange, ...] = ()
 
 
@@ -136,7 +136,7 @@ class SimulationConfig:
     a ProcessSpec (e.g. scripted test engines), so that groups can name them too. Each organization's catalogues map
     a name (the OCEL object type) to the objects with no events of their own, a list of CatalogueObject, a
     CataloguePool or a GrowingCatalogue, shared by its processes, and a process's references say which of its
-    attributes hold the ids of its organization's catalogues, and may pick them (see _checked_catalogue for what is
+    attributes hold the ids of its organization's catalogues, and may pick them (see checked_catalogue for what is
     rejected).
     """
 
@@ -175,8 +175,8 @@ class SimulationConfig:
         if duplicates:
             raise ValueError(f"Process names must be unique, repeated: {duplicates}")
 
-        object.__setattr__(self, "consumer_groups", _checked_consumer_groups(names, self.consumer_groups))
-        _checked_catalogue(self.organizations)
+        object.__setattr__(self, "consumer_groups", checked_consumer_groups(names, self.consumer_groups))
+        checked_catalogue(self.organizations)
         _checked_ocel_attributes(self.organizations)
 
     @classmethod
@@ -286,7 +286,7 @@ def _utc_if_naive(moment):
 
 
 def _catalogue_change(path, where, entry):
-    """A catalogue change as JSON gives it, checked for everything but what it names (see _checked_catalogue)."""
+    """A catalogue change as JSON gives it, checked for everything but what it names (see checked_catalogue)."""
     _check_keys(path, where, entry, CHANGE_KEYS)
     missing = [key for key in ("catalogue", "attribute") if key not in entry]
     if missing:

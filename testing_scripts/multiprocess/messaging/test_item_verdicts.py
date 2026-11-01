@@ -41,7 +41,7 @@ def _time(logged):
     return logged if isinstance(logged, datetime) else datetime.fromisoformat(logged)
 
 
-def _picking_in(tmp_path, hours):
+def picking_in(tmp_path, hours):
     """The picking settings with each item taking the given hours to pick."""
     with open(PICKING_JSON) as file:
         settings = json.load(file)
@@ -80,7 +80,7 @@ def _verdicts_claimed(report):
 
 def test_an_order_cancelled_while_2_of_3_items_are_ready_returns_those_2_at_once_and_the_third_once_ready(tmp_path):
     # one picker taking 20 hours an item: items 1 and 2 are ready before the 2-day deadline, item 3 only after it
-    report, picking, log = _run(picking_json=_picking_in(tmp_path, 20))
+    report, picking, log = _run(picking_json=picking_in(tmp_path, 20))
 
     ready = _times(picking, log, "Pick item", 4)
     assert ready[("Sales-0", 2)] < DEADLINE < ready[("Sales-0", 3)]
@@ -100,7 +100,7 @@ def test_an_order_cancelled_while_2_of_3_items_are_ready_returns_those_2_at_once
 
 def test_an_order_cancelled_after_collecting_1_of_3_items_returns_it_at_once_and_the_2_late_ones_once_ready(tmp_path):
     # one picker taking 30 hours an item: only item 1 is ready before the 2-day deadline, items 2 and 3 after it
-    report, picking, log = _run(picking_json=_picking_in(tmp_path, 30))
+    report, picking, log = _run(picking_json=picking_in(tmp_path, 30))
 
     ready = _times(picking, log, "Pick item", 4)
     assert ready[("Sales-0", 1)] < DEADLINE < ready[("Sales-0", 2)] < ready[("Sales-0", 3)]

@@ -5,11 +5,11 @@ Prosimos engine for each process, runs them in the run loop, and writes the merg
 import random
 from typing import Dict, Optional
 
-from prosimos.orchestration.catalogue import _Timetable, _drawn_catalogues, _grown_catalogues, _picks
+from prosimos.orchestration.catalogue import Timetable, drawn_catalogues, grown_catalogues, picks_of
 from prosimos.orchestration.config import SimulationConfig
 from prosimos.orchestration.ocel_writer import OcelProcess, write_ocel
 from prosimos.orchestration.orchestrator import RunReport, orchestrate
-from prosimos.orchestration.output import _MergedLog, _message_links, _object_links, _reference_links, _tag_along
+from prosimos.orchestration.output import MergedLog, message_links, message_object_links, reference_links, tag_along
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import SimulationEngine
 
@@ -37,7 +37,7 @@ def run_multiprocess_simulation(config: SimulationConfig, log_out_path: Optional
         raise ValueError(f"extra_engines must be exactly the configuration's extra_processes "
                          f"{sorted(config.extra_processes)}, got {sorted(extra_engines)}")
 
-    merged_log = _MergedLog() if log_out_path is not None or ocel_out_path is not None else None
+    merged_log = MergedLog() if log_out_path is not None or ocel_out_path is not None else None
 
     # every engine has its own random generators, seeded from the seed and its process name; without a
     # seed they are seeded from the global generators, so build them in name order rather than input
@@ -46,10 +46,10 @@ def run_multiprocess_simulation(config: SimulationConfig, log_out_path: Optional
     # before any pick, and the picks before any engine, as without a seed each draws from the global generators
     # each organization's catalogue_changes are worked out into a timetable, which every reader of a catalogue value
     # reads the value valid at that moment from
-    drawn = {organization.name: _drawn_catalogues(organization, config.seed) for organization in config.organizations}
-    timetables = {organization.name: _Timetable(organization.catalogue_changes, config.start_datetime)
+    drawn = {organization.name: drawn_catalogues(organization, config.seed) for organization in config.organizations}
+    timetables = {organization.name: Timetable(organization.catalogue_changes, config.start_datetime)
                   for organization in config.organizations}
-    picks = {spec.name: _picks(spec, config.seed, drawn[organization.name], timetables[organization.name])
+    picks = {spec.name: picks_of(spec, config.seed, drawn[organization.name], timetables[organization.name])
              for organization in config.organizations for spec in organization.processes}
     engines: Dict[str, SimulationEngine] = {}
     for spec in sorted(config.processes, key=lambda p: p.name):
@@ -61,7 +61,7 @@ def run_multiprocess_simulation(config: SimulationConfig, log_out_path: Optional
     report = orchestrate(engines, config.consumer_groups, config.seed)
     # the OCEL output needs every organization's catalogue objects, the growing ones as the run left them
     catalogue = {name: objects for organization in config.organizations
-                 for name, objects in _grown_catalogues(organization, config.seed, drawn[organization.name],
+                 for name, objects in grown_catalogues(organization, config.seed, drawn[organization.name],
                                                         [pick for spec in organization.processes
                                                          for pick in picks[spec.name]]).items()}
 
@@ -70,15 +70,15 @@ def run_multiprocess_simulation(config: SimulationConfig, log_out_path: Optional
     if ocel_out_path is not None:
         processes = {spec.name: OcelProcess(spec.object_type, spec.qualifier, dict(spec.qualifier_by_activity),
                                             spec.ocel_attributes) for spec in config.processes}
-        static_objects, reference_object_links, reference_event_links = _reference_links(
+        static_objects, reference_object_links, reference_event_links = reference_links(
             config, catalogue, processes, report.objects, merged_log.rows, report.logged_elements,
             report.warnings.append, {name: timetables[organization.name] for organization in config.organizations
                                      for name in organization.catalogues})
-        object_links = _object_links(report.message_records, processes)
+        object_links = message_object_links(report.message_records, processes)
         for source, links in reference_object_links.items():
             object_links.setdefault(source, []).extend(links)
         write_ocel(ocel_out_path, processes, report.objects, merged_log.rows, report.logged_elements,
-                   _message_links(report.message_records, processes), object_links, static_objects,
-                   reference_event_links, _tag_along(config, catalogue, report.objects))
+                   message_links(report.message_records, processes), object_links, static_objects,
+                   reference_event_links, tag_along(config, catalogue, report.objects))
 
     return report

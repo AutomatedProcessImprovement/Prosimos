@@ -9,11 +9,11 @@ from collections import Counter
 import pandas as pd
 import pytest
 
-from prosimos.orchestration.catalogue import _Pick
+from prosimos.orchestration.catalogue import Pick
 from prosimos.orchestration.catalogue.model import CountFrom
 from prosimos.orchestration.config import SimulationConfig
 from prosimos.orchestration.simulation import run_multiprocess_simulation
-from testing_scripts.multiprocess.catalogue.test_catalogue import _config_with
+from testing_scripts.multiprocess.catalogue.test_catalogue import config_with
 from testing_scripts.multiprocess.catalogue.test_pick import CUSTOMERS, PICKING, PRODUCTS_LIST
 from testing_scripts.multiprocess.examples.test_order_management import CONFIG
 from testing_scripts.multiprocess.orchestrator_settings import one_organization
@@ -22,12 +22,12 @@ PRODUCTS = {"object_attribute": "products", "catalogue": "product", "pick": "uni
 SALES = r"processes\[0\].references\[1\]"
 
 
-def _sales_picking(tmp_path, products, orders=100):
+def sales_picking(tmp_path, products, orders=100):
     """Order Management's Sales alone, with 100 orders: it picks its customer and, with the reference products, its
     products from the 20. Without the Warehouse, ItemOrdered finds no recipient; it is published once per item, as
     many as items says, so that a run without the reference products publishes the same messages."""
-    path = _config_with(tmp_path, catalogues={"customer": CUSTOMERS, "product": PRODUCTS_LIST},
-                        references={"Sales": [{**PICKING, "pick": "uniform"}, *([products] if products else [])]})
+    path = config_with(tmp_path, catalogues={"customer": CUSTOMERS, "product": PRODUCTS_LIST},
+                       references={"Sales": [{**PICKING, "pick": "uniform"}, *([products] if products else [])]})
     with open(CONFIG.replace("simulation.json", "sales.json")) as file:
         sales = json.load(file)
     sales["messages"]["publish"][0]["count"] = {"object_attribute": "items"}
@@ -43,20 +43,20 @@ def _sales_picking(tmp_path, products, orders=100):
 
 
 def _run(tmp_path, products, name="log"):
-    report = run_multiprocess_simulation(_sales_picking(tmp_path, products), tmp_path / f"{name}.csv",
+    report = run_multiprocess_simulation(sales_picking(tmp_path, products), tmp_path / f"{name}.csv",
                                          ocel_out_path=tmp_path / f"{name}.json")
     with open(tmp_path / f"{name}.json") as file:
         return report, pd.read_csv(tmp_path / f"{name}.csv"), json.load(file)
 
 
-def _at_creation(report, process, attribute):
+def at_creation(report, process, attribute):
     """Object id -> the value its attribute was created with."""
     return {case_object.object_id: next(value for name, value, _ in case_object.attributes if name == attribute)
             for name, case_object in report.objects if name == process}
 
 
 def test_a_fixed_count_picks_that_many_ids_into_a_list():
-    pick = _Pick("products", ["a", "b", "c"], None, seed=1, process="P", count=2)
+    pick = Pick("products", ["a", "b", "c"], None, seed=1, process="P", count=2)
 
     picked = [pick.get_next_value() for _ in range(100)]
 
@@ -64,17 +64,17 @@ def test_a_fixed_count_picks_that_many_ids_into_a_list():
 
 
 def test_each_pick_is_independent_so_an_id_can_come_more_than_once():
-    pick = _Pick("products", ["a", "b"], None, seed=1, process="P", count=5)
+    pick = Pick("products", ["a", "b"], None, seed=1, process="P", count=5)
 
     assert any(len(set(pick.get_next_value())) < 5 for _ in range(10))  # five picks among two ids repeat one
 
 
 def test_a_count_of_0_picks_an_empty_list():
-    assert _Pick("products", ["a", "b"], None, seed=1, process="P", count=0).get_next_value() == []
+    assert Pick("products", ["a", "b"], None, seed=1, process="P", count=0).get_next_value() == []
 
 
 def test_the_picks_follow_the_weights_over_many_cases():
-    pick = _Pick("products", ["a", "b", "c"], [3, 1, 1], seed=1, process="P", count=3)
+    pick = Pick("products", ["a", "b", "c"], [3, 1, 1], seed=1, process="P", count=3)
 
     shares = Counter(product for _ in range(10000) for product in pick.get_next_value())
 
@@ -82,8 +82,8 @@ def test_the_picks_follow_the_weights_over_many_cases():
 
 
 def test_without_count_a_pick_gives_a_single_value_as_before():
-    with_count = _Pick("product", ["a", "b", "c"], [3, 1, 1], seed=1, process="P", count=1)
-    without = _Pick("product", ["a", "b", "c"], [3, 1, 1], seed=1, process="P")
+    with_count = Pick("product", ["a", "b", "c"], [3, 1, 1], seed=1, process="P", count=1)
+    without = Pick("product", ["a", "b", "c"], [3, 1, 1], seed=1, process="P")
 
     # the same draws; with count each is a list of one
     assert [[without.get_next_value()] for _ in range(20)] == [with_count.get_next_value() for _ in range(20)]
@@ -101,7 +101,7 @@ class _Drawn:
 
 def test_a_count_read_from_an_attribute_takes_the_value_drawn_for_the_same_case():
     items = _Drawn("items", [3, 1, 4])
-    pick = _Pick("products", ["a", "b"], None, seed=1, process="P", count=CountFrom("items"))
+    pick = Pick("products", ["a", "b"], None, seed=1, process="P", count=CountFrom("items"))
     pick.read_count_from(items)
 
     # the engine draws items, then the pick, for each case in turn
@@ -114,7 +114,7 @@ def test_a_count_attribute_without_a_whole_number_picks_one_with_one_warning(mon
     warnings = []
     monkeypatch.setattr("prosimos.orchestration.catalogue.warning_logger.add_warning", warnings.append)
     items = _Drawn("items", [2.5, -1])
-    pick = _Pick("products", ["a", "b"], None, seed=1, process="P", count=CountFrom("items"))
+    pick = Pick("products", ["a", "b"], None, seed=1, process="P", count=CountFrom("items"))
     pick.read_count_from(items)
 
     picked = [(items.get_next_value(), pick.get_next_value())[1] for _ in range(2)]
@@ -134,7 +134,7 @@ def picking_run(tmp_path_factory):
 def test_every_order_picks_as_many_products_as_it_has_items(picking_run):
     report, _, _ = picking_run
 
-    items, products = _at_creation(report, "Sales", "items"), _at_creation(report, "Sales", "products")
+    items, products = at_creation(report, "Sales", "items"), at_creation(report, "Sales", "products")
 
     assert len(products) == 100
     ids = {product["id"] for product in PRODUCTS_LIST}
@@ -143,7 +143,7 @@ def test_every_order_picks_as_many_products_as_it_has_items(picking_run):
 
 def test_an_order_links_each_product_it_picked(picking_run):
     report, _, ocel = picking_run
-    products = _at_creation(report, "Sales", "products")
+    products = at_creation(report, "Sales", "products")
 
     for order in (obj for obj in ocel["objects"] if obj["type"] == "order"):
         assert [link["objectId"] for link in order["relationships"] if link["qualifier"] == "contains"] == list(
@@ -159,7 +159,7 @@ def test_the_list_is_a_column_of_the_log(picking_run):
 
     sales = log[log["process"] == "Sales"].groupby("case_id").first()
 
-    assert all(json.loads(value) == _at_creation(report, "Sales", "products")[f"order-{case}"]
+    assert all(json.loads(value) == at_creation(report, "Sales", "products")[f"order-{case}"]
                for case, value in sales["products"].items())
 
 
@@ -186,13 +186,13 @@ def test_a_count_pick_doesnt_change_the_rest_of_the_run(tmp_path, picking_run):
 ])
 def test_an_invalid_count_is_rejected(tmp_path, products, problem):
     with pytest.raises(ValueError, match=rf"{SALES} {problem}"):
-        _sales_picking(tmp_path, products)
+        sales_picking(tmp_path, products)
 
 
 @pytest.mark.parametrize("pick", ["new", {"new_share": 0.5}])
 def test_count_on_a_growing_catalogue_is_rejected(tmp_path, pick):
-    path = _config_with(tmp_path, catalogues={"customer": CUSTOMERS, "product": {"attributes": []}},
-                        references={"Sales": [{**PICKING, "pick": "uniform"}, {**PRODUCTS, "pick": pick, "count": 3}]})
+    path = config_with(tmp_path, catalogues={"customer": CUSTOMERS, "product": {"attributes": []}},
+                       references={"Sales": [{**PICKING, "pick": "uniform"}, {**PRODUCTS, "pick": pick, "count": 3}]})
 
     with pytest.raises(ValueError, match=rf'{SALES} has count with "new" or new_share; count works with "uniform" or '
                                          r"weights"):
@@ -202,4 +202,4 @@ def test_count_on_a_growing_catalogue_is_rejected(tmp_path, pick):
 def test_a_count_object_with_another_key_is_rejected(tmp_path):
     with pytest.raises(ValueError, match=r"processes\[0\].references\[1\].count: unknown key 'attribute'; allowed: "
                                          r"object_attribute$"):
-        _sales_picking(tmp_path, {**PRODUCTS, "count": {"attribute": "items"}})
+        sales_picking(tmp_path, {**PRODUCTS, "count": {"attribute": "items"}})

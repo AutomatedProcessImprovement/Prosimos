@@ -39,7 +39,7 @@ def _claimers(records):
     return [[_where(claimer) for claimer in record.claimers] for record in records]
 
 
-def _verdicts_run():
+def verdicts_run():
     """One order with 3 items: Sales publishes ItemOrdered per item (count), each starts an item case in Picking,
     which publishes ItemReady; Sales collects all 3, then sends each item its Shipped, taken at a race branch."""
     sales = _engine("Sales", "orders_with_verdicts", f"{ASSETS}/orders_with_verdicts.json", 1)
@@ -48,7 +48,7 @@ def _verdicts_run():
 
 
 def test_a_message_start_records_the_new_case_as_claimer():
-    report, picking = _verdicts_run()
+    report, picking = verdicts_run()
 
     records = _records(report, "ItemOrdered")
     assert _publishers(records) == [("Sales", "Sales-0", "Throw_Items")] * 3
@@ -62,7 +62,7 @@ def test_a_message_start_records_the_new_case_as_claimer():
 
 
 def test_collect_3_records_three_messages_with_the_same_claimer():
-    report, _ = _verdicts_run()
+    report, _ = verdicts_run()
 
     records = _records(report, "ItemReady")
     assert _publishers(records) == [("Picking", f"Picking-{case}", "Throw_Ready") for case in (0, 1, 2)]
@@ -70,7 +70,7 @@ def test_collect_3_records_three_messages_with_the_same_claimer():
 
 
 def test_a_race_branch_records_the_waiting_case_at_its_catch_event():
-    report, _ = _verdicts_run()
+    report, _ = verdicts_run()
 
     records = _records(report, "Shipped")
     assert _publishers(records) == [("Sales", "Sales-0", "Throw_Shipped")] * 3

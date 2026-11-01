@@ -11,15 +11,15 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from prosimos.orchestration.catalogue import _Timetable
+from prosimos.orchestration.catalogue import Timetable
 from prosimos.orchestration.catalogue.model import CatalogueChange, CatalogueObject, GrowingCatalogue, Reference
 from prosimos.orchestration.config import Organization, ProcessSpec, SimulationConfig
 from prosimos.orchestration.simulation import run_multiprocess_simulation
-from testing_scripts.multiprocess.catalogue.test_catalogue import _config_with, _with_partner
-from testing_scripts.multiprocess.catalogue.test_pick import PICKING, START as LOANS_START, _loans, _run
-from testing_scripts.multiprocess.catalogue.test_pick_count import PRODUCTS, _at_creation, _sales_picking
-from testing_scripts.multiprocess.catalogue.test_with import PRICE, _received, _warehouse_receiving
-from testing_scripts.multiprocess.messaging.test_collect import ORDERS, START, _settings, at
+from testing_scripts.multiprocess.catalogue.test_catalogue import config_with, with_partner
+from testing_scripts.multiprocess.catalogue.test_pick import PICKING, START as LOANS_START, loans_config, run
+from testing_scripts.multiprocess.catalogue.test_pick_count import PRODUCTS, at_creation, sales_picking
+from testing_scripts.multiprocess.catalogue.test_with import PRICE, received, warehouse_receiving
+from testing_scripts.multiprocess.messaging.test_collect import ORDERS, START, at, settings_with
 from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
 DAY = timedelta(days=1)
@@ -27,7 +27,7 @@ DAY = timedelta(days=1)
 
 def _price(*changes):
     """The price of a product whose price is 100 before any change, as a function of the moment it is read at."""
-    timetable = _Timetable(changes, START)
+    timetable = Timetable(changes, START)
     return lambda when: timetable.value("product", "price", "Kindle", 100, when)
 
 
@@ -76,8 +76,8 @@ def test_a_repeated_and_a_one_off_change_at_the_same_moment_apply_in_the_listed_
 
 def test_round_rounds_after_every_change_and_without_it_values_arent_rounded():
     every = timedelta(days=60)
-    rounded = _Timetable((CatalogueChange("product", "price", "multiply", 1.03, every=every, round=2),), START)
-    exact = _Timetable((CatalogueChange("product", "price", "multiply", 1.03, every=every),), START)
+    rounded = Timetable((CatalogueChange("product", "price", "multiply", 1.03, every=every, round=2),), START)
+    exact = Timetable((CatalogueChange("product", "price", "multiply", 1.03, every=every),), START)
 
     assert [rounded.value("product", "price", "iPhone X", 699, START + days * DAY) for days in (60, 120)] == [
         719.97, 741.57]  # 719.97 * 1.03 = 741.5691
@@ -85,8 +85,8 @@ def test_round_rounds_after_every_change_and_without_it_values_arent_rounded():
 
 
 def test_a_change_with_objects_leaves_the_other_objects_and_attributes_as_they_are():
-    timetable = _Timetable((CatalogueChange("product", "price", "multiply", 0.8, at=START, objects=("Kindle",)),),
-                           START)
+    timetable = Timetable((CatalogueChange("product", "price", "multiply", 0.8, at=START, objects=("Kindle",)),),
+                          START)
 
     assert [timetable.value("product", "price", "Kindle", 100, START + DAY),
             timetable.value("product", "price", "Echo", 100, START + DAY),
@@ -106,10 +106,10 @@ def price_rise(tmp_path_factory):
     """Order Management's Sales alone, 100 orders, each picking one product per item and starting with their total
     price; every product's price rises by 10% every three days."""
     path = tmp_path_factory.mktemp("price_rise")
-    config = _sales_picking(path, {**PRODUCTS, "count": {"object_attribute": "items"},
-                                   "with": {"price": {"sum": "price"}}})
+    config = sales_picking(path, {**PRODUCTS, "count": {"object_attribute": "items"},
+                                  "with": {"price": {"sum": "price"}}})
     rise = CatalogueChange("product", "price", "multiply", 1.1, every=3 * DAY)
-    return _run(_with_changes(config, rise), path) + (config.start_datetime,)
+    return run(_with_changes(config, rise), path) + (config.start_datetime,)
 
 
 def _created(report, process):
@@ -118,7 +118,7 @@ def _created(report, process):
 
 def test_a_pick_reads_the_values_valid_when_the_case_is_created(price_rise):
     report, _, _, start = price_rise
-    products, prices, created = (_at_creation(report, "Sales", "products"), _at_creation(report, "Sales", "price"),
+    products, prices, created = (at_creation(report, "Sales", "products"), at_creation(report, "Sales", "price"),
                                  _created(report, "Sales"))
 
     rises = {order: (created[order] - start) // (3 * DAY) for order in products}
@@ -139,8 +139,8 @@ def test_a_value_already_given_to_a_case_doesnt_change(price_rise):
 
 def test_the_rest_of_the_run_is_as_without_the_changes(tmp_path, price_rise):
     _, changed, _, _ = price_rise
-    _, unchanged, _ = _run(_sales_picking(tmp_path, {**PRODUCTS, "count": {"object_attribute": "items"},
-                                                     "with": {"price": {"sum": "price"}}}), tmp_path, "unchanged")
+    _, unchanged, _ = run(sales_picking(tmp_path, {**PRODUCTS, "count": {"object_attribute": "items"},
+                                                   "with": {"price": {"sum": "price"}}}), tmp_path, "unchanged")
 
     assert changed.drop(columns="price").equals(unchanged.drop(columns="price"))
 
@@ -148,10 +148,10 @@ def test_the_rest_of_the_run_is_as_without_the_changes(tmp_path, price_rise):
 def test_a_received_value_brings_the_values_valid_when_the_case_is_created(tmp_path):
     # items created at 09:00, 09:10, 09:20 and 09:30; from 09:10 on, a Kindle costs 100
     sent = ["Kindle", "Kindle", "iPad", "Kindle"]
-    report = _warehouse_receiving(tmp_path, sent, [CatalogueChange("product", "price", "set", 100, at=at("09:10"),
-                                                                   objects=("Kindle",))])
+    report = warehouse_receiving(tmp_path, sent, [CatalogueChange("product", "price", "set", 100, at=at("09:10"),
+                                                                  objects=("Kindle",))])
 
-    items = sorted(_received(report, "Warehouse").values(), key=lambda item: item[1])
+    items = sorted(received(report, "Warehouse").values(), key=lambda item: item[1])
     assert [(values["product"], values["price"], created.strftime("%H:%M")) for values, created in items] == [
         ("Kindle", PRICE["Kindle"], "09:00"), ("Kindle", 100, "09:10"), ("iPad", PRICE["iPad"], "09:20"),
         ("Kindle", 100, "09:30")]
@@ -162,8 +162,8 @@ def test_a_value_copied_at_a_catch_brings_the_values_valid_at_the_claim(tmp_path
     # doubled, so the claim at 09:30 already sees it
     prices = {"i17": 2.5, "i23": 4, "i12": 10}
     reference = Reference("last_item", "item", with_attributes=(("last_price", "price"),))
-    shop = Organization("Shop", [ProcessSpec("Orders", ORDERS, _settings(tmp_path, lambda settings: None), 1, "order",
-                                             references=(reference,))],
+    shop = Organization("Shop", [ProcessSpec("Orders", ORDERS, settings_with(tmp_path, lambda settings: None), 1,
+                                             "order", references=(reference,))],
                         {"item": [CatalogueObject(item, (("price", price),)) for item, price in prices.items()]},
                         (CatalogueChange("item", "price", "multiply", 2, at=at("09:30")),))
     picking = ScriptedEngine("Picking")
@@ -198,9 +198,9 @@ def growing_run(tmp_path_factory):
     """30 loans, each creating a customer, who draws a credit limit of 1000; 100 more every hour from the start of
     the run."""
     customers = GrowingCatalogue(({"name": "credit_limit", "type": "discrete", "values": [{"key": 1000, "value": 1}]},))
-    config = _with_changes(_loans(30, customers, "new"),
+    config = _with_changes(loans_config(30, customers, "new"),
                            CatalogueChange("customer", "credit_limit", "add", 100, every=timedelta(hours=1)))
-    _, _, ocel = _run(config, tmp_path_factory.mktemp("growing"))
+    _, _, ocel = run(config, tmp_path_factory.mktemp("growing"))
     return ocel
 
 
@@ -241,10 +241,10 @@ def test_a_new_object_gets_the_changes_after_its_creation(growing_run):
 
 
 def test_changes_at_one_moment_give_one_timed_value_and_changes_after_the_run_none(tmp_path):
-    config = _sales_picking(tmp_path, {**PRODUCTS, "count": {"object_attribute": "items"}})
+    config = sales_picking(tmp_path, {**PRODUCTS, "count": {"object_attribute": "items"}})
     start = config.start_datetime
-    _, _, ocel = _run(_with_changes(config, *(CatalogueChange("product", "price", operation, value, at=at,
-                                                              objects=("Kindle",)) for operation, value, at in (
+    _, _, ocel = run(_with_changes(config, *(CatalogueChange("product", "price", operation, value, at=at,
+                                                             objects=("Kindle",)) for operation, value, at in (
         ("add", 10, start + DAY), ("multiply", 2, start + DAY), ("set", 1, start + 1000 * DAY)))), tmp_path)
 
     prices = _timed(ocel, "product", "price")
@@ -260,9 +260,9 @@ WHERE = r"organizations\[0\].catalogue_changes\[0\]"
 
 
 def _rejected(tmp_path, change, message, partner=None, catalogues=None, references=None):
-    path = _config_with(tmp_path, catalogues=catalogues, references=references)
+    path = config_with(tmp_path, catalogues=catalogues, references=references)
     if partner is not None:
-        path = _with_partner(path, "Warehouse", partner)
+        path = with_partner(path, "Warehouse", partner)
     data = json.loads(path.read_text())
     data["organizations"][0]["catalogue_changes"] = [change]
     path.write_text(json.dumps(data))
@@ -339,8 +339,8 @@ def test_multiply_on_a_pool_attribute_that_draws_text_is_rejected(tmp_path):
 
 
 def test_set_on_an_attribute_that_isnt_a_number_is_allowed(tmp_path):
-    path = _config_with(tmp_path, catalogues={"customer": [{"id": "c1", "attributes": {"segment": "retail"}}]},
-                        references={})
+    path = config_with(tmp_path, catalogues={"customer": [{"id": "c1", "attributes": {"segment": "retail"}}]},
+                       references={})
     data = json.loads(path.read_text())
     data["organizations"][0]["catalogue_changes"] = [{"catalogue": "customer", "attribute": "segment",
                                                       "at": "2024-06-01T00:00:00+00:00", "set": "business"}]

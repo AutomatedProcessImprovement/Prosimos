@@ -13,12 +13,12 @@ from typing import List, Optional, Tuple
 from prosimos.control_flow_manager import BPMN
 from prosimos.messaging.model import ConsumePoint, PublishPoint
 from prosimos.messaging.parser import unknown_keys
-from prosimos.orchestration.catalogue import _Brought, _Pick, _Received
+from prosimos.orchestration.catalogue import Brought, Pick, Received
 from prosimos.orchestration.catalogue.model import CountFrom
 from prosimos.orchestration.config import ProcessSpec
 from prosimos.orchestration.protocol import (CaseObject, ClaimRecord, EngineReport, Message, PublishRecord,
                                            SimulationEngine, StalledCase, Verdict)
-from prosimos.orchestration.random_generators import _engine_random_states, _generators
+from prosimos.orchestration.random_generators import engine_random_states, generators
 from prosimos.simulation_engine import SimBPMEnv
 from prosimos.simulation_setup import SimDiffSetup
 from prosimos.warning_logger import warning_logger
@@ -38,7 +38,7 @@ def load_process(bpmn_path, json_path, arrivals, start_datetime, picks=()) -> Si
     object_attributes as its case_attributes and arrivals as its total_cases, so the settings are handed to it
     translated, in a copy that is deleted once it has read them. A key that isn't one of the sections is
     rejected, as a misspelled one would be ignored. picks are attributes given from outside the settings (see
-    _Pick)."""
+    Pick)."""
     with open(json_path) as file:
         settings = json.load(file)
     problem = unknown_keys("top level", settings, PROCESS_SETTINGS_KEYS)
@@ -74,7 +74,7 @@ class ProsimosEngine(SimulationEngine):
     manages_global_generators = True
 
     def __init__(self, spec: ProcessSpec, start_datetime: datetime, log_writer=None, seed: Optional[int] = None,
-                 picks: Tuple["_Pick", ...] = ()):
+                 picks: Tuple["Pick", ...] = ()):
         self._spec = spec
         self._warnings: List[str] = []
         # (message as returned by step(), case id, element id, publish entry, when); the orchestrator stamps
@@ -82,21 +82,21 @@ class ProsimosEngine(SimulationEngine):
         self._published: List[Tuple[Message, int, str, PublishPoint, datetime]] = []
         # (message id, case id, element id, consume entry, when)
         self._claimed: List[Tuple[str, int, str, ConsumePoint, datetime]] = []
-        self._python_state, self._numpy_state = _engine_random_states(seed, spec.name)
+        self._python_state, self._numpy_state = engine_random_states(seed, spec.name)
         with self._own_globals():
             # picked attributes join the declared ones: every case gets one when it is created, the log has a
             # column for it, and messages may carry it
             sim_setup = load_process(spec.bpmn_path, spec.json_path, spec.arrivals, start_datetime, picks)
             for pick in picks:
-                if isinstance(pick, _Pick) and isinstance(pick.count, CountFrom):
+                if isinstance(pick, Pick) and isinstance(pick.count, CountFrom):
                     pick.read_count_from(next(attribute for attribute in sim_setup.case_attributes.attributes
                                               if attribute.name == pick.count.object_attribute))
             self._env = SimBPMEnv(sim_setup, None, log_writer, id_prefix=spec.id_prefix)
             # its organization's catalogue values, for the 'with' of its references, read when a case is created or
-            # claims a message (see _Received and _Brought)
+            # claims a message (see Received and Brought)
             self._env.receive_catalogue_values([(pick.name, pick.source, pick.values, pick.function, pick.initial,
                                                  pick.catalogue) for pick in picks
-                                                if isinstance(pick, (_Received, _Brought))])
+                                                if isinstance(pick, (Received, Brought))])
         tasks = {element_id for element_id, element in sim_setup.bpmn_graph.element_info.items()
                  if element.type is BPMN.TASK}
         unknown = sorted(task_id for task_id, _ in spec.qualifier_by_activity if task_id not in tasks)
@@ -108,13 +108,13 @@ class ProsimosEngine(SimulationEngine):
     def _own_globals(self):
         shared_warnings = warning_logger.warnings_queue
         warning_logger.warnings_queue = self._warnings
-        _generators.take(self)
+        generators.take(self)
         try:
             yield
         finally:
             warning_logger.warnings_queue = shared_warnings
-            if not _generators.keep:
-                _generators.give_back()
+            if not generators.keep:
+                generators.give_back()
 
     def subscriptions(self) -> List[str]:
         with self._own_globals():

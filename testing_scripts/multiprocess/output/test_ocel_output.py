@@ -17,7 +17,7 @@ from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import CaseObject
 from prosimos.orchestration.simulation import run_multiprocess_simulation
-from testing_scripts.multiprocess.examples.test_order_management import _config
+from testing_scripts.multiprocess.examples.test_order_management import order_management_config
 from testing_scripts.multiprocess.orchestrator_settings import one_organization
 from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
@@ -29,7 +29,8 @@ ONE_MICROSECOND = timedelta(microseconds=1)
 def order_management(tmp_path_factory):
     """A 100-order run of the Order Management example, written as CSV and as OCEL."""
     folder = tmp_path_factory.mktemp("ocel")
-    report = run_multiprocess_simulation(_config(100), folder / "log.csv", ocel_out_path=folder / "log.json")
+    report = run_multiprocess_simulation(order_management_config(100), folder / "log.csv",
+                                         ocel_out_path=folder / "log.json")
     log = pd.read_csv(folder / "log.csv", parse_dates=["end_time"])
     with open(folder / "log.json") as file:
         ocel = json.load(file)
@@ -301,7 +302,7 @@ def test_only_the_listed_attributes_become_object_attributes(tmp_path, listed, w
     ("Packaging", "weight"),  # aggregated
 ])
 def test_ocel_attributes_may_name_every_attribute_the_objects_have(process, name):
-    config = _config(10)
+    config = order_management_config(10)
     config = SimulationConfig(one_organization([dataclasses.replace(spec, ocel_attributes=(name,))
                                                 if spec.name == process else spec for spec in config.processes],
                                                config.catalogue),
@@ -311,7 +312,7 @@ def test_ocel_attributes_may_name_every_attribute_the_objects_have(process, name
 
 
 def test_ocel_attributes_naming_an_attribute_the_objects_never_have_are_rejected():
-    config = _config(10)
+    config = order_management_config(10)
     processes = [dataclasses.replace(spec, ocel_attributes=("weight", "colour")) if spec.name == "Warehouse" else spec
                  for spec in config.processes]
 

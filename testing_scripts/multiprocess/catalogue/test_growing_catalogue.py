@@ -8,12 +8,12 @@ from collections import Counter
 
 import pytest
 
-from prosimos.orchestration.catalogue import _NewPick
+from prosimos.orchestration.catalogue import NewPick
 from prosimos.orchestration.catalogue.model import GrowingCatalogue, NewShare
 from prosimos.orchestration.config import SimulationConfig
-from testing_scripts.multiprocess.catalogue.test_catalogue import _config_with
-from testing_scripts.multiprocess.catalogue.test_pick import POOL, PICKING, _customers_of_cases, _loans, _run
-from testing_scripts.multiprocess.examples.test_order_management import _config
+from testing_scripts.multiprocess.catalogue.test_catalogue import config_with
+from testing_scripts.multiprocess.catalogue.test_pick import PICKING, POOL, customers_of_cases, loans_config, run
+from testing_scripts.multiprocess.examples.test_order_management import order_management_config
 from testing_scripts.multiprocess.orchestrator_settings import one_organization
 
 CUSTOMERS = GrowingCatalogue(POOL.attributes)  # segment and credit_limit
@@ -21,7 +21,7 @@ CUSTOMERS = GrowingCatalogue(POOL.attributes)  # segment and credit_limit
 
 def _order_management(orders, pick):
     """Order Management whose customers are a growing catalogue of Sales, from which each order picks with pick."""
-    config = _config(orders)
+    config = order_management_config(orders)
     return dataclasses.replace(config, organizations=one_organization([
         dataclasses.replace(spec, references=(dataclasses.replace(spec.references[0], pick=pick),
                                               *spec.references[1:]))
@@ -36,7 +36,7 @@ def _created(ocel):
 
 @pytest.fixture(scope="module")
 def new_run(tmp_path_factory):
-    return _run(_order_management(100, "new"), tmp_path_factory.mktemp("new"))
+    return run(_order_management(100, "new"), tmp_path_factory.mktemp("new"))
 
 
 def test_with_new_100_orders_give_100_customers_each_placing_one_order(new_run):
@@ -47,14 +47,14 @@ def test_with_new_100_orders_give_100_customers_each_placing_one_order(new_run):
     assert sorted(customers) == sorted(f"customer-{number}" for number in range(1, 101))
     for customer in customers.values():
         assert [link["qualifier"] for link in customer["relationships"]] == ["places"]
-    assert sorted(_customers_of_cases(report, "Sales").values()) == sorted(customers)
+    assert sorted(customers_of_cases(report, "Sales").values()) == sorted(customers)
 
 
 def test_ids_are_numbered_in_creation_order(new_run):
     report, _, _ = new_run
 
     # Sales' planned cases are created in case order
-    assert _customers_of_cases(report, "Sales") == {f"order-{case}": f"customer-{case + 1}" for case in range(100)}
+    assert customers_of_cases(report, "Sales") == {f"order-{case}": f"customer-{case + 1}" for case in range(100)}
 
 
 def test_a_new_object_gets_its_attributes_timed_when_it_is_created(new_run):
@@ -71,7 +71,7 @@ def test_a_new_object_gets_its_attributes_timed_when_it_is_created(new_run):
 # new_share
 
 def test_new_share_creates_in_its_share_and_reuses_uniformly():
-    pick = _NewPick("customer", "customer", 0.3, seed=1, process="P")
+    pick = NewPick("customer", "customer", 0.3, seed=1, process="P")
 
     values = [pick.get_next_value() for _ in range(30000)]
 
@@ -82,13 +82,13 @@ def test_new_share_creates_in_its_share_and_reuses_uniformly():
 @pytest.fixture(scope="module")
 def share_run(tmp_path_factory):
     """2,000 loans, 30% of them creating a customer."""
-    return _run(_loans(2000, CUSTOMERS, NewShare(0.3)), tmp_path_factory.mktemp("share"))
+    return run(loans_config(2000, CUSTOMERS, NewShare(0.3)), tmp_path_factory.mktemp("share"))
 
 
 def test_with_new_share_about_30_percent_of_2000_orders_create_a_customer(share_run):
     report, _, ocel = share_run
 
-    picked = _customers_of_cases(report, "Loans")
+    picked = customers_of_cases(report, "Loans")
     customers = _created(ocel)
 
     assert abs(len(customers) / 2000 - 0.3) < 0.03
@@ -99,7 +99,7 @@ def test_with_new_share_about_30_percent_of_2000_orders_create_a_customer(share_
 def test_the_first_case_creates_and_every_later_id_is_new_or_created_before(share_run):
     report, _, _ = share_run
 
-    picked = _customers_of_cases(report, "Loans")
+    picked = customers_of_cases(report, "Loans")
     highest = 0
     for case in range(2000):
         number = int(picked[f"loan-{case}"].split("-")[1])
@@ -112,7 +112,7 @@ def test_reuse_picks_uniformly_among_those_created_so_far(share_run):
     # the first customers are reused most, since they are among the candidates longest
     report, _, _ = share_run
 
-    orders = Counter(_customers_of_cases(report, "Loans").values())
+    orders = Counter(customers_of_cases(report, "Loans").values())
 
     first, last = sum(orders[f"customer-{number}"] for number in range(1, 51)), \
         sum(orders[f"customer-{number}"] for number in range(len(orders) - 49, len(orders) + 1))
@@ -120,13 +120,13 @@ def test_reuse_picks_uniformly_among_those_created_so_far(share_run):
 
 
 def test_the_same_seed_gives_the_same_objects(tmp_path):
-    first, _, first_ocel = _run(_loans(300, CUSTOMERS, NewShare(0.3)), tmp_path, "first")
-    again, _, again_ocel = _run(_loans(300, CUSTOMERS, NewShare(0.3)), tmp_path, "again")
-    other, _, other_ocel = _run(_loans(300, CUSTOMERS, NewShare(0.3), seed=2), tmp_path, "other")
+    first, _, first_ocel = run(loans_config(300, CUSTOMERS, NewShare(0.3)), tmp_path, "first")
+    again, _, again_ocel = run(loans_config(300, CUSTOMERS, NewShare(0.3)), tmp_path, "again")
+    other, _, other_ocel = run(loans_config(300, CUSTOMERS, NewShare(0.3), seed=2), tmp_path, "other")
 
-    assert _customers_of_cases(first, "Loans") == _customers_of_cases(again, "Loans")
+    assert customers_of_cases(first, "Loans") == customers_of_cases(again, "Loans")
     assert _created(first_ocel) == _created(again_ocel)
-    assert _customers_of_cases(first, "Loans") != _customers_of_cases(other, "Loans")
+    assert customers_of_cases(first, "Loans") != customers_of_cases(other, "Loans")
     assert _created(first_ocel) != _created(other_ocel)
 
 
@@ -137,7 +137,7 @@ SALES = r"organizations\[0\].processes\[0\].references"
 
 
 def test_a_growing_catalogue_reads_from_attributes_without_a_count(tmp_path):
-    path = _config_with(tmp_path, catalogues=GROWING, references={"Sales": [{**PICKING, "pick": {"new_share": 0.3}}]})
+    path = config_with(tmp_path, catalogues=GROWING, references={"Sales": [{**PICKING, "pick": {"new_share": 0.3}}]})
 
     config = SimulationConfig.from_json(path)
     [sales] = [spec for spec in config.processes if spec.name == "Sales"]
@@ -149,8 +149,8 @@ def test_a_growing_catalogue_reads_from_attributes_without_a_count(tmp_path):
 def _rejected(tmp_path, message, catalogues=None, references=None):
     """The Order Management configuration whose only catalogues are those of Sales, GROWING by default, and whose only
     references are those of Sales, a "new" pick of its customer by default, is rejected with message."""
-    path = _config_with(tmp_path, catalogues=catalogues or GROWING,
-                        references={"Sales": references or [{**PICKING, "pick": "new"}]})
+    path = config_with(tmp_path, catalogues=catalogues or GROWING,
+                       references={"Sales": references or [{**PICKING, "pick": "new"}]})
     with pytest.raises(ValueError, match=message):
         SimulationConfig.from_json(path)
 
@@ -185,10 +185,10 @@ def test_two_references_creating_from_one_growing_catalogue_are_rejected(tmp_pat
 
 def test_a_second_process_of_the_organization_creating_from_its_growing_catalogue_is_rejected(tmp_path):
     # Sales creates the customers; Packaging, of the same organization, would create its own under the same ids
-    path = _config_with(tmp_path, catalogues=GROWING,
-                        references={"Sales": [{**PICKING, "pick": "new"}],
-                                    "Packaging": [{"object_attribute": "recipient", "catalogue": "customer",
-                                                   "pick": {"new_share": 0.5}}]})
+    path = config_with(tmp_path, catalogues=GROWING,
+                       references={"Sales": [{**PICKING, "pick": "new"}],
+                                   "Packaging": [{"object_attribute": "recipient", "catalogue": "customer",
+                                                  "pick": {"new_share": 0.5}}]})
 
     with pytest.raises(ValueError, match=r"growing catalogue 'customer' has more than one reference that creates its "
                                          r'objects \("new" or new_share\): organizations\[0\].processes\[0\].references'

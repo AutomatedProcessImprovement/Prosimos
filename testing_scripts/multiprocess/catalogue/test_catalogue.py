@@ -14,11 +14,11 @@ import pytz
 from prosimos.orchestration.catalogue.model import CatalogueObject, Reference
 from prosimos.orchestration.config import Organization, ProcessSpec, SimulationConfig
 from prosimos.orchestration.ocel_writer import OcelProcess, write_ocel
-from prosimos.orchestration.output import _reference_links, _tag_along
+from prosimos.orchestration.output import reference_links, tag_along
 from prosimos.orchestration.protocol import CaseObject
 from prosimos.orchestration.simulation import run_multiprocess_simulation
-from testing_scripts.multiprocess.examples.test_order_management import CONFIG, _config
-from testing_scripts.multiprocess.messaging.test_collect import ORDERS, _settings, at
+from testing_scripts.multiprocess.examples.test_order_management import CONFIG, order_management_config
+from testing_scripts.multiprocess.messaging.test_collect import ORDERS, at, settings_with
 from testing_scripts.multiprocess.orchestrator_settings import one_organization
 from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
@@ -29,7 +29,7 @@ START = pytz.utc.localize(datetime(2024, 1, 1, 9))
 def order_management(tmp_path_factory):
     """A 100-order run of the Order Management example written as OCEL, and its report."""
     path = tmp_path_factory.mktemp("catalogue") / "log.json"
-    report = run_multiprocess_simulation(_config(100), None, ocel_out_path=path)
+    report = run_multiprocess_simulation(order_management_config(100), None, ocel_out_path=path)
     with open(path) as file:
         return json.load(file), report, path
 
@@ -116,7 +116,7 @@ def _links(references, objects, rows, processes=None, catalogues=None):
         [ProcessSpec("P", SALES, SETTINGS, 1, references=tuple(references))],
         catalogues or {"customer": [CatalogueObject("c1"), CatalogueObject("c2")]}), START)
     warnings = []
-    static_objects, object_links, event_links = _reference_links(
+    static_objects, object_links, event_links = reference_links(
         config, config.catalogue, processes or {"P": OcelProcess("p")}, objects, rows, {"P": ["Place_Order", "Confirm_Order"]},
         warnings.append)
     return static_objects, object_links, event_links, warnings
@@ -250,7 +250,7 @@ def test_a_list_appended_from_messages_links_each_item_it_collected(tmp_path):
     for minutes, item in zip((20, 30, 40), ("i17", "i23", "i12")):
         picking.publish_at(at(f"09:{minutes}"), "ItemReady", order_id="order-0", item_id=item)
     config = SimulationConfig(one_organization([ProcessSpec(
-        "Orders", ORDERS, _settings(tmp_path, appending), 1, "order",
+        "Orders", ORDERS, settings_with(tmp_path, appending), 1, "order",
         references=(Reference("item_ids", "item", o2o="contains"),))],
         {"item": [CatalogueObject(item) for item in ("i12", "i17", "i23", "i99")]}),
         START, 1, extra_processes=["Picking"])
@@ -289,10 +289,10 @@ def test_with_tag_along_every_event_of_another_case_that_links_the_object_links_
                ("Q", CaseObject("q-0", START))]
     rows = [_instant_row(process, activity, START + timedelta(minutes=end))
             for process, activity, end in (("P", "place order", 5), ("Q", "a", 10), ("Q", "b", 20))]
-    _, _, event_links = _reference_links(config, config.catalogue, processes, objects, rows, {}, [].append)
+    _, _, event_links = reference_links(config, config.catalogue, processes, objects, rows, {}, [].append)
 
     write_ocel(tmp_path / "log.json", processes, objects, rows, None, {("Q", 0): [(("P", "p-0"), "item", True)]},
-               None, None, event_links, _tag_along(config, config.catalogue, objects))
+               None, None, event_links, tag_along(config, config.catalogue, objects))
     with open(tmp_path / "log.json") as file:
         events = [[(link["objectId"], link["qualifier"]) for link in event["relationships"]]
                   for event in json.load(file)["events"]]
@@ -316,7 +316,7 @@ def test_with_tag_along_an_event_links_each_id_of_the_list_the_object_held_once(
             for process, activity, end in (("P", "place order", 5), ("Q", "a", 10))]
 
     write_ocel(tmp_path / "log.json", processes, objects, rows, None, {("Q", 0): [(("P", "p-0"), "item", False)]},
-               None, None, None, _tag_along(config, config.catalogue, objects))
+               None, None, None, tag_along(config, config.catalogue, objects))
     with open(tmp_path / "log.json") as file:
         events = [[(link["objectId"], link["qualifier"]) for link in event["relationships"]]
                   for event in json.load(file)["events"]]
@@ -349,7 +349,7 @@ def test_two_processes_of_one_organization_pick_from_its_one_catalogue(tmp_path)
 
 # load errors
 
-def _config_with(tmp_path, catalogues=None, references=None, **changes):
+def config_with(tmp_path, catalogues=None, references=None, **changes):
     """The Order Management configuration with the given top-level changes. catalogues ({name: objects}), when given,
     replace those of its organization, Shop, and references ({process: [reference, ...]}) those of every process: a
     process they don't name has none. Given catalogues also leave out Shop's catalogue_changes, which change the
@@ -375,13 +375,13 @@ def _config_with(tmp_path, catalogues=None, references=None, **changes):
 
 
 def test_a_reference_to_an_unknown_catalogue_is_rejected(tmp_path):
-    path = _config_with(tmp_path, references={"Sales": [{"object_attribute": "customer", "catalogue": "clients"}]})
+    path = config_with(tmp_path, references={"Sales": [{"object_attribute": "customer", "catalogue": "clients"}]})
 
     with pytest.raises(ValueError, match=r"processes\[0\].references\[0\] names unknown catalogue 'clients'"):
         SimulationConfig.from_json(path)
 
 
-def _with_partner(path, process, catalogues=None):
+def with_partner(path, process, catalogues=None):
     """The configuration at path with process moved out of Shop into a second organization, Partner, with the given
     catalogues."""
     data = json.loads(path.read_text())
@@ -395,7 +395,7 @@ def _with_partner(path, process, catalogues=None):
 
 def test_a_reference_to_another_organizations_catalogue_is_rejected(tmp_path):
     # the Warehouse, now a partner's, picks from Shop's products; between organizations only messages pass
-    path = _with_partner(_config_with(tmp_path), "Warehouse")
+    path = with_partner(config_with(tmp_path), "Warehouse")
 
     with pytest.raises(ValueError, match=r"organizations\[1\].processes\[0\].references\[0\] names catalogue "
                                          r"'product' of organization Shop; a reference names a catalogue of its own "
@@ -405,7 +405,7 @@ def test_a_reference_to_another_organizations_catalogue_is_rejected(tmp_path):
 
 def test_a_catalogue_declared_by_two_organizations_is_rejected(tmp_path):
     # its name is an object type of the OCEL output
-    path = _with_partner(_config_with(tmp_path, catalogues={"customer": [{"id": "c1"}]}, references={}), "Warehouse",
+    path = with_partner(config_with(tmp_path, catalogues={"customer": [{"id": "c1"}]}, references={}), "Warehouse",
                          {"customer": [{"id": "c2"}]})
 
     with pytest.raises(ValueError, match=r"catalogue 'customer' is declared by more than one organization: Shop, "
@@ -414,15 +414,15 @@ def test_a_catalogue_declared_by_two_organizations_is_rejected(tmp_path):
 
 
 def test_duplicate_ids_are_rejected_across_all_catalogues(tmp_path):
-    path = _config_with(tmp_path, catalogues={"customer": [{"id": "c1"}, {"id": "x"}], "product": [{"id": "x"}]},
-                        references={})
+    path = config_with(tmp_path, catalogues={"customer": [{"id": "c1"}, {"id": "x"}], "product": [{"id": "x"}]},
+                       references={})
 
     with pytest.raises(ValueError, match=r"catalogue ids are repeated: \['x'\]"):
         SimulationConfig.from_json(path)
 
 
 def test_a_catalogue_object_without_an_id_is_rejected(tmp_path):
-    path = _config_with(tmp_path, catalogues={"customer": [{"attributes": {"segment": "retail"}}]}, references={})
+    path = config_with(tmp_path, catalogues={"customer": [{"attributes": {"segment": "retail"}}]}, references={})
 
     with pytest.raises(ValueError, match=r"organizations\[0\].catalogues.customer\[0\]: 'id' must be a non-empty "
                                          r"string"):
@@ -430,7 +430,7 @@ def test_a_catalogue_object_without_an_id_is_rejected(tmp_path):
 
 
 def test_a_reference_missing_a_key_is_rejected(tmp_path):
-    path = _config_with(tmp_path, references={"Sales": [{"catalogue": "customer"}]})
+    path = config_with(tmp_path, references={"Sales": [{"catalogue": "customer"}]})
 
     with pytest.raises(ValueError, match=r"processes\[0\].references\[0\] is missing \['object_attribute'\]"):
         SimulationConfig.from_json(path)
@@ -438,8 +438,8 @@ def test_a_reference_missing_a_key_is_rejected(tmp_path):
 
 def test_a_link_events_name_that_is_no_task_of_the_process_is_rejected(tmp_path):
     # a typo would otherwise silently link nothing
-    path = _config_with(tmp_path, references={"Sales": [{"object_attribute": "customer", "catalogue": "customer",
-                                                         "link_events": ["place order", "confrim order", "Throw_ItemOrdered"]}]})
+    path = config_with(tmp_path, references={"Sales": [{"object_attribute": "customer", "catalogue": "customer",
+                                                        "link_events": ["place order", "confrim order", "Throw_ItemOrdered"]}]})
 
     with pytest.raises(ValueError, match=r"processes\[0\].references\[0\] link_events names \['confrim order', 'Throw_ItemOrdered'\], "
                                          r"which are no tasks of process Sales"):
@@ -448,9 +448,9 @@ def test_a_link_events_name_that_is_no_task_of_the_process_is_rejected(tmp_path)
 
 def test_catalogue_ids_that_look_like_object_ids_are_rejected(tmp_path):
     # objects of the processes are named <object type>-<number>, e.g. order-1
-    path = _config_with(tmp_path, catalogues={"customer": [{"id": "order-1"}, {"id": "item-12"}, {"id": "order-x"},
+    path = config_with(tmp_path, catalogues={"customer": [{"id": "order-1"}, {"id": "item-12"}, {"id": "order-x"},
                                                                     {"id": "Sales-1"}]},
-                        references={})
+                       references={})
 
     with pytest.raises(ValueError, match=r"catalogue ids look like object ids \(<object type>-<number>\): "
                                          r"\['item-12', 'order-1'\]"):
@@ -458,7 +458,7 @@ def test_catalogue_ids_that_look_like_object_ids_are_rejected(tmp_path):
 
 
 def test_a_catalogue_named_like_a_processs_object_type_is_rejected(tmp_path):
-    path = _config_with(tmp_path, catalogues={"order": [{"id": "o1"}]}, references={})
+    path = config_with(tmp_path, catalogues={"order": [{"id": "o1"}]}, references={})
 
     with pytest.raises(ValueError, match=r"catalogue 'order' is the object type of process Sales"):
         SimulationConfig.from_json(path)

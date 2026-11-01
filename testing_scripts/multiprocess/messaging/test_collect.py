@@ -51,7 +51,7 @@ def _time(logged):
     return logged if isinstance(logged, datetime) else datetime.fromisoformat(logged)
 
 
-def _settings(tmp_path, change):
+def settings_with(tmp_path, change):
     with open(ORDERS_JSON) as file:
         settings = json.load(file)
     change(settings)
@@ -64,12 +64,12 @@ def _items(value):
     return lambda settings: settings["object_attributes"][0]["values"].update(distribution_params=[{"value": value}])
 
 
-def _orders(cases=1, json_path=ORDERS_JSON):
+def order_messages(cases=1, json_path=ORDERS_JSON):
     log = _Log()
     return ProsimosEngine(ProcessSpec("Orders", ORDERS, json_path, cases), START, log, seed=1), log
 
 
-def _run_until_idle(engine):
+def run_until_idle(engine):
     while engine.next_event_time() is not None:
         engine.step()
 
@@ -79,15 +79,15 @@ def item(order_id="Orders-0", item_id="i1"):
 
 
 def test_an_order_with_3_items_continues_at_the_time_of_its_third_item_not_before():
-    engine, log = _orders()
-    _run_until_idle(engine)  # order 0 waits at Catch_Items from 09:10
+    engine, log = order_messages()
+    run_until_idle(engine)  # order 0 waits at Catch_Items from 09:10
 
     for hh_mm, item_id in (("10:00", "i1"), ("10:30", "i2")):
         assert engine.deliver(item(item_id=item_id), at(hh_mm)) is Verdict.CLAIMED
-        _run_until_idle(engine)
+        run_until_idle(engine)
         assert log.packed() == {}  # still collecting
     assert engine.deliver(item(item_id="i3"), at("11:00")) is Verdict.CLAIMED
-    _run_until_idle(engine)
+    run_until_idle(engine)
 
     assert log.packed() == {0: at("11:00")}
 
@@ -95,7 +95,7 @@ def test_an_order_with_3_items_continues_at_the_time_of_its_third_item_not_befor
 def test_items_that_arrive_before_the_order_reaches_the_event_are_claimed_when_it_parks():
     # two items come at 08:30 and 08:40, before the order arrives (09:00) and reaches the event (09:10);
     # both are claimed in the step where it parks, the third comes at 12:00
-    orders, log = _orders()
+    orders, log = order_messages()
     picking = ScriptedEngine("Picking")
     for hh_mm, item_id in (("08:30", "i1"), ("08:40", "i2"), ("12:00", "i3")):
         picking.publish_at(at(hh_mm), "ItemReady", order_id="Orders-0", item_id=item_id)
@@ -107,8 +107,8 @@ def test_items_that_arrive_before_the_order_reaches_the_event_are_claimed_when_i
 
 
 def test_an_order_with_0_items_passes_straight_on(tmp_path):
-    engine, log = _orders(json_path=_settings(tmp_path, _items(0)))
-    _run_until_idle(engine)
+    engine, log = order_messages(json_path=settings_with(tmp_path, _items(0)))
+    run_until_idle(engine)
 
     assert log.packed() == {0: at("09:10")}  # the moment Pick ended, no message needed
     assert engine.finish().stalled == []
@@ -116,7 +116,7 @@ def test_an_order_with_0_items_passes_straight_on(tmp_path):
 
 def test_with_0_items_the_catch_event_is_logged_with_zero_duration(tmp_path):
     log_path = tmp_path / "log.csv"
-    run_simulation(ORDERS, prosimos_settings(_settings(tmp_path, _items(0))), 1, None, log_path, START.isoformat(),
+    run_simulation(ORDERS, prosimos_settings(settings_with(tmp_path, _items(0))), 1, None, log_path, START.isoformat(),
                    is_event_added_to_log=True)
 
     with open(log_path) as file:
@@ -126,18 +126,18 @@ def test_with_0_items_the_catch_event_is_logged_with_zero_duration(tmp_path):
 
 
 def test_an_order_that_gets_only_2_of_3_items_is_stalled_with_2_of_3():
-    engine, _ = _orders()
-    _run_until_idle(engine)
+    engine, _ = order_messages()
+    run_until_idle(engine)
     engine.deliver(item(item_id="i1"), at("10:00"))
     engine.deliver(item(item_id="i2"), at("10:30"))
-    _run_until_idle(engine)
+    run_until_idle(engine)
 
     [stalled] = engine.finish().stalled
     assert (stalled.object_id, stalled.collected, stalled.needed) == ("Orders-0", 2, 3)
 
 
 def test_the_summary_shows_how_many_a_stalled_case_collected():
-    orders, _ = _orders()
+    orders, _ = order_messages()
     picking = ScriptedEngine("Picking")
     for hh_mm, item_id in (("10:00", "i1"), ("10:30", "i2")):
         picking.publish_at(at(hh_mm), "ItemReady", order_id="Orders-0", item_id=item_id)
@@ -150,14 +150,14 @@ def test_the_summary_shows_how_many_a_stalled_case_collected():
 def test_the_oldest_case_that_still_needs_messages_gets_the_next_one(tmp_path):
     # without a condition every item fits every order: order 0 (waiting from 09:10) takes the first two,
     # then order 1 (waiting from 10:10) takes the next ones
-    any_order = _settings(tmp_path, lambda settings: (settings["messages"]["consume"][0].pop("condition"),
-                                                      _items(2)(settings)))
-    engine, log = _orders(cases=2, json_path=any_order)
-    _run_until_idle(engine)
+    any_order = settings_with(tmp_path, lambda settings: (settings["messages"]["consume"][0].pop("condition"),
+                                                          _items(2)(settings)))
+    engine, log = order_messages(cases=2, json_path=any_order)
+    run_until_idle(engine)
 
     for hh_mm in ("11:00", "11:30", "12:00"):
         engine.deliver(item(order_id="any"), at(hh_mm))
-    _run_until_idle(engine)
+    run_until_idle(engine)
 
     assert log.packed() == {0: at("11:30")}
     [stalled] = engine.finish().stalled
@@ -165,8 +165,8 @@ def test_the_oldest_case_that_still_needs_messages_gets_the_next_one(tmp_path):
 
 
 def test_copy_is_applied_at_every_claim_the_last_message_winning():
-    engine, _ = _orders()
-    _run_until_idle(engine)
+    engine, _ = order_messages()
+    run_until_idle(engine)
     values = engine._env.sim_setup.bpmn_graph.all_attributes[0]
 
     seen = []
@@ -178,12 +178,12 @@ def test_copy_is_applied_at_every_claim_the_last_message_winning():
 
 
 def test_a_number_to_collect_that_isnt_a_whole_number_counts_as_1_with_one_warning(tmp_path):
-    engine, log = _orders(cases=2, json_path=_settings(tmp_path, _items(2.5)))
-    _run_until_idle(engine)
+    engine, log = order_messages(cases=2, json_path=settings_with(tmp_path, _items(2.5)))
+    run_until_idle(engine)
 
     engine.deliver(item("Orders-0"), at("12:00"))
     engine.deliver(item("Orders-1"), at("12:00"))
-    _run_until_idle(engine)
+    run_until_idle(engine)
 
     assert log.packed() == {0: at("12:00"), 1: at("12:00")}
     assert engine.finish().warnings == [
@@ -195,7 +195,7 @@ def test_a_number_to_collect_that_isnt_a_whole_number_counts_as_1_with_one_warni
      r"collect and capacity can't be combined on one entry.*Use two steps through an intermediate case"),
 ])
 def test_an_invalid_collect_is_rejected_when_the_model_is_loaded(tmp_path, change, reason):
-    settings = _settings(tmp_path, lambda settings: change(settings["messages"]["consume"][0]))
+    settings = settings_with(tmp_path, lambda settings: change(settings["messages"]["consume"][0]))
 
     with pytest.raises(InvalidSimScenarioException, match=reason):
         load_process(ORDERS, settings, 1, START)
@@ -211,7 +211,7 @@ def test_collect_is_only_allowed_on_a_catch_event_with_exactly_one_consume_entry
                              r"entry, but Catch_Items has 2: a case waiting there keeps one count. To accept several "
                              r"variants of one type, use one entry with alternatives in its condition; to wait for "
                              r"several kinds, use one catch event per type"):
-        load_process(ORDERS, _settings(tmp_path, second_entry), 1, START)
+        load_process(ORDERS, settings_with(tmp_path, second_entry), 1, START)
 
 
 def test_a_catch_event_with_several_entries_and_no_collect_still_loads(tmp_path):
@@ -219,7 +219,7 @@ def test_a_catch_event_with_several_entries_and_no_collect_still_loads(tmp_path)
         settings["messages"]["consume"][0].pop("collect")
         settings["messages"]["consume"].append({"event_id": "Catch_Items", "type": "ItemCancelled"})
 
-    setup = load_process(ORDERS, _settings(tmp_path, two_entries_without_collect), 1, START)
+    setup = load_process(ORDERS, settings_with(tmp_path, two_entries_without_collect), 1, START)
 
     assert [point.type for point in setup.messaging.consume] == ["ItemReady", "ItemCancelled"]
 

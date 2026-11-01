@@ -63,7 +63,7 @@ def _reached_gateway(log, case):
     return next(_time(row[4]) for row in log.rows if row[0] == case and row[1] == "Take order")
 
 
-def _settings(tmp_path, change, base=SALES_JSON):
+def settings_with(tmp_path, change, base=SALES_JSON):
     with open(base) as file:
         settings = json.load(file)
     change(settings)
@@ -123,7 +123,7 @@ def test_a_gateway_without_a_message_branch_behaves_as_before(tmp_path):
         settings["event_distribution"].append(
             {"event_id": "Catch_Shipment", "distribution_name": "fix", "distribution_params": [{"value": 3600}]})
 
-    sales, log = _sales(json_path=_settings(tmp_path, no_message_branch))
+    sales, log = _sales(json_path=settings_with(tmp_path, no_message_branch))
     _run_until_idle(sales)
 
     assert sales.subscriptions() == []
@@ -140,7 +140,7 @@ def test_a_race_timer_of_a_case_ended_by_a_terminate_end_event_is_skipped(tmp_pa
             {"resource_id": "Clerk", "distribution_name": "fix", "distribution_params": [{"value": 7200}]}]})
 
     log = _Log()
-    spec = ProcessSpec("Sales", f"{ASSETS}/sales_race_terminated.bpmn", _settings(tmp_path, withdrawal), 1)
+    spec = ProcessSpec("Sales", f"{ASSETS}/sales_race_terminated.bpmn", settings_with(tmp_path, withdrawal), 1)
     sales = ProsimosEngine(spec, START, log, seed=1)
     _run_until_idle(sales)
 
@@ -163,7 +163,7 @@ EXACT_DEADLINE = START.replace(hour=15, minute=10)
 
 @pytest.mark.parametrize("warehouse_name", ["Warehouse", "Atelier"])  # steps after / before Sales at a tie
 def test_a_shipment_at_exactly_the_deadline_wins(tmp_path, warehouse_name):
-    sales, log = _sales(json_path=_settings(tmp_path, _take_order_in_10_minutes))
+    sales, log = _sales(json_path=settings_with(tmp_path, _take_order_in_10_minutes))
     warehouse = ScriptedEngine(warehouse_name)
     warehouse.publish_at(EXACT_DEADLINE, "Shipment", order_id="Sales-0")
 
@@ -176,7 +176,7 @@ def test_a_shipment_at_exactly_the_deadline_wins(tmp_path, warehouse_name):
 
 def test_the_timers_log_row_shows_its_real_time(tmp_path):
     log_path = tmp_path / "log.csv"
-    run_simulation(SALES, prosimos_settings(_settings(tmp_path, _take_order_in_10_minutes)), 1, None, log_path,
+    run_simulation(SALES, prosimos_settings(settings_with(tmp_path, _take_order_in_10_minutes)), 1, None, log_path,
                    START.isoformat(),
                    is_event_added_to_log=True)
 
@@ -227,12 +227,12 @@ QUOTE_WITH_EXPIRY = f"{ASSETS}/quote_race_with_expiry.bpmn"
 ELEVEN = START.replace(hour=11)
 
 
-def _quote(cases=1, json_path=QUOTE_JSON, bpmn_path=QUOTE):
+def quote_message(cases=1, json_path=QUOTE_JSON, bpmn_path=QUOTE):
     log = _Log()
     return ProsimosEngine(ProcessSpec("Quote", bpmn_path, json_path, cases), START, log, seed=1), log
 
 
-def _run_until(engine, time):
+def run_until(engine, time):
     while engine.next_event_time() is not None and engine.next_event_time() < time:
         engine.step()
 
@@ -247,7 +247,7 @@ def answer(message_type, quote_id="Quote-0"):
 ])
 def test_with_two_message_branches_the_first_claim_wins_and_a_later_message_of_the_other_type_is_discarded(
         first, second, taken, not_taken):
-    quote, log = _quote()
+    quote, log = quote_message()
     customer = ScriptedEngine("Customer")
     customer.publish_at(ELEVEN, first, quote_id="Quote-0")
 
@@ -262,7 +262,7 @@ def test_with_two_message_branches_the_first_claim_wins_and_a_later_message_of_t
 
 def test_two_answers_at_the_same_instant_go_to_the_one_the_orchestrator_offers_first():
     def race():
-        quote, log = _quote()
+        quote, log = quote_message()
         customer = ScriptedEngine("Customer")
         customer.publish_at(ELEVEN, "QuoteRejected", quote_id="Quote-0")
         customer.publish_at(ELEVEN, "QuoteAccepted", quote_id="Quote-0")
@@ -291,8 +291,8 @@ def test_a_message_matching_two_branches_takes_the_branch_listed_first_with_one_
             entry["type"] = "Reply"
         consume.sort(key=lambda entry: entry["event_id"] != listed_first)
 
-    quote, log = _quote(cases=2, json_path=_settings(tmp_path, both_accept_replies, base=QUOTE_JSON))
-    _run_until(quote, ELEVEN)
+    quote, log = quote_message(cases=2, json_path=settings_with(tmp_path, both_accept_replies, base=QUOTE_JSON))
+    run_until(quote, ELEVEN)
 
     assert quote.deliver(answer("Reply", "Quote-0"), ELEVEN) is Verdict.CLAIMED
     assert quote.deliver(answer("Reply", "Quote-1"), ELEVEN) is Verdict.CLAIMED
@@ -306,7 +306,7 @@ def test_a_message_matching_two_branches_takes_the_branch_listed_first_with_one_
 
 
 def test_a_case_waiting_in_a_race_of_two_message_branches_is_stalled_at_the_gateway_with_both_types():
-    quote, _ = _quote()
+    quote, _ = quote_message()
     _run_until_idle(quote)
 
     assert quote.finish().stalled == [
@@ -320,8 +320,9 @@ def test_with_a_timer_as_well_the_first_of_the_three_branches_wins(tmp_path):
         settings["event_distribution"].append(
             {"event_id": "Expiry", "distribution_name": "fix", "distribution_params": [{"value": 3 * 24 * 3600}]})
 
-    quote, log = _quote(cases=2, json_path=_settings(tmp_path, expiry, base=QUOTE_JSON), bpmn_path=QUOTE_WITH_EXPIRY)
-    _run_until(quote, ELEVEN)
+    quote, log = quote_message(cases=2, json_path=settings_with(tmp_path, expiry, base=QUOTE_JSON),
+                               bpmn_path=QUOTE_WITH_EXPIRY)
+    run_until(quote, ELEVEN)
 
     # case 0 is accepted at 11:00; case 1 gets no answer, so its timer fires 3 days after it reached the gateway
     assert quote.deliver(answer("QuoteAccepted", "Quote-0"), ELEVEN) is Verdict.CLAIMED
@@ -344,7 +345,7 @@ ITEMS_RACE = f"{ASSETS}/orders_and_items_race.bpmn"
 ITEMS_RACE_JSON = f"{ASSETS}/orders_and_items_race.json"
 
 
-def _race_orders(bpmn_path, json_path, cases):
+def race_orders(bpmn_path, json_path, cases):
     log = _Log()
     return ProsimosEngine(ProcessSpec("Orders", bpmn_path, json_path, cases), START, log, seed=1), log
 
@@ -355,7 +356,7 @@ def _message_types(report):
 
 
 def test_a_truck_of_capacity_2_wins_the_races_of_the_two_orders_it_picks_up_while_a_third_races_on():
-    orders, log = _race_orders(TRUCK_RACE, TRUCK_RACE_JSON, 3)
+    orders, log = race_orders(TRUCK_RACE, TRUCK_RACE_JSON, 3)
     carrier = ScriptedEngine("Carrier")
     carrier.publish_at(START.replace(minute=30), "Truck", dock="Tartu", object_id="Carrier-0")
 
@@ -380,7 +381,7 @@ def three_items_per_order():
 
 def test_an_order_whose_timer_fires_after_1_of_3_items_takes_the_timer_branch_and_a_later_item_is_discarded(
         three_items_per_order):
-    orders, log = _race_orders(ITEMS_RACE, ITEMS_RACE_JSON, 2)
+    orders, log = race_orders(ITEMS_RACE, ITEMS_RACE_JSON, 2)
 
     report = orchestrate({"Orders": orders, "Shelf": three_items_per_order}, None, 1)
 
@@ -394,7 +395,7 @@ def test_an_order_whose_timer_fires_after_1_of_3_items_takes_the_timer_branch_an
 
 
 def test_an_order_that_gets_all_3_items_before_its_timer_takes_the_message_branch(three_items_per_order):
-    orders, log = _race_orders(ITEMS_RACE, ITEMS_RACE_JSON, 2)
+    orders, log = race_orders(ITEMS_RACE, ITEMS_RACE_JSON, 2)
 
     report = orchestrate({"Orders": orders, "Shelf": three_items_per_order}, None, 1)
 
@@ -408,7 +409,7 @@ def test_an_order_with_no_items_to_collect_takes_the_message_branch_at_once(tmp_
     def no_items(settings):
         settings["object_attributes"][0]["values"]["distribution_params"] = [{"value": 0}]
 
-    orders, log = _race_orders(ITEMS_RACE, _settings(tmp_path, no_items, base=ITEMS_RACE_JSON), 2)
+    orders, log = race_orders(ITEMS_RACE, settings_with(tmp_path, no_items, base=ITEMS_RACE_JSON), 2)
     _run_until_idle(orders)
 
     assert log.times("Pack") == {0: START.replace(hour=9, minute=10), 1: START.replace(hour=10, minute=10)}
@@ -431,7 +432,7 @@ def test_of_several_branches_with_nothing_to_collect_the_one_listed_first_wins_f
             entry["collect"] = {"object_attribute": "answers_needed"}
         consume.sort(key=lambda entry: entry["event_id"] != listed_first)
 
-    json_path = _settings(tmp_path, nothing_to_collect, base=QUOTE_JSON)
+    json_path = settings_with(tmp_path, nothing_to_collect, base=QUOTE_JSON)
     for seed in range(1, 21):  # the branches come off the queue in a random order, which the seed decides
         log = _Log()
         quote = ProsimosEngine(ProcessSpec("Quote", QUOTE, json_path, 2), START, log, seed=seed)
@@ -451,4 +452,4 @@ def test_a_race_branch_with_a_fixed_collect_of_0_is_rejected(tmp_path):
     with pytest.raises(InvalidSimScenarioException,
                        match="Catch_Rejected, after the event-based gateway Race: a race branch with a fixed collect "
                              "of 0 always wins its race; remove the race or the branch"):
-        load_process(QUOTE, _settings(tmp_path, fixed_0, base=QUOTE_JSON), 1, START)
+        load_process(QUOTE, settings_with(tmp_path, fixed_0, base=QUOTE_JSON), 1, START)

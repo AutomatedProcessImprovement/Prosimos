@@ -16,12 +16,12 @@ import numpy as np
 
 from prosimos.case_attributes import CaseAttribute
 from prosimos.control_flow_manager import BPMN
-from prosimos.messaging.engine import _aggregated
+from prosimos.messaging.engine import aggregate_of
 from prosimos.messaging.model import AGGREGATE_FUNCTIONS
 from prosimos.messaging.parser import is_number, is_whole_number
-from prosimos.orchestration.catalogue.model import (CatalogueChange, CatalogueObject, CataloguePool, Computed, CountFrom,
-                                                  GrowingCatalogue, NewShare, _catalogue_ids)
-from prosimos.orchestration.random_generators import _engine_random_states
+from prosimos.orchestration.catalogue.model import (CatalogueChange, CatalogueObject, CataloguePool, Computed,
+                                                    CountFrom, GrowingCatalogue, NewShare, catalogue_ids)
+from prosimos.orchestration.random_generators import engine_random_states
 from prosimos.simulation_properties_parser import parse_simulation_model
 from prosimos.warning_logger import warning_logger
 
@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from prosimos.orchestration.config import Organization, ProcessSpec
 
 
-def _checked_catalogue(organizations):
+def checked_catalogue(organizations):
     """Of the organizations and their processes: catalogue names unique across the organizations and unlike the
     processes' object types, since both are OCEL object types; ids unique across all catalogues and unlike the
     processes' object ids (<object type>-<number>), since both are OCEL object ids; pools with a count of at least 1
@@ -74,7 +74,7 @@ def _checked_catalogue(organizations):
                 CaseAttribute(attribute["name"], attribute["type"], attribute["values"])
             except Exception as error:  # Prosimos's own messages, as for object_attributes
                 problems.append(f"catalogue {name!r}: attributes[{number}]: {type(error).__name__}: {error}")
-    ids = [object_id for name, entry in catalogue.items() for object_id in _catalogue_ids(name, entry)]
+    ids = [object_id for name, entry in catalogue.items() for object_id in catalogue_ids(name, entry)]
     repeated = sorted(object_id for object_id, times in Counter(ids).items() if times > 1)
     if repeated:
         problems.append(f"catalogue ids are repeated: {repeated}")
@@ -134,7 +134,7 @@ def _checked_catalogue(organizations):
     picked = [(reference.process, reference.object_attribute) for _, reference in references if reference.pick is not None]
     for process, attribute in sorted({pair for pair in picked if picked.count(pair) > 1}):
         problems.append(f"more than one reference picks {attribute} of process {process}")
-    brought = [(reference.process, name) for _, reference in references for name in _brought_names(reference)]
+    brought = [(reference.process, name) for _, reference in references for name in brought_names(reference)]
     for where, reference in references:
         if reference.with_attributes and reference.catalogue in catalogues_of[reference.process]:
             problems.extend(f"{where} {problem}" for problem in _with_problems(
@@ -160,7 +160,7 @@ def _change_problems(change, catalogues, owners):
         if isinstance(entry, GrowingCatalogue):
             return [f"names objects {list(change.objects)} of growing catalogue {name!r}, which has none when the run "
                     f"starts; without objects, the change applies to every object it creates"]
-        unknown = [object_id for object_id in change.objects if object_id not in _catalogue_ids(name, entry)]
+        unknown = [object_id for object_id in change.objects if object_id not in catalogue_ids(name, entry)]
         if unknown:
             return [f"names objects {unknown}, which are no ids of catalogue {name!r}"]
     if isinstance(entry, list):
@@ -279,7 +279,7 @@ def _consumed_into(process, specs, key):
             for target in entry[key]}
 
 
-def _brought_names(reference):
+def brought_names(reference):
     """The attributes a reference's with gives its cases (none if with is malformed, which _with_problems reports)."""
     pairs = reference.with_attributes
     return [pair[0] for pair in pairs if isinstance(pair, tuple) and len(pair) == 2] if isinstance(pairs, tuple) else []
@@ -346,7 +346,7 @@ def _with_problems(reference, entry, specs, picked, brought):
     return problems
 
 
-class _Pick:
+class Pick:
     """A case attribute that a reference picks (pick) from its catalogue's ids. It has what the engine uses of
     Prosimos's CaseAttribute, name and get_next_value(), so it is drawn with the case's other attributes, when
     the case is created; its generator is its own, seeded from the seed, the process and the attribute, so it
@@ -360,7 +360,7 @@ class _Pick:
         self._counted = None  # the value of count's attribute drawn for the latest case
         self._warned = False
         self._generator = random.Random()
-        self._generator.setstate(_engine_random_states(seed, f"pick/{process}/{name}")[0])
+        self._generator.setstate(engine_random_states(seed, f"pick/{process}/{name}")[0])
 
     def read_count_from(self, attribute):
         """Has the case attribute that holds the count, one the engine draws before its picks, tell this pick the
@@ -394,17 +394,17 @@ class _Pick:
         return 1
 
 
-class _Brought:
-    """A value a _Pick's objects give the case it has just picked them for: an attribute of the picked object,
+class Brought:
+    """A value a Pick's objects give the case it has just picked them for: an attribute of the picked object,
     copied, or, with function, the function over that attribute of every object it picked, each as often as it
     was picked (a single pick is a list of one), and over initial, if given, as aggregate computes over messages.
     It comes right after its pick in the case's attributes, which are drawn in order, so it reads the pick's last
     value; it draws nothing. Over no objects, a sum and a count are 0 and a min or max has no value (None), unless
     initial gives them one. Drawn from the values before any change, since a planned case's attributes are drawn
     before its arrival time is known; the engine works it out again when the case is created, from the values valid
-    then (see _Received)."""
+    then (see Received)."""
 
-    def __init__(self, name: str, pick: _Pick, values: Dict[str, Any], function: Optional[str] = None,
+    def __init__(self, name: str, pick: Pick, values: Dict[str, Any], function: Optional[str] = None,
                  initial: Optional[float] = None, catalogue: str = ""):
         self.name, self._pick, self.values, self.function, self.initial = name, pick, values, function, initial
         self.catalogue = catalogue
@@ -420,10 +420,10 @@ class _Brought:
         picked = self._pick.last if isinstance(self._pick.last, list) else [self._pick.last]
         if not picked and self.function in ("min", "max") and self.initial is None:
             return None
-        return _aggregated(self.function, [self.values[object_id] for object_id in picked], self.initial)
+        return aggregate_of(self.function, [self.values[object_id] for object_id in picked], self.initial)
 
 
-class _Received:
+class Received:
     """A value with gives the case from the catalogue object its attribute source names when it isn't picked: copied
     from the message that starts the case, or drawn in its object_attributes. values: the catalogue attribute's
     values (_CatalogueValues); catalogue: the catalogue's name. It holds a column of the log, but draws nothing: the
@@ -439,7 +439,7 @@ class _Received:
         return None
 
 
-class _Timetable:
+class Timetable:
     """The values of an organization's catalogue attributes over the run, worked out from its catalogue_changes
     instead of changed as the run goes: whoever reads a value reads the one valid at that moment. A change at a
     moment is valid from that moment on, inclusive, and changes at the same moment apply in the order they are
@@ -501,7 +501,7 @@ class _CatalogueValues(dict):
     """One attribute of a catalogue's objects, as a 'with' reads it: a dict of object id -> the value before any
     change, and at(object_id, when), the value at the moment when, from its organization's timetable."""
 
-    def __init__(self, values: Dict[str, Any], catalogue: str, attribute: str, timetable: _Timetable):
+    def __init__(self, values: Dict[str, Any], catalogue: str, attribute: str, timetable: Timetable):
         super().__init__(values)
         self.catalogue, self.attribute, self._timetable = catalogue, attribute, timetable
 
@@ -509,16 +509,16 @@ class _CatalogueValues(dict):
         return self._timetable.value(self.catalogue, self.attribute, object_id, self[object_id], when)
 
 
-class _NewPick:
+class NewPick:
     """A case attribute that a reference picks from a growing catalogue: a new id, <catalogue name>-<number> in
     creation order, for every case ("new") or for share of them, the rest reusing one created so far, uniformly.
-    Like _Pick, it is drawn with the case's other attributes, from a generator of its own."""
+    Like Pick, it is drawn with the case's other attributes, from a generator of its own."""
 
     def __init__(self, name: str, catalogue: str, share: float, seed: Optional[int], process: str):
         self.name, self.catalogue, self._share = name, catalogue, share
         self.created = 0
         self._generator = random.Random()
-        self._generator.setstate(_engine_random_states(seed, f"pick/{process}/{name}")[0])
+        self._generator.setstate(engine_random_states(seed, f"pick/{process}/{name}")[0])
 
     def get_next_value(self):
         if self.created == 0 or self._share == 1 or self._generator.random() < self._share:
@@ -527,10 +527,10 @@ class _NewPick:
         return f"{self.catalogue}-{self._generator.randint(1, self.created)}"
 
 
-def _picks(spec: ProcessSpec, seed: Optional[int], catalogues: Dict[str, List[CatalogueObject]],
-           timetable: _Timetable) -> List[_Pick]:
+def picks_of(spec: ProcessSpec, seed: Optional[int], catalogues: Dict[str, List[CatalogueObject]],
+             timetable: Timetable) -> List[Pick]:
     """The attributes a process's references pick, from its organization's catalogues as the run starts (see
-    _drawn_catalogues), and those their 'with' gives a case from the objects its attribute names, picked or not, as
+    drawn_catalogues), and those their 'with' gives a case from the objects its attribute names, picked or not, as
     timetable says they change."""
     def values(reference, attribute):
         return _CatalogueValues({obj.id: dict(obj.attributes)[attribute] for obj in catalogues[reference.catalogue]},
@@ -540,43 +540,43 @@ def _picks(spec: ProcessSpec, seed: Optional[int], catalogues: Dict[str, List[Ca
     for reference in spec.references:
         if reference.creates:
             share = reference.pick.share if isinstance(reference.pick, NewShare) else 1
-            picks.append(_NewPick(reference.object_attribute, reference.catalogue, share, seed, spec.name))
+            picks.append(NewPick(reference.object_attribute, reference.catalogue, share, seed, spec.name))
         elif reference.pick is None:
             for name, source in reference.with_attributes:
                 function, attribute, initial = ((source.function, source.source, source.initial)
                                                 if isinstance(source, Computed) else (None, source, None))
-                picks.append(_Received(name, reference.object_attribute, values(reference, attribute), function,
-                                       initial, reference.catalogue))
+                picks.append(Received(name, reference.object_attribute, values(reference, attribute), function,
+                                      initial, reference.catalogue))
         else:
             ids = [obj.id for obj in catalogues[reference.catalogue]]
             weights = None if reference.pick == "uniform" else [dict(reference.pick).get(object_id, 0) for object_id in ids]
-            pick = _Pick(reference.object_attribute, ids, weights, seed, spec.name, reference.count)
+            pick = Pick(reference.object_attribute, ids, weights, seed, spec.name, reference.count)
             picks.append(pick)
             for name, source in reference.with_attributes:
                 function, attribute, initial = ((source.function, source.source, source.initial)
                                                 if isinstance(source, Computed) else (None, source, None))
-                picks.append(_Brought(name, pick, values(reference, attribute), function, initial,
-                                      reference.catalogue))
+                picks.append(Brought(name, pick, values(reference, attribute), function, initial,
+                                     reference.catalogue))
     return picks
 
 
-def _drawn_catalogues(organization: Organization, seed: Optional[int]) -> Dict[str, List[CatalogueObject]]:
+def drawn_catalogues(organization: Organization, seed: Optional[int]) -> Dict[str, List[CatalogueObject]]:
     """An organization's catalogues, name -> their objects when the run starts: a listed catalogue's as given, a
     pool's with their attributes drawn (see _drawn_objects), none yet for a growing catalogue."""
     return {name: list(entry) if isinstance(entry, list) else _drawn_objects(seed, name, entry.attributes,
-                                                                            _catalogue_ids(name, entry))
+                                                                            catalogue_ids(name, entry))
             for name, entry in organization.catalogues.items()}
 
 
-def _grown_catalogues(organization: Organization, seed: Optional[int], catalogues: Dict[str, List[CatalogueObject]],
-                      picks: List[_Pick]) -> Dict[str, List[CatalogueObject]]:
+def grown_catalogues(organization: Organization, seed: Optional[int], catalogues: Dict[str, List[CatalogueObject]],
+                     picks: List[Pick]) -> Dict[str, List[CatalogueObject]]:
     """An organization's catalogues after the run, picks being its processes' picks: each growing catalogue with the
     objects its pick created, <name>-1 to <name>-<created>, their attributes drawn in creation order (see
     _drawn_objects). Drawing them now rather than when each was created gives the same values, since nothing else
     draws from their generators."""
     grown = dict(catalogues)
     for pick in picks:
-        if isinstance(pick, _NewPick):
+        if isinstance(pick, NewPick):
             attribute_specs = organization.catalogues[pick.catalogue].attributes
             grown[pick.catalogue] = _drawn_objects(seed, pick.catalogue, attribute_specs,
                                                    [f"{pick.catalogue}-{number}" for number in range(1, pick.created + 1)])
@@ -587,7 +587,7 @@ def _drawn_objects(seed, name, attribute_specs, ids) -> List[CatalogueObject]:
     """The objects with these ids, their attributes drawn object after object by Prosimos's case attribute code,
     from generators seeded from the seed and the catalogue's name."""
     attributes = [CaseAttribute(attribute["name"], attribute["type"], attribute["values"]) for attribute in attribute_specs]
-    python_state, numpy_state = _engine_random_states(seed, f"catalogue/{name}")
+    python_state, numpy_state = engine_random_states(seed, f"catalogue/{name}")
     shared_python, shared_numpy = random.getstate(), np.random.get_state()
     random.setstate(python_state)
     np.random.set_state(numpy_state)

@@ -13,12 +13,12 @@ import pandas as pd
 import pytest
 import pytz
 
-from prosimos.orchestration.catalogue import _Pick, _drawn_catalogues
+from prosimos.orchestration.catalogue import Pick, drawn_catalogues
 from prosimos.orchestration.catalogue.model import CatalogueObject, CataloguePool, Reference
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.simulation import run_multiprocess_simulation
-from testing_scripts.multiprocess.catalogue.test_catalogue import _config_with
-from testing_scripts.multiprocess.examples.test_order_management import CONFIG, _config
+from testing_scripts.multiprocess.catalogue.test_catalogue import config_with
+from testing_scripts.multiprocess.examples.test_order_management import CONFIG, order_management_config
 from testing_scripts.multiprocess.orchestrator_settings import one_organization
 
 ASSETS = Path("testing_scripts/assets")
@@ -33,7 +33,7 @@ POOL = CataloguePool(1500, (
 THREE = [CatalogueObject("c1"), CatalogueObject("c2"), CatalogueObject("c3")]
 
 
-def _loans(cases, catalogue, pick, seed=1, with_attributes=()):
+def loans_config(cases, catalogue, pick, seed=1, with_attributes=()):
     """A config of one process, Loans, whose cases pick a customer."""
     return SimulationConfig(one_organization([
         ProcessSpec("Loans", *LOANS, cases, "loan", ocel_attributes=("customer", *with_attributes),
@@ -44,13 +44,13 @@ def _loans(cases, catalogue, pick, seed=1, with_attributes=()):
         START, seed)
 
 
-def _run(config, tmp_path, name="log"):
+def run(config, tmp_path, name="log"):
     report = run_multiprocess_simulation(config, tmp_path / f"{name}.csv", ocel_out_path=tmp_path / f"{name}.json")
     with open(tmp_path / f"{name}.json") as file:
         return report, pd.read_csv(tmp_path / f"{name}.csv"), json.load(file)
 
 
-def _customers_of_cases(report, process):
+def customers_of_cases(report, process):
     """Case id -> the customer it picked."""
     return {case_object.object_id: value for name, case_object in report.objects if name == process
             for attribute, value, _ in case_object.attributes if attribute == "customer"}
@@ -65,21 +65,21 @@ def test_order_management_picks_its_customer_and_sales_json_doesnt_draw_it(tmp_p
     [customer] = [reference for reference in sales.references if reference.object_attribute == "customer"]
     assert customer.pick == "uniform"
 
-    report, log, _ = _run(_config(100), tmp_path)
+    report, log, _ = run(order_management_config(100), tmp_path)
 
-    customers = _customers_of_cases(report, "Sales")
+    customers = customers_of_cases(report, "Sales")
     assert len(customers) == 100 and set(customers.values()) <= {f"c{n}" for n in range(1, 16)}
     assert len(set(customers.values())) > 10  # uniform over 15
     # a normal case attribute from then on: a column of the log, and copied to items by ItemOrdered
     sales = log[log["process"] == "Sales"]
     assert sales["customer"].notna().all()
-    assert set(_customers_of_cases(report, "Warehouse").values()) <= set(customers.values())
+    assert set(customers_of_cases(report, "Warehouse").values()) <= set(customers.values())
 
 
 # weights
 
 def test_weights_give_their_shares():
-    pick = _Pick("customer", ["c1", "c2", "c3"], [3, 1, 1], seed=1, process="P")
+    pick = Pick("customer", ["c1", "c2", "c3"], [3, 1, 1], seed=1, process="P")
 
     shares = Counter(pick.get_next_value() for _ in range(30000))
 
@@ -88,9 +88,9 @@ def test_weights_give_their_shares():
 
 def test_a_run_with_weights_picks_in_their_shares_and_never_an_id_left_out(tmp_path):
     catalogue = THREE + [CatalogueObject("c4")]
-    report, _, _ = _run(_loans(1000, catalogue, (("c1", 3), ("c2", 1), ("c3", 1))), tmp_path)
+    report, _, _ = run(loans_config(1000, catalogue, (("c1", 3), ("c2", 1), ("c3", 1))), tmp_path)
 
-    shares = Counter(_customers_of_cases(report, "Loans").values())
+    shares = Counter(customers_of_cases(report, "Loans").values())
 
     assert set(shares) == {"c1", "c2", "c3"}  # c4 has no weight
     assert abs(shares["c1"] / 1000 - 0.6) < 0.05 and abs(shares["c2"] / 1000 - 0.2) < 0.05
@@ -101,13 +101,13 @@ def test_a_run_with_weights_picks_in_their_shares_and_never_an_id_left_out(tmp_p
 @pytest.fixture(scope="module")
 def pool_run(tmp_path_factory):
     """2,000 loans, each picking its customer from a pool of 1,500."""
-    return _run(_loans(2000, POOL, "uniform"), tmp_path_factory.mktemp("pool"))
+    return run(loans_config(2000, POOL, "uniform"), tmp_path_factory.mktemp("pool"))
 
 
 def test_a_pool_of_1500_with_2000_cases_writes_only_the_picked_customers(pool_run):
     report, _, ocel = pool_run
 
-    picked = set(_customers_of_cases(report, "Loans").values())
+    picked = set(customers_of_cases(report, "Loans").values())
     written = {obj["id"]: obj for obj in ocel["objects"] if obj["type"] == "customer"}
 
     assert set(written) == picked
@@ -130,21 +130,21 @@ def test_a_pools_attributes_are_drawn_in_their_shares(pool_run):
 
 
 def test_the_same_seed_gives_the_same_pool_and_the_same_picks(tmp_path):
-    first, _, first_ocel = _run(_loans(300, POOL, "uniform"), tmp_path, "first")
-    again, _, again_ocel = _run(_loans(300, POOL, "uniform"), tmp_path, "again")
-    other, _, _ = _run(_loans(300, POOL, "uniform", seed=2), tmp_path, "other")
+    first, _, first_ocel = run(loans_config(300, POOL, "uniform"), tmp_path, "first")
+    again, _, again_ocel = run(loans_config(300, POOL, "uniform"), tmp_path, "again")
+    other, _, _ = run(loans_config(300, POOL, "uniform", seed=2), tmp_path, "other")
 
     def customers(ocel):
         return [obj for obj in ocel["objects"] if obj["type"] == "customer"]
 
-    assert _customers_of_cases(first, "Loans") == _customers_of_cases(again, "Loans")
+    assert customers_of_cases(first, "Loans") == customers_of_cases(again, "Loans")
     assert customers(first_ocel) == customers(again_ocel)
-    assert _customers_of_cases(first, "Loans") != _customers_of_cases(other, "Loans")
+    assert customers_of_cases(first, "Loans") != customers_of_cases(other, "Loans")
 
 
 def test_the_pool_is_drawn_from_the_seed():
     def drawn(seed=1):
-        return _drawn_catalogues(_loans(1, POOL, "uniform").organizations[0], seed)["customer"]
+        return drawn_catalogues(loans_config(1, POOL, "uniform").organizations[0], seed)["customer"]
 
     pool = drawn()
 
@@ -165,8 +165,8 @@ def test_picking_doesnt_change_the_processs_other_draws(tmp_path):
     spec = ProcessSpec("Loans", LOANS[0], str(tmp_path / "loans.json"), 200, "loan",
                        references=(Reference("customer", "customer", pick="uniform"),))
 
-    _, with_pick, _ = _run(SimulationConfig(one_organization([spec], {"customer": THREE}), START, 1), tmp_path, "with")
-    _, without, _ = _run(SimulationConfig(one_organization([dataclasses.replace(spec, references=())],
+    _, with_pick, _ = run(SimulationConfig(one_organization([spec], {"customer": THREE}), START, 1), tmp_path, "with")
+    _, without, _ = run(SimulationConfig(one_organization([dataclasses.replace(spec, references=())],
                                                            {"customer": THREE}), START, 1), tmp_path, "without")
 
     assert set(with_pick["customer"]) == {"c1", "c2", "c3"} and "customer" not in without
@@ -181,7 +181,7 @@ RATED = [CatalogueObject("c1", (("segment", "retail"), ("limit", 2000))),
          CatalogueObject("c3", (("segment", "retail"), ("limit", 500)))]
 
 
-def _starting_values(report, process):
+def starting_values(report, process):
     """Case id -> its attribute values when it was created."""
     return {case_object.object_id: {name: value for name, value, time in case_object.attributes
                                   if time == case_object.attributes[0][2]}
@@ -189,11 +189,11 @@ def _starting_values(report, process):
 
 
 def test_a_case_starts_with_the_attributes_with_names_of_the_object_it_picks(tmp_path):
-    report, log, ocel = _run(_loans(200, RATED, (("c1", 1), ("c2", 1), ("c3", 1)), with_attributes=("segment", "limit")),
-                             tmp_path)
+    report, log, ocel = run(loans_config(200, RATED, (("c1", 1), ("c2", 1), ("c3", 1)),
+                                         with_attributes=("segment", "limit")), tmp_path)
 
     rated = {obj.id: dict(obj.attributes) for obj in RATED}
-    values = _starting_values(report, "Loans")
+    values = starting_values(report, "Loans")
     assert {case["customer"] for case in values.values()} == {"c1", "c2", "c3"}
     assert all(case == {"customer": case["customer"], **rated[case["customer"]]} for case in values.values())
     # normal case values from then on: columns of the log and attributes of the case's OCEL object
@@ -204,19 +204,19 @@ def test_a_case_starts_with_the_attributes_with_names_of_the_object_it_picks(tmp
 
 
 def test_a_pool_object_brings_the_attributes_drawn_for_it(tmp_path):
-    report, _, ocel = _run(_loans(300, POOL, "uniform", with_attributes=("credit_limit",)), tmp_path)
+    report, _, ocel = run(loans_config(300, POOL, "uniform", with_attributes=("credit_limit",)), tmp_path)
 
     drawn = {obj["id"]: {attribute["name"]: attribute["value"] for attribute in obj["attributes"]}
              for obj in ocel["objects"] if obj["type"] == "customer"}
-    values = _starting_values(report, "Loans").values()
+    values = starting_values(report, "Loans").values()
     assert len(values) == 300
     assert all(case["credit_limit"] == drawn[case["customer"]]["credit_limit"] for case in values)
 
 
 def test_bringing_attributes_doesnt_change_what_is_picked_or_the_rest_of_the_log(tmp_path):
     picks = (("c1", 1), ("c2", 1), ("c3", 1))
-    _, bringing, _ = _run(_loans(200, RATED, picks, with_attributes=("segment", "limit")), tmp_path, "with")
-    _, plain, _ = _run(_loans(200, RATED, picks), tmp_path, "without")
+    _, bringing, _ = run(loans_config(200, RATED, picks, with_attributes=("segment", "limit")), tmp_path, "with")
+    _, plain, _ = run(loans_config(200, RATED, picks), tmp_path, "without")
 
     assert bringing.drop(columns=["segment", "limit"]).equals(plain)
 
@@ -229,7 +229,7 @@ CUSTOMERS, PRODUCTS_LIST = (OM["organizations"][0]["catalogues"][name] for name 
 
 
 def test_weights_naming_unknown_ids_are_rejected(tmp_path):
-    path = _config_with(tmp_path, references={"Sales": [{**PICKING, "pick": {"weights": {"c1": 3, "c99": 1}}}]})
+    path = config_with(tmp_path, references={"Sales": [{**PICKING, "pick": {"weights": {"c1": 3, "c99": 1}}}]})
 
     with pytest.raises(ValueError, match=r"processes\[0\].references\[0\] weights name \['c99'\], which are no ids of "
                                          r"catalogue 'customer'"):
@@ -237,8 +237,8 @@ def test_weights_naming_unknown_ids_are_rejected(tmp_path):
 
 
 def test_weights_on_a_pool_are_rejected(tmp_path):
-    path = _config_with(tmp_path, catalogues={"customer": {"count": 10}},
-                        references={"Sales": [{**PICKING, "pick": {"weights": {"customer-1": 1}}}]})
+    path = config_with(tmp_path, catalogues={"customer": {"count": 10}},
+                       references={"Sales": [{**PICKING, "pick": {"weights": {"customer-1": 1}}}]})
 
     with pytest.raises(ValueError, match=r"processes\[0\].references\[0\] has weights on pool 'customer'"):
         SimulationConfig.from_json(path)
@@ -246,15 +246,15 @@ def test_weights_on_a_pool_are_rejected(tmp_path):
 
 @pytest.mark.parametrize("count", [0, -5, "10", 2.5, None])
 def test_a_pool_count_below_1_or_not_a_whole_number_is_rejected(tmp_path, count):
-    path = _config_with(tmp_path, catalogues={"customer": {"count": count}},
-                        references={"Sales": [{**PICKING, "pick": "uniform"}]})
+    path = config_with(tmp_path, catalogues={"customer": {"count": count}},
+                       references={"Sales": [{**PICKING, "pick": "uniform"}]})
 
     with pytest.raises(ValueError, match=r"catalogue 'customer': count must be a whole number of at least 1"):
         SimulationConfig.from_json(path)
 
 
 def test_pool_attributes_prosimos_cant_parse_are_rejected(tmp_path):
-    path = _config_with(tmp_path, catalogues={"customer": {"count": 10, "attributes": [
+    path = config_with(tmp_path, catalogues={"customer": {"count": 10, "attributes": [
         {"name": "segment", "type": "discrete", "values": [{"key": "retail", "value": 0.5}]}]}}, references={})
 
     with pytest.raises(ValueError, match=r"catalogue 'customer': attributes\[0\]: .*probabilities' sum should be equal to 1"):
@@ -266,7 +266,7 @@ def test_picking_an_attribute_also_in_object_attributes_is_rejected(tmp_path):
         sales = json.load(file)
     sales["object_attributes"].append({"name": "customer", "type": "discrete", "values": [{"key": "c1", "value": 1}]})
     (tmp_path / "sales.json").write_text(json.dumps(sales))
-    path = _config_with(tmp_path, references={"Sales": [{**PICKING, "pick": "uniform"}]})
+    path = config_with(tmp_path, references={"Sales": [{**PICKING, "pick": "uniform"}]})
     data = json.loads(path.read_text())
     next(process for process in data["organizations"][0]["processes"] if process["name"] == "Sales")["json_path"] = str(tmp_path / "sales.json")
     path.write_text(json.dumps(data))
@@ -279,8 +279,8 @@ def test_picking_an_attribute_also_in_object_attributes_is_rejected(tmp_path):
 def test_picking_an_attribute_the_process_copies_from_a_message_is_rejected(tmp_path):
     # the Warehouse copies customer from ItemOrdered; a pick from a customer catalogue of its own would be replaced
     # by the copied value
-    path = _config_with(tmp_path, catalogues={"customer": CUSTOMERS},
-                        references={"Warehouse": [{**PICKING, "pick": "uniform"}]})
+    path = config_with(tmp_path, catalogues={"customer": CUSTOMERS},
+                       references={"Warehouse": [{**PICKING, "pick": "uniform"}]})
 
     with pytest.raises(ValueError, match=r"processes\[1\].references\[0\] picks customer, which process Warehouse also "
                                          r"copies from a message \(consume entries at \['Start_Item'\]\)"):
@@ -288,21 +288,21 @@ def test_picking_an_attribute_the_process_copies_from_a_message_is_rejected(tmp_
 
 
 def test_an_unknown_pick_is_rejected(tmp_path):
-    path = _config_with(tmp_path, references={"Sales": [{**PICKING, "pick": "random"}]})
+    path = config_with(tmp_path, references={"Sales": [{**PICKING, "pick": "random"}]})
 
     with pytest.raises(ValueError, match=r'processes\[0\].references\[0\] pick must be "uniform", \{"weights"'):
         SimulationConfig.from_json(path)
 
 
 def test_weights_that_are_negative_or_all_zero_are_rejected(tmp_path):
-    path = _config_with(tmp_path, references={"Sales": [{**PICKING, "pick": {"weights": {"c1": 0, "c2": 0}}}]})
+    path = config_with(tmp_path, references={"Sales": [{**PICKING, "pick": {"weights": {"c1": 0, "c2": 0}}}]})
 
     with pytest.raises(ValueError, match=r"processes\[0\].references\[0\] weights must be numbers of at least 0, not all 0"):
         SimulationConfig.from_json(path)
 
 
 def test_two_references_picking_the_same_attribute_are_rejected(tmp_path):
-    path = _config_with(tmp_path, references={"Sales": [{**PICKING, "pick": "uniform"}, {**PICKING, "pick": "uniform"}]})
+    path = config_with(tmp_path, references={"Sales": [{**PICKING, "pick": "uniform"}, {**PICKING, "pick": "uniform"}]})
 
     with pytest.raises(ValueError, match=r"more than one reference picks customer of process Sales"):
         SimulationConfig.from_json(path)
@@ -322,15 +322,15 @@ def _products_with(tmp_path, names, *other_references, attributes=None, process=
     if attributes is not None:
         for product in products:
             product["attributes"].update(attributes)
-    return _config_with(tmp_path, catalogues={"product": products},
-                        references={process: [{**PRODUCTS, "with": names}, *other_references]})
+    return config_with(tmp_path, catalogues={"product": products},
+                       references={process: [{**PRODUCTS, "with": names}, *other_references]})
 
 
 def test_with_without_a_pick_loads(tmp_path):
     # the product comes in a message or is drawn; with brings its weight once the item has it
-    path = _config_with(tmp_path, catalogues={"product": PRODUCTS_LIST},
-                        references={"Warehouse": [{"object_attribute": "product", "catalogue": "product",
-                                                   "with": {"weight": "weight"}}]})
+    path = config_with(tmp_path, catalogues={"product": PRODUCTS_LIST},
+                       references={"Warehouse": [{"object_attribute": "product", "catalogue": "product",
+                                                  "with": {"weight": "weight"}}]})
 
     [warehouse] = [spec for spec in SimulationConfig.from_json(path).processes if spec.name == "Warehouse"]
     [reference] = warehouse.references
@@ -343,9 +343,9 @@ def test_with_on_a_growing_catalogue_is_rejected_as_a_known_limitation(tmp_path,
     references = [{"object_attribute": "product", "catalogue": "product", **pick, "with": {"weight": "weight"}}]
     if not pick:  # the growing catalogue's objects are created by another reference
         references.append({"object_attribute": "gift", "catalogue": "product", "pick": "new"})
-    path = _config_with(tmp_path, catalogues={"product": {"attributes": [
+    path = config_with(tmp_path, catalogues={"product": {"attributes": [
         {"name": "weight", "type": "discrete", "values": [{"key": 1, "value": 1}]}]}},
-                        references={"Warehouse": references})
+                       references={"Warehouse": references})
 
     with pytest.raises(ValueError, match=rf"{WAREHOUSE}\[0\] has with on growing catalogue 'product'; with doesn't "
                                          r"read a growing catalogue yet, a known limitation"):
@@ -355,9 +355,9 @@ def test_with_on_a_growing_catalogue_is_rejected_as_a_known_limitation(tmp_path,
 def test_with_naming_an_attribute_not_every_object_has_is_rejected(tmp_path):
     products = json.loads(json.dumps(PRODUCTS_LIST))
     products[3]["attributes"]["volume"] = 2.5  # only one product has a volume
-    path = _config_with(tmp_path, catalogues={"product": products},
-                        references={"Warehouse": [{**PRODUCTS, "with": {"weight": "weight", "volume": "volume",
-                                                                        "colour": "colour"}}]})
+    path = config_with(tmp_path, catalogues={"product": products},
+                       references={"Warehouse": [{**PRODUCTS, "with": {"weight": "weight", "volume": "volume",
+                                                                       "colour": "colour"}}]})
 
     with pytest.raises(ValueError, match=rf"{WAREHOUSE}\[0\] with names \['volume', 'colour'\], which not every object "
                                          r"of catalogue 'product' has"):
@@ -365,9 +365,9 @@ def test_with_naming_an_attribute_not_every_object_has_is_rejected(tmp_path):
 
 
 def test_with_naming_an_attribute_a_pool_doesnt_draw_is_rejected(tmp_path):
-    path = _config_with(tmp_path, catalogues={"product": {"count": 5, "attributes": [
+    path = config_with(tmp_path, catalogues={"product": {"count": 5, "attributes": [
         {"name": "weight", "type": "discrete", "values": [{"key": 1, "value": 1}]}]}},
-                        references={"Warehouse": [{**PRODUCTS, "with": {"weight": "weight", "price": "price"}}]})
+                       references={"Warehouse": [{**PRODUCTS, "with": {"weight": "weight", "price": "price"}}]})
 
     with pytest.raises(ValueError, match=rf"{WAREHOUSE}\[0\] with names \['price'\], which not every object of "
                                          r"catalogue 'product' has"):
@@ -379,8 +379,8 @@ def test_with_naming_an_attribute_a_pool_doesnt_draw_is_rejected(tmp_path):
     "weight", {"weight": 3}, {"": "weight"}, {"weight": ""},
     {"price": {"avg": "price"}}, {"price": {"sum": "price", "max": "price"}}, {"price": {"sum": 3}}])
 def test_with_that_doesnt_map_names_to_an_attribute_or_a_function_of_one_is_rejected(tmp_path, names):
-    path = _config_with(tmp_path, catalogues={"product": PRODUCTS_LIST},
-                        references={"Warehouse": [{**PRODUCTS, "with": names}]})
+    path = config_with(tmp_path, catalogues={"product": PRODUCTS_LIST},
+                       references={"Warehouse": [{**PRODUCTS, "with": names}]})
 
     with pytest.raises(ValueError, match=rf"{WAREHOUSE}\[0\] with must map attribute names to an attribute of the "
                                          r'picked object or to one function of one, \{"sum" \| "count" \| "min" \| '

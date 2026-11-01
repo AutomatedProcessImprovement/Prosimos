@@ -17,14 +17,14 @@ from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.ocel_writer import OcelProcess, write_ocel
 from prosimos.orchestration.orchestrator import orchestrate
-from prosimos.orchestration.output import _message_links
+from prosimos.orchestration.output import message_links
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import CaseElement, CaseObject, MessageRecord, Verdict
 from prosimos.orchestration.simulation import run_multiprocess_simulation
-from testing_scripts.multiprocess.examples.test_order_management import _config, package_items
-from testing_scripts.multiprocess.messaging.test_append import _run as _run_orders
+from testing_scripts.multiprocess.examples.test_order_management import order_management_config, package_items
+from testing_scripts.multiprocess.messaging.test_append import run as _run_orders
 from testing_scripts.multiprocess.messaging.test_item_verdicts import (PICKING, PICKING_JSON, SALES, SALES_JSON,
-                                                                       _picking_in)
+                                                                       picking_in)
 from testing_scripts.multiprocess.orchestrator_settings import one_organization, with_qualifiers
 from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
@@ -38,7 +38,7 @@ DROPPED = "the OCEL links of its messages there are dropped"
 def order_management(tmp_path_factory):
     """A 100-order run of the Order Management example written as OCEL, and the items each package took."""
     path = tmp_path_factory.mktemp("ocel_links") / "log.json"
-    report = run_multiprocess_simulation(_config(100), None, ocel_out_path=path)
+    report = run_multiprocess_simulation(order_management_config(100), None, ocel_out_path=path)
     with open(path) as file:
         ocel = json.load(file)
     return report, ocel, {package: set(items) for package, items in package_items(report).items()}
@@ -58,7 +58,7 @@ def _linked(event, qualifier):
     return {link["objectId"] for link in event["relationships"][1:] if link["qualifier"] == qualifier}
 
 
-def _items(report):
+def item_ids(report):
     """(order id, item index) -> the item object, from the run report: the OCEL file writes neither attribute."""
     def at_creation(case_object, name):
         return next(value for attribute, value, _ in case_object.attributes if attribute == name)
@@ -67,9 +67,9 @@ def _items(report):
             for process, case_object in report.objects if process == "Warehouse"}
 
 
-def _items_of_orders(report):
+def items_of_orders(report):
     items = defaultdict(set)
-    for (order, _), item in _items(report).items():
+    for (order, _), item in item_ids(report).items():
         items[order].add(item)
     return items
 
@@ -80,7 +80,7 @@ def _without_products(event):
 
 def test_every_place_order_is_linked_to_exactly_its_orders_items(order_management):
     report, ocel, _ = order_management
-    items_of_order = _items_of_orders(report)
+    items_of_order = items_of_orders(report)
 
     events = _events(ocel, "place order")
     assert len(events) == 100
@@ -120,7 +120,7 @@ def test_carried_the_later_events_of_a_package_link_its_items_too(order_manageme
 
 def test_carried_the_later_events_of_an_order_link_its_items_too(order_management):
     report, ocel, _ = order_management
-    items_of_order = _items_of_orders(report)
+    items_of_order = items_of_orders(report)
 
     for activity in ("confirm order", "payment reminder", "pay order"):
         for event in _events(ocel, activity):
@@ -153,7 +153,7 @@ def test_an_items_events_link_neither_its_order_nor_its_package(order_management
 def test_a_process_without_objects_attaches_nothing_and_warns_nothing():
     # Relay, beside Order Management, has no object type and no tasks: it claims every ItemPicked and publishes
     # Noted at once; attached, every claim and publish would warn
-    config = _config(20)
+    config = order_management_config(20)
     relay = ProcessSpec("Relay", f"{GATEWAYS}/relay.bpmn", f"{GATEWAYS}/relay.json", None)
     report = run_multiprocess_simulation(dataclasses.replace(config,
                                                              organizations=one_organization([*config.processes, relay],
@@ -260,7 +260,7 @@ def test_an_element_with_no_task_next_to_it_drops_its_links_with_one_warning():
 
 def test_the_winning_race_branch_attaches_to_its_own_next_task(tmp_path):
     # items take 20 hours to pick, so the order's deadline wins and each item takes its Canceled
-    report, engines = _verdicts(_picking_in(tmp_path, 20))
+    report, engines = _verdicts(picking_in(tmp_path, 20))
 
     cancelled = [record.claimers[0] for record in report.message_records if record.type == "Cancelled"]
     assert len(cancelled) == 3
@@ -488,6 +488,6 @@ def test_a_message_attached_to_several_tasks_links_its_objects_from_each():
     record = MessageRecord("m1", "Go", CaseElement("S", "S-0", "Throw_Go", "go", (4,)),
                            [CaseElement("P", "P-0", "Catch_Go", "sender", (1, 2))])
 
-    assert _message_links([record], {"S": OcelProcess("s"), "P": OcelProcess("p")}) == {
+    assert message_links([record], {"S": OcelProcess("s"), "P": OcelProcess("p")}) == {
         ("S", 4): [(("P", "P-0"), "go", False)], ("P", 1): [(("S", "S-0"), "sender", False)],
         ("P", 2): [(("S", "S-0"), "sender", False)]}

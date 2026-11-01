@@ -7,9 +7,9 @@ import pytest
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.protocol import Message, Verdict
-from testing_scripts.multiprocess.messaging.test_collect import _orders, _run_until_idle, _settings, at
-from testing_scripts.multiprocess.messaging.test_race import ELEVEN, QUOTE_JSON, _quote, _run_until
-from testing_scripts.multiprocess.messaging.test_race import _settings as _race_settings
+from testing_scripts.multiprocess.messaging.test_collect import at, order_messages, run_until_idle, settings_with
+from testing_scripts.multiprocess.messaging.test_race import ELEVEN, QUOTE_JSON, quote_message, run_until
+from testing_scripts.multiprocess.messaging.test_race import settings_with as _race_settings
 from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
 
@@ -34,7 +34,7 @@ def _run(tmp_path, published, collect="all", same=("customer",)):
     """Orders 0 and 1 (waiting at Catch_Items from 09:10 and 10:10) and a Picking engine publishing the items of
     published, (time, item), those with the same time in one step; the report, the log, and per item id the case
     that took it and when."""
-    orders, log = _orders(2, _settings(tmp_path, _packing(collect, None if same is None else list(same))))
+    orders, log = order_messages(2, settings_with(tmp_path, _packing(collect, None if same is None else list(same))))
     picking = ScriptedEngine("Picking")
     for time in sorted({time for time, _ in published}):
         items = [item for item_time, item in published if item_time == time]
@@ -110,8 +110,8 @@ def test_the_first_message_sets_the_values_even_when_it_is_the_case_s_only_one(t
 
 
 def test_a_message_without_a_listed_attribute_doesn_t_match_with_one_warning_per_event_and_attribute(tmp_path):
-    orders, _ = _orders(1, _settings(tmp_path, _packing("all", ["customer"])))
-    _run_until_idle(orders)  # order 0 waits at Catch_Items from 09:10
+    orders, _ = order_messages(1, settings_with(tmp_path, _packing("all", ["customer"])))
+    run_until_idle(orders)  # order 0 waits at Catch_Items from 09:10
 
     verdicts = [orders.deliver(item, at("09:30")) for item in (_item("i1"), _item("i2"), _item("i3", "Anna"))]
 
@@ -127,12 +127,12 @@ def test_in_a_race_a_message_the_first_listed_branch_s_same_rejects_goes_to_the_
         accepted.update(type="Reply", collect=2, same=["answer"])
         rejected.update(type="Reply")
 
-    quote, log = _quote(json_path=_race_settings(tmp_path, both_take_replies, base=QUOTE_JSON))
-    _run_until(quote, ELEVEN)
+    quote, log = quote_message(json_path=_race_settings(tmp_path, both_take_replies, base=QUOTE_JSON))
+    run_until(quote, ELEVEN)
 
     for answer in ("yes", "no"):
         assert quote.deliver(Message("Reply", {"quote_id": "Quote-0", "answer": answer}), ELEVEN) is Verdict.CLAIMED
-    _run_until_idle(quote)
+    run_until_idle(quote)
 
     assert log.times("Archive quote") == {0: ELEVEN}
     assert log.times("Confirm order") == {}
@@ -149,7 +149,7 @@ def test_in_a_race_a_message_the_first_listed_branch_s_same_rejects_goes_to_the_
 ])
 def test_an_invalid_same_is_rejected(tmp_path, same, reason):
     with pytest.raises(InvalidSimScenarioException, match=r"messages.consume\[0\]: " + reason):
-        _orders(json_path=_settings(tmp_path, _packing("all", same)))
+        order_messages(json_path=settings_with(tmp_path, _packing("all", same)))
 
 
 def test_same_without_collect_is_rejected(tmp_path):
@@ -157,4 +157,4 @@ def test_same_without_collect_is_rejected(tmp_path):
         del entry["collect"]
 
     with pytest.raises(InvalidSimScenarioException, match=r"'same' needs a collect"):
-        _orders(json_path=_settings(tmp_path, _packing("all", ["customer"], no_collect)))
+        order_messages(json_path=settings_with(tmp_path, _packing("all", ["customer"], no_collect)))

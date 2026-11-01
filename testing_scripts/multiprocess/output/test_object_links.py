@@ -12,13 +12,13 @@ import pytz
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.orchestration.config import ProcessSpec
 from prosimos.orchestration.ocel_writer import OcelProcess
-from prosimos.orchestration.output import _object_links
+from prosimos.orchestration.output import message_object_links
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import CaseElement, MessageRecord
 from prosimos.orchestration.simulation import run_multiprocess_simulation
-from testing_scripts.multiprocess.examples.test_order_management import _config, package_items
-from testing_scripts.multiprocess.output.test_ocel_links import _items, _items_of_orders
-from testing_scripts.multiprocess.protocol.test_message_records import _verdicts_run
+from testing_scripts.multiprocess.examples.test_order_management import order_management_config, package_items
+from testing_scripts.multiprocess.output.test_ocel_links import item_ids, items_of_orders
+from testing_scripts.multiprocess.protocol.test_message_records import verdicts_run
 
 ASSETS = "testing_scripts/assets/messaging"
 START = pytz.utc.localize(datetime(2024, 1, 1, 9))
@@ -28,7 +28,7 @@ START = pytz.utc.localize(datetime(2024, 1, 1, 9))
 def order_management(tmp_path_factory):
     """A 100-order run of the Order Management example written as OCEL, and the items each package took."""
     path = tmp_path_factory.mktemp("object_links") / "log.json"
-    report = run_multiprocess_simulation(_config(100), None, ocel_out_path=path)
+    report = run_multiprocess_simulation(order_management_config(100), None, ocel_out_path=path)
     with open(path) as file:
         ocel = json.load(file)
     return ocel, package_items(report), path, report
@@ -43,7 +43,7 @@ def _related(ocel, object_type):
 def test_every_order_comprises_exactly_its_items(order_management):
     # publish side: Sales's ItemOrdered entry has "o2o": "comprises", from the order to each item it started
     ocel, _, _, report = order_management
-    items_of_order = _items_of_orders(report)
+    items_of_order = items_of_orders(report)
 
     orders = _related(ocel, "order")
     assert len(orders) == 100
@@ -69,16 +69,17 @@ def test_a_link_goes_only_in_its_entrys_direction_and_no_key_gives_none(order_ma
     # link is to its product, from the reference that picks it
     ocel, _, _, report = order_management
 
-    assert _items(report)
+    assert item_ids(report)
     assert all([qualifier for _, qualifier in links] == ["is a"] for links in _related(ocel, "item").values())
 
 
 def test_a_run_without_o2o_keys_links_no_objects():
     # the verdict models pass ItemOrdered, ItemReady and Shipped between orders and items, with no o2o key
-    report, _ = _verdicts_run()
+    report, _ = verdicts_run()
 
     assert report.message_records
-    assert _object_links(report.message_records, {"Sales": OcelProcess("order"), "Picking": OcelProcess("item")}) == {}
+    assert message_object_links(report.message_records,
+                                {"Sales": OcelProcess("order"), "Picking": OcelProcess("item")}) == {}
 
 
 def _record(publisher_o2o=None, claimer_o2o=None, claimer_process="P"):
@@ -91,22 +92,22 @@ PROCESSES = {"S": OcelProcess("s"), "P": OcelProcess("p"), "Q": OcelProcess(None
 
 
 def test_a_publish_entrys_o2o_links_the_publisher_to_each_claimer():
-    assert _object_links([_record(publisher_o2o="sends")], PROCESSES) == {
+    assert message_object_links([_record(publisher_o2o="sends")], PROCESSES) == {
         ("S", "S-0"): [(("P", "P-0"), "sends"), (("P", "P-1"), "sends")]}
 
 
 def test_a_consume_entrys_o2o_links_each_claimer_to_the_publisher():
-    assert _object_links([_record(claimer_o2o="from")], PROCESSES) == {
+    assert message_object_links([_record(claimer_o2o="from")], PROCESSES) == {
         ("P", "P-0"): [(("S", "S-0"), "from")], ("P", "P-1"): [(("S", "S-0"), "from")]}
 
 
 def test_a_link_is_written_once_however_many_messages_give_it():
-    assert _object_links([_record(publisher_o2o="sends"), _record(publisher_o2o="sends")], PROCESSES) == {
+    assert message_object_links([_record(publisher_o2o="sends"), _record(publisher_o2o="sends")], PROCESSES) == {
         ("S", "S-0"): [(("P", "P-0"), "sends"), (("P", "P-1"), "sends")]}
 
 
 def test_no_link_to_or_from_a_process_without_objects():
-    assert _object_links([_record("sends", "from", claimer_process="Q")], PROCESSES) == {}
+    assert message_object_links([_record("sends", "from", claimer_process="Q")], PROCESSES) == {}
 
 
 def test_pm4py_reads_the_object_links(order_management):
