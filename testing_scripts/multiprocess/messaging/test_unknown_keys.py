@@ -12,7 +12,8 @@ import pytz
 
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.messaging.parser import parse_messages
-from prosimos.orchestration.catalogue import CataloguePool, _checked_catalogue
+from prosimos.orchestration.catalogue import _checked_catalogue
+from prosimos.orchestration.catalogue.model import CataloguePool
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.prosimos_engine import load_process
 from testing_scripts.multiprocess.catalogue.test_catalogue import _config_with

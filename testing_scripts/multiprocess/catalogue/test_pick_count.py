@@ -9,7 +9,8 @@ from collections import Counter
 import pandas as pd
 import pytest
 
-from prosimos.orchestration.catalogue import CountFrom, _Pick
+from prosimos.orchestration.catalogue import _Pick
+from prosimos.orchestration.catalogue.model import CountFrom
 from prosimos.orchestration.config import SimulationConfig
 from prosimos.orchestration.simulation import run_multiprocess_simulation
 from testing_scripts.multiprocess.catalogue.test_catalogue import _config_with

@@ -13,7 +13,8 @@ from typing import List, Optional, Tuple
 from prosimos.control_flow_manager import BPMN
 from prosimos.messaging.model import ConsumePoint, PublishPoint
 from prosimos.messaging.parser import unknown_keys
-from prosimos.orchestration.catalogue import CountFrom, _Brought, _Pick, _Received
+from prosimos.orchestration.catalogue import _Brought, _Pick, _Received
+from prosimos.orchestration.catalogue.model import CountFrom
 from prosimos.orchestration.config import ProcessSpec
 from prosimos.orchestration.protocol import (CaseObject, ClaimRecord, EngineReport, Message, PublishRecord,
                                            SimulationEngine, StalledCase, Verdict)

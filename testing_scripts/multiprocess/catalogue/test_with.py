@@ -9,7 +9,8 @@ import json
 
 import pytest
 
-from prosimos.orchestration.catalogue import CatalogueObject, Computed, Reference, _Brought, _Pick
+from prosimos.orchestration.catalogue import _Brought, _Pick
+from prosimos.orchestration.catalogue.model import CatalogueObject, Computed, Reference
 from prosimos.orchestration.config import Organization, ProcessSpec, SimulationConfig
 from prosimos.orchestration.simulation import run_multiprocess_simulation
 from testing_scripts.multiprocess.catalogue.test_catalogue import _config_with

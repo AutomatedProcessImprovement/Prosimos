@@ -13,8 +13,9 @@ import pytz
 
 from prosimos.messaging.model import AGGREGATE_FUNCTIONS
 from prosimos.messaging.parser import is_number, is_whole_number, unknown_keys
-from prosimos.orchestration.catalogue import (CatalogueChange, CatalogueObject, CataloguePool, Computed, CountFrom,
-                                            GrowingCatalogue, NewShare, Reference, _brought_names, _checked_catalogue)
+from prosimos.orchestration.catalogue import _brought_names, _checked_catalogue
+from prosimos.orchestration.catalogue.model import (CatalogueChange, CatalogueObject, CataloguePool, Computed,
+                                                    CountFrom, GrowingCatalogue, NewShare, Reference)
 from prosimos.simulation_properties_parser import parse_datetime
 
 
