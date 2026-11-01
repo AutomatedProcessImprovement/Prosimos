@@ -31,6 +31,9 @@
           {"id": "iPhone 11", "attributes": {"weight": 0.166, "price": 799}}
         ]
       },
+      "catalogue_changes": [
+        {"catalogue": "product", "attribute": "price", "every": {"days": 60}, "multiply": 1.03, "round": 2}
+      ],
       "processes": [
         {
           "name": "Sales",

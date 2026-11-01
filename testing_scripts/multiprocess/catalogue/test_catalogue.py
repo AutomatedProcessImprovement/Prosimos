@@ -352,13 +352,15 @@ def test_two_processes_of_one_organization_pick_from_its_one_catalogue(tmp_path)
 def _config_with(tmp_path, catalogues=None, references=None, **changes):
     """The Order Management configuration with the given top-level changes. catalogues ({name: objects}), when given,
     replace those of its organization, Shop, and references ({process: [reference, ...]}) those of every process: a
-    process they don't name has none. Given references also leave out every process's ocel_attributes, which name
-    attributes the committed references bring."""
+    process they don't name has none. Given catalogues also leave out Shop's catalogue_changes, which change the
+    committed products, and given references every process's ocel_attributes, which name attributes the committed
+    references bring."""
     with open(CONFIG) as file:
         data = json.load(file)
     data.update(changes)
     if catalogues is not None:
         data["organizations"][0]["catalogues"] = catalogues
+        data["organizations"][0].pop("catalogue_changes", None)
     for process in data["organizations"][0]["processes"]:  # the paths are relative to the configuration's folder
         process["bpmn_path"], process["json_path"] = (str(Path(CONFIG).resolve().parent / process[key]) for key in ("bpmn_path", "json_path"))
         if references is not None:

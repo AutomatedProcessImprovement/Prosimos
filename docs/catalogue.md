@@ -12,7 +12,9 @@ processes:
 - the organization's **catalogues** declare the objects: who exists, and with which attributes;
 - a process's **reference** says that one of its attributes' value *is* the id of an object of one of its
   organization's catalogues (or a list of such ids), which OCEL links to write for it, and, with `pick`, chooses
-  that value when a case is created; with `with`, the case also starts with attributes of the object it picked.
+  that value when a case is created; with `with`, the case also starts with attributes of the object it picked;
+- the organization's **catalogue_changes**, optional, change its catalogues' attributes on the clock, e.g. prices
+  that rise every 60 days (see "Changes").
 
 A first example, with two customers and Sales choosing one for every order:
 
@@ -69,7 +71,7 @@ The catalogue's name (`customer` above) is the objects' OCEL type.
 - `attributes` (optional): name → value, any JSON values, written as given.
 
 Every object is written, with its attributes timed at the start of the run, whether or not a case refers to
-it.
+it; an attribute that changes is written again at every change (see "Changes").
 
 ### Pool
 
@@ -107,7 +109,7 @@ The catalogue starts empty. One reference of the organization creates its object
 numbered in creation order: planned cases are created in case order when the engine is built, message-started
 ones when their message arrives. Each new object's attributes are drawn in creation order, from a generator
 seeded from the seed and the catalogue's name, so the same seed gives the same objects. They are timed when the
-first case took the object's id.
+first case took the object's id, with the values valid then (see "Changes").
 
 ## References
 
@@ -328,7 +330,7 @@ attribute, on the left, to where the value comes from, on the right, in the shap
   ```
 
   Over no objects, each function gives `initial`. A pick's `with` computes everything when the case is created,
-  so its value is written to the OCEL output as it is.
+  from the objects' values at that moment (see "Changes"), so its value is written to the OCEL output as it is.
 
 The values are case values like those drawn in `object_attributes` from then on: columns of the log, attributes
 of the case's OCEL object if the process lists them in `ocel_attributes`, and usable in conditions, `copy`,
@@ -368,18 +370,86 @@ Sales in its organization, can look up the weight and price of the product an `I
   or `initial`) stays out of the OCEL output until a message changes it.
 - **An id not in the catalogue** leaves the `with` values unset, with one warning per reference (see "Errors and
   warnings"); the run goes on.
+- **The values are those valid at that moment**: at the creation, or at the claim (see "Changes").
 - **The attribute must hold catalogue ids**: copied, appended, drawn or picked. One that `aggregate` computes is a
   number over the messages, not an id, and a reference on it is a load error.
 
 The engine gets its organization's catalogue values once, when it is built: its own company's data, given at
 setup. The orchestrator sees nothing of them during the run.
 
+## Changes
+
+Catalogue values can change during the run: prices rise, a product goes on sale. An organization's
+`catalogue_changes`, next to its catalogues, change its catalogues' attributes on the clock:
+
+```json
+"catalogue_changes": [
+  {"catalogue": "product", "attribute": "price", "every": {"days": 60}, "multiply": 1.03, "round": 2},
+  {"catalogue": "product", "attribute": "price", "at": "2024-12-01T00:00:00+00:00",
+   "multiply": 0.8, "objects": ["Kindle", "Echo Plus"]}
+]
+```
+
+The first raises every product's price by 3% every 60 days, rounded to cents; the second takes 20% off two
+products from 1 December 2024 on.
+
+| Key         | Required                        | Example                       | Meaning                                                                                                                 |
+|-------------|---------------------------------|-------------------------------|-------------------------------------------------------------------------------------------------------------------------|
+| `catalogue` | yes                             | `"product"`                   | a catalogue of the same organization                                                                                    |
+| `attribute` | yes                             | `"price"`                     | the attribute it changes, which every object it changes has (on a pool or a growing catalogue: one of its `attributes`) |
+| `every`     | one of `every`, `at`            | `{"days": 60}`                | repeated, counted from the start of the run: `{"weeks" \| "days" \| "hours": n}`, n a number above 0                    |
+| `at`        |                                 | `"2024-12-01T00:00:00+00:00"` | once, at that time; a time without a time zone is taken as UTC                                                          |
+| `multiply`  | one of `multiply`, `add`, `set` | `1.03`                        | multiplies the value by a number; the attribute must be a number                                                        |
+| `add`       |                                 | `100`                         | adds a number to the value; the attribute must be a number                                                              |
+| `set`       |                                 | `"business"`                  | replaces the value, with any value                                                                                      |
+| `round`     | no                              | `2`                           | the decimal places the value is rounded to after the change; without it, values aren't rounded                          |
+| `objects`   | no                              | `["Kindle"]`                  | the ids of the objects it changes; without it, every object of the catalogue                                            |
+
+**A timetable, not an event.** A change on the clock can be worked out in advance, so nothing happens at run
+time: no engine and not the orchestrator acts on it. Whoever reads a value reads the one valid at that moment:
+
+- A change at moment t is valid from t on, inclusive: a read at exactly t sees the new value.
+- Changes at the same moment apply in the order they are listed: `add 10` then `multiply 2` makes 100 into 220,
+  the other way round into 210.
+- `round` rounds after every change, so the next one starts from the rounded value: 699 → 719.97 → 741.57.
+
+**Who reads the value when:**
+
+| Reader                           | Reads the value valid                                                                       |
+|----------------------------------|---------------------------------------------------------------------------------------------|
+| a pick's `with`                  | when the case is created                                                                    |
+| a `with` for a received value    | when the case is created, or at the claim, for a value copied or appended at a catch        |
+| a growing catalogue's new object | when it is created: its drawn value, with every change so far applied                       |
+| the OCEL output                  | at the start of the run (a growing catalogue's object: at its creation) and at every change |
+
+A value already given to a case stays: an order keeps the price it was placed at. In Order Management, whose
+product prices rise by 3% every 60 days, an order of just a Kindle (79.99 at the start, plus the fee of 5.00)
+costs 84.99 in May 2023, 87.39 in June and 97.73 in February 2024, and keeps that price to the end.
+
+**In the OCEL output**, a changed attribute is written with its value at the start of the run, or at a
+growing catalogue's object's creation, and again at every change after that, up to the end of the run, its last
+event; changes at the same moment give one value. Order Management's Kindle, with seed 1:
+
+```json
+{"id": "Kindle", "type": "product",
+ "attributes": [{"name": "weight", "value": 0.483, "time": "2023-04-03T06:00:00.000000Z"},
+                {"name": "price", "value": 79.99, "time": "2023-04-03T06:00:00.000000Z"},
+                {"name": "price", "value": 82.39, "time": "2023-06-02T06:00:00.000000Z"},
+                {"name": "price", "value": 84.86, "time": "2023-08-01T06:00:00.000000Z"}, ...,
+                {"name": "price", "value": 98.38, "time": "2024-05-27T06:00:00.000000Z"}]}
+```
+
+- A growing catalogue's objects change too, from their creation on. Its objects don't exist when the run
+  starts, so a change on it can't name any in `objects`: without `objects`, it changes every object it creates.
+- An organization changes only its own catalogues: what another knows of them reaches it only in messages.
+
 ## Worked example: Order Management
 
 The Order Management example ([order-management.md](order-management.md)) is one organization, Shop, with 15
 customers and 20 products in its catalogues: Sales picks a customer uniformly for each order and its products, one
-per item, and the Warehouse looks up each item's product, which the order names in its message. This is its full
-configuration, `testing_scripts/assets/order_management/simulation.json`:
+per item, and the Warehouse looks up each item's product, which the order names in its message. The products'
+prices rise by 3% every 60 days. This is its full configuration,
+`testing_scripts/assets/order_management/simulation.json`:
 
 ```json
 {
@@ -415,6 +485,9 @@ configuration, `testing_scripts/assets/order_management/simulation.json`:
           {"id": "iPhone 11", "attributes": {"weight": 0.166, "price": 799}}
         ]
       },
+      "catalogue_changes": [
+        {"catalogue": "product", "attribute": "price", "every": {"days": 60}, "multiply": 1.03, "round": 2}
+      ],
       "processes": [
         {
           "name": "Sales",
@@ -480,7 +553,9 @@ then carries it to the items, and `ItemPicked` to the packages. Sales's second r
 `products`, as many as `items` says, and gives the order `price`: 5.00 plus their prices. `ItemOrdered` is published
 once per product (`count` over the list `products`), naming it as `product`. `warehouse.json` copies `product` from
 the message, and the Warehouse's reference, without a pick, brings the product's `weight` and `price` into the item
-(see "With for a received value"). `ItemPicked` carries the item's `weight` to the package.
+(see "With for a received value"). `ItemPicked` carries the item's `weight` to the package. Both read the prices
+valid when the order and its items are created, so every order costs 5.00 plus its items' prices at every point
+of the run.
 
 **What appears in the OCEL file** (excerpts of that run, 2,000 orders):
 
@@ -497,7 +572,7 @@ the message, and the Warehouse's reference, without a pick, brings the product's
 
 - **The orders** keep `customer` and `products` as attributes of their case, columns of the log, but not of
   their OCEL object: Sales's `ocel_attributes` list only `price`, so the order is linked to its customer instead,
-  and reaches its products through its items. Its price is 5.00 plus its products' prices:
+  and reaches its products through its items. Its price is 5.00 plus its products' prices when it is placed:
 
   ```json
   {"id": "order-0", "type": "order",
@@ -522,7 +597,8 @@ the message, and the Warehouse's reference, without a pick, brings the product's
    "relationships": [{"objectId": "order-0", "qualifier": "order"}, ...]}
   ```
 
-- **The 20 products**, type `product`, with `weight` and `price`, each written once. Each item **is a** product
+- **The 20 products**, type `product`, with `weight` and `price`, each written once, its `price` at the start of
+  the run and at each of the seven rises before the run ends (see "Changes"). Each item **is a** product
   (`"o2o": "is a"`, from the item to the product), has `weight` and `price` as attributes (the Warehouse's
   `ocel_attributes`; `product` is linked rather than written), and every one of its events is linked to the
   product with the qualifier `product` (no `link_events`). With `tag_along`, so is every other event that
@@ -548,12 +624,21 @@ instead, replace the list with `"customer": {"attributes": [...]}` and the pick 
 ## Errors and warnings
 
 **Load errors.** A configuration is checked when it is built (`SimulationConfig(...)` or
-`SimulationConfig.from_json`). Two errors stop reading the file at once, prefixed by its path:
+`SimulationConfig.from_json`). These errors stop reading the file at once, prefixed by its path:
 
-| Message                                                                       | Cause                                                 |
-|-------------------------------------------------------------------------------|-------------------------------------------------------|
-| `organizations[0].catalogues.customer[0]: 'id' must be a non-empty string`    | a list object without an `id`, or an empty one        |
-| `organizations[0].processes[0].references[0] is missing ['object_attribute']` | a reference without `object_attribute` or `catalogue` |
+| Message                                                                                                                            | Cause                                                 |
+|------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------|
+| `organizations[0].catalogues.customer[0]: 'id' must be a non-empty string`                                                         | a list object without an `id`, or an empty one        |
+| `organizations[0].processes[0].references[0] is missing ['object_attribute']`                                                      | a reference without `object_attribute` or `catalogue` |
+| `organizations[0].catalogue_changes[0] is missing ['attribute']`                                                                   | a change without `catalogue` or `attribute`           |
+| `organizations[0].catalogue_changes[0] needs exactly one of every (repeated) and at (once), got neither`                           | a change with neither or both                         |
+| `organizations[0].catalogue_changes[0] needs exactly one of multiply, add and set, got multiply, add`                              | a change with none of them, or more than one          |
+| `organizations[0].catalogue_changes[0]: multiply must be a number, got '1.03'`                                                     | `multiply` or `add` given something else              |
+| `organizations[0].catalogue_changes[0].every must be {"weeks" \| "days" \| "hours": n}, n a number above 0, got {'days': 0}`       | another period                                        |
+| `organizations[0].catalogue_changes[0]: at must be a date and time, e.g. "2024-12-01T00:00:00+00:00", got 'the first of December'` | a time that can't be read                             |
+| `organizations[0].catalogue_changes[0]: round must be a whole number of at least 0 (decimal places), got 1.5`                      | another `round`                                       |
+| `organizations[0].catalogue_changes[0]: round needs a number to round, and set gives 'cheap'`                                      | `round` with a `set` that isn't a number              |
+| `organizations[0].catalogue_changes[0]: objects must be a non-empty list of object ids, got []`                                    | another `objects`                                     |
 
 All the others are collected and raised together, as one `ValueError` starting `Invalid catalogue: `, the
 problems separated by `; `. A growing catalogue with only a `"uniform"` pick, for example, breaks two rules:
@@ -606,6 +691,14 @@ The messages, by the key they are about:
 | `with`                       | `organizations[0].processes[1].references[0] brings customer, which process Warehouse also copies from a message (consume entries at ['Start_Item'])`                                                                                                          |
 | `with`                       | `organizations[0].processes[1].references[0] brings product, which process Warehouse also picks`                                                                                                                                                               |
 | `with`                       | `organizations[0].processes[1].references[0] brings weight, which another with also brings to process Warehouse`                                                                                                                                               |
+| `catalogue_changes`          | `organizations[0].catalogue_changes[0] changes unknown catalogue 'products'`                                                                                                                                                                                   |
+| `catalogue_changes`          | `organizations[0].catalogue_changes[0] changes catalogue 'product' of organization Partner; an organization changes its own catalogues`                                                                                                                        |
+| `catalogue_changes`          | `organizations[0].catalogue_changes[0] changes 'colour', which objects ['iPhone X', ...] of catalogue 'product' don't have`                                                                                                                                    |
+| `catalogue_changes`          | `organizations[0].catalogue_changes[0] changes 'colour', which catalogue 'customer' doesn't draw in its attributes` (a pool or a growing catalogue)                                                                                                            |
+| `catalogue_changes`          | `organizations[0].catalogue_changes[0] multiply needs a number, and 'name' of objects ['b'] of catalogue 'product' isn't one`                                                                                                                                  |
+| `catalogue_changes`          | `organizations[0].catalogue_changes[0] multiply needs a number, and catalogue 'customer' doesn't always draw 'segment' as one` (a pool or a growing catalogue)                                                                                                 |
+| `catalogue_changes`          | `organizations[0].catalogue_changes[0] names objects ['Walkman'], which are no ids of catalogue 'product'`                                                                                                                                                     |
+| `catalogue_changes`          | `organizations[0].catalogue_changes[0] names objects ['customer-1'] of growing catalogue 'customer', which has none when the run starts; without objects, the change applies to every object it creates`                                                       |
 | `with`                       | `organizations[0].processes[1].references[0] brings object_id, which is reserved for the object's own id`                                                                                                                                                      |
 
 `link_events` is not checked for extra engines, which have no BPMN model.
@@ -645,3 +738,5 @@ it through its configuration, where the pick declares the attribute.
 - **The organization isn't written in the OCEL output** yet: catalogue objects and the processes' objects don't
   say whose they are.
 - **`with` doesn't read a growing catalogue** yet, picked or received: its objects are created during the run.
+- **Changes come only from the clock.** Changes caused by what processes do (picking an item lowers its stock)
+  and random changes are future work.

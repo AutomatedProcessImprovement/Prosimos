@@ -2,12 +2,13 @@
 
 An example with orders, items and packages, to show the multi-process features working together on a
 realistic model: three processes, seven people on one calendar, and two catalogues, for its customers and
-products. The models are in `testing_scripts/assets/order_management/`; the tests are in
+products, whose prices rise during the run. The models are in `testing_scripts/assets/order_management/`; the tests are in
 `testing_scripts/multiprocess/examples/test_order_management.py`.
 
 It uses most messaging features ([messaging.md](messaging.md)): one message per object with `count` and
 `index`, processes started by messages, `copy`, `append` and `aggregate`, and `collect` with `same`; and the
-catalogue ([catalogue.md](catalogue.md)) for its customers and products.
+catalogue ([catalogue.md](catalogue.md)) for its customers and products, with a change of their prices on the
+clock.
 
 ## The processes
 
@@ -16,7 +17,7 @@ catalogue ([catalogue.md](catalogue.md)) for its customers and products.
 ```
 Sales (order)        arrivals: around the clock, about one every 4.8 h, 2,000 orders
                      object attributes: customer (picked from c1..c15), items (1..16), products (picked
-                     uniformly from the 20, one per item), price (5.00 + their prices)
+                     uniformly from the 20, one per item), price (5.00 + their prices when it is placed)
                      place order -> (throw ItemOrdered x products: object_id, index, customer, product)
                      -> confirm order (sales clerk)
                      -> XOR: 80% timer: customer pays (about 3 days) -> pay order (sales clerk) -> end
@@ -72,24 +73,24 @@ flowchart LR
 
 ## Objects and activities
 
-| In the OCEL output             | Process          | BPMN element                              | Feature                                                                                                                                                 |
-|--------------------------------|------------------|-------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
-| object type **order**          | Sales            | one case per order                        | arrivals around the clock; object attribute `items`; `customer` and `products`, one per item, picked from the catalogues; `price` = 5.00 + their prices |
-| object type **item**           | Warehouse        | one case per item                         | a message start event on `ItemOrdered`, published once per product with `count` over a list; `index` → `item_index`                                     |
-| object type **package**        | Packaging        | one case per packing round                | arrivals in the packer's hours; `collect` `"all"` with `same` customer; `weight` the sum of its items'                                                  |
-| object type **customer**       | all              | attribute `customer`                      | 15 in the catalogue; picked for the order, copied to items and packages; what a package's items share                                                   |
-| object type **product**        | Sales, Warehouse | attributes `products` and `product`       | 20 in the catalogue; picked by the order, one per item, uniformly; the item gets its weight and price from it                                           |
-| activity **place order**       | Sales            | task `Place_Order`                        | recorded by `System` when the order arrives; `ItemOrdered` is published right after it                                                                  |
-| activity **confirm order**     | Sales            | task `Confirm_Order`                      | the sales clerk                                                                                                                                         |
-| activity **payment reminder**  | Sales            | task `Payment_Reminder`                   | the 20% branch of an XOR, after a 20-day timer, then back to the XOR                                                                                    |
-| activity **pay order**         | Sales            | task `Pay_Order`                          | the 80% branch of that XOR, after the timer `Customer_Pays`: the clerk records the payment                                                              |
-| activity **item out of stock** | Warehouse        | task `Item_Out_Of_Stock`                  | the 20% branch of an XOR                                                                                                                                |
-| activity **reorder item**      | Warehouse        | task `Reorder_Item`                       | after item out of stock, then the timer `Item_Restocked`: the supplier's delay                                                                          |
-| activity **pick item**         | Warehouse        | task `Pick_Item`                          | a warehouse worker; `ItemPicked` is published at the message end event after it                                                                         |
-| activity **create package**    | Packaging        | task `Create_Package`                     | the packer, after the packing round has taken its items                                                                                                 |
-| activity **send package**      | Packaging        | tasks `Send_Package` and `Resend_Package` | a courier's trip: the first one, and one after each failed delivery                                                                                     |
-| activity **failed delivery**   | Packaging        | task `Failed_Delivery`                    | recorded by `System`: the 20% branch after the first trip, then the 30% branch after each later one                                                     |
-| activity **package delivered** | Packaging        | task `Package_Delivered`                  | recorded by `System`: the other branches, 80% after the first trip, 70% after a later one                                                               |
+| In the OCEL output             | Process          | BPMN element                              | Feature                                                                                                                                                                   |
+|--------------------------------|------------------|-------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| object type **order**          | Sales            | one case per order                        | arrivals around the clock; object attribute `items`; `customer` and `products`, one per item, picked from the catalogues; `price` = 5.00 + their prices when it is placed |
+| object type **item**           | Warehouse        | one case per item                         | a message start event on `ItemOrdered`, published once per product with `count` over a list; `index` → `item_index`                                                       |
+| object type **package**        | Packaging        | one case per packing round                | arrivals in the packer's hours; `collect` `"all"` with `same` customer; `weight` the sum of its items'                                                                    |
+| object type **customer**       | all              | attribute `customer`                      | 15 in the catalogue; picked for the order, copied to items and packages; what a package's items share                                                                     |
+| object type **product**        | Sales, Warehouse | attributes `products` and `product`       | 20 in the catalogue; picked by the order, one per item, uniformly; the item gets its weight and price from it; its price rises 3% every 60 days                           |
+| activity **place order**       | Sales            | task `Place_Order`                        | recorded by `System` when the order arrives; `ItemOrdered` is published right after it                                                                                    |
+| activity **confirm order**     | Sales            | task `Confirm_Order`                      | the sales clerk                                                                                                                                                           |
+| activity **payment reminder**  | Sales            | task `Payment_Reminder`                   | the 20% branch of an XOR, after a 20-day timer, then back to the XOR                                                                                                      |
+| activity **pay order**         | Sales            | task `Pay_Order`                          | the 80% branch of that XOR, after the timer `Customer_Pays`: the clerk records the payment                                                                                |
+| activity **item out of stock** | Warehouse        | task `Item_Out_Of_Stock`                  | the 20% branch of an XOR                                                                                                                                                  |
+| activity **reorder item**      | Warehouse        | task `Reorder_Item`                       | after item out of stock, then the timer `Item_Restocked`: the supplier's delay                                                                                            |
+| activity **pick item**         | Warehouse        | task `Pick_Item`                          | a warehouse worker; `ItemPicked` is published at the message end event after it                                                                                           |
+| activity **create package**    | Packaging        | task `Create_Package`                     | the packer, after the packing round has taken its items                                                                                                                   |
+| activity **send package**      | Packaging        | tasks `Send_Package` and `Resend_Package` | a courier's trip: the first one, and one after each failed delivery                                                                                                       |
+| activity **failed delivery**   | Packaging        | task `Failed_Delivery`                    | recorded by `System`: the 20% branch after the first trip, then the 30% branch after each later one                                                                       |
+| activity **package delivered** | Packaging        | task `Package_Delivered`                  | recorded by `System`: the other branches, 80% after the first trip, 70% after a later one                                                                                 |
 
 ## Staff, calendars and durations
 
@@ -184,6 +185,23 @@ every event of the item to it and, with `"tag_along": true`, every other event t
 created. They are the item's own attributes from then on: written on its OCEL object (the Warehouse's
 `ocel_attributes`), and `weight` travels on `ItemPicked` to be summed into the package's. Every order therefore
 costs 5.00 plus its items' prices.
+
+Prices rise. Shop's `catalogue_changes` raise every product's price by 3% every 60 days from the start of the run,
+rounded to cents ([catalogue.md](catalogue.md), "Changes"):
+
+```json
+"catalogue_changes": [
+  {"catalogue": "product", "attribute": "price", "every": {"days": 60}, "multiply": 1.03, "round": 2}
+]
+```
+
+With seed 1, six rises come while orders are placed (2023-06-02 to 2024-03-28) and a seventh, on 2024-05-27,
+before the run's last event. An order reads its products' prices when it is placed and its items read theirs when
+they are created, at the same moment, so every order costs 5.00 plus its items' prices at every point of the run,
+and keeps the price it was placed at. Orders of the same products placed months apart cost differently: an order
+of just a Kindle costs 84.99 in May 2023 and 97.73 in February 2024. The OCEL file writes each product's price at
+the start of the run and again at every rise, its price history; an order's and an item's price are written once,
+when they are created.
 
 Only an order's `price`, an item's `weight` and `price` and a package's `weight` are written to the objects
 (`ocel_attributes`). The others route messages (`order_id`, `item_index`, `item_ids`, `items`, `products`) or are

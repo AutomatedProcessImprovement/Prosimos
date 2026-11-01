@@ -37,9 +37,9 @@ WORK = {"place order": (0, 0), "confirm order": (5, 15), "payment reminder": (2,
 def _config(orders=ORDERS, rounds=ROUNDS):
     config = SimulationConfig.from_json(CONFIG)
     cases = {"Sales": orders, "Packaging": rounds}
-    return dataclasses.replace(config, organizations=one_organization([
-        dataclasses.replace(spec, arrivals=cases.get(spec.name, spec.arrivals)) for spec in config.processes],
-        config.catalogue))
+    [shop] = config.organizations  # with its catalogues and their changes
+    return dataclasses.replace(config, organizations=[dataclasses.replace(shop, processes=[
+        dataclasses.replace(spec, arrivals=cases.get(spec.name, spec.arrivals)) for spec in shop.processes])])
 
 
 @pytest.fixture(scope="module")
@@ -188,6 +188,17 @@ def test_every_event_that_links_an_item_links_its_product_and_only_its_order_s_e
 
 PRODUCT_PRICE = {product["id"]: product["attributes"]["price"]
                  for product in json.loads(Path(CONFIG).read_text())["organizations"][0]["catalogues"]["product"]}
+START = datetime.fromisoformat(json.loads(Path(CONFIG).read_text())["start_time"])
+# inflation: every product's price rises by 3% every 60 days from the start of the run, rounded to cents
+RISE_EVERY = timedelta(days=60)
+
+
+def _price_at(product, moment):
+    """A product's price at moment."""
+    price = PRODUCT_PRICE[product]
+    for _ in range((moment - START) // RISE_EVERY):
+        price = round(price * 1.03, 2)
+    return price
 
 
 def _order_products(log):
@@ -196,15 +207,57 @@ def _order_products(log):
     return {f"order-{case}": (json.loads(row["products"]), row["price"]) for case, row in first.iterrows()}
 
 
-def test_every_order_costs_5_plus_its_items_prices(run):
-    _, log, _ = run
+@pytest.fixture(scope="module")
+def inflation_run(tmp_path_factory):
+    """One 1,000-order run, placed over about six and a half months, through three price rises: the report, the
+    merged log, and the OCEL file."""
+    folder = tmp_path_factory.mktemp("inflation")
+    report = run_multiprocess_simulation(_config(1000), folder / "log.csv", ocel_out_path=folder / "log.json")
+    with open(folder / "log.json") as file:
+        return report, pd.read_csv(folder / "log.csv"), json.load(file)
 
+
+@pytest.mark.parametrize("which, orders", [("run", ORDERS), ("inflation_run", 1000)])
+def test_every_order_costs_5_plus_its_items_prices_when_it_is_placed(request, which, orders):
+    report, log, _ = request.getfixturevalue(which)
+
+    placed = {case.object_id: case.created for process, case in report.objects if process == "Sales"}
     items = _rows(log, "Warehouse").groupby("case_id").first()
     item_prices = items.groupby("order_id")["price"].sum()
-    orders = _order_products(log)
-    assert len(orders) == ORDERS
-    assert all(price == pytest.approx(5.00 + sum(PRODUCT_PRICE[product] for product in products))
-               and price == pytest.approx(5.00 + item_prices[order]) for order, (products, price) in orders.items())
+    prices = _order_products(log)
+    assert len(prices) == orders
+    assert all(price == pytest.approx(5.00 + sum(_price_at(product, placed[order]) for product in products))
+               and price == pytest.approx(5.00 + item_prices[order]) for order, (products, price) in prices.items())
+
+
+def test_orders_for_the_same_product_placed_months_apart_have_different_prices(inflation_run):
+    report, log, _ = inflation_run
+    placed = {case.object_id: case.created for process, case in report.objects if process == "Sales"}
+
+    # orders of one item, by product: (rises before it was placed, its price)
+    single = defaultdict(set)
+    for order, (products, price) in _order_products(log).items():
+        if len(products) == 1:
+            single[products[0]].add(((placed[order] - START) // RISE_EVERY, price))
+
+    rises = {rise for priced in single.values() for rise, _ in priced}
+    assert rises == {0, 1, 2, 3}
+    # one price per product between two rises, a higher one after each
+    for priced in single.values():
+        assert len({price for _, price in priced}) == len({rise for rise, _ in priced})
+        assert sorted(priced) == sorted(priced, key=lambda found: found[1])
+
+
+def test_the_ocel_file_shows_each_product_s_price_history(inflation_run):
+    _, _, ocel = inflation_run
+    end = max(datetime.fromisoformat(event["time"].replace("Z", "+00:00")) for event in ocel["events"])
+    rises = (end - START) // RISE_EVERY
+
+    for product in (obj for obj in ocel["objects"] if obj["type"] == "product"):
+        moments = [START + rise * RISE_EVERY for rise in range(rises + 1)]
+        assert [(value["name"], value["value"], value["time"]) for value in product["attributes"]
+                if value["name"] == "price"] == [
+            ("price", _price_at(product["id"], moment), moment.strftime("%Y-%m-%dT%H:%M:%S.%fZ")) for moment in moments]
 
 
 def test_each_item_s_product_is_one_of_its_order_s_products_as_often_as_the_list_holds_it(run):
