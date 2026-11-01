@@ -577,8 +577,7 @@ class _Timetable:
     def value(self, catalogue: str, attribute: str, object_id: str, value, when: datetime):
         """What the attribute of one catalogue object is at the moment 'when', given value, what it was before any
         change: e.g. a Kindle's price of 129, read 61 days into the run with a 3% rise every 60 days, is 132.87."""
-        changes = [(index, change) for index, change in self._changes.get((catalogue, attribute), ())
-                   if change.objects is None or object_id in change.objects]
+        changes = self._changes_of(catalogue, attribute, object_id)
         if not changes:
             return value
         series = self._series.setdefault((catalogue, attribute, object_id), [[], [], None])
@@ -592,6 +591,17 @@ class _Timetable:
             series[2] = when
         number = bisect_right(moments, when)
         return values[number - 1] if number else value
+
+    def changed_at(self, catalogue: str, attribute: str, object_id: str, after: datetime, until: datetime):
+        """The moments after 'after' and at most at 'until' at which a change changes the attribute of one catalogue
+        object, in order, each once however many changes it has."""
+        changes = self._changes_of(catalogue, attribute, object_id)
+        return sorted({moment for moment, _, _ in self._moments(changes, after, until)})
+
+    def _changes_of(self, catalogue, attribute, object_id):
+        """(place in the list, change) of every change of the attribute of one catalogue object."""
+        return [(index, change) for index, change in self._changes.get((catalogue, attribute), ())
+                if change.objects is None or object_id in change.objects]
 
     def _moments(self, changes, after, until):
         """(moment, place in the list, change) of every change in changes after 'after' (None: from the beginning) and

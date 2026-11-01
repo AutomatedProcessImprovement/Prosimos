@@ -2,11 +2,12 @@
 Catalogue changes (docs/catalogue.md, "Changes"): an organization's catalogue_changes change its catalogues'
 attributes on the clock, every period from the start of the run or once at a moment. They are worked out in advance
 into a timetable, and whoever reads a value reads the one valid at that moment: a pick's 'with' when the case is
-created, a received 'with' at the claim, a growing catalogue's new object when it is created.
+created, a received 'with' at the claim, a growing catalogue's new object when it is created. The OCEL file writes a
+changing attribute's value at every change, up to the end of the run.
 """
 import dataclasses
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -100,10 +101,10 @@ def _with_changes(config, *changes):
 
 
 @pytest.fixture(scope="module")
-def weekly_rise(tmp_path_factory):
+def price_rise(tmp_path_factory):
     """Order Management's Sales alone, 100 orders, each picking one product per item and starting with their total
     price; every product's price rises by 10% every three days."""
-    path = tmp_path_factory.mktemp("weekly_rise")
+    path = tmp_path_factory.mktemp("price_rise")
     config = _sales_picking(path, {**PRODUCTS, "count": {"object_attribute": "items"},
                                    "with": {"price": {"sum": "price"}}})
     rise = CatalogueChange("product", "price", "multiply", 1.1, every=3 * DAY)
@@ -114,8 +115,8 @@ def _created(report, process):
     return {case.object_id: case.created for name, case in report.objects if name == process}
 
 
-def test_a_pick_reads_the_values_valid_when_the_case_is_created(weekly_rise):
-    report, _, _, start = weekly_rise
+def test_a_pick_reads_the_values_valid_when_the_case_is_created(price_rise):
+    report, _, _, start = price_rise
     products, prices, created = (_at_creation(report, "Sales", "products"), _at_creation(report, "Sales", "price"),
                                  _created(report, "Sales"))
 
@@ -126,8 +127,8 @@ def test_a_pick_reads_the_values_valid_when_the_case_is_created(weekly_rise):
                for order in products)
 
 
-def test_a_value_already_given_to_a_case_doesnt_change(weekly_rise):
-    report, log, _, _ = weekly_rise
+def test_a_value_already_given_to_a_case_doesnt_change(price_rise):
+    report, log, _, _ = price_rise
 
     # an order keeps the price it was placed at
     assert all([name for name, _, _ in case.attributes].count("price") == 1
@@ -135,8 +136,8 @@ def test_a_value_already_given_to_a_case_doesnt_change(weekly_rise):
     assert log[log["process"] == "Sales"].groupby("case_id")["price"].nunique().max() == 1
 
 
-def test_the_rest_of_the_run_is_as_without_the_changes(tmp_path, weekly_rise):
-    _, changed, _, _ = weekly_rise
+def test_the_rest_of_the_run_is_as_without_the_changes(tmp_path, price_rise):
+    _, changed, _, _ = price_rise
     _, unchanged, _ = _run(_sales_picking(tmp_path, {**PRODUCTS, "count": {"object_attribute": "items"},
                                                      "with": {"price": {"sum": "price"}}}), tmp_path, "unchanged")
 
@@ -176,20 +177,79 @@ def test_a_value_copied_at_a_catch_brings_the_values_valid_at_the_claim(tmp_path
             if name == "last_price" and value is not None] == [(2.5, "09:20"), (8, "09:30"), (20, "09:40")]
 
 
-def test_a_growing_catalogues_new_object_starts_from_the_value_valid_when_it_is_created(tmp_path):
-    # every customer draws a credit limit of 1000; 100 more every hour from the start of the run
+def _parsed(time):
+    return datetime.fromisoformat(time.replace("Z", "+00:00"))
+
+
+def _timed(ocel, object_type, attribute):
+    """Object id -> the attribute's values as the OCEL file writes them, (value, time), in order."""
+    return {obj["id"]: [(value["value"], _parsed(value["time"])) for value in obj["attributes"]
+                        if value["name"] == attribute] for obj in ocel["objects"] if obj["type"] == object_type}
+
+
+def _end(ocel):
+    """The end of the run: its last event."""
+    return max(_parsed(event["time"]) for event in ocel["events"])
+
+
+@pytest.fixture(scope="module")
+def growing_run(tmp_path_factory):
+    """30 loans, each creating a customer, who draws a credit limit of 1000; 100 more every hour from the start of
+    the run."""
     customers = GrowingCatalogue(({"name": "credit_limit", "type": "discrete", "values": [{"key": 1000, "value": 1}]},))
     config = _with_changes(_loans(30, customers, "new"),
                            CatalogueChange("customer", "credit_limit", "add", 100, every=timedelta(hours=1)))
+    _, _, ocel = _run(config, tmp_path_factory.mktemp("growing"))
+    return ocel
 
-    _, _, ocel = _run(config, tmp_path)
 
-    limits = [(attribute["value"], attribute["time"]) for obj in ocel["objects"] if obj["type"] == "customer"
-              for attribute in obj["attributes"]]
-    hours = [(LOANS_START.fromisoformat(time.replace("Z", "+00:00")) - LOANS_START) // timedelta(hours=1)
-             for _, time in limits]
-    assert len(limits) == 30 and len(set(hours)) > 3
-    assert [value for value, _ in limits] == [1000 + 100 * hour for hour in hours]
+def _hours(moment):
+    return (moment - LOANS_START) // timedelta(hours=1)
+
+
+def test_a_growing_catalogues_new_object_starts_from_the_value_valid_when_it_is_created(growing_run):
+    limits = _timed(growing_run, "customer", "credit_limit")
+
+    first = [limit[0] for limit in limits.values()]
+    assert len(first) == 30 and len({_hours(created) for _, created in first}) > 3
+    assert all(value == 1000 + 100 * _hours(created) for value, created in first)
+
+
+# the OCEL output
+
+def test_the_ocel_file_has_a_timed_value_at_every_change_up_to_the_end_of_the_run(price_rise):
+    _, _, ocel, start = price_rise
+    rises = (_end(ocel) - start) // (3 * DAY)
+
+    prices = _timed(ocel, "product", "price")
+
+    assert rises > 3 and len(prices) == len(PRICE)
+    for product, timed in prices.items():
+        assert [time for _, time in timed] == [start + rise * 3 * DAY for rise in range(rises + 1)]
+        assert [value for value, _ in timed] == pytest.approx([PRICE[product] * 1.1 ** rise
+                                                               for rise in range(rises + 1)])
+
+
+def test_a_new_object_gets_the_changes_after_its_creation(growing_run):
+    end = _end(growing_run)
+
+    for timed in _timed(growing_run, "customer", "credit_limit").values():
+        _, created = timed[0]
+        assert timed[1:] == [(1000 + 100 * hour, LOANS_START + hour * timedelta(hours=1))
+                             for hour in range(_hours(created) + 1, _hours(end) + 1)]
+
+
+def test_changes_at_one_moment_give_one_timed_value_and_changes_after_the_run_none(tmp_path):
+    config = _sales_picking(tmp_path, {**PRODUCTS, "count": {"object_attribute": "items"}})
+    start = config.start_datetime
+    _, _, ocel = _run(_with_changes(config, *(CatalogueChange("product", "price", operation, value, at=at,
+                                                              objects=("Kindle",)) for operation, value, at in (
+        ("add", 10, start + DAY), ("multiply", 2, start + DAY), ("set", 1, start + 1000 * DAY)))), tmp_path)
+
+    prices = _timed(ocel, "product", "price")
+
+    assert prices["Kindle"] == [(PRICE["Kindle"], start), ((PRICE["Kindle"] + 10) * 2, start + DAY)]
+    assert prices["Echo"] == [(PRICE["Echo"], start)]
 
 
 # load errors

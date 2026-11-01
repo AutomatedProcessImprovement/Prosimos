@@ -141,9 +141,10 @@ def _reference_links(config: SimulationConfig, catalogue: Dict[str, List[Catalog
     The catalogue's objects (catalogue: every organization's, as _grown_catalogues gives them), as (catalogue name, id, [(attribute,
     value, time)]): every object of a listed catalogue, and the objects of a pool or a growing catalogue that some
     case's referenced attribute names; their attributes are timed at the start of the run, a growing catalogue's
-    when the first case took its id, each with the value valid then (timetables: catalogue name -> its
-    organization's timetable; none, values that never change); and the links its references give, joined with the
-    case objects and log rows after the run:
+    when the first case took its id, each with the value valid then, and an attribute that changes again at every
+    change up to the run's last event (timetables: catalogue name -> its organization's timetable; none, values
+    that never change); and the links its references give, joined with the case objects and log rows after the
+    run:
     - object -> [(object, qualifier)]: a reference with o2o links the object of every case of its process, as
       (process, object id), to the catalogue object of each value its attribute took, as its id (reverse: from
       the catalogue object);
@@ -217,12 +218,24 @@ def _reference_links(config: SimulationConfig, catalogue: Dict[str, List[Catalog
         growing = isinstance(config.catalogue[name], GrowingCatalogue)
         return first_taken[(name, object_id)] if growing else config.start_datetime
 
-    def valid(name, object_id, attribute, value):
-        time = time_of(name, object_id)
-        return value if timetables is None else timetables[name].value(name, attribute, object_id, value, time), time
+    end = max((_as_datetime(row["end_time"]) for _, row in rows), default=config.start_datetime)
 
-    static_objects = [(name, obj.id, [(attribute, *valid(name, obj.id, attribute, value))
-                                      for attribute, value in obj.attributes])
+    def timed(name, object_id, attributes):
+        """An object's attributes, (attribute, value, time): each with its value when the object is written, then,
+        if it changes, its value from each change on, up to the end of the run, its last event."""
+        time = time_of(name, object_id)
+        if timetables is None:
+            return [(attribute, value, time) for attribute, value in attributes]
+        timetable = timetables[name]
+        written = [(attribute, timetable.value(name, attribute, object_id, value, time), time)
+                   for attribute, value in attributes]
+        changed = [(moment, number, attribute, timetable.value(name, attribute, object_id, value, moment))
+                   for number, (attribute, value) in enumerate(attributes)
+                   for moment in timetable.changed_at(name, attribute, object_id, time, end)]
+        changed.sort(key=lambda found: found[:2])  # in time, and at one moment in the attributes' order
+        return written + [(attribute, value, moment) for moment, _, attribute, value in changed]
+
+    static_objects = [(name, obj.id, timed(name, obj.id, obj.attributes))
                       for name, catalogue_objects in catalogue.items() for obj in catalogue_objects
                       if isinstance(config.catalogue[name], list) or (name, obj.id) in referred]
     return static_objects, dict(object_links), dict(event_links)
