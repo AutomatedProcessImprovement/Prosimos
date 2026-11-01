@@ -1,7 +1,4 @@
-"""
-Reading and checking the simulation configuration (docs/orchestrator.md, "Configuration"): the processes, their
-catalogues and references, and the consumer groups.
-"""
+"""Reads and checks the simulation configuration (docs/orchestrator.md, "Configuration")."""
 import dataclasses
 import json
 from dataclasses import dataclass, field
@@ -21,20 +18,19 @@ from prosimos.simulation_properties_parser import parse_datetime
 
 @dataclass(frozen=True)
 class ProcessSpec:
+    """One process of a configuration: its model, its settings and how it is written to the OCEL file."""
+
     name: str
     bpmn_path: str
     json_path: str
     arrivals: Optional[int] = None  # how many cases arrive; None for a process started by messages
-    # the OCEL object type of its cases, one kind of thing, in the singular; without one, the process writes no
-    # objects and no events in the OCEL output
+    # the OCEL object type of its cases, in the singular; without one, the process writes nothing to the OCEL file
     object_type: Optional[str] = None
-    # the qualifier of each event's link to its own case's object: None means the object type; per task id,
-    # qualifier_by_activity overrides it, e.g. (("Create_Package", "creates"),)
+    # of each event's link to its case's object (None: the object type); qualifier_by_activity overrides it per task
     qualifier: Optional[str] = None
     qualifier_by_activity: Tuple[Tuple[str, str], ...] = ()
-    # the attributes written to its objects in the OCEL output; the others, e.g. those only routing messages, aren't
+    # the attributes written to its OCEL objects; the others stay in the log
     ocel_attributes: Tuple[str, ...] = ()
-    # its references, each naming one of its organization's catalogues
     references: Tuple["Reference", ...] = ()
 
     def __post_init__(self):
@@ -60,9 +56,7 @@ OPERATIONS = ("multiply", "add", "set")
 
 
 def _checked_ocel_attributes(organizations):
-    """Each name in a process's ocel_attributes is an attribute its objects have: drawn in its object_attributes,
-    picked or brought (with) by one of its references, or copied, appended or aggregated into by one of its consume
-    entries."""
+    """Each name in a process's ocel_attributes must be an attribute its objects have."""
     problems = []
     placed = [(f"organizations[{number}].processes[{index}]", spec)
               for number, organization in enumerate(organizations) for index, spec in enumerate(organization.processes)]
@@ -88,8 +82,7 @@ def _checked_ocel_attributes(organizations):
 
 
 def checked_consumer_groups(names, consumer_groups):
-    """Every process in exactly one group, and groups only naming known processes. Without
-    groups, every process is its own group."""
+    """Checks the consumer groups: each process in exactly one; without groups, every process is its own group."""
     if consumer_groups is None:
         return {name: [name] for name in names}
 
@@ -115,12 +108,11 @@ def checked_consumer_groups(names, consumer_groups):
 
 @dataclass(frozen=True)
 class Organization:
-    """A business: a box around its processes. Its processes exchange messages with every other process, of this
-    organization or another; engines never learn their organization."""
+    """A business: a box around its processes and catalogues. Engines never learn their organization."""
 
     name: str
     processes: List[ProcessSpec] = field(default_factory=list)
-    # its catalogues, name -> objects with no events of their own, shared by its processes (see SimulationConfig)
+    # name -> objects with no events of their own, shared by its processes
     catalogues: Dict[str, Union[List[CatalogueObject], CataloguePool, GrowingCatalogue]] = field(default_factory=dict)
     # how its catalogues' attributes change over the run, in order (see Timetable)
     catalogue_changes: Tuple[CatalogueChange, ...] = ()
@@ -128,17 +120,8 @@ class Organization:
 
 @dataclass(frozen=True)
 class SimulationConfig:
-    """
-    Everything needed for one multi-process run: the organizations, each with its processes. Each consumer group
-    maps a group name to the processes in it, of any organization; without consumer_groups, every process is its own
-    group. Every process must be in exactly one group, and groups may only name known processes. extra_processes
-    names the processes that run_multiprocess_simulation receives as ready-made engines instead of building them from
-    a ProcessSpec (e.g. scripted test engines), so that groups can name them too. Each organization's catalogues map
-    a name (the OCEL object type) to the objects with no events of their own, a list of CatalogueObject, a
-    CataloguePool or a GrowingCatalogue, shared by its processes, and a process's references say which of its
-    attributes hold the ids of its organization's catalogues, and may pick them (see checked_catalogue for what is
-    rejected).
-    """
+    """Everything one multi-process run needs, checked when it is built (docs/orchestrator.md, "Configuration").
+    extra_processes names ready-made engines, e.g. scripted test engines, so that consumer groups can name them."""
 
     organizations: List[Organization]
     start_datetime: datetime
@@ -153,15 +136,12 @@ class SimulationConfig:
 
     @property
     def catalogue(self) -> Dict[str, Union[List[CatalogueObject], CataloguePool, GrowingCatalogue]]:
-        """Every organization's catalogues, name -> objects; the names are unique across the organizations. Only for
-        the OCEL output at the end of the run, which writes and links the objects of all of them: building a process
-        uses its organization's (Organization.catalogues)."""
+        """Every organization's catalogues, name -> objects, for the OCEL output; a process uses its organization's."""
         return {name: entry for organization in self.organizations for name, entry in organization.catalogues.items()}
 
     @property
     def references(self) -> Tuple[Reference, ...]:
-        """Every process's references, in the order of the processes. Only for the OCEL output at the end of the
-        run, which joins the links of all of them: building a process uses its own entry (ProcessSpec.references)."""
+        """Every process's references, for the OCEL output; a process uses its own."""
         return tuple(reference for spec in self.processes for reference in spec.references)
 
     def __post_init__(self):
@@ -181,31 +161,8 @@ class SimulationConfig:
 
     @classmethod
     def from_json(cls, path) -> "SimulationConfig":
-        """
-        Load a configuration file such as
-            {"organizations": [{"name": "Our company",
-                                "processes": [{"name": "Sales", "bpmn_path": "sales.bpmn",
-                                               "json_path": "sales.json", "arrivals": 100}, ...]}, ...],
-             "seed": 42, "start_time": "2024-01-01T09:00:00+00:00",
-             "consumer_groups": {"Sales": ["Sales"], ...}}
-        BPMN and JSON paths are relative to the configuration file's folder. seed and
-        consumer_groups are optional; a start time without a time zone is taken as UTC. A process
-        started by messages has no arrivals. A process's optional object_type names the OCEL object
-        type of its cases; without one, it writes no objects and no events. Its
-        optional qualifier (by default the object type) and qualifier_by_activity ({task id: qualifier})
-        qualify each event's link to its own case's object (which later events also link the objects a message
-        entry links is the entry's carry, in the process's JSON settings). Its optional ocel_attributes list the
-        attributes written to its objects; without it, none.
-        An organization's optional catalogues ({name: [{"id": ..., "attributes": {...}}]}, {name: {"count": ...,
-        "attributes": [as in object_attributes]}} for a generated pool, or {name: {"attributes": [...]}} for a
-        growing one) declare objects with no events of their own, shared by its processes, and a process's
-        references ([{"object_attribute", "catalogue", "o2o", "reverse", "link_events", "pick", "with",
-        "tag_along"}], the last six optional) say which of its attributes hold the ids of its organization's
-        catalogues' objects, and may pick them and bring their attributes in. Its optional catalogue_changes
-        ([{"catalogue", "attribute", "every" or "at", "multiply", "add" or "set", "round", "objects"}], the last two
-        optional) change its catalogues' attributes on the clock: every {"weeks" | "days" | "hours": n} from the
-        start of the run, or once at a time.
-        """
+        """Loads a configuration file (docs/orchestrator.md, "Configuration"). Its paths are relative to its folder,
+        and a start time without a time zone is taken as UTC."""
         path = Path(path)
         with open(path) as f:
             data = json.load(f)
@@ -367,8 +324,7 @@ def _reference(path, where, entry):
 
 
 def _computed(source):
-    """A with source as JSON gives it: {function: attribute}, with initial if given, as Computed; anything else as
-    it is, a plain name or a form _with_problems rejects."""
+    """A 'with' source as JSON gives it: {function: attribute} as Computed, anything else as it is."""
     if not isinstance(source, dict):
         return source
     functions = [key for key in source if key != "initial"]
