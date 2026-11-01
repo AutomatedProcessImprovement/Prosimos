@@ -1,7 +1,4 @@
-"""
-The catalogue's load checks (docs/catalogue.md, "Errors and warnings"): what a configuration's catalogues,
-references and catalogue changes must satisfy.
-"""
+"""The catalogue's load checks (docs/catalogue.md, "Errors and warnings")."""
 from __future__ import annotations
 
 import json
@@ -18,20 +15,7 @@ from prosimos.simulation_properties_parser import parse_simulation_model
 
 
 def checked_catalogue(organizations):
-    """Of the organizations and their processes: catalogue names unique across the organizations and unlike the
-    processes' object types, since both are OCEL object types; ids unique across all catalogues and unlike the
-    processes' object ids (<object type>-<number>), since both are OCEL object ids; pools with a count of at least 1
-    and attributes in the format of object_attributes; and references only naming catalogues of their own
-    organization and, in link_events, tasks of their process (by name or id). A
-    pick is "uniform" or weights on known ids of a listed catalogue, "uniform" on a pool, or "new" or new_share on
-    a growing catalogue, for an attribute that the process's object_attributes don't have and its consume entries
-    don't copy, append or aggregate into, and at most one per process and attribute. A growing catalogue's objects
-    are created by exactly one reference of its organization, and no other id looks like them
-    (<catalogue name>-<number>). with gives attributes that the process doesn't otherwise pick, draw, copy,
-    append or aggregate into, and not object_id, from attributes that every object of the picked listed catalogue
-    or pool has, as numbers for a sum, min or max; a pick with count only computes them. A catalogue change names a
-    catalogue of its own organization and an attribute that its objects have, as a number to multiply or add to,
-    and only ids of the catalogue in objects."""
+    """Raises one ValueError listing every problem of the organizations' catalogues, references and changes."""
     # (where it is in the configuration, process)
     placed = [(f"organizations[{number}].processes[{index}]", spec)
               for number, organization in enumerate(organizations) for index, spec in enumerate(organization.processes)]
@@ -139,7 +123,6 @@ def _change_problems(change, catalogues, owners):
     """catalogues: those of the change's organization; owners: catalogue name -> the organizations declaring it."""
     name = change.catalogue
     if name not in catalogues:
-        # an organization's data is its own; another learns of it only in messages
         return [f"changes catalogue {name!r} of organization {', '.join(owners[name])}; an organization changes "
                 f"its own catalogues" if name in owners else f"changes unknown catalogue {name!r}"]
     entry = catalogues[name]
@@ -228,8 +211,7 @@ def _with_json(pairs):
 
 
 def _drawn_as_numbers(attribute):
-    """Whether a pool attribute, in the format of object_attributes, always draws a number: a continuous one, or a
-    discrete one whose keys are all numbers."""
+    """Whether a pool attribute always draws a number: a continuous one, or a discrete one with number keys."""
     if attribute.get("type") == "continuous":
         return True
     values = attribute.get("values")
@@ -237,15 +219,13 @@ def _drawn_as_numbers(attribute):
 
 
 def _settings_problems(verb, attribute, process, specs):
-    """An attribute that the orchestrator gives a process's cases when they are created, which its JSON settings
-    also set: drawn in object_attributes, or set from a message."""
+    """The problem, if any, of the process's settings also setting an attribute the orchestrator gives its cases."""
     with open(specs[process].json_path) as file:
         settings = json.load(file)
     declared = {entry.get("name") for entry in settings.get("object_attributes", [])}
     if attribute in declared:
         return [f"{verb} {attribute}, which process {process} also draws in its object_attributes"]
-    # a copied value would replace the given one (with "new", the replaced object is never written), an
-    # appended attribute is a list, and an aggregated one is computed over the messages claimed
+    # a copy would replace the given value, append makes it a list, and aggregate computes it
     messages = settings.get("messages")
     consume = messages.get("consume", []) if isinstance(messages, dict) else []
     for key, also in (("copy", "copies"), ("append", "appends to"), ("aggregate", "aggregates into")):
@@ -258,8 +238,7 @@ def _settings_problems(verb, attribute, process, specs):
 
 
 def _consumed_into(process, specs, key):
-    """The attributes process's consume entries write with key: "append" (lists of the values its messages bring) or
-    "aggregate" (numbers computed over them)."""
+    """The attributes process's consume entries write with key, "append" or "aggregate"."""
     with open(specs[process].json_path) as file:
         messages = json.load(file).get("messages")
     consume = messages.get("consume", []) if isinstance(messages, dict) else []

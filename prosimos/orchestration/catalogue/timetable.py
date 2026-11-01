@@ -1,7 +1,4 @@
-"""
-The timetable of catalogue changes (docs/catalogue.md, "Changes"): the value of a catalogue attribute at any moment
-of the run, worked out in advance from an organization's catalogue_changes.
-"""
+"""The timetable of catalogue changes (docs/catalogue.md, "Changes")."""
 from bisect import bisect_right
 from collections import defaultdict
 from datetime import datetime
@@ -11,10 +8,8 @@ from prosimos.orchestration.catalogue.model import CatalogueChange
 
 
 class Timetable:
-    """The values of an organization's catalogue attributes over the run, worked out from its catalogue_changes
-    instead of changed as the run goes: whoever reads a value reads the one valid at that moment. A change at a
-    moment is valid from that moment on, inclusive, and changes at the same moment apply in the order they are
-    listed. An object's values are worked out once, as far as the latest moment read so far."""
+    """An organization's catalogue values over the run, worked out from its catalogue_changes: a change is valid
+    from its moment on, and changes at the same moment apply in the listed order."""
 
     def __init__(self, changes: Tuple[CatalogueChange, ...], start: datetime):
         self._start = start
@@ -44,8 +39,7 @@ class Timetable:
         return values[number - 1] if number else value
 
     def changed_at(self, catalogue: str, attribute: str, object_id: str, after: datetime, until: datetime):
-        """The moments after 'after' and at most at 'until' at which a change changes the attribute of one catalogue
-        object, in order, each once however many changes it has."""
+        """The moments in ('after', 'until'] at which the attribute of one catalogue object changes, each once."""
         changes = self._changes_of(catalogue, attribute, object_id)
         return sorted({moment for moment, _, _ in self._moments(changes, after, until)})
 
@@ -55,8 +49,8 @@ class Timetable:
                 if change.objects is None or object_id in change.objects]
 
     def _moments(self, changes, after, until):
-        """(moment, place in the list, change) of every change in changes after 'after' (None: from the beginning) and
-        at most at until."""
+        """(moment, place in the list, change) of the changes in ('after', 'until'], all up to 'until' if 'after' is
+        None."""
         for index, change in changes:
             if change.at is not None:
                 if (after is None or change.at > after) and change.at <= until:
@@ -69,8 +63,8 @@ class Timetable:
 
 
 class CatalogueValues(dict):
-    """One attribute of a catalogue's objects, as a 'with' reads it: a dict of object id -> the value before any
-    change, and at(object_id, when), the value at the moment when, from its organization's timetable."""
+    """One attribute of a catalogue's objects: object id -> its value before any change; at(id, when): its value
+    then."""
 
     def __init__(self, values: Dict[str, Any], catalogue: str, attribute: str, timetable: Timetable):
         super().__init__(values)
