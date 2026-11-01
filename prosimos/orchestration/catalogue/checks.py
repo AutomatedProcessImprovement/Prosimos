@@ -1,6 +1,6 @@
 """
-Catalogues and picks (docs/catalogue.md): objects with no events of their own, a process's references to them, and
-the picks that assign them to its cases.
+The catalogue's load checks (docs/catalogue.md, "Errors and warnings"): what a configuration's catalogues,
+references and catalogue changes must satisfy.
 """
 from __future__ import annotations
 
