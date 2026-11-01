@@ -43,8 +43,7 @@ class SimBPMEnv(EngineMessaging):
         self.sim_resources = dict()
         self.stat_fwriter = stat_fwriter
         self.additional_columns = self.sim_setup.all_attributes.get_all_columns_generated()
-        # attributes copied, appended or aggregated from messages get a column too; it stays empty until a value is
-        # copied, an appended list starts empty, and a sum or count starts at 0, or at its initial
+        # attributes set from messages get a column too
         self._appended = sorted({target for point in self.sim_setup.messaging.consume for target, _ in point.append})
         self._aggregated = {target: (function, initial) for point in self.sim_setup.messaging.consume
                             for target, function, _, initial in point.aggregate}
@@ -68,8 +67,7 @@ class SimBPMEnv(EngineMessaging):
         self.resource_queue = DiffResourceQueue(self.sim_setup.task_resource, r_first_available)
         self.events_queue = EventQueue()
         self.all_process_states = dict()  # store all process states with a case_id as a key
-        # the cases that still hold a token (as keys, in case id order), kept up to date as tokens move: when a
-        # case is created, executes an event or wins a race; _could_match reads it for every message offered
+        # the cases that still hold a token, in case id order; _could_match reads it for every message offered
         self._unfinished = dict()
 
         self.case_prioritisation = CasePrioritisation(
@@ -85,16 +83,13 @@ class SimBPMEnv(EngineMessaging):
 
         self.sim_setup.bpmn_graph.all_attributes = all_attributes
 
-        # Held effects. A case passes events that take no time (e.g. a message throw event) during
-        # the step of the task before them, ahead of their real time, or even while arrivals are
-        # generated. What passing them does is therefore held here and done by step() when it is
-        # due: a heap of (due datetime, case id, pass order, element id).
-        self.id_prefix = id_prefix or sim_setup.process_name  # the prefix of the object ids in its messages
+        # held effects (docs/engine-internals.md, "Effects are computed ahead of their time")
+        self.id_prefix = id_prefix or sim_setup.process_name
         self._publish_points = dict()  # event id -> the 'publish' entries for it
         for point in sim_setup.messaging.publish:
             self._publish_points.setdefault(point.event_id, []).append(point)
         self.sim_setup.bpmn_graph.watched_elements = set(self._publish_points)
-        self._held = []
+        self._held = []  # heap of (due datetime, case id, pass order, element id)
         self._pass_order = itertools.count()
         self.outbox = []  # (message type, attributes, case id, element id, publish entry) released by step()
         self.logged_rows = []  # (case id, element id, enabled, completed) per row of the log, in order
@@ -103,22 +98,16 @@ class SimBPMEnv(EngineMessaging):
         self._warned_counts = set()
         self._warned_count_lists = set()
 
-        # Waiting. A case reaching a catch event listed under 'consume' doesn't get a delay: when
-        # the queued catch event is executed (at the time the case really reaches it), the case is parked
-        # there, its token left on the event's incoming flow, until deliver() resumes it.
+        # waiting at catch events (docs/engine-internals.md, "Waiting at catch events")
         self._consume_points = dict()  # event id -> the 'consume' entries for it
         for point in sim_setup.messaging.consume:
             self._consume_points.setdefault(point.event_id, []).append(point)
         self._parked_events = dict()  # (case id, event id) -> the parked EnabledEvent
         self.claimed_by = []  # (case id, event id, consume entry) that took the message deliver() last claimed
-        # case attributes over time: the declared ones and those copied from messages, as each case was
-        # created, and every later copy at a catch event
         self._case_attribute_names = ({attribute.name for attribute in sim_setup.case_attributes.attributes}
                                       | {target for point in sim_setup.messaging.consume for target, _ in point.copy}
                                       | set(self._appended) | set(self._aggregated))
         self._case_created = dict()  # case id -> (when it was created, its case attribute values then)
-        # case id -> its sums and counts no message had written when it was created: their value then is only the
-        # starting 0
         self._only_started = dict()
         self._copied_later = []  # (case id, attribute, value, when copied)
         self._warned_missing_copies = set()
@@ -129,15 +118,12 @@ class SimBPMEnv(EngineMessaging):
         self._warned_capacities = set()
         # (case id, event id) -> [messages claimed so far, min, max, the values of 'same' the first message set]
         self._collected = dict()
-        # (case id, event id) -> when it got min: resumed then, but still taking messages offered at that instant, up
-        # to max, until the orchestrator's offers for that step are done
+        # (case id, event id) -> when it got its min; it still takes messages offered then (see _close_collections)
         self._closing = dict()
         self._warned_collects = set()
         self._warned_missing_same = set()
 
-        # Races. At an event-based gateway with a branch that waits for a message, every branch is armed:
-        # timers are queued for when they fire, message branches park; the first to happen wins and
-        # the other branches are canceled. Gateways without such a branch keep drawing a duration per branch.
+        # races at event-based gateways with a message branch (docs/messaging.md, "Races at event-based gateways")
         graph = self.sim_setup.bpmn_graph
         self._race_branches = dict()  # race gateway id -> the catch events after it
         for gateway_id, element in graph.element_info.items():
@@ -153,16 +139,12 @@ class SimBPMEnv(EngineMessaging):
         self._consume_order = {id(point): index for index, point in enumerate(sim_setup.messaging.consume)}
         self._warned_overlapping_races = set()
         self._warned_races_won_at_once = set()
-        # (attribute, source attribute, values, function, initial, catalogue) for the 'with' of references (see
-        # receive_catalogue_values)
         self._received = []
-        self._warned_unknown_received = set()  # (source attribute, catalogue) warned about once
+        self._warned_unknown_received = set()
 
     def _full_process(self):
         """The generator that runs this engine's events one by one (execute_full_process), for step()."""
         return execute_full_process(self)
-
-    # Queue priorities (case priority first, timers at 0) were removed; last version with them: 5f40913
 
     def _update_initial_event_info(self, sim_setup, p_case, arrival_time):
         for e_id in sim_setup.bpmn_graph.last_datetime:
@@ -177,11 +159,11 @@ class SimBPMEnv(EngineMessaging):
         self.all_process_states[p_case] = p_state
         self._tokens_moved(p_case, p_state)
         self.log_info.trace_list.append(Trace(p_case, enabled_datetime))
-        if self._appended or self._aggregated:  # a planned case's lists start empty too, and its sums and counts at 0
+        if self._appended or self._aggregated:  # a planned case starts like one a message starts
             case_values = sim_setup.bpmn_graph.all_attributes.setdefault(p_case, {})
             for target, value in self._starting_values().items():
                 case_values.setdefault(target, value)
-        if self._received:  # what the case's values name brings along, now that they and its creation time are known
+        if self._received:  # needs the case's values and its creation time
             self._apply_received(sim_setup.bpmn_graph.all_attributes.setdefault(p_case, {}), enabled_datetime)
         case_values = sim_setup.bpmn_graph.all_attributes.get(p_case, {})
         self._case_created[p_case] = (enabled_datetime, {name: value for name, value in case_values.items()
@@ -421,8 +403,7 @@ class SimBPMEnv(EngineMessaging):
         return new_attributes
 
     def _log_row(self, full_event):
-        """Writes one row of the log and remembers which case and element it belongs to, and when it was
-        enabled and completed: logged_rows[k] is the k-th row this engine wrote."""
+        """Writes one row of the log; logged_rows[k] holds the case, element and times of the k-th row."""
         self.log_writer.add_csv_row(self.get_csv_row_data(full_event))
         self.logged_rows.append((full_event.p_case, full_event.task_id,
                                  full_event.enabled_datetime, full_event.completed_datetime))
@@ -667,8 +648,7 @@ class SimBPMEnv(EngineMessaging):
         return completed_at, completed_datetime
 
     def _log_passed_throw_events(self, p_case, p_state, visited_at):
-        # throw events pass their token straight on inside update_process_state, so they never
-        # reach execute_event; like other intermediate events, they are logged only on request
+        # throw events never reach execute_event; like other intermediate events, they are logged only on request
         if not self.sim_setup.is_event_added_to_log:
             return
         for e_id, passed_at in visited_at.items():
@@ -680,8 +660,7 @@ class SimBPMEnv(EngineMessaging):
     def execute_event(self, c_event):
         # Handle event types separately (they don't need assigned resource)
         if c_event.parked_event is not None or c_event.armed_event is not None or c_event.complete_at_once:
-            # resumed by a message: the event lasted from when the case reached it until the message;
-            # a timer that won a race: from when it was armed until it fired; nothing to collect: no time
+            # it lasted from when the case reached it, or the timer was armed, until it ended
             reached = c_event.parked_event or c_event.armed_event or c_event
             ended_at, ended_datetime = c_event.enabled_at, c_event.enabled_datetime
             if c_event.armed_event is not None:  # logged at the timer's real time, not a microsecond later
@@ -763,8 +742,7 @@ def execute_full_process(bpm_env: SimBPMEnv, fixed_starting_times=None):
 
         bpm_env.execute_enabled_event(current_event)
 
-        # the enabled time of the event we just executed, used below as the reference point
-        # to look for any batched task that should fire once the queue runs dry
+        # the reference point for batched tasks that fire once the queue runs dry
         last_event_datetime = CustomDatetimeAndSeconds(current_event.enabled_at, current_event.enabled_datetime)
 
         # find the next event to be executed
@@ -778,8 +756,7 @@ def execute_full_process(bpm_env: SimBPMEnv, fixed_starting_times=None):
             # add to the events_queue batched tasks if any
             bpm_env.execute_if_any_unexecuted_batch(last_event_datetime)
 
-        # the queue is now fully settled (any due batched work has been flushed into it),
-        # so it is safe for next_event_time() to read it via a plain peek()
+        # the queue is settled now, so next_event_time() can peek() at it
         yield current_event
 
         current_event = bpm_env.events_queue.pop_next_event()

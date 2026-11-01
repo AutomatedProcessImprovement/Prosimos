@@ -1,8 +1,4 @@
-"""
-The messaging part of the Prosimos engine (docs/engine-internals.md): the methods SimBPMEnv inherits to step one
-event at a time, receive and publish messages, race the branches of event-based gateways, set case values from
-messages, and tell the output what happened.
-"""
+"""The messaging methods SimBPMEnv inherits (docs/engine-internals.md, docs/messaging.md)."""
 import math
 import numbers
 from datetime import timedelta
@@ -42,8 +38,7 @@ class EngineMessaging:
             p_case += 1
 
     def _ensure_arrivals_generated(self, fixed_starting_times=None):
-        """Generate the case arrivals exactly once, regardless of whether execute_full_process
-        or next_event_time()/step() triggers it first."""
+        """Generates the case arrivals once, whichever of execute_full_process and step() asks first."""
         if self._arrivals_generated:
             return
         if fixed_starting_times is None:
@@ -53,8 +48,7 @@ class EngineMessaging:
         self._arrivals_generated = True
 
     def next_event_time(self):
-        """Datetime of what this engine does next (the next event, or held effects that are due
-        earlier), or None if it has nothing left to do."""
+        """When this engine acts next: its next event, or a held effect due earlier; None if nothing is left."""
         self._close_collections()
         self._ensure_arrivals_generated()
         self._hold_passed_elements()
@@ -65,10 +59,7 @@ class EngineMessaging:
         return min(times) if times else None
 
     def step(self):
-        """Do what next_event_time() announced. If held effects are due no later than the next
-        event, do all those due at that time (in order of time, case id, then order passed) and
-        return None; they happened before anything that comes after them. Otherwise, execute exactly
-        one event and return it. Returns None if there was nothing left to do."""
+        """Does what next_event_time() announced: the held effects then due (returns None), or one event."""
         self._close_collections()
         self._ensure_arrivals_generated()
         self._hold_passed_elements()
@@ -100,17 +91,13 @@ class EngineMessaging:
                                         point))
 
     def deliver(self, message_type, attributes, source, now):
-        """Offers one message: 'claimed' if it resumed a waiting case (the one waiting longest, ties
-        by case id) or, failing that, started a new case at the start event; 'discarded' if it can
-        never match; 'pending' otherwise. After a claim, claimed_by lists who took it: the new case and
-        the start event, or each waiting case it resumed and the catch event it waited at."""
+        """Offers one message: 'claimed' (by the case waiting longest, or a new case), 'discarded' if it can
+        never match, else 'pending'. After a claim, claimed_by lists each (case, event, entry) that took it."""
         self._ensure_arrivals_generated()
         self._close_collections(before=now)
         self.claimed_by = []
         values = dict(attributes, source=source)
-        # the oldest matching waiting case claims the message; its consume entry's capacity (min, max) says how
-        # many waiting cases at the same entry claim it, oldest first: with fewer than min waiting, none does yet;
-        # with min, up to max, without waiting to fill up
+        # the entry's capacity (min, max): how many cases waiting there claim it, oldest first; fewer than min, none
         claiming, takers, fewest, capacity = None, [], 1, 1
         for parked_event in self.parked_events():
             if claiming is None:
@@ -152,8 +139,7 @@ class EngineMessaging:
         return "discarded"
 
     def _claim(self, parked_event, point, values, now):
-        """A waiting case claims one message: the values listed in point.copy are copied into it, and once it
-        has collected all the messages it needs, it is resumed at now."""
+        """A waiting case claims one message, and is resumed once it has collected what it needs."""
         key = (parked_event.p_case, parked_event.task_id)
         case_values = self.sim_setup.bpmn_graph.all_attributes[parked_event.p_case]
         self._apply_copy(point, values, case_values)
@@ -161,7 +147,7 @@ class EngineMessaging:
         aggregated = self._apply_aggregate(point, values, parked_event.p_case, case_values)
         self._copied_later.extend((parked_event.p_case, target, values[source], now)
                                   for target, source in point.copy if source in values)
-        if self._received:  # a value copied or appended now brings what its catalogue objects give, at the claim
+        if self._received:  # the 'with' values follow what was copied or appended now
             changed = {target for target, source in (*point.copy, *point.append) if source in values}
             self._copied_later.extend((parked_event.p_case, name, case_values[name], now)
                                       for name in self._apply_received(case_values, now, changed))
@@ -179,10 +165,8 @@ class EngineMessaging:
             self._resume(parked_event, now, keep_open=claimed < high)
 
     def _resume(self, parked_event, now, keep_open=False):
-        """Resumes a waiting case at now: its catch event is queued again, and completes at once. If the
-        case was waiting in a race, its branch wins and the others are canceled. With keep_open, the case got its
-        min but not its max: it keeps taking messages offered at now until the orchestrator's offers for that
-        step are done (see _close_collections)."""
+        """Resumes a waiting case at now; in a race, its branch wins. With keep_open the case has its min but not
+        its max, and keeps taking the messages offered at now (see _close_collections)."""
         if parked_event.race is not None:
             self._win_race(parked_event.race, parked_event.task_id, parked_event.p_state)
         key = (parked_event.p_case, parked_event.task_id)
@@ -200,17 +184,14 @@ class EngineMessaging:
         del self._parked_events[key], self._collected[key], self._closing[key]
 
     def _close_collections(self, before=None):
-        """Closes the collections still open since their case got its min (all, or those opened before the time
-        before). The orchestrator offers a step's messages one after another and then asks every engine what it
-        does next, so the next call to next_event_time() or step() means the offers of that step are done; a
-        message offered at a later time means so too."""
+        """Closes the collections kept open since their case got its min: all, or those opened before 'before'.
+        The orchestrator offers all of a step's messages before it calls an engine again."""
         for key, opened in list(self._closing.items()):
             if before is None or opened < before:
                 self._close(key)
 
     def _accepts(self, point, values, p_case):
-        """Whether the case p_case, waiting at point's event, takes the message: its condition holds and, with
-        'same', the message has the values the first message the case claimed there set."""
+        """Whether the case waiting at point's event takes the message: its condition and 'same' hold."""
         if not self._condition_holds(point.condition, values, p_case) or not self._has_same(point, values):
             return False
         collected = self._collected.get((p_case, point.event_id))
@@ -218,8 +199,6 @@ class EngineMessaging:
         return first is None or all(values[name] == value for name, value in first.items())
 
     def _has_same(self, point, values):
-        """Whether the message has every attribute point.same lists; a message without one never matches there,
-        with one warning per event and attribute."""
         missing = [name for name in point.same if name not in values]
         for name in missing:
             if (point.event_id, name) not in self._warned_missing_same:
@@ -230,9 +209,7 @@ class EngineMessaging:
         return not missing
 
     def _capacity(self, point, values):
-        """(min, max) waiting cases this message resumes at point, each fixed or read from the message. A min read
-        from the message that is missing or not a whole number of at least 1 counts as 1; a max that is missing or
-        not a whole number of at least min counts as min. Each comes with one warning per event and attribute."""
+        """(min, max) waiting cases this message resumes at point; an invalid min counts as 1, a max as min."""
         fewest = point.capacity_min
         if point.capacity_min_attribute is not None:
             fewest = values.get(point.capacity_min_attribute)
@@ -257,9 +234,7 @@ class EngineMessaging:
                 f"{point.type} message accepted at {point.event_id} has no valid {attribute} {consequence}")
 
     def _needed(self, p_case, event_id):
-        """How many messages a case arriving at a catch event must claim there: the entries' fixed collect, or
-        the case attribute holding it, read now; one that isn't a whole number of at least 0 counts as 1, with
-        one warning per event and attribute."""
+        """How many messages a case must claim at a catch event; an invalid value counts as 1, with one warning."""
         point = self._consume_points[event_id][0]  # an event with collect has exactly one entry
         if point.collect_attribute is None:
             return point.collect
@@ -274,10 +249,7 @@ class EngineMessaging:
         return 1
 
     def _most(self, p_case, event_id, needed):
-        """How many messages a case arriving at a catch event may claim there in all, at least needed (its min):
-        the entry's fixed max, no limit (math.inf), or the case attribute holding it, read now; without a max, the
-        min. One that isn't a whole number of at least needed counts as needed, with one warning per event and
-        attribute."""
+        """How many messages a case may claim at a catch event in all, at least needed (math.inf: no limit)."""
         point = self._consume_points[event_id][0]
         if point.collect_max is None and point.collect_max_attribute is None:
             return needed
@@ -302,13 +274,12 @@ class EngineMessaging:
         return tuple(self._collected[(parked_event.p_case, parked_event.task_id)][:2])
 
     def _first_listed_branch(self, race, message_type, values):
-        """The parked branch of race, and its consume entry, that takes a message accepted by more than one
-        of the race's branches: the one whose entry comes first in the JSON, with one warning per gateway."""
+        """The parked branch and entry of a race that take a message several branches accept: the first listed."""
         accepting = []
         for branch in self._race_branches[race.gateway_id]:
             parked_event = self._parked_events.get((race.p_case, branch))
             if parked_event is None:
-                continue  # a branch that doesn't wait for a message, e.g. a timer
+                continue
             point = next((point for point in self._consume_points[branch] if point.type == message_type
                           and self._accepts(point, values, race.p_case)), None)
             if point is not None:
@@ -326,7 +297,7 @@ class EngineMessaging:
         """A branch of a race comes off the queue. Returns True if nothing more is to be done with it now."""
         if c_event.race is not None:  # a timer branch due to fire
             if c_event.race.won:
-                return True  # canceled: another branch won
+                return True
             incoming = self.sim_setup.bpmn_graph.element_info[c_event.task_id].incoming_flows
             if not any(c_event.p_state.has_token(flow) for flow in incoming):
                 # the case left the race without it, e.g. ended by a terminate end event on another branch
@@ -335,21 +306,19 @@ class EngineMessaging:
                 return True
             self._win_race(c_event.race, c_event.task_id, c_event.p_state)
             return False  # it completes now; execute_event logs it from when it was armed
-        # armed when the case reached the gateway; the branches of one race share one Race
         incoming = self.sim_setup.bpmn_graph.element_info[c_event.task_id].incoming_flows
         if not any(c_event.p_state.has_token(flow) for flow in incoming):
             return True  # another branch already won at this instant, e.g. one with nothing to collect
         key = (c_event.p_case, self._race_gateway_of[c_event.task_id])
-        if key not in self._races:  # the case's first branch to come off the queue starts the race
+        if key not in self._races:
             self._races[key] = Race(*key)
             self._races[key].wins_at_once = self._branch_with_nothing_to_collect(*key)
         c_event.race = self._races[key]
         if c_event.race.wins_at_once not in (None, c_event.task_id):
             return True  # a branch with nothing to collect wins at once; this one is never armed
         if c_event.task_id in self._consume_points:
-            return False  # the message branch parks, like any catch event waiting for a message
-        # a message at exactly the timer's time wins: other engines may still publish one for that instant,
-        # so the timer is due one microsecond later and every message of that instant is offered first
+            return False
+        # due a microsecond late, so a message other engines publish for the same instant wins
         [delay] = self.sim_setup.bpmn_graph.event_duration(c_event.task_id)
         due = EnabledEvent(c_event.p_case, c_event.p_state, c_event.task_id, c_event.enabled_at + delay + 1e-6,
                            c_event.enabled_datetime + timedelta(seconds=delay, microseconds=1), is_inter_event=True)
@@ -358,14 +327,11 @@ class EngineMessaging:
         return True
 
     def _branch_with_nothing_to_collect(self, p_case, gateway_id):
-        """The message branch of the race that wins as soon as the case reaches the gateway: of the branches
-        with nothing to collect, the one whose consume entry comes first in the JSON, with one warning per
-        gateway if there are several; None if every message branch waits for something."""
+        """The branch with nothing to collect that wins at once, the first listed; None if there is none."""
         branches = [branch for branch in self._race_branches[gateway_id]
                     if branch in self._consume_points and self._needed(p_case, branch) == 0]
         if not branches:
             return None
-        # a branch with collect has exactly one consume entry
         branches.sort(key=lambda branch: self._consume_order[id(self._consume_points[branch][0])])
         if len(branches) > 1 and gateway_id not in self._warned_races_won_at_once:
             self._warned_races_won_at_once.add(gateway_id)
@@ -375,8 +341,7 @@ class EngineMessaging:
         return branches[0]
 
     def _win_race(self, race, winner, p_state):
-        """The branch winner wins race: every other branch is canceled. Its token is taken off the flow into
-        it, a parked case's waiting record is dropped, and a queued timer is skipped when it comes off."""
+        """Cancels every branch of race but winner: their tokens are taken off, and a queued timer is skipped later."""
         race.won = True
         del self._races[(race.p_case, race.gateway_id)]
         graph = self.sim_setup.bpmn_graph
@@ -400,9 +365,8 @@ class EngineMessaging:
             self._unfinished.pop(p_case, None)
 
     def create_case(self, now, set_values=None):
-        """Starts a new case at now, as a planned arrival would (case attributes drawn as usual), and
-        returns its id: the next consecutive one, since the log's trace list is indexed by case id.
-        set_values(p_case, case_values), if given, changes the drawn values before the case starts."""
+        """Starts a new case at now, as a planned arrival would, and returns its id. set_values(p_case,
+        case_values), if given, changes the drawn values first."""
         p_case = len(self.log_info.trace_list)
         case_values = self.sim_setup.case_attributes.get_values_calculated()
         case_values.update(self._starting_values())
@@ -416,19 +380,13 @@ class EngineMessaging:
         return p_case
 
     def receive_catalogue_values(self, received):
-        """Takes its organization's catalogue values for the 'with' of references, as (attribute, source attribute,
-        values, function, initial, catalogue): given once, when the engine is built. values holds an object's id if the
-        catalogue has it, and values.at(object id, when) is the object's value at the moment when, since catalogue
-        values may change during the run."""
+        """Takes the catalogue values for the 'with' of references, once, when the engine is built: (attribute,
+        source attribute, values, function, initial, catalogue); values.at(id, when) is an object's value then."""
         self._received = list(received)
 
     def _apply_received(self, case_values, when, sources=None):
-        """Gives a case the values with brings from the catalogue object its source attribute names, as valid at
-        when: the object's value, or with function, the function over the objects of a list (each as often as it
-        holds it) and over initial, as a pick's with does. All of them for a new case, whose sources were picked,
-        copied from the starting message or drawn; at a claim, those whose source is in sources, the attributes just
-        copied. A source without a value leaves the attribute as it is; one naming no object of the catalogue too,
-        with one warning per reference. Returns the attributes it set."""
+        """Gives a case the values 'with' brings, as valid at 'when', and returns the attributes it set: all for a
+        new case, at a claim only those whose source is in sources."""
         given = []
         for name, source, values, function, initial, catalogue in self._received:
             if sources is not None and source not in sources:
@@ -451,8 +409,6 @@ class EngineMessaging:
         return given
 
     def _warn_unknown_received(self, source, catalogue, value, unknown):
-        """One warning per reference, (source attribute, catalogue), whose value names no object of its catalogue: the
-        values its 'with' would bring stay unset, and the run goes on."""
         if (source, catalogue) in self._warned_unknown_received:
             return
         self._warned_unknown_received.add((source, catalogue))
@@ -463,24 +419,20 @@ class EngineMessaging:
                                    f"{catalogue}; 'with' leaves {', '.join(unset)} unset")
 
     def _started_received(self, case_values):
-        """The values 'with' brings that a new case only starts with: a function over a list its messages append to,
-        still empty, like an aggregate's starting value (see only_started_values)."""
+        """The 'with' values over a list still empty, which a new case only starts with (see only_started_values)."""
         return tuple(name for name, source, *_ in self._received
                      if source in self._appended and case_values.get(source) == [] and name in case_values)
 
     def _starting_values(self):
-        """What a case's appended and aggregated attributes start with: an empty list, and an aggregate's initial,
-        else 0 for a sum or count (a min or max without initial has no value until the first message)."""
+        """What appended and aggregated attributes start with: [], or an aggregate's initial, else 0 for a sum or
+        count."""
         values = {target: [] for target in self._appended}
         values.update((target, initial if initial is not None else 0) for target, (function, initial)
                       in self._aggregated.items() if initial is not None or function in ("sum", "count"))
         return values
 
     def _apply_aggregate(self, point, values, p_case, case_values):
-        """Adds the message attributes listed in point.aggregate to the values aggregated so far for the case, and
-        writes each function over them into the case's values; the case attributes it wrote. A message without one
-        of them, or for sum, min and max with one that isn't a number, is skipped, with one warning per event and
-        attribute."""
+        """Adds the message's values to the case's aggregates; returns the attributes it wrote."""
         written = []
         for target, function, source_name, initial in point.aggregate:
             if source_name not in values:
@@ -505,8 +457,6 @@ class EngineMessaging:
         return written
 
     def _apply_copy(self, point, values, case_values):
-        """Writes the message attributes listed in point.copy into the case's values. A message without
-        one of them leaves that case attribute unchanged, with one warning per event and attribute."""
         for target, source_name in point.copy:
             if source_name in values:
                 case_values[target] = values[source_name]
@@ -517,9 +467,7 @@ class EngineMessaging:
                     f"{target}; {target} is left unchanged")
 
     def _apply_append(self, point, values, case_values):
-        """Adds the message attributes listed in point.append to the lists in the case's values, as new lists, so
-        the values recorded earlier keep their contents. A message without one of them adds nothing, with one
-        warning per event and attribute."""
+        """Appends the message's values to the case's lists, as new lists so that earlier records keep theirs."""
         for target, source_name in point.append:
             if source_name in values:
                 case_values[target] = [*case_values.get(target, []), values[source_name]]
@@ -551,9 +499,8 @@ class EngineMessaging:
             {term.attribute: values[term.attribute]})
 
     def _could_match(self, condition, values):
-        """Whether some case that hasn't finished, or (in a process started by messages) one that doesn't
-        exist yet, could still accept the message. Only terms on fixed values and on object_id are decided
-        now; other case attributes can still change."""
+        """Whether an unfinished case, or one a start message may still create, could accept the message. Only
+        terms on fixed values and object_id are decided now; other case attributes can still change."""
         unfinished = self._unfinished
         future_cases = self.sim_setup.messaging.started_by_messages
         if condition is None:
@@ -567,9 +514,8 @@ class EngineMessaging:
         return False
 
     def _term_could_hold_for_a_future_case(self, term, values):
-        """For a case that a start message may still create. Its object_id isn't known yet, except that its
-        number is at least the number of cases so far: an '=' term holds only for such an id; any other
-        comparison might hold."""
+        """For a case a start message may still create: '=' on object_id holds only for an id numbered at least
+        the cases so far; any other comparison might hold."""
         if term.object_attribute is None:
             return self._term_holds(term, values, None)
         if term.attribute not in values:
@@ -581,10 +527,7 @@ class EngineMessaging:
                 and int(number) >= len(self.log_info.trace_list))
 
     def _count(self, point, p_case):
-        """How many messages point publishes for a case passing it now: 1 without count, else its fixed count
-        or the case attribute holding it, read now; one that isn't a whole number of at least 0 counts as 1,
-        with one warning per event and attribute. Over a list, one per entry; a missing or empty list publishes
-        none, with one warning per event."""
+        """How many messages point publishes for a case now: 1, its count, or one per entry of its list."""
         if not point.counted:
             return 1
         if point.count_list is not None:
@@ -618,14 +561,13 @@ class EngineMessaging:
         return f"{self.id_prefix}-{p_case}"
 
     def _message_attributes(self, point, p_case, index):
-        """The listed attributes, copied from the case's current values; index is the message's number among
-        the ones point publishes for this pass."""
+        """The attributes point's message carries, from the case's current values; index numbers it in this pass."""
         values = self.sim_setup.bpmn_graph.get_all_attributes(p_case)
         attributes = dict()
         for name in point.attributes:
             if name == "object_id":
                 attributes[name] = self.object_id(p_case)
-            elif name == "index":  # only listed on an entry with count (checked at load time)
+            elif name == "index":
                 attributes[name] = index
             elif name in values:
                 attributes[name] = values[name]
@@ -642,10 +584,8 @@ class EngineMessaging:
         return attributes
 
     def tasks_next_to(self, element_id, forward):
-        """The tasks the token reaches first after element_id (forward) or came from last before it: the flows
-        are followed through gateways and events, and stop at tasks. Task id -> whether some path to it passes
-        a parallel or inclusive gateway that joins (or splits, forward) several flows, i.e. whether it may run
-        alongside the others."""
+        """The tasks the token reaches first after element_id (forward) or came from before it, through gateways and
+        events: task id -> whether it may run alongside the others (a parallel or inclusive split or join between)."""
         key = (element_id, forward)
         if key not in self._tasks_next_to:
             graph = self.sim_setup.bpmn_graph
@@ -668,8 +608,7 @@ class EngineMessaging:
         return self._tasks_next_to[key]
 
     def case_attribute_history(self):
-        """Case id -> its case attributes over time, as (attribute, value, time): every value the case had
-        when it was created, then every value a message copied into it later, in the order they came."""
+        """Case id -> (attribute, value, time): its values at creation, then each value a message wrote later."""
         history = {p_case: [(name, value, createdAt) for name, value in values.items()]
                    for p_case, (createdAt, values) in self._case_created.items()}
         for p_case, name, value, copiedAt in self._copied_later:
@@ -681,9 +620,8 @@ class EngineMessaging:
         return {p_case: createdAt for p_case, (createdAt, _) in self._case_created.items()}
 
     def only_started_values(self):
-        """Case id -> the aggregated attributes whose value when it was created is only their start, 0 or their
-        initial: no message had written them yet (a message that starts a case writes its own aggregates into the
-        new case); and the values 'with' brings from a list its messages append to, still empty."""
+        """Case id -> the attributes whose value at creation is only a start no message wrote: an aggregate's 0 or
+        initial, or a 'with' over a list still empty."""
         return dict(self._only_started)
 
     def stalled_at(self, parked_event):
@@ -691,12 +629,10 @@ class EngineMessaging:
         return self._race_gateway_of.get(parked_event.task_id, parked_event.task_id)
 
     def stalled_waits(self):
-        """The cases still waiting for a message, once per case and place where they are reported stalled:
-        (the parked event, the place, the message types accepted there), the one waiting longest first.
-        A case waiting in a race is reported once, at the gateway, with the types of all its message
-        branches."""
+        """The cases still waiting for a message, as (parked event, place, message types), the one waiting longest
+        first; a case in a race is reported once, at the gateway."""
         self._close_collections()
-        waits = dict()  # (case id, place) -> (parked event, place, message types)
+        waits = dict()
         for parked_event in self.parked_events():
             place = self.stalled_at(parked_event)
             _, _, types = waits.setdefault((parked_event.p_case, place), (parked_event, place, set()))
@@ -704,8 +640,7 @@ class EngineMessaging:
         return [(parked_event, place, sorted(types)) for parked_event, place, types in waits.values()]
 
     def parked_events(self):
-        """The queued catch events (EnabledEvents) at which cases are parked, waiting for a message: one
-        per waiting case and event, the one waiting longest first (ties by case id)."""
+        """The catch events where cases wait for a message, the one waiting longest first (ties by case id)."""
         for key, parked_event in list(self._parked_events.items()):
             if not any(parked_event.p_state.has_token(flow) for flow in self.sim_setup.bpmn_graph.element_info[parked_event.task_id].incoming_flows):
                 del self._parked_events[key]  # the case moved on without it (e.g. a terminate end event)
@@ -719,10 +654,8 @@ class EngineMessaging:
 
 
 def aggregate_of(function, values, initial=None):
-    """function over values: count, sum, min or max, and over initial, if given, a number already among them: a
-    count adds the values to it, a sum, min or max takes it as one more value. A sum of whole numbers is a whole
-    number; any other is rounded once, at the end (math.fsum), so it doesn't depend on the order of the messages:
-    1.2, 0.8 and 2.1 add up to 4.1 in any order, where adding them one by one may give 4.1000000000000005."""
+    """function (count, sum, min or max) over values and initial, if given. A sum of whole numbers stays whole;
+    any other is rounded once (math.fsum), so it doesn't depend on the order of the messages."""
     if function == "count":
         return len(values) + (initial if initial is not None else 0)
     if initial is not None:
