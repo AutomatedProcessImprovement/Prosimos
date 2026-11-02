@@ -147,14 +147,14 @@ class SimBPMEnv(EngineMessaging):
         """The generator that runs this engine's events one by one (execute_full_process), for step()."""
         return execute_full_process(self)
 
-    def _update_initial_event_info(self, sim_setup, p_case, arrival_time):
+    def _update_initial_event_info(self, sim_setup, p_case, arrival_time, start_event=None):
         for e_id in sim_setup.bpmn_graph.last_datetime:
             sim_setup.bpmn_graph.last_datetime[e_id][p_case] = None
         p_state = sim_setup.initial_state()
         enabled_datetime = self.simulation_datetime_from(arrival_time)
         enabled_time = CustomDatetimeAndSeconds(arrival_time, enabled_datetime)
         enabled_tasks, visited_at = sim_setup.update_process_state(
-            p_case, sim_setup.bpmn_graph.starting_event, p_state, enabled_time
+            p_case, start_event or sim_setup.bpmn_graph.starting_event, p_state, enabled_time
         )
         self._log_passed_throw_events(p_case, p_state, visited_at)
         self.all_process_states[p_case] = p_state

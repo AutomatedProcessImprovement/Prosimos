@@ -373,9 +373,9 @@ The section is checked when the model is loaded. An invalid section stops loadin
   without one, a case takes a single message, so there is nothing to compare it with.
 - `qualifier` and `o2o`, where given, are non-empty strings; `carry` is `true`, `false` or a list of the model's
   tasks (names or ids), and only on an entry with a `qualifier`.
-- A process started by messages (a `consume` entry on its start event) has exactly one start event,
-  and the start event's condition uses only fixed values and `source`, not `object_attribute`: there
-  is no case yet to compare with.
+- In a process started by messages (a `consume` entry on a start event), every start event has a
+  `consume` entry, and a start event's condition uses only fixed values and `source`, not
+  `object_attribute`: there is no case yet to compare with.
 - `condition` is a non-empty list of non-empty lists of terms.
 - A term has `attribute`, a known `comparison`, and exactly one of `value` and `object_attribute`;
   `in` takes a fixed `value` `[low, high]`.
@@ -569,15 +569,22 @@ every order from Tartu or Tapa and keeps the order's id (model: `testing_scripts
 ]
 ```
 
+A process may have several message start events, each with its own `consume` entry (type,
+condition, copy); a message starts its case at the start event whose entry accepts it. When several
+start events accept the same message, the one whose entry comes first in the JSON starts the case, as
+in races. A repair, for example, can be started by a `CustomerComplaint` at one start event, which
+leads to Handle complaint, or by a `WarrantyClaim` at another, which leads to Check warranty, both
+then going on to Repair.
+
 A process is started either by its arrival schedule or by messages, never both:
 
-- the model has exactly one start event;
+- every start event of the model has a `consume` entry;
 - in the simulation configuration, the process has no `arrivals` (giving one is an error, so
   nobody thinks it limits anything), while every other process needs one;
 - its JSON settings need no `arrival_time_distribution` or `arrival_time_calendar`; every other
   process needs an `arrival_time_distribution`.
 
-Each message the start event accepts starts exactly one new case, at the time the message is
+Each message a start event accepts starts exactly one new case, at the time the message is
 claimed, with its case attributes drawn as usual. A message that a waiting case also accepts goes to
 the waiting case, not to the start event. A message the start condition rejects is discarded. Until
 its first message, such a process has nothing to do, so the orchestrator never steps it, but it is

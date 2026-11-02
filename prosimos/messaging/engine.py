@@ -130,16 +130,18 @@ class EngineMessaging:
                                for parked_event in takers]
             return "claimed"
         points = [point for points in self._consume_points.values() for point in points if point.type == message_type]
-        # a start event's condition looks only at the message, so it decides now: a new case, or never
-        starting = next((point for point in points
-                         if point.starts_case and self._condition_holds(point.condition, values, None)), None)
+        # a start event's condition looks only at the message, so it decides now: a new case, or never; of several
+        # start events that accept it, the one whose entry comes first in the JSON starts the case, as in races
+        starting = min((point for point in points
+                        if point.starts_case and self._condition_holds(point.condition, values, None)),
+                       key=lambda point: self._consume_order[id(point)], default=None)
         if starting is not None:
             def start_values(p_case, case_values):
                 self._apply_copy(starting, values, case_values)
                 self._apply_append(starting, values, case_values)
                 self._apply_aggregate(starting, values, p_case, case_values)
 
-            p_case = self.create_case(now, start_values)
+            p_case = self.create_case(now, start_values, starting.event_id)
             self.claimed_by = [(p_case, starting.event_id, starting)]
             return "claimed"
         if any(self._could_match(point.condition, values) and self._has_same(point, values)
@@ -381,9 +383,9 @@ class EngineMessaging:
         else:
             self._unfinished.pop(p_case, None)
 
-    def create_case(self, now, set_values=None):
-        """Starts a new case at now, as a planned arrival would, and returns its id. set_values(p_case,
-        case_values), if given, changes the drawn values first."""
+    def create_case(self, now, set_values=None, start_event=None):
+        """Starts a new case at now, as a planned arrival would, at start_event (by default the scheduled start), and
+        returns its id. set_values(p_case, case_values), if given, changes the drawn values first."""
         p_case = len(self.log_info.trace_list)
         case_values = self.sim_setup.case_attributes.get_values_calculated()
         case_values.update(self._starting_values())
@@ -393,7 +395,7 @@ class EngineMessaging:
         self.case_prioritisation.all_case_priorities[p_case] = \
             self.sim_setup.prioritisation_rules.get_priority(case_values)
         self.sim_setup.bpmn_graph.all_attributes[p_case] = case_values
-        self._update_initial_event_info(self.sim_setup, p_case, self.simulation_at_from_datetime(now))
+        self._update_initial_event_info(self.sim_setup, p_case, self.simulation_at_from_datetime(now), start_event)
         return p_case
 
     def receive_catalogue_values(self, received):

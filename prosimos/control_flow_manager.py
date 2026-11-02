@@ -137,7 +137,8 @@ class ProcessState:
 
 class BPMNGraph:
     def __init__(self):
-        self.starting_event = None
+        self.starting_event = None  # the last start event parsed: the scheduled start of a process with one
+        self.start_events = []  # all of them, in the order of the model
         self.end_events = []  # in the order of the model, so that whatever goes over them is repeatable
         self.element_info = dict()
         self.from_name = dict()
@@ -192,6 +193,7 @@ class BPMNGraph:
     def add_bpmn_element(self, element_id, element_info):
         if element_info.type == BPMN.START_EVENT:
             self.starting_event = element_id
+            self.start_events.append(element_id)
         if element_info.type == BPMN.END_EVENT:
             self.end_events.append(element_id)
         self.element_info[element_id] = element_info
@@ -287,7 +289,7 @@ class BPMNGraph:
     def is_enabled(self, e_id, p_state):
         if e_id not in self.element_info:
             return False
-        if e_id == self.starting_event:
+        if e_id in self.start_events:
             return True
         e_info = self.element_info[e_id]
         if e_info.type == BPMN.TASK:

@@ -124,11 +124,12 @@ def test_consuming_needs_a_message_catch_event(bpmn, event_id, found):
     assert f"{event_id!r} is {found}, expected an intermediate message catch event" in reason
 
 
-def test_a_process_started_by_messages_has_exactly_one_start_event(bpmn):
+def test_every_start_event_of_a_process_started_by_messages_has_a_consume_entry(bpmn):
     # the test model has a plain start event next to the message start event
     reason = rejected(consume("Start_Message"), bpmn)
 
-    assert "a process started by messages must have exactly one start event; the model has 2 (Start, Start_Message)" in reason
+    assert reason.endswith("start event 'Start' has no consume entry; in a process started by messages, every start "
+                           "event starts its cases from the messages its consume entry accepts")
 
 
 def test_a_start_event_without_a_message_definition_cannot_start_cases(bpmn):
