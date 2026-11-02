@@ -206,6 +206,11 @@ intermediate catch events:
   arrows into one timer catch event before Task C, Task C runs twice, after each branch; after an XOR
   split, the timer fires for the branch taken.
 
+Each of these elements, and an exclusive merge, passes a token at that token's own time. Only a parallel
+or inclusive join takes the latest of its tokens' times (`_check_and_update_enabling_time`): Prosimos works
+a case's tasks out in any order among those due at the same moment, so the latest token isn't always the
+last one worked out, and a join's enabled time must never go back.
+
 Message end events and message catch events that publish or wait must have a single incoming arrow
 (checked at load).
 

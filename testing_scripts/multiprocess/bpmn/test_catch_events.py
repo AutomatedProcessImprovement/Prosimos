@@ -36,7 +36,7 @@ def test_after_an_exclusive_choice_the_timer_fires_for_the_branch_taken(tmp_path
 
 
 def test_after_a_parallel_split_the_timer_fires_once_per_branch(tmp_path):
-    # Task A ends at 10:00, Task B at 11:00: Task C runs 1 h after each, at 11:00 and at 12:00
+    # Task A ends at 10:00, Task B at 11:00: Task C runs 1 h after each, at 11:00 and at 12:00, in each of 20 cases
     bpmn, json_path = _model(
         tmp_path, {"Start": "startEvent", "Split": "parallelGateway", "Task_A": "task", "Task_B": "task",
                    "One_Hour": "intermediateCatchEvent:timer", "Task_C": "task", "End": "endEvent"},
@@ -45,10 +45,12 @@ def test_after_a_parallel_split_the_timer_fires_once_per_branch(tmp_path):
          ("c_done", "Task_C", "End")],
         hours={"Task_B": 2}, events={"One_Hour": 1})
 
-    steps = _steps(_log(bpmn, json_path, 1, tmp_path))
+    steps = _steps(_log(bpmn, json_path, 20, tmp_path))
 
-    assert steps["0"] == [("Task_A", "01 09:00", "01 10:00"), ("Task_B", "01 09:00", "01 11:00"),
-                          ("Task_C", "01 11:00", "01 12:00"), ("Task_C", "01 12:00", "01 13:00")]
+    assert len(steps) == 20
+    assert all([(activity, start[3:], end[3:]) for activity, start, end in case] == [
+        ("Task_A", "09:00", "10:00"), ("Task_B", "09:00", "11:00"), ("Task_C", "11:00", "12:00"),
+        ("Task_C", "12:00", "13:00")] for case in steps.values())
 
 
 def test_each_token_at_a_catch_event_is_taken_by_its_own_firing(tmp_path):

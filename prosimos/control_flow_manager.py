@@ -929,6 +929,12 @@ class BPMNGraph:
                 to_execute.append(next_e)
 
     def _check_and_update_enabling_time(self, p_case, e_id, enabled_at: CustomDatetimeAndSeconds):
+        # a parallel or inclusive join fires at its latest token, so its enabled time never goes back; Prosimos
+        # works out a case's tasks in any order, and the latest token isn't always the last one worked out.
+        # Every other element passes each token at that token's own time
+        info = self.element_info[e_id]
+        if not (info.type in (BPMN.PARALLEL_GATEWAY, BPMN.INCLUSIVE_GATEWAY) and info.is_join()):
+            return enabled_at
         if p_case not in self.last_datetime[e_id]:
             self.last_datetime[e_id][p_case] = enabled_at
         elif self.last_datetime[e_id][p_case] is None or self.last_datetime[e_id][p_case].datetime < enabled_at.datetime:
