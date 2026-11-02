@@ -440,6 +440,8 @@ def parse_simulation_model(bpmn_path):
                     else bpmn_element.attrib["id"]
                 )
                 elem_general_type: BPMN = to_extract[xmlns_key]
+                if elem_general_type is BPMN.TASK:
+                    _check_no_loop_marker(bpmn_element)
                 if elem_general_type is BPMN.INTERMEDIATE_THROW_EVENT:
                     _check_event_kind_supported(bpmn_element, "throw event", {"message"})
                 if elem_general_type is BPMN.END_EVENT:
@@ -572,6 +574,16 @@ def _check_no_unsupported_elements(process):
     for tag, (what, instead) in UNSUPPORTED.items():
         for element in process.findall(f"xmlns:{tag}", bpmn_element_ns):
             raise InvalidBpmnModelException(f"{what} {element.attrib['id']} is not supported: {instead}")
+
+
+def _check_no_loop_marker(task):
+    # Prosimos would run the task once, ignoring the marker
+    markers = (("standardLoopCharacteristics", "loop"), ("multiInstanceLoopCharacteristics", "multi-instance"))
+    for marker, what in markers:
+        if task.find(f"xmlns:{marker}", bpmn_element_ns) is not None:
+            raise InvalidBpmnModelException(
+                f"task {task.attrib['id']} has a {what} marker, which is not supported: draw the loop with a gateway; "
+                f"in a multi-process run, a publish entry's count can start one case per instance")
 
 
 def _check_no_boundary_events(process):

@@ -126,3 +126,20 @@ def test_a_sub_process_call_activity_transaction_or_complex_gateway_is_rejected(
 
     with pytest.raises(InvalidBpmnModelException, match=f"^{message}$"):
         parse_simulation_model(bpmn)
+
+
+@pytest.mark.parametrize("tag, marker, what", [
+    ("task", "<standardLoopCharacteristics/>", "loop"),
+    ("userTask", '<multiInstanceLoopCharacteristics isSequential="false"/>', "multi-instance"),
+])
+def test_a_task_with_a_loop_or_multi_instance_marker_is_rejected(tmp_path, tag, marker, what):
+    # today the marker is ignored and the task runs once
+    bpmn = _bpmn(tmp_path, f'''<process id="p">
+        <startEvent id="Start"/><{tag} id="Pick">{marker}</{tag}><endEvent id="End"/>
+        <sequenceFlow id="f1" sourceRef="Start" targetRef="Pick"/>
+        <sequenceFlow id="f2" sourceRef="Pick" targetRef="End"/></process>''')
+
+    with pytest.raises(InvalidBpmnModelException, match=f"^task Pick has a {what} marker, which is not supported: draw "
+                                                        f"the loop with a gateway; in a multi-process run, a publish "
+                                                        f"entry's count can start one case per instance$"):
+        parse_simulation_model(bpmn)
