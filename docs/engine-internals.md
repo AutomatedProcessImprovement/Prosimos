@@ -223,8 +223,10 @@ single incoming arrow (checked at load), since waiting is counted once per case 
   each message-started case starts at the one whose entry accepted its message; at most one start event
   has no `consume` entry, the scheduled start, where the arrival schedule starts its cases
   (`BPMNGraph.starting_event`, set to it by `SimDiffSetup`). Two scheduled starts are a load error.
-- **Not simulated**, each a load error naming the element: boundary events (Prosimos runs a task in one
-  go, so nothing can interrupt it or start a path beside it).
+- **Not simulated**, each a load error naming the element:
+  - boundary events: Prosimos runs a task in one go, so nothing can interrupt it or start a path beside it;
+  - end events other than none, message and terminate (error, escalation, signal, compensation), as throw
+    events other than none and message: they stand for what Prosimos doesn't simulate.
 - **Event-based gateways** without a branch waiting for a message are decided when the case reaches
   them: `get_event_gateway_choice` draws a duration for each following event and takes the shortest,
   breaking ties with `random.choice`. Those with such a branch are races (see "Waiting at catch

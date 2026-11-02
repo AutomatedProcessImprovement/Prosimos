@@ -30,3 +30,28 @@ def test_a_boundary_event_is_rejected(tmp_path):
                                                         "Prosimos runs a task in one go, so nothing can interrupt it "
                                                         "or start a path beside it"):
         parse_simulation_model(bpmn)
+
+
+@pytest.mark.parametrize("definition, kind", [("errorEventDefinition", "error"),
+                                              ("escalationEventDefinition", "escalation"),
+                                              ("signalEventDefinition", "signal"),
+                                              ("compensateEventDefinition", "compensation")])
+def test_an_end_event_of_another_kind_than_none_message_or_terminate_is_rejected(tmp_path, definition, kind):
+    bpmn = _bpmn(tmp_path, f'''<process id="p">
+        <startEvent id="Start"/><task id="Approve"/><endEvent id="Failed"><{definition}/></endEvent>
+        <sequenceFlow id="f1" sourceRef="Start" targetRef="Approve"/>
+        <sequenceFlow id="f2" sourceRef="Approve" targetRef="Failed"/></process>''')
+
+    with pytest.raises(InvalidBpmnModelException, match=f"^end event Failed of kind {kind} is not supported: only "
+                                                        f"none, message and terminate end events are$"):
+        parse_simulation_model(bpmn)
+
+
+@pytest.mark.parametrize("definition", ["", "<messageEventDefinition/>", "<terminateEventDefinition/>"])
+def test_none_message_and_terminate_end_events_are_accepted(tmp_path, definition):
+    bpmn = _bpmn(tmp_path, f'''<process id="p">
+        <startEvent id="Start"/><task id="Approve"/><endEvent id="Done">{definition}</endEvent>
+        <sequenceFlow id="f1" sourceRef="Start" targetRef="Approve"/>
+        <sequenceFlow id="f2" sourceRef="Approve" targetRef="Done"/></process>''')
+
+    assert parse_simulation_model(bpmn).end_events == ["Done"]

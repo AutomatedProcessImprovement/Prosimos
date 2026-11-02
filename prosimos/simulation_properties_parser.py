@@ -438,7 +438,10 @@ def parse_simulation_model(bpmn_path):
                 )
                 elem_general_type: BPMN = to_extract[xmlns_key]
                 if elem_general_type is BPMN.INTERMEDIATE_THROW_EVENT:
-                    _check_throw_event_supported(bpmn_element)
+                    _check_event_kind_supported(bpmn_element, "throw event", {"message"})
+                if elem_general_type is BPMN.END_EVENT:
+                    _check_event_kind_supported(bpmn_element, "end event", {"message", "terminate"},
+                                                ": only none, message and terminate end events are")
 
                 event_type = (
                     _get_event_type_from_element(name, bpmn_element) if BPMN.is_event(elem_general_type) else None
@@ -533,17 +536,15 @@ def _check_no_boundary_events(process):
             f"Prosimos runs a task in one go, so nothing can interrupt it or start a path beside it")
 
 
-def _check_throw_event_supported(bpmn_element):
-    # message and none (no definition) throw events pass their token straight on. The other kinds
-    # mean something that isn't simulated (a compensation undoes earlier work, an escalation alerts
-    # a parent process) or can't pass a token on at all (a link throw has no outgoing flow), so
-    # skipping them would silently change the model
+def _check_event_kind_supported(bpmn_element, what, supported, rule=""):
+    # the other kinds stand for what Prosimos doesn't simulate (a handler, a parent process, a broadcast, a link),
+    # so running them as plain events would silently change the model
     for child in bpmn_element:
         kind = child.tag.split("}")[1].removesuffix("EventDefinition") if "EventDefinition" in child.tag else None
-        if kind is not None and kind != "message":
+        if kind is not None and kind not in supported:
             kind = "compensation" if kind == "compensate" else kind
             raise InvalidBpmnModelException(
-                f"throw event {bpmn_element.attrib['id']} of kind {kind} is not supported")
+                f"{what} {bpmn_element.attrib['id']} of kind {kind} is not supported{rule}")
 
 
 def _add_fake_gateway(bpmn_graph, g_id, g_type, t_id, e_map, in_front=True):
