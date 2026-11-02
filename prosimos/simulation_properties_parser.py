@@ -458,7 +458,8 @@ def parse_simulation_model(bpmn_path):
                 elements_map[flow_arc.attrib["targetRef"]]["in"] += 1
             # bpmn_graph.add_flow_arc(flow_arc.attrib["id"], flow_arc.attrib["sourceRef"], flow_arc.attrib["targetRef"])
 
-        # Adding fake gateways for tasks and throw events with multiple incoming/outgoing flow arcs
+        # Adding fake gateways for tasks and throw events with multiple incoming/outgoing flow arcs; an end event
+        # needs none: it takes each token that reaches it
         join_gateways = dict()
         split_gateways = dict()
         for t_id in elements_map:
@@ -480,15 +481,6 @@ def parse_simulation_model(bpmn_path):
                         t_id,
                         split_gateways,
                         False,
-                    )
-            elif e_info.type is BPMN.END_EVENT:
-                if elements_map[t_id]["in"] > 1:
-                    _add_fake_gateway(
-                        bpmn_graph,
-                        "or_join_%s" % t_id,
-                        BPMN.INCLUSIVE_GATEWAY,
-                        t_id,
-                        join_gateways,
                     )
             elif e_info.is_gateway():
                 if elements_map[t_id]["in"] > 1 and elements_map[t_id]["out"] > 1:

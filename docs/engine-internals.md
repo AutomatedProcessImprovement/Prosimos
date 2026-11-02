@@ -185,17 +185,15 @@ the real time instead would make the engine go back in time, which it must never
 BPMN lets a modeler draw several arrows into an element without a gateway. The standard calls this
 uncontrolled flow: the element fires once per arriving token, without waiting for the others (an AND
 merge must be drawn as an explicit parallel gateway). Prosimos follows this for tasks and
-intermediate throw events (the parser adds a hidden `xor_join_<id>`), but not for:
+intermediate throw events (the parser adds a hidden `xor_join_<id>`) and for end events: an end event
+takes each token that reaches it, one pass per token, and a case is finished when it has no token left.
+It doesn't for **intermediate catch events**: no hidden gateway, and `is_enabled` requires a token on
+every incoming arrow, so they behave as an AND merge. With an AND split into Task A and Task B and both
+arrows into one timer catch event before Task C, the catch event fires once, after the later branch,
+and Task C runs once per case; the standard gives two firings.
 
-- **intermediate catch events**: no hidden gateway, and `is_enabled` requires a token on every
-  incoming arrow, so they behave as an AND merge. With an AND split into Task A and Task B and both
-  arrows into one timer catch event before Task C, the catch event fires once, after the later
-  branch, and Task C runs once per case; the standard gives two firings;
-- **end events**: the parser adds a hidden `or_join_<id>`, which waits for every branch that can
-  still arrive, so an end event after an AND split is passed once per case instead of twice.
-
-This is left unchanged, since it affects existing models. Message end events and message catch
-events that publish or wait must have a single incoming arrow instead (checked at load).
+Message end events and message catch events that publish or wait must have a single incoming arrow
+(checked at load).
 
 ## Model restrictions
 

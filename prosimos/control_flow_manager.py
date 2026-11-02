@@ -300,8 +300,9 @@ class BPMNGraph:
                     return False
 
             return True
-        if e_info.type in [BPMN.END_EVENT, BPMN.PARALLEL_GATEWAY, BPMN.INTERMEDIATE_EVENT,
-                           BPMN.INTERMEDIATE_THROW_EVENT]:
+        if e_info.type == BPMN.END_EVENT:  # each token that reaches it, as BPMN says
+            return any(p_state.tokens[f_arc] > 0 for f_arc in e_info.incoming_flows)
+        if e_info.type in [BPMN.PARALLEL_GATEWAY, BPMN.INTERMEDIATE_EVENT, BPMN.INTERMEDIATE_THROW_EVENT]:
             for f_arc in e_info.incoming_flows:
                 if p_state.tokens[f_arc] < 1:
                     return False
@@ -348,6 +349,12 @@ class BPMNGraph:
             if e_info.type == BPMN.END_EVENT and e_info.event_type == EVENT_TYPE.TERMINATE:
                 """ Terminate End Event detected"""
                 p_state.remove_all_tokens_on_terminate()
+            elif e_info.type == BPMN.END_EVENT:  # one pass per token: tokens arriving together pass it in turn
+                in_flow = next((flow for flow in e_info.incoming_flows if p_state.tokens[flow] > 0), None)
+                if in_flow is not None:
+                    p_state.tokens[in_flow] -= 1
+                    if p_state.tokens[in_flow] == 0:
+                        p_state.state_mask &= ~self.arcs_bitset[in_flow]
             else:
                 for in_flow in e_info.incoming_flows:
                     if p_state.tokens[in_flow] > 0:
