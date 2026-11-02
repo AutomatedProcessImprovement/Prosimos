@@ -428,6 +428,7 @@ def parse_simulation_model(bpmn_path):
     bpmn_graph = BPMNGraph()
     elements_map = dict()
     for process in root.findall("xmlns:process", bpmn_element_ns):
+        _check_no_boundary_events(process)
         for xmlns_key in to_extract:
             for bpmn_element in process.findall(xmlns_key, bpmn_element_ns):
                 name = (
@@ -522,6 +523,14 @@ def _get_event_type_from_element(name: str, bpmn_element):
                 print(f"WARNING: {name} event has an undefined event type")
 
             return event_type
+
+
+def _check_no_boundary_events(process):
+    # an event on a task's border interrupts the task or starts a path beside it, but Prosimos runs a task in one go
+    for event in process.findall("xmlns:boundaryEvent", bpmn_element_ns):
+        raise InvalidBpmnModelException(
+            f"boundary event {event.attrib['id']} on task {event.attrib.get('attachedToRef')} is not supported: "
+            f"Prosimos runs a task in one go, so nothing can interrupt it or start a path beside it")
 
 
 def _check_throw_event_supported(bpmn_element):
