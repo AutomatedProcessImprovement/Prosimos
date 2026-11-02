@@ -30,9 +30,10 @@ def _node(element, tag):
     return f'<{tag} id="{element}" name="{element}">{inside}</{tag}>'
 
 
-def _model(tmp_path, elements, flows, hours=None, probabilities=None, messages=None):
+def _model(tmp_path, elements, flows, hours=None, probabilities=None, messages=None, events=None):
     """A process of these elements (id -> BPMN tag) and flows ((id, source, target)), and its JSON settings: every
-    task takes hours[task] hours, 1 by default, and has a resource of its own."""
+    task takes hours[task] hours, 1 by default, and has a resource of its own; a catch event in events lasts
+    events[event] hours."""
     nodes = "".join(_node(element, tag) for element, tag in elements.items())
     arrows = "".join(f'<sequenceFlow id="{flow}" sourceRef="{source}" targetRef="{target}"/>'
                      for flow, source, target in flows)
@@ -52,7 +53,9 @@ def _model(tmp_path, elements, flows, hours=None, probabilities=None, messages=N
         "task_resource_distribution": [{"task_id": task, "resources": [
             {"resource_id": f"R_{task}", "distribution_name": "fix",
              "distribution_params": [{"value": 3600 * (hours or {}).get(task, 1)}]}]} for task in tasks],
-        "resource_calendars": [{"id": "Always", "name": "Always", "time_periods": ALWAYS}]}
+        "resource_calendars": [{"id": "Always", "name": "Always", "time_periods": ALWAYS}],
+        "event_distribution": [{"event_id": event, "distribution_name": "fix", "distribution_params": [
+            {"value": 3600 * hours}]} for event, hours in (events or {}).items()]}
     if messages is not None:
         settings["messages"] = messages
     (tmp_path / "model.json").write_text(json.dumps(settings))

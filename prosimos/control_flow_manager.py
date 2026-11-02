@@ -298,9 +298,9 @@ class BPMNGraph:
                     return False
 
             return True
-        if e_info.type == BPMN.END_EVENT:  # each token that reaches it, as BPMN says
+        if e_info.type in [BPMN.END_EVENT, BPMN.INTERMEDIATE_EVENT]:  # each token that reaches it, as BPMN says
             return any(p_state.tokens[f_arc] > 0 for f_arc in e_info.incoming_flows)
-        if e_info.type in [BPMN.PARALLEL_GATEWAY, BPMN.INTERMEDIATE_EVENT, BPMN.INTERMEDIATE_THROW_EVENT]:
+        if e_info.type in [BPMN.PARALLEL_GATEWAY, BPMN.INTERMEDIATE_THROW_EVENT]:
             for f_arc in e_info.incoming_flows:
                 if p_state.tokens[f_arc] < 1:
                     return False
@@ -347,8 +347,8 @@ class BPMNGraph:
         while current < len(to_execute):
             e_info: ElementInfo = self.element_info[to_execute[current]]
             last_enabled = visited_at[e_info.id]
-            if e_info.type == BPMN.END_EVENT:  # one pass per token: tokens arriving together pass it in turn
-                if e_info.event_type == EVENT_TYPE.TERMINATE:
+            if e_info.type in [BPMN.END_EVENT, BPMN.INTERMEDIATE_EVENT]:  # one token per pass or firing
+                if e_info.type == BPMN.END_EVENT and e_info.event_type == EVENT_TYPE.TERMINATE:
                     # it ends the case at its time, which may still be ahead: the others' tokens go then
                     when = getattr(last_enabled, "datetime", last_enabled)
                     self.terminated[case_id] = min(when, self.terminated.get(case_id, when))

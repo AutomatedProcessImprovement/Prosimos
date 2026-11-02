@@ -341,10 +341,9 @@ The section is checked when the model is loaded. An invalid section stops loadin
   `{"list": <declared attribute>, "as": <name other than object_id and index>}`, and only on a `publish`
   entry: only throw and end events publish, and a start event starts exactly one case per message.
 - A message end event under `publish`, or a catch event under `consume`, has exactly one incoming
-  arrow; otherwise: "draw an explicit gateway before <event id>". In BPMN, several arrows into one
-  element mean "fire once per arriving token", but Prosimos joins several arrows into a catch event as
-  an AND merge (see [engine-internals.md](engine-internals.md)). With an explicit gateway, the meaning
-  is clear.
+  arrow; otherwise: "draw an explicit gateway before <event id>". A case waits at a catch event once:
+  waiting and `collect` are counted per case and event, so two tokens of one case can't wait at one
+  event. Message end events are held to the same rule.
 - After an event-based gateway with a branch that waits for a message (a race, see "Races at
   event-based gateways"), every branch is a message catch event or a timer, and no branch has a fixed
   `collect` of 0.

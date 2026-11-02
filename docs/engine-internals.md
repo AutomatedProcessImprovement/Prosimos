@@ -190,18 +190,21 @@ time. After a race timer wins, the case continues one microsecond after the time
 timer's own log row shows its real time, and what follows it starts a microsecond later. Continuing at
 the real time instead would make the engine go back in time, which it must never do.
 
-## Implicit merges differ from the BPMN standard
+## Implicit merges
 
 BPMN lets a modeler draw several arrows into an element without a gateway. The standard calls this
 uncontrolled flow: the element fires once per arriving token, without waiting for the others (an AND
 merge must be drawn as an explicit parallel gateway). Prosimos follows this for tasks and
-intermediate throw events (the parser adds a hidden `xor_join_<id>`) and for end events: an end event
-takes each token that reaches it, one pass per token, and a case is finished when it has no token left.
-A model may have several end events (`BPMNGraph.end_events`), e.g. "Order delivered" and "Order
-canceled". It doesn't for **intermediate catch events**: no hidden gateway, and `is_enabled` requires a
-token on every incoming arrow, so they behave as an AND merge. With an AND split into Task A and Task B
-and both arrows into one timer catch event before Task C, the catch event fires once, after the later
-branch, and Task C runs once per case; the standard gives two firings.
+intermediate throw events (the parser adds a hidden `xor_join_<id>`), for end events and for
+intermediate catch events:
+
+- an end event takes each token that reaches it, one pass per token, and a case is finished when it has
+  no token left. A model may have several end events (`BPMNGraph.end_events`), e.g. "Order delivered"
+  and "Order canceled";
+- a catch event run as a drawn delay fires once per arriving token: each token waits its own duration
+  and passes on, without waiting for the other arrows. With an AND split into Task A and Task B and both
+  arrows into one timer catch event before Task C, Task C runs twice, after each branch; after an XOR
+  split, the timer fires for the branch taken.
 
 Message end events and message catch events that publish or wait must have a single incoming arrow
 (checked at load).
