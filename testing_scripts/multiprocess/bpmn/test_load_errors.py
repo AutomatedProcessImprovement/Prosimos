@@ -78,3 +78,32 @@ def test_an_empty_pool_next_to_the_process_is_accepted(tmp_path):
     bpmn = _bpmn(tmp_path, SALES_POOL + '<process id="Customer"/>')
 
     assert parse_simulation_model(bpmn).start_events == ["Order"]
+
+
+def test_an_element_without_an_incoming_arrow_is_rejected(tmp_path):
+    # Archive has no arrow into it: BPMN would start it with the process, Prosimos would never run it
+    bpmn = _bpmn(tmp_path, '''<process id="p">
+        <startEvent id="Start"/><task id="Approve"/><task id="Archive"/><endEvent id="End"/>
+        <sequenceFlow id="f1" sourceRef="Start" targetRef="Approve"/>
+        <sequenceFlow id="f2" sourceRef="Approve" targetRef="End"/>
+        <sequenceFlow id="f3" sourceRef="Archive" targetRef="End"/></process>''')
+
+    with pytest.raises(InvalidBpmnModelException, match=r"^Archive has no incoming arrow, so it would never run: "
+                                                        r"connect it \(only a start event has none\)$"):
+        parse_simulation_model(bpmn)
+
+
+def test_a_link_catch_event_is_rejected_with_its_own_message(tmp_path):
+    bpmn = _bpmn(tmp_path, '''<process id="p">
+        <startEvent id="Start"/><task id="Approve"/><endEvent id="End"/>
+        <intermediateCatchEvent id="Continue"><linkEventDefinition name="Go on"/></intermediateCatchEvent>
+        <task id="Archive"/>
+        <sequenceFlow id="f1" sourceRef="Start" targetRef="Approve"/>
+        <sequenceFlow id="f2" sourceRef="Approve" targetRef="End"/>
+        <sequenceFlow id="f3" sourceRef="Continue" targetRef="Archive"/>
+        <sequenceFlow id="f4" sourceRef="Archive" targetRef="End"/></process>''')
+
+    with pytest.raises(InvalidBpmnModelException, match="^link catch event Continue is not supported: link events "
+                                                        "aren't, so draw an arrow from where its link throw event "
+                                                        "would be$"):
+        parse_simulation_model(bpmn)

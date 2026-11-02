@@ -464,6 +464,8 @@ def parse_simulation_model(bpmn_path):
                 elements_map[flow_arc.attrib["targetRef"]]["in"] += 1
             # bpmn_graph.add_flow_arc(flow_arc.attrib["id"], flow_arc.attrib["sourceRef"], flow_arc.attrib["targetRef"])
 
+        _check_every_element_is_reached(elements_map)
+
         # Adding fake gateways for tasks and throw events with multiple incoming/outgoing flow arcs; an end event
         # needs none: it takes each token that reaches it
         join_gateways = dict()
@@ -539,6 +541,19 @@ def _check_one_process(processes):
         raise InvalidBpmnModelException(
             f"the file has {len(drawn)} processes ({', '.join(drawn)}): Prosimos simulates one process per file, so "
             f"put each pool in a file of its own (in a multi-process run, each its own process)")
+
+
+def _check_every_element_is_reached(elements_map):
+    # BPMN starts an element without an incoming arrow with the process; Prosimos never would, so it would never run
+    for element_id, element in elements_map.items():
+        info = element["info"]
+        if element["in"] == 0 and info.type is not BPMN.START_EVENT:
+            if info.type is BPMN.INTERMEDIATE_EVENT and info.event_type is EVENT_TYPE.LINK:
+                raise InvalidBpmnModelException(
+                    f"link catch event {element_id} is not supported: link events aren't, so draw an arrow from where "
+                    f"its link throw event would be")
+            raise InvalidBpmnModelException(
+                f"{element_id} has no incoming arrow, so it would never run: connect it (only a start event has none)")
 
 
 def _check_no_boundary_events(process):
