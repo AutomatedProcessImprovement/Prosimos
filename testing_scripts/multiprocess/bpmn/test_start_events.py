@@ -6,9 +6,14 @@ accepts it.
 import csv
 from datetime import timedelta
 
+import pytest
+
+from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
+from prosimos.orchestration.prosimos_engine import load_process
 from prosimos.orchestration.simulation import run_multiprocess_simulation
 from prosimos.simulation_properties_parser import parse_simulation_model
+from prosimos.simulation_setup import SimDiffSetup
 from testing_scripts.multiprocess.bpmn.test_end_events import START, _model
 from testing_scripts.multiprocess.orchestrator_settings import one_organization
 from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
@@ -80,3 +85,62 @@ def test_of_several_start_events_accepting_a_message_the_entry_listed_first_star
         [("Claim", {}), ("Feedback", {})])
 
     assert activities == {"0": ["Check_Warranty", "Repair"], "1": ["Handle_Complaint", "Repair"]}
+
+
+# one scheduled start next to message starts
+
+# a kitchen opened every morning by its schedule and by each order; the order's message start is drawn last, so
+# it is the last start event parsed
+KITCHEN = (
+    {"Morning": "startEvent", "Open_Kitchen": "task", "Cook": "task", "End": "endEvent",
+     "Order": "startEvent:message"},
+    [("opening", "Morning", "Open_Kitchen"), ("opened", "Open_Kitchen", "End"), ("ordered", "Order", "Cook"),
+     ("cooked", "Cook", "End")])
+ORDERS = {"consume": [{"event_id": "Order", "type": "Order"}]}
+
+
+def test_the_scheduled_start_is_the_start_event_without_a_consume_entry(tmp_path):
+    bpmn, json_path = _model(tmp_path, *KITCHEN, messages=ORDERS)
+
+    setup = SimDiffSetup(bpmn, json_path, False, 1, START)
+
+    assert parse_simulation_model(bpmn).start_events == ["Morning", "Order"]
+    assert setup.scheduled_start == setup.bpmn_graph.starting_event == "Morning"
+
+
+def test_the_schedule_and_the_messages_start_cases_at_their_own_start_events(tmp_path):
+    # three mornings, a day apart from 1 January at 09:00, and two orders on the first day
+    bpmn, json_path = _model(tmp_path, *KITCHEN, messages=ORDERS)
+    customers = ScriptedEngine("Customers")
+    for hours in (3, 4):
+        customers.publish_at(START + timedelta(hours=hours), "Order")
+    config = SimulationConfig(one_organization([ProcessSpec("Kitchen", str(bpmn), str(json_path), 3, "day")]),
+                              START, 1, extra_processes=["Customers"])
+
+    run_multiprocess_simulation(config, tmp_path / "log.csv", {"Customers": customers})
+
+    with open(tmp_path / "log.csv") as file:
+        rows = sorted((row["start_time"][5:16], row["activity"]) for row in csv.DictReader(file))
+    assert rows == [("01-01 09:00", "Open_Kitchen"), ("01-01 12:00", "Cook"), ("01-01 13:00", "Cook"),
+                    ("01-02 09:00", "Open_Kitchen"), ("01-03 09:00", "Open_Kitchen")]
+
+
+def test_a_scheduled_start_next_to_message_starts_needs_arrivals(tmp_path):
+    bpmn, json_path = _model(tmp_path, *KITCHEN, messages=ORDERS)
+
+    with pytest.raises(InvalidSimScenarioException,
+                       match="needs arrivals: its start event Morning is started by the arrival schedule"):
+        load_process(str(bpmn), str(json_path), None, START)
+
+
+def test_two_scheduled_starts_are_rejected(tmp_path):
+    # without a consume entry, both the morning and the evening opening would be started by the schedule
+    bpmn, json_path = _model(
+        tmp_path, {"Morning": "startEvent", "Evening": "startEvent", "Open_Kitchen": "task", "End": "endEvent"},
+        [("morning", "Morning", "Open_Kitchen"), ("evening", "Evening", "Open_Kitchen"),
+         ("opened", "Open_Kitchen", "End")])
+
+    with pytest.raises(InvalidSimScenarioException, match="start events Morning, Evening have no consume entry, so "
+                                                          "each would be started by the arrival schedule, and a "
+                                                          "process has one: model each schedule as its own process"):
+        SimDiffSetup(bpmn, json_path, False, 1, START)

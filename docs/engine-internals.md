@@ -216,10 +216,10 @@ single incoming arrow (checked at load), since waiting is counted once per case 
 
 ## Model restrictions
 
-- **Start events**: a process started by messages may have several message start events
-  (`BPMNGraph.start_events`), and each case starts at the one whose entry accepted its message. A
-  process started by its schedule uses one start event (`BPMNGraph.starting_event`; the last one parsed
-  wins).
+- **Start events**: a process may have several message start events (`BPMNGraph.start_events`), and
+  each message-started case starts at the one whose entry accepted its message; at most one start event
+  has no `consume` entry, the scheduled start, where the arrival schedule starts its cases
+  (`BPMNGraph.starting_event`, set to it by `SimDiffSetup`). Two scheduled starts are a load error.
 - **Event-based gateways** without a branch waiting for a message are decided when the case reaches
   them: `get_event_gateway_choice` draws a duration for each following event and takes the shortest,
   breaking ties with `random.choice`. Those with such a branch are races (see "Waiting at catch

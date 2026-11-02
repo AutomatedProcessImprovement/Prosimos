@@ -52,20 +52,33 @@ class SimDiffSetup:
                                                         self.batch_processing, self.gateway_conditions,
                                                         self.gateway_execution_limit)
 
+        self.scheduled_start = self._scheduled_start()
+        if self.scheduled_start is not None:
+            self.bpmn_graph.starting_event = self.scheduled_start
         self._check_arrival_schedule(total_cases, total_cases_name)
-        if not self.arrival_calendar and not self.messaging.started_by_messages:
+        if not self.arrival_calendar and self.scheduled_start is not None:
             self.arrival_calendar = self.find_arrival_calendar()
 
         self.is_event_added_to_log = is_event_added_to_log
-        self.total_num_cases = total_cases  # how many process cases should be simulated; None if started by messages
+        self.total_num_cases = total_cases  # how many cases the schedule starts; None without a scheduled start
 
         # every internal time is an offset from this moment, so engines that must agree on
         # absolute time need to be given the same value rather than each reading the clock
         self.set_starting_datetime(start_datetime)
 
+    def _scheduled_start(self):
+        """The start event the arrival schedule starts cases at: the one without a consume entry, if any."""
+        message_starts = {point.event_id for point in self.messaging.consume if point.starts_case}
+        scheduled = [event_id for event_id in self.bpmn_graph.start_events if event_id not in message_starts]
+        if len(scheduled) > 1:
+            raise InvalidSimScenarioException(
+                f"{self.process_name}: start events {', '.join(scheduled)} have no consume entry, so each would be "
+                f"started by the arrival schedule, and a process has one: model each schedule as its own process")
+        return scheduled[0] if scheduled else None
+
     def _check_arrival_schedule(self, total_cases, name):
-        """A process is started either by its arrival schedule or by messages, never both."""
-        if self.messaging.started_by_messages:
+        """The arrival schedule starts cases at the scheduled start, if there is one; messages start the others."""
+        if self.scheduled_start is None:
             if total_cases is not None:
                 raise InvalidSimScenarioException(
                     f"{self.process_name} is started by messages, so it takes no {name} (got {total_cases}): "
@@ -73,10 +86,12 @@ class SimDiffSetup:
             return
         if total_cases is None:
             raise InvalidSimScenarioException(
-                f"{self.process_name} needs {name}: it isn't started by messages")
+                f"{self.process_name} needs {name}: its start event {self.scheduled_start} is started by the "
+                f"arrival schedule")
         if "arrivalTime" not in self.element_probability:
             raise InvalidSimScenarioException(
-                f"{self.process_name} needs an arrival_time_distribution: it isn't started by messages")
+                f"{self.process_name} needs an arrival_time_distribution: its start event {self.scheduled_start} is "
+                f"started by the arrival schedule")
 
     def verify_simulation_input(self):
         for e_id in self.bpmn_graph.element_info:

@@ -74,7 +74,6 @@ def parse_messages(messages_json, bpmn_path, declared_attributes, case_attribute
         consume.append(point)
         if "collect" in entry:
             collecting.append((where, point.event_id))
-    _check_every_start_is_a_message_start(consume, events)
     _check_collect_has_its_own_event(collecting, consume)
     _check_appended_only(consume)
     _check_aggregated_only(consume)
@@ -94,19 +93,6 @@ def _check_start(where, point):
     if on_case:
         _fail(f"{where}: the condition of a start event may only use fixed values and source, not "
               f"object_attribute (there is no object yet), but its terms on {', '.join(map(repr, on_case))} do")
-
-
-def _check_every_start_is_a_message_start(consume, events):
-    """In a process started by messages, every start event has a consume entry: one without would be started by a
-    schedule, which such a process doesn't have."""
-    message_starts = {point.event_id for point in consume if point.starts_case}
-    others = sorted(event_id for event_id, (kind, *_) in events.items() if kind == "startEvent"
-                    and event_id not in message_starts)
-    if message_starts and others:
-        named = (f"start event {others[0]!r} has" if len(others) == 1
-                 else f"start events {', '.join(map(repr, others))} have")
-        _fail(f"{named} no consume entry; in a process started by messages, every start event starts its cases from "
-              f"the messages its consume entry accepts")
 
 
 def _capacity(entry, where, starts_case):

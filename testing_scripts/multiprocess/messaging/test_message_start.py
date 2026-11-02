@@ -55,7 +55,8 @@ def test_a_process_started_by_messages_takes_no_arrivals():
 
 
 def test_a_process_not_started_by_messages_needs_arrivals_and_an_arrival_distribution(tmp_path):
-    with pytest.raises(InvalidSimScenarioException, match="sales needs arrivals: it isn't started by messages"):
+    with pytest.raises(InvalidSimScenarioException,
+                       match="sales needs arrivals: its start event .+ is started by the arrival schedule"):
         _load(f"{ASSETS}/sales.bpmn", f"{ASSETS}/sales.json")
 
     with open(f"{ASSETS}/sales.json") as file:
@@ -63,7 +64,8 @@ def test_a_process_not_started_by_messages_needs_arrivals_and_an_arrival_distrib
     del settings["arrival_time_distribution"]
     no_arrivals = tmp_path / "sales.json"
     no_arrivals.write_text(json.dumps(settings))
-    with pytest.raises(InvalidSimScenarioException, match="needs an arrival_time_distribution: it isn't started"):
+    with pytest.raises(InvalidSimScenarioException, match="needs an arrival_time_distribution: its start event .+ "
+                                                          "is started by the arrival schedule"):
         _load(f"{ASSETS}/sales.bpmn", str(no_arrivals), arrivals=5)
 
 
