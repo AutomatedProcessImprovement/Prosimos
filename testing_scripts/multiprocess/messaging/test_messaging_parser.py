@@ -1,5 +1,7 @@
 """The 'messages' section of a process's JSON settings (docs/messaging.md): one test per rule."""
+import csv
 import json
+import re
 from datetime import datetime
 
 import pytest
@@ -8,7 +10,10 @@ import pytz
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.messaging.model import ConditionTerm, ConsumePoint, MessagingModel, PublishPoint
 from prosimos.messaging.parser import declared_attributes, parse_messages
+from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.prosimos_engine import load_process
+from prosimos.orchestration.simulation import run_multiprocess_simulation
+from testing_scripts.multiprocess.orchestrator_settings import one_organization
 
 EVENTS = {
     "Start": '<bpmn:startEvent id="Start"/>',
@@ -142,12 +147,19 @@ def test_published_attributes_must_be_declared(bpmn):
     assert reason.endswith("messages.publish[0]: 'cty', 'zip' not declared as an object, global or event attribute")
 
 
-@pytest.mark.parametrize("section", [publish("End_Merged"), consume("Catch_Merged")])
-def test_end_and_catch_message_events_need_exactly_one_incoming_arrow(bpmn, section):
-    event_id = (section.get("publish") or section["consume"])[0]["event_id"]
+WAITS_ONCE = ("has 2 incoming arrows; a catch event that waits for a message takes exactly one, since a case waits "
+              "there once (waiting and collect are counted per case and event): draw one catch event per path, or a "
+              "gateway before")
 
-    assert f"{event_id!r} has 2 incoming arrows, expected exactly one; draw an explicit gateway before {event_id}" \
-        in rejected(section, bpmn)
+
+def test_a_catch_event_that_waits_for_a_message_needs_exactly_one_incoming_arrow(bpmn):
+    assert rejected(consume("Catch_Merged"), bpmn).endswith(f"'Catch_Merged' {WAITS_ONCE} Catch_Merged")
+
+
+def test_a_message_end_event_may_have_several_incoming_arrows(bpmn):
+    model = parse_messages(publish("End_Merged"), bpmn, DECLARED)
+
+    assert [point.event_id for point in model.publish] == ["End_Merged"]
 
 
 def test_published_attributes_must_be_names(bpmn):
@@ -222,15 +234,28 @@ def test_declared_attributes_are_case_global_and_event_attributes():
     assert declared_attributes({}) == set()
 
 
-@pytest.mark.parametrize("model, messages", [
-    ("two_arrows_into_end.bpmn", publish("End")),
-    ("two_arrows_into_catch.bpmn", consume("Catch")),
-])
-def test_a_model_with_two_arrows_into_a_message_end_or_catch_event_is_rejected(tmp_path, model, messages):
-    event_id = (messages.get("publish") or messages["consume"])[0]["event_id"]
+def test_a_model_with_two_arrows_into_a_waiting_catch_event_is_rejected(tmp_path):
+    with pytest.raises(InvalidSimScenarioException, match=f"'Catch' {re.escape(WAITS_ONCE)} Catch$"):
+        _load(tmp_path, "testing_scripts/assets/messaging/two_arrows_into_catch.bpmn", consume("Catch"))
 
-    with pytest.raises(InvalidSimScenarioException, match=f"draw an explicit gateway before {event_id}$"):
-        _load(tmp_path, f"testing_scripts/assets/messaging/{model}", messages)
+
+def test_a_message_end_event_with_two_arrows_publishes_once_per_token(tmp_path):
+    # after an AND split into Task A and Task B, both arrows go into the message end event
+    with open("testing_scripts/assets/throw_events/two_tasks.json") as file:
+        settings = json.load(file)
+    settings["messages"] = publish("End", attributes=["object_id"])
+    (tmp_path / "settings.json").write_text(json.dumps(settings))
+    spec = ProcessSpec("P", "testing_scripts/assets/messaging/two_arrows_into_end.bpmn",
+                       str(tmp_path / "settings.json"), 20, "case")
+    config = SimulationConfig(one_organization([spec]), pytz.utc.localize(datetime(2024, 1, 1)), 1)
+
+    report = run_multiprocess_simulation(config, tmp_path / "log.csv")
+
+    with open(tmp_path / "log.csv") as file:
+        task_ends = sorted((f"case-{row['case_id']}", datetime.fromisoformat(row["end_time"]))
+                           for row in csv.DictReader(file))
+    assert len(task_ends) == 40  # Task A and Task B of each of the 20 cases
+    assert sorted((message.attributes["object_id"], message.time) for message in report.published) == task_ends
 
 
 # carry: which later events of the case also link what an entry's messages link

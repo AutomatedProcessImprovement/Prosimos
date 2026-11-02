@@ -211,8 +211,8 @@ or inclusive join takes the latest of its tokens' times (`_check_and_update_enab
 a case's tasks out in any order among those due at the same moment, so the latest token isn't always the
 last one worked out, and a join's enabled time must never go back.
 
-Message end events and message catch events that publish or wait must have a single incoming arrow
-(checked at load).
+A message end event publishes once per arriving token. A message catch event that waits must have a
+single incoming arrow (checked at load), since waiting is counted once per case and event.
 
 ## Model restrictions
 

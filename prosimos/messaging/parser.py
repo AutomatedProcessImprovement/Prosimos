@@ -354,10 +354,10 @@ def _check_event(where, event_id, events, allowed_kinds):
         expected = " or ".join(allowed_kinds.values())
         found = f"a message {kind}" if is_message else f"{'an' if kind[0] in 'aeiou' else 'a'} {kind}"
         _fail(f"{where}: event_id {event_id!r} is {found}, expected {expected}")
-    # waiting is counted once per case and event, so two tokens can't wait at one; message end events keep the rule
-    if kind in ("endEvent", "intermediateCatchEvent") and incoming != 1:
-        _fail(f"{where}: event_id {event_id!r} has {incoming} incoming arrows, expected exactly one; "
-              f"draw an explicit gateway before {event_id}")
+    if kind == "intermediateCatchEvent" and incoming != 1:
+        _fail(f"{where}: event_id {event_id!r} has {incoming} incoming arrows; a catch event that waits for a message "
+              f"takes exactly one, since a case waits there once (waiting and collect are counted per case and "
+              f"event): draw one catch event per path, or a gateway before {event_id}")
 
 
 def _check_races(consume, events, gateway_branches):

@@ -17,7 +17,7 @@ CASES = 20
 
 
 def _split_into(tmp_path, merge, merge_tag, after=("Task_C", "task")):
-    """Task A (1 h) and Task B (2 h) after an AND split, both into merge, then after, then the end event."""
+    """Task A (1 h) and Task B (2 h) after an AND split, both into merge, then 'after', then the end event."""
     elements = {"Start": "startEvent", "Split": "parallelGateway", "Task_A": "task", "Task_B": "task",
                 merge: merge_tag, after[0]: after[1], "End": "endEvent"}
     flows = [("start", "Start", "Split"), ("to_a", "Split", "Task_A"), ("to_b", "Split", "Task_B"),
