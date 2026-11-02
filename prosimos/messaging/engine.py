@@ -81,10 +81,19 @@ class EngineMessaging:
         for p_case, element_id, passed_at in passed:
             heappush(self._held, (passed_at.datetime, p_case, next(self._pass_order), element_id))
         passed.clear()
+        # a terminate end event ends its case at its time, which may still be ahead: held until then (element None)
+        for p_case, when in self.sim_setup.bpmn_graph.terminated.items():
+            if p_case not in self._terminations_held:
+                self._terminations_held.add(p_case)
+                heappush(self._held, (when, p_case, next(self._pass_order), None))
 
     def _release_held(self, due):
         while self._held and self._held[0][0] == due:
             _, p_case, _, element_id = heappop(self._held)
+            if element_id is None:
+                self._end_terminated(p_case)
+            if self.sim_setup.bpmn_graph.terminated_by(p_case, due):
+                continue
             for point in self._publish_points.get(element_id, []):
                 for index in range(1, self._count(point, p_case) + 1):
                     self.outbox.append((point.type, self._message_attributes(point, p_case, index), p_case, element_id,
@@ -356,6 +365,14 @@ class EngineMessaging:
             self._parked_events.pop((race.p_case, branch), None)
             self._collected.pop((race.p_case, branch), None)
         self._tokens_moved(race.p_case, p_state)
+
+    def _end_terminated(self, p_case):
+        """Ends a case a terminate end event ended: its tokens and races go; parked_events() then drops its waits."""
+        p_state = self.all_process_states[p_case]
+        p_state.remove_all_tokens_on_terminate()
+        self._tokens_moved(p_case, p_state)
+        for key in [key for key in self._races if key[0] == p_case]:
+            self._races.pop(key).won = True
 
     def _tokens_moved(self, p_case, p_state):
         """Keeps _unfinished up to date after the tokens of the case p_case moved."""

@@ -172,6 +172,8 @@ class BPMNGraph:
         # event-based gateways with a branch that waits for a message: every branch is armed, and the
         # engine lets the first happen win (instead of drawing a duration per branch here)
         self.race_gateways = set()
+        # case id -> when a terminate end event ended it: nothing of the case happens from then on
+        self.terminated = dict()
 
     def set_element_probabilities(self, element_probability, task_resource_probability):
         self.element_probability = element_probability
@@ -333,8 +335,11 @@ class BPMNGraph:
         :param completed_time_prev_event: datetime of the completion of the previous event
                                           which equals to enabled time for current event
         """
+        if self.terminated_by(case_id, completed_datetime_prev_event):
+            p_state.remove_all_tokens_on_terminate()
+            return [], {}
         if not self.is_enabled(e_id, p_state):
-            return []
+            return [], {}
         enabled_tasks = list()
         to_execute = [e_id]
         current = 0
@@ -342,10 +347,11 @@ class BPMNGraph:
         while current < len(to_execute):
             e_info: ElementInfo = self.element_info[to_execute[current]]
             last_enabled = visited_at[e_info.id]
-            if e_info.type == BPMN.END_EVENT and e_info.event_type == EVENT_TYPE.TERMINATE:
-                """ Terminate End Event detected"""
-                p_state.remove_all_tokens_on_terminate()
-            elif e_info.type == BPMN.END_EVENT:  # one pass per token: tokens arriving together pass it in turn
+            if e_info.type == BPMN.END_EVENT:  # one pass per token: tokens arriving together pass it in turn
+                if e_info.event_type == EVENT_TYPE.TERMINATE:
+                    # it ends the case at its time, which may still be ahead: the others' tokens go then
+                    when = getattr(last_enabled, "datetime", last_enabled)
+                    self.terminated[case_id] = min(when, self.terminated.get(case_id, when))
                 in_flow = next((flow for flow in e_info.incoming_flows if p_state.tokens[flow] > 0), None)
                 if in_flow is not None:
                     p_state.tokens[in_flow] -= 1
@@ -384,6 +390,11 @@ class BPMNGraph:
         if len(enabled_tasks) > 1:
             random.shuffle(enabled_tasks)
         return enabled_tasks, visited_at
+
+    def terminated_by(self, case_id, when):
+        """Whether a terminate end event ended the case at or before when."""
+        terminated = self.terminated.get(case_id)
+        return terminated is not None and when is not None and terminated <= getattr(when, "datetime", when)
 
     def get_all_attributes(self, case_id):
         if self.all_attributes is None:

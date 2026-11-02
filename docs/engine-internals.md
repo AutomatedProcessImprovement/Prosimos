@@ -61,6 +61,16 @@ held item; `step()` releases all items due at that time instead of running an ev
 times held items go first. An engine that still holds items isn't finished, even with an empty
 queue. The message is built when it is released, so attribute values are those at the real time.
 
+**Terminate end events.** A terminate end event ends its case at its own time T, which is often still
+ahead when it is computed: with an AND split into Send Invoice (1 h, then the terminate) and Ship Package
+(30 min, then Track Package), the terminate at 10:00 is computed at 09:00. So it takes only its own token
+and records T (`BPMNGraph.terminated`), and until T the case goes on: Track Package starts at 09:30. From
+T on, nothing of the case happens: an element that comes off the queue at or after T is dropped, a
+completion at or after T passes no token on, and a held item due at or after T isn't released.
+`SimBPMEnv` holds T itself too; releasing it removes the case's remaining tokens and races, e.g. those of
+a branch waiting for a message, whose record `parked_events()` then drops. A task that started before T,
+like Track Package, is logged as it ran, since Prosimos computes a task in one go.
+
 **Batching.** The same applies to a batched task: a case joins its waiting list
 (`BPMNGraph.batch_waiting_processes`) during the step of the task before it, with the time it will
 reach the batched task. The list therefore holds cases that reach the task only later, and it is not
@@ -188,7 +198,7 @@ merge must be drawn as an explicit parallel gateway). Prosimos follows this for 
 intermediate throw events (the parser adds a hidden `xor_join_<id>`) and for end events: an end event
 takes each token that reaches it, one pass per token, and a case is finished when it has no token left.
 A model may have several end events (`BPMNGraph.end_events`), e.g. "Order delivered" and "Order
-cancelled". It doesn't for **intermediate catch events**: no hidden gateway, and `is_enabled` requires a
+canceled". It doesn't for **intermediate catch events**: no hidden gateway, and `is_enabled` requires a
 token on every incoming arrow, so they behave as an AND merge. With an AND split into Task A and Task B
 and both arrows into one timer catch event before Task C, the catch event fires once, after the later
 branch, and Task C runs once per case; the standard gives two firings.

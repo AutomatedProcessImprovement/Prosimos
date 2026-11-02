@@ -40,7 +40,7 @@ def test_not_enabled_event_empty_tasks(assets_path):
     # ====== ACT ======
     e_id = "Activity_1tidlw3"  # id of the 'Task 1 A' activity
     prev_completed_event_time = datetime.datetime.now(pytz.utc)
-    result = bpmn_graph.update_process_state(
+    result, _ = bpmn_graph.update_process_state(
         p_case, e_id, p_state, prev_completed_event_time
     )
 
@@ -315,8 +315,9 @@ def test_update_state_terminate_event(assets_path):
                 Both parallel flows were already executed
                 and token is now at 'Flow_14zyrni' (OR gateway -> 'Request processed' event)
 
-    Output:     update_process_state of the enabled event ('Event_06aw5gs') triggers the Terminate event.
-                All tokens should be nullified as this is the end of the process.
+    Output:     update_process_state of the enabled event ('Event_06aw5gs') triggers the Terminate event, which ends
+                the case at its time: the other branch's token goes when the case gets there, and then all tokens
+                are nullified as this is the end of the process.
     """
 
     # ====== ARRANGE ======
@@ -370,6 +371,12 @@ def test_update_state_terminate_event(assets_path):
     )
 
     # ====== ASSERT ======
+    assert len(result) == 0, "List with enabled tasks should contain no elements"
+    assert bpmn_graph.terminated[p_case] == prev_completed_event_time
+    verify_flow_tokens(p_state.tokens, ["Flow_1jwj934"])
+
+    # the other branch reaches its event at the time of the terminate: the case has ended
+    result, _ = bpmn_graph.update_process_state(p_case, "Event_0761x5g", p_state, prev_completed_event_time)
     assert len(result) == 0, "List with enabled tasks should contain no elements"
 
     all_tokens = p_state.tokens

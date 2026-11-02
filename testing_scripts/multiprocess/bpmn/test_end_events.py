@@ -14,6 +14,7 @@ from prosimos.control_flow_manager import CustomDatetimeAndSeconds
 from prosimos.simulation_engine import run_simulation
 from prosimos.simulation_properties_parser import parse_simulation_model
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
+from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.simulation import run_multiprocess_simulation
 from prosimos.simulation_setup import SimDiffSetup
 from testing_scripts.multiprocess.orchestrator_settings import one_organization
@@ -189,7 +190,7 @@ def test_a_case_with_several_end_events_finishes_with_its_last_branch(tmp_path):
 
 
 def test_a_message_end_event_next_to_another_end_event_publishes_when_its_token_arrives(tmp_path):
-    # an order is delivered, publishing Delivered at its message end event, or cancelled, at a plain one
+    # an order is delivered, publishing Delivered at its message end event, or canceled, at a plain one
     bpmn, json_path = _model(
         tmp_path, {"Start": "startEvent", "Choice": "exclusiveGateway", "Deliver": "task", "Cancel": "task",
                    "Delivered": "endEvent:message", "Cancelled": "endEvent"},
@@ -205,6 +206,77 @@ def test_a_message_end_event_next_to_another_end_event_publishes_when_its_token_
     with open(tmp_path / "log.csv") as file:
         delivered = {f"order-{row['case_id']}": datetime.datetime.fromisoformat(row["end_time"])
                      for row in csv.DictReader(file) if row["activity"] == "Deliver"}
-    assert 0 < len(delivered) < 20  # some orders are cancelled
+    assert 0 < len(delivered) < 20  # some orders are canceled
     assert sorted((message.attributes["object_id"], message.time) for message in report.published) == \
         sorted(delivered.items())
+
+
+# a terminate end event beside running work
+
+def _terminating(tmp_path, after_b, hours_b, messages=None):
+    """Send Invoice (1 h) reaches a terminate end event at 10:00, ending the case; Ship Package, on the other branch,
+    takes hours_b hours and goes on to after_b, then Track Package (1 h)."""
+    elements = {"Start": "startEvent", "Split": "parallelGateway", "Send_Invoice": "task",
+                "Terminated": "endEvent:terminate", "Ship_Package": "task", after_b[0]: after_b[1],
+                "Track_Package": "task", "End": "endEvent"}
+    flows = [("start", "Start", "Split"), ("to_invoice", "Split", "Send_Invoice"),
+             ("invoice_sent", "Send_Invoice", "Terminated"), ("to_package", "Split", "Ship_Package"),
+             ("shipped", "Ship_Package", after_b[0]), ("to_tracking", after_b[0], "Track_Package"),
+             ("tracked", "Track_Package", "End")]
+    return _model(tmp_path, elements, flows, hours={"Ship_Package": hours_b}, messages=messages)
+
+
+def test_a_terminate_end_event_ends_the_case_while_another_branch_runs(tmp_path):
+    # Ship Package, started at 09:00, is logged as it ran; Track Package, due at 10:30, comes after the terminate
+    bpmn, json_path = _terminating(tmp_path, ("Shipped", "intermediateThrowEvent"), 1.5)
+
+    rows = _log(bpmn, json_path, 10, tmp_path)
+
+    by_case = {}
+    for row in rows:
+        by_case.setdefault(row["case_id"], []).append((row["activity"], row["end_time"][11:16]))
+    assert len(by_case) == 10
+    assert all(sorted(steps) == [("Send_Invoice", "10:00"), ("Ship_Package", "10:30")] for steps in by_case.values())
+
+
+def test_work_the_case_starts_before_the_terminate_goes_on(tmp_path):
+    # Ship Package ends at 09:30, before the terminate at 10:00, so Track Package starts then and is logged
+    bpmn, json_path = _terminating(tmp_path, ("Shipped", "intermediateThrowEvent"), 0.5)
+
+    rows = _log(bpmn, json_path, 1, tmp_path)
+
+    assert sorted((row["activity"], row["start_time"][11:16]) for row in rows) == [
+        ("Send_Invoice", "09:00"), ("Ship_Package", "09:00"), ("Track_Package", "09:30")]
+
+
+def _published(tmp_path, hours_b):
+    tmp_path.mkdir()
+    bpmn, json_path = _terminating(
+        tmp_path, ("Shipped", "intermediateThrowEvent:message"), hours_b,
+        messages={"publish": [{"event_id": "Shipped", "type": "Shipped", "attributes": ["object_id"]}]})
+    config = SimulationConfig(one_organization([ProcessSpec("Orders", str(bpmn), str(json_path), 1, "order")]),
+                              START, 1)
+    report = run_multiprocess_simulation(config, None)
+    return [(message.type, message.time.strftime("%H:%M")) for message in report.published], report
+
+
+def test_a_message_due_after_the_terminate_isnt_published_and_one_due_before_is(tmp_path):
+    late, report = _published(tmp_path / "late", 1.5)  # Shipped would be thrown at 10:30
+    early, _ = _published(tmp_path / "early", 0.5)  # at 09:30
+
+    assert late == [] and report.stalled == []
+    assert early == [("Shipped", "09:30")]
+
+
+def test_a_branch_waiting_for_a_message_is_dropped_with_its_case(tmp_path):
+    # Ship Package's branch waits for a Delivered message that never comes; the terminate ends the case
+    bpmn, json_path = _terminating(
+        tmp_path, ("Delivered", "intermediateCatchEvent:message"), 0.5,
+        messages={"consume": [{"event_id": "Delivered", "type": "Delivered"}]})
+    engine = ProsimosEngine(ProcessSpec("Orders", str(bpmn), str(json_path), 1, "order"), START, seed=1)
+    while engine.next_event_time() is not None:
+        engine.step()
+
+    assert engine.finish().stalled == []
+    assert engine._env._parked_events == {} and engine._env._collected == {}
+    assert not any(engine._env.all_process_states[0].tokens.values())

@@ -90,6 +90,7 @@ class SimBPMEnv(EngineMessaging):
             self._publish_points.setdefault(point.event_id, []).append(point)
         self.sim_setup.bpmn_graph.watched_elements = set(self._publish_points)
         self._held = []  # heap of (due datetime, case id, pass order, element id)
+        self._terminations_held = set()  # the cases whose terminate end event is held
         self._pass_order = itertools.count()
         self.outbox = []  # (message type, attributes, case id, element id, publish entry) released by step()
         self.logged_rows = []  # (case id, element id, enabled, completed) per row of the log, in order
@@ -190,6 +191,10 @@ class SimBPMEnv(EngineMessaging):
 
     def execute_enabled_event(self, c_event: EnabledEvent):
         self.executed_events += 1
+        if self.sim_setup.bpmn_graph.terminated_by(c_event.p_case, c_event.enabled_datetime):
+            self._end_terminated(c_event.p_case)  # a terminate end event ended its case before this came due
+            return
+
 
         event_element_info = self.sim_setup.bpmn_graph.element_info[c_event.task_id]
 
