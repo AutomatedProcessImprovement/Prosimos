@@ -187,10 +187,11 @@ uncontrolled flow: the element fires once per arriving token, without waiting fo
 merge must be drawn as an explicit parallel gateway). Prosimos follows this for tasks and
 intermediate throw events (the parser adds a hidden `xor_join_<id>`) and for end events: an end event
 takes each token that reaches it, one pass per token, and a case is finished when it has no token left.
-It doesn't for **intermediate catch events**: no hidden gateway, and `is_enabled` requires a token on
-every incoming arrow, so they behave as an AND merge. With an AND split into Task A and Task B and both
-arrows into one timer catch event before Task C, the catch event fires once, after the later branch,
-and Task C runs once per case; the standard gives two firings.
+A model may have several end events (`BPMNGraph.end_events`), e.g. "Order delivered" and "Order
+cancelled". It doesn't for **intermediate catch events**: no hidden gateway, and `is_enabled` requires a
+token on every incoming arrow, so they behave as an AND merge. With an AND split into Task A and Task B
+and both arrows into one timer catch event before Task C, the catch event fires once, after the later
+branch, and Task C runs once per case; the standard gives two firings.
 
 Message end events and message catch events that publish or wait must have a single incoming arrow
 (checked at load).
@@ -199,7 +200,6 @@ Message end events and message catch events that publish or wait must have a sin
 
 - **One start event** per process (`BPMNGraph.starting_event`; the last one parsed wins). A model
   whose start event is started by messages is rejected if it has more than one.
-- **One end event** per model (`BPMNGraph.validate_model`).
 - **Event-based gateways** without a branch waiting for a message are decided when the case reaches
   them: `get_event_gateway_choice` draws a duration for each following event and takes the shortest,
   breaking ties with `random.choice`. Those with such a branch are races (see "Waiting at catch

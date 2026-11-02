@@ -138,8 +138,7 @@ class ProcessState:
 class BPMNGraph:
     def __init__(self):
         self.starting_event = None
-        self.end_event = None
-        self.end_events_count = 0
+        self.end_events = []  # in the order of the model, so that whatever goes over them is repeatable
         self.element_info = dict()
         self.from_name = dict()
         self.flow_arcs = dict()
@@ -192,8 +191,7 @@ class BPMNGraph:
         if element_info.type == BPMN.START_EVENT:
             self.starting_event = element_id
         if element_info.type == BPMN.END_EVENT:
-            self.end_event = element_id
-            self.end_events_count += 1
+            self.end_events.append(element_id)
         self.element_info[element_id] = element_info
         self.from_name[element_info.name] = element_id
         self.nodes_bitset[element_id] = (1 << len(self.element_info))
@@ -245,10 +243,8 @@ class BPMNGraph:
                         suc_queue.append(next_info)
 
     def validate_model(self):
-        if self.end_events_count == 0:
+        if not self.end_events:
             raise InvalidBpmnModelException("At least one end event is required")
-        if self.end_events_count > 1:
-            raise InvalidBpmnModelException("Temporarily not supporting multiple end events")
 
     def _find_or_conflicting_predecesors(self, or_join_id):
         visited = {or_join_id}
@@ -591,14 +587,15 @@ class BPMNGraph:
             # if fired_tasks[current_index] and task_enabling[current_index] is None:
             #     task_enabling[current_index] = self.fix_missing_flow_enabled_dates(el_id, p_state)
 
-        # Firing End Event
-        enabled_end, or_fired, path_decisions = self._find_enabled_predecessors(
-            self.element_info[self.end_event], p_state)
-        self.fire_enabled_predecessors(enabled_end, p_state, or_fired, path_decisions, f_arcs_frequency,
-                                       fired_or_splits)
-        end_flow = self.element_info[self.end_event].incoming_flows[0]
-        if p_state.has_token(end_flow):
-            p_state.tokens[end_flow] = 0
+        # Firing End Events
+        for end_event in self.end_events:
+            enabled_end, or_fired, path_decisions = self._find_enabled_predecessors(
+                self.element_info[end_event], p_state)
+            self.fire_enabled_predecessors(enabled_end, p_state, or_fired, path_decisions, f_arcs_frequency,
+                                           fired_or_splits)
+            for end_flow in self.element_info[end_event].incoming_flows:
+                if p_state.has_token(end_flow):
+                    p_state.tokens[end_flow] = 0
 
         is_correct = True
         for i in range(0, len(task_sequence)):

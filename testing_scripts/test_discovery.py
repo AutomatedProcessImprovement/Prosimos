@@ -1,8 +1,9 @@
+import json
 from pathlib import Path
 
 import pytest
 from bpdfr_discovery.log_parser import preprocess_xes_log
-from prosimos.exceptions import InvalidBpmnModelException, InvalidLogFileException
+from prosimos.exceptions import InvalidLogFileException
 
 
 @pytest.fixture
@@ -112,19 +113,23 @@ def test_discovery_csv_input_error(assets_path):
     assert len(id_from_name) != 0, "Map 'elementId - name' should not be empty"
 
     
-def test_discovery_two_end_events_error_message(assets_path):
+def test_discovery_with_two_end_events(assets_path, tmp_path):
     model_path = assets_path / 'purchasing_example_multiple_end_events.bpmn'
     log_path = assets_path / 'purchasing_example_multiple_events_log.xes'
-    output_path = assets_path / 'purchasing_example.json'
+    output_path = tmp_path / 'purchasing_example.json'
 
     [granule, conf, supp, part, adj_calendar] = [60, 0.1, 0.9, 0.6, True]
 
-    with pytest.raises(InvalidBpmnModelException):
-        _ = preprocess_xes_log(log_path.as_posix(),
-                                            model_path.as_posix(),
-                                            output_path.as_posix(), granule, conf, supp, part,
-                                            adj_calendar,
-                                            False)
+    _ = preprocess_xes_log(log_path.as_posix(),
+                                        model_path.as_posix(),
+                                        output_path.as_posix(), granule, conf, supp, part,
+                                        adj_calendar,
+                                        False)
+
+    with output_path.open('r') as f:
+        settings = json.load(f)
+    assert len(settings['task_resource_distribution']) != 0, 'Task Resource Distribution should not be empty'
+    assert len(settings['gateway_branching_probabilities']) != 0, 'Gateway Branching section should not be empty'
 
 def test_discovery_invalid_csv_error_message(assets_path):
     model_path = assets_path / 'purchasing_example.bpmn'

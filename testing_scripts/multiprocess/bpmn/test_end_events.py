@@ -1,6 +1,6 @@
 """
 End events (docs/engine-internals.md, "Implicit merges"): an end event takes each token that reaches it, without a
-hidden join in front of it, and a case is finished when it has no token left.
+hidden join in front of it, a model may have several end events, and a case is finished when it has no token left.
 """
 import csv
 import datetime
@@ -13,16 +13,26 @@ import pytz
 from prosimos.control_flow_manager import CustomDatetimeAndSeconds
 from prosimos.simulation_engine import run_simulation
 from prosimos.simulation_properties_parser import parse_simulation_model
+from prosimos.orchestration.config import ProcessSpec, SimulationConfig
+from prosimos.orchestration.simulation import run_multiprocess_simulation
 from prosimos.simulation_setup import SimDiffSetup
+from testing_scripts.multiprocess.orchestrator_settings import one_organization
 
 START = pytz.utc.localize(datetime.datetime(2024, 1, 1, 9))
 ALWAYS = [{"from": "MONDAY", "to": "SUNDAY", "beginTime": "00:00:00", "endTime": "23:59:59"}]
 
 
-def _model(tmp_path, elements, flows, hours=None, probabilities=None):
+def _node(element, tag):
+    """A BPMN element, tag "endEvent:message" for one with a message event definition."""
+    tag, _, definition = tag.partition(":")
+    inside = f"<{definition}EventDefinition/>" if definition else ""
+    return f'<{tag} id="{element}" name="{element}">{inside}</{tag}>'
+
+
+def _model(tmp_path, elements, flows, hours=None, probabilities=None, messages=None):
     """A process of these elements (id -> BPMN tag) and flows ((id, source, target)), and its JSON settings: every
     task takes hours[task] hours, 1 by default, and has a resource of its own."""
-    nodes = "".join(f'<{tag} id="{element}" name="{element}"/>' for element, tag in elements.items())
+    nodes = "".join(_node(element, tag) for element, tag in elements.items())
     arrows = "".join(f'<sequenceFlow id="{flow}" sourceRef="{source}" targetRef="{target}"/>'
                      for flow, source, target in flows)
     (tmp_path / "model.bpmn").write_text(
@@ -42,6 +52,8 @@ def _model(tmp_path, elements, flows, hours=None, probabilities=None):
             {"resource_id": f"R_{task}", "distribution_name": "fix",
              "distribution_params": [{"value": 3600 * (hours or {}).get(task, 1)}]}]} for task in tasks],
         "resource_calendars": [{"id": "Always", "name": "Always", "time_periods": ALWAYS}]}
+    if messages is not None:
+        settings["messages"] = messages
     (tmp_path / "model.json").write_text(json.dumps(settings))
     return tmp_path / "model.bpmn", tmp_path / "model.json"
 
@@ -133,3 +145,66 @@ def test_each_case_of_an_exclusive_choice_ends_after_its_one_branch(tmp_path):
         by_case.setdefault(row["case_id"], []).append(row["activity"])
     assert len(by_case) == 20 and all(len(activities) == 1 for activities in by_case.values())
     assert {activity for activities in by_case.values() for activity in activities} == {"Approve", "Reject"}
+
+
+# several end events
+
+INVOICE_SENT_AND_PACKAGE_SHIPPED = (
+    {"Start": "startEvent", "Split": "parallelGateway", "Send_Invoice": "task", "Ship_Package": "task",
+     "Invoice_Sent": "endEvent", "Package_Shipped": "endEvent"},
+    [("start", "Start", "Split"), ("to_invoice", "Split", "Send_Invoice"), ("to_package", "Split", "Ship_Package"),
+     ("invoice_sent", "Send_Invoice", "Invoice_Sent"), ("package_shipped", "Ship_Package", "Package_Shipped")])
+
+
+def test_a_model_may_have_several_end_events(tmp_path):
+    bpmn, _ = _model(tmp_path, *INVOICE_SENT_AND_PACKAGE_SHIPPED)
+
+    assert parse_simulation_model(bpmn).end_events == ["Invoice_Sent", "Package_Shipped"]
+
+
+def test_each_branch_ends_at_its_own_end_event_and_the_case_with_the_last(tmp_path):
+    setup, graph, state = _setup(*_model(tmp_path, *INVOICE_SENT_AND_PACKAGE_SHIPPED))
+    graph.watched_elements = {"Invoice_Sent", "Package_Shipped"}
+    at = CustomDatetimeAndSeconds(0, START)
+    graph.update_process_state(0, "Start", state, at)
+
+    graph.update_process_state(0, "Send_Invoice", state, at)
+
+    assert [element for _, element, _ in graph.passed_watched_elements] == ["Invoice_Sent"]
+    assert state.pending_tokens() == ["to_package"]
+
+    graph.update_process_state(0, "Ship_Package", state, at)
+
+    assert [element for _, element, _ in graph.passed_watched_elements] == ["Invoice_Sent", "Package_Shipped"]
+    assert state.pending_tokens() == []
+
+
+def test_a_case_with_several_end_events_finishes_with_its_last_branch(tmp_path):
+    bpmn, json_path = _model(tmp_path, *INVOICE_SENT_AND_PACKAGE_SHIPPED, hours={"Ship_Package": 5})
+
+    rows = _log(bpmn, json_path, 1, tmp_path)
+
+    assert sorted((row["activity"], row["end_time"][11:16]) for row in rows) == [
+        ("Send_Invoice", "10:00"), ("Ship_Package", "14:00")]
+
+
+def test_a_message_end_event_next_to_another_end_event_publishes_when_its_token_arrives(tmp_path):
+    # an order is delivered, publishing Delivered at its message end event, or cancelled, at a plain one
+    bpmn, json_path = _model(
+        tmp_path, {"Start": "startEvent", "Choice": "exclusiveGateway", "Deliver": "task", "Cancel": "task",
+                   "Delivered": "endEvent:message", "Cancelled": "endEvent"},
+        [("start", "Start", "Choice"), ("to_deliver", "Choice", "Deliver"), ("to_cancel", "Choice", "Cancel"),
+         ("delivered", "Deliver", "Delivered"), ("cancelled", "Cancel", "Cancelled")],
+        hours={"Deliver": 2}, probabilities={"Choice": [("to_deliver", 0.5), ("to_cancel", 0.5)]},
+        messages={"publish": [{"event_id": "Delivered", "type": "Delivered", "attributes": ["object_id"]}]})
+    config = SimulationConfig(one_organization([ProcessSpec("Orders", str(bpmn), str(json_path), 20, "order")]),
+                              START, 1)
+
+    report = run_multiprocess_simulation(config, tmp_path / "log.csv")
+
+    with open(tmp_path / "log.csv") as file:
+        delivered = {f"order-{row['case_id']}": datetime.datetime.fromisoformat(row["end_time"])
+                     for row in csv.DictReader(file) if row["activity"] == "Deliver"}
+    assert 0 < len(delivered) < 20  # some orders are cancelled
+    assert sorted((message.attributes["object_id"], message.time) for message in report.published) == \
+        sorted(delivered.items())

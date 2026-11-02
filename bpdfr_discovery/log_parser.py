@@ -587,7 +587,7 @@ def is_trace_event_start_or_end(event, bpmn_graph: BPMNGraph):
     if element_id == "":
         print("WARNING: Trace event could not be mapped to the BPMN element.")
         return False
-    elif element_id in [bpmn_graph.starting_event, bpmn_graph.end_event]:
+    elif element_id == bpmn_graph.starting_event or element_id in bpmn_graph.end_events:
         return True
 
     return False

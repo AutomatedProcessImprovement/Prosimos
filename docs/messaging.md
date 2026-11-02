@@ -632,10 +632,6 @@ Item (Picking):  start ItemOrdered (copy order_id, index) -> Pick -> (throw Item
     only when offered after the case has finished;
   - a message matching several branches of one race goes to one of them, the one listed first, not to
     all.
-- **One end event per model.** Prosimos supports only one end event in a model ("Temporarily not
-  supporting multiple end events"), so a model can't have a message end event next to another end
-  event. Instead, publish with an intermediate message throw event on that branch, then merge the
-  branches with an explicit XOR gateway into the single end event.
 - **`index` is reserved for `count`.** A publish entry can list `index` only with `count`, where it is the
   message's number, so a case can't pass on a number it was given under that name (e.g. an item publishing
   the `index` it copied from `ItemOrdered`). Copy it into a case attribute with another name, e.g.
