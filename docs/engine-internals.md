@@ -216,6 +216,9 @@ single incoming arrow (checked at load), since waiting is counted once per case 
 
 ## Model restrictions
 
+- **Task types**: a user, service, send, receive, script, manual or business rule task runs exactly like a
+  plain task, with the same durations, resources and log row (`TASK_TAGS`). A 'send' or 'receive' task doesn't
+  publish or wait for messages; message events do.
 - **Start events**: a process may have several message start events (`BPMNGraph.start_events`), and
   each message-started case starts at the one whose entry accepted its message; at most one start event
   has no `consume` entry, the scheduled start, where the arrival schedule starts its cases

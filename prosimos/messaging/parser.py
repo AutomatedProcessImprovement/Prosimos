@@ -5,6 +5,7 @@ import numbers
 import xml.etree.ElementTree as ET
 from collections import Counter
 
+from prosimos.control_flow_manager import TASK_TAGS
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.messaging.model import (AGGREGATE_FUNCTIONS, COMPARISONS, ConditionTerm, ConsumePoint, MessagingModel,
                                       PublishPoint)
@@ -400,7 +401,8 @@ def _carry(entry, where, tasks):
 
 def _tasks(bpmn_path):
     """The ids and names of the model's tasks."""
-    return {key for element in ET.parse(bpmn_path).getroot().iter() if element.tag == BPMN_NS + "task"
+    tags = {BPMN_NS + tag for tag in TASK_TAGS}
+    return {key for element in ET.parse(bpmn_path).getroot().iter() if element.tag in tags
             for key in (element.attrib.get("id"), element.attrib.get("name")) if key}
 
 

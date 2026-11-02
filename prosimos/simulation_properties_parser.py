@@ -11,7 +11,7 @@ from pix_framework.statistics.distribution import DurationDistribution
 from prosimos.fuzzy_engine.fuzzy_calendar import FuzzyModel, WeeklyFuzzyCalendar
 from prosimos.batch_processing_parser import BatchProcessingParser
 from prosimos.case_attributes import AllCaseAttributes, CaseAttribute
-from prosimos.control_flow_manager import BPMN, EVENT_TYPE, BPMNGraph, ElementInfo
+from prosimos.control_flow_manager import BPMN, EVENT_TYPE, TASK_TAGS, BPMNGraph, ElementInfo
 from prosimos.exceptions import InvalidBpmnModelException
 from prosimos.histogram_distribution import HistogramDistribution
 from prosimos.multitasking.multitasking_struct import MultiTaskDS
@@ -414,7 +414,7 @@ def parse_simulation_model(bpmn_path):
     root = tree.getroot()
 
     to_extract = {
-        "xmlns:task": BPMN.TASK,
+        **{f"xmlns:{tag}": BPMN.TASK for tag in TASK_TAGS},
         "xmlns:startEvent": BPMN.START_EVENT,
         "xmlns:endEvent": BPMN.END_EVENT,
         "xmlns:exclusiveGateway": BPMN.EXCLUSIVE_GATEWAY,

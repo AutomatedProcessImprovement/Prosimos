@@ -67,6 +67,10 @@ class BPMN(Enum):
 
 from prosimos.outgoing_flow_selector import OutgoingFlowSelector
 
+# every kind of BPMN task; each runs as a plain task (a send or receive task doesn't publish or wait for messages)
+TASK_TAGS = ("task", "userTask", "serviceTask", "sendTask", "receiveTask", "scriptTask", "manualTask",
+             "businessRuleTask")
+
 class EVENT_TYPE(Enum):
     MESSAGE = 'MESSAGE'
     TIMER = 'TIMER'

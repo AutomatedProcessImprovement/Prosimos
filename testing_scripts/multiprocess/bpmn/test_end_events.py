@@ -10,7 +10,7 @@ import random
 import numpy as np
 import pytz
 
-from prosimos.control_flow_manager import CustomDatetimeAndSeconds
+from prosimos.control_flow_manager import TASK_TAGS, CustomDatetimeAndSeconds
 from prosimos.simulation_engine import run_simulation
 from prosimos.simulation_properties_parser import parse_simulation_model
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
@@ -40,7 +40,7 @@ def _model(tmp_path, elements, flows, hours=None, probabilities=None, messages=N
     (tmp_path / "model.bpmn").write_text(
         '<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" id="d" targetNamespace="t">'
         f'<process id="p">{nodes}{arrows}</process></definitions>')
-    tasks = [element for element, tag in elements.items() if tag == "task"]
+    tasks = [element for element, tag in elements.items() if tag in TASK_TAGS]
     settings = {
         "resource_profiles": [{"id": "Staff", "name": "Staff", "resource_list": [
             {"id": f"R_{task}", "name": f"R_{task}", "cost_per_hour": 1, "amount": 1, "calendar": "Always",
