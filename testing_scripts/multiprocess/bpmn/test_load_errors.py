@@ -107,3 +107,22 @@ def test_a_link_catch_event_is_rejected_with_its_own_message(tmp_path):
                                                         "aren't, so draw an arrow from where its link throw event "
                                                         "would be$"):
         parse_simulation_model(bpmn)
+
+
+@pytest.mark.parametrize("tag, message", [
+    ("subProcess", "sub-process Inner is not supported: draw its elements in the process"),
+    ("adHocSubProcess", "ad hoc sub-process Inner is not supported: draw its elements in the process"),
+    ("transaction", "transaction Inner is not supported: draw its elements in the process"),
+    ("callActivity", "call activity Inner is not supported: draw the called process's elements in the process, or "
+                     "run it as a process of its own"),
+    ("complexGateway", "complex gateway Inner is not supported: draw it with exclusive, inclusive or parallel "
+                       "gateways"),
+])
+def test_a_sub_process_call_activity_transaction_or_complex_gateway_is_rejected(tmp_path, tag, message):
+    bpmn = _bpmn(tmp_path, f'''<process id="p">
+        <startEvent id="Start"/><{tag} id="Inner"/><endEvent id="End"/>
+        <sequenceFlow id="f1" sourceRef="Start" targetRef="Inner"/>
+        <sequenceFlow id="f2" sourceRef="Inner" targetRef="End"/></process>''')
+
+    with pytest.raises(InvalidBpmnModelException, match=f"^{message}$"):
+        parse_simulation_model(bpmn)

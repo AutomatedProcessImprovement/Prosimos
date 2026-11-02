@@ -431,6 +431,7 @@ def parse_simulation_model(bpmn_path):
     _check_one_process(processes)
     for process in processes:
         _check_no_boundary_events(process)
+        _check_no_unsupported_elements(process)
         for xmlns_key in to_extract:
             for bpmn_element in process.findall(xmlns_key, bpmn_element_ns):
                 name = (
@@ -554,6 +555,23 @@ def _check_every_element_is_reached(elements_map):
                     f"its link throw event would be")
             raise InvalidBpmnModelException(
                 f"{element_id} has no incoming arrow, so it would never run: connect it (only a start event has none)")
+
+
+# elements Prosimos doesn't simulate, and what to draw instead
+UNSUPPORTED = {
+    "subProcess": ("sub-process", "draw its elements in the process"),
+    "adHocSubProcess": ("ad hoc sub-process", "draw its elements in the process"),
+    "transaction": ("transaction", "draw its elements in the process"),
+    "callActivity": ("call activity", "draw the called process's elements in the process, or run it as a process "
+                                      "of its own"),
+    "complexGateway": ("complex gateway", "draw it with exclusive, inclusive or parallel gateways"),
+}
+
+
+def _check_no_unsupported_elements(process):
+    for tag, (what, instead) in UNSUPPORTED.items():
+        for element in process.findall(f"xmlns:{tag}", bpmn_element_ns):
+            raise InvalidBpmnModelException(f"{what} {element.attrib['id']} is not supported: {instead}")
 
 
 def _check_no_boundary_events(process):
