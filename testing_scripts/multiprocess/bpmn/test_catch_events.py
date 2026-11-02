@@ -2,6 +2,8 @@
 Catch events (docs/engine-internals.md, "Implicit merges"): a catch event Prosimos runs as a drawn delay fires once
 per arriving token, each token waiting its own duration, without waiting for its other arrows.
 """
+import pytest
+
 from prosimos.control_flow_manager import CustomDatetimeAndSeconds
 from prosimos.simulation_setup import SimDiffSetup
 from testing_scripts.multiprocess.bpmn.test_end_events import START, _log, _model
@@ -71,3 +73,15 @@ def test_each_token_at_a_catch_event_is_taken_by_its_own_firing(tmp_path):
     assert sum(state.tokens.values()) == 1  # the other firing's token is still there
     graph.update_process_state(0, "One_Hour", state, at)
     assert sum(state.tokens.values()) == 0
+
+
+@pytest.mark.parametrize("kind", ["conditional", "signal"])
+def test_a_conditional_or_signal_catch_event_runs_as_its_drawn_delay_without_a_warning(tmp_path, capsys, kind):
+    bpmn, json_path = _model(
+        tmp_path, {"Start": "startEvent", "Wait": f"intermediateCatchEvent:{kind}", "Ship": "task", "End": "endEvent"},
+        [("start", "Start", "Wait"), ("waited", "Wait", "Ship"), ("shipped", "Ship", "End")], events={"Wait": 2})
+
+    steps = _steps(_log(bpmn, json_path, 1, tmp_path))
+
+    assert steps["0"] == [("Ship", "01 11:00", "01 12:00")]  # after the 2 h wait
+    assert "undefined event type" not in capsys.readouterr().out

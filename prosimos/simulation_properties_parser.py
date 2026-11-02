@@ -513,6 +513,7 @@ def _get_event_type_from_element(name: str, bpmn_element):
                 "messageEventDefinition": EVENT_TYPE.MESSAGE,
                 "linkEventDefinition": EVENT_TYPE.LINK,
                 "signalEventDefinition": EVENT_TYPE.SIGNAL,
+                "conditionalEventDefinition": EVENT_TYPE.CONDITIONAL,
                 "terminateEventDefinition": EVENT_TYPE.TERMINATE,
             }
 
