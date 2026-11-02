@@ -427,7 +427,9 @@ def parse_simulation_model(bpmn_path):
 
     bpmn_graph = BPMNGraph()
     elements_map = dict()
-    for process in root.findall("xmlns:process", bpmn_element_ns):
+    processes = root.findall("xmlns:process", bpmn_element_ns)
+    _check_one_process(processes)
+    for process in processes:
         _check_no_boundary_events(process)
         for xmlns_key in to_extract:
             for bpmn_element in process.findall(xmlns_key, bpmn_element_ns):
@@ -526,6 +528,17 @@ def _get_event_type_from_element(name: str, bpmn_element):
                 print(f"WARNING: {name} event has an undefined event type")
 
             return event_type
+
+
+def _check_one_process(processes):
+    # every process would be read into one graph, where only the last start event runs; an empty pool is harmless
+    not_drawn = ("laneSet", "documentation", "extensionElements")
+    drawn = [process.attrib.get("id") for process in processes
+             if any(child.tag.split("}")[1] not in not_drawn for child in process)]
+    if len(drawn) > 1:
+        raise InvalidBpmnModelException(
+            f"the file has {len(drawn)} processes ({', '.join(drawn)}): Prosimos simulates one process per file, so "
+            f"put each pool in a file of its own (in a multi-process run, each its own process)")
 
 
 def _check_no_boundary_events(process):

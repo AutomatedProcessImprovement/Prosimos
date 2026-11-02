@@ -55,3 +55,26 @@ def test_none_message_and_terminate_end_events_are_accepted(tmp_path, definition
         <sequenceFlow id="f2" sourceRef="Approve" targetRef="Done"/></process>''')
 
     assert parse_simulation_model(bpmn).end_events == ["Done"]
+
+
+SALES_POOL = '''<process id="Sales"><startEvent id="Order"/><task id="Sell"/><endEvent id="Sold"/>
+    <sequenceFlow id="f1" sourceRef="Order" targetRef="Sell"/><sequenceFlow id="f2" sourceRef="Sell" targetRef="Sold"/>
+    </process>'''
+
+
+def test_a_file_with_two_pools_is_rejected(tmp_path):
+    # today only the last start event runs, and the Sales pool never does
+    bpmn = _bpmn(tmp_path, SALES_POOL + '''<process id="Billing"><startEvent id="Bill"/><task id="Invoice"/>
+        <endEvent id="Billed"/><sequenceFlow id="g1" sourceRef="Bill" targetRef="Invoice"/>
+        <sequenceFlow id="g2" sourceRef="Invoice" targetRef="Billed"/></process>''')
+
+    with pytest.raises(InvalidBpmnModelException, match=r"the file has 2 processes \(Sales, Billing\): Prosimos "
+                                                        r"simulates one process per file, so put each pool in a file "
+                                                        r"of its own \(in a multi-process run, each its own process\)"):
+        parse_simulation_model(bpmn)
+
+
+def test_an_empty_pool_next_to_the_process_is_accepted(tmp_path):
+    bpmn = _bpmn(tmp_path, SALES_POOL + '<process id="Customer"/>')
+
+    assert parse_simulation_model(bpmn).start_events == ["Order"]

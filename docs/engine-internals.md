@@ -226,7 +226,9 @@ single incoming arrow (checked at load), since waiting is counted once per case 
 - **Not simulated**, each a load error naming the element:
   - boundary events: Prosimos runs a task in one go, so nothing can interrupt it or start a path beside it;
   - end events other than none, message and terminate (error, escalation, signal, compensation), as throw
-    events other than none and message: they stand for what Prosimos doesn't simulate.
+    events other than none and message: they stand for what Prosimos doesn't simulate;
+  - several pools (`process` elements with flow elements) in one file: Prosimos simulates one process per
+    file, so each pool goes in a file of its own.
 - **Event-based gateways** without a branch waiting for a message are decided when the case reaches
   them: `get_event_gateway_choice` draws a duration for each following event and takes the shortest,
   breaking ties with `random.choice`. Those with such a branch are races (see "Waiting at catch
