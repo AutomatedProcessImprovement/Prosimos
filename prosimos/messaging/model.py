@@ -31,11 +31,23 @@ class PublishPoint:
     o2o: Optional[str] = None  # OCEL link from the publishing case's object to each claimer's
     # the later events of the case that also link the claimers' objects: True for all, or the activities named
     carry: Union[bool, Tuple[str, ...]] = False
+    fan_in: Optional[int] = None  # the number of members whose parts make one message
+    fan_in_attribute: Optional[str] = None  # the case attribute holding that number
+    # case attributes the members of one group share, sent by their plain names; () makes one group at a time
+    same: Tuple[str, ...] = ()
+    gathered: Tuple[Tuple[str, str], ...] = ()  # (message attribute, case attribute): a list of the members' values
+    # (message attribute, function, case attribute, initial): over the members' values
+    computed: Tuple[Tuple[str, str, str, Optional[float]], ...] = ()
 
     @property
     def fans_out(self):
         """Whether the entry has a fan_out (else it publishes one message, without an index)."""
         return self.fan_out is not None or self.fan_out_attribute is not None or self.fan_out_list is not None
+
+    @property
+    def fans_in(self):
+        """Whether the entry has a fan_in: the parts of several cases make one message."""
+        return self.fan_in is not None or self.fan_in_attribute is not None
 
 
 @dataclass(frozen=True)

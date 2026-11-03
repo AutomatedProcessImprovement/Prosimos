@@ -262,6 +262,30 @@ With `item_ids = ["item-0", "item-1", "item-2"]`, the package publishes 3 messag
 - `index` is the entry's position, 1..N, as with the other forms; list it in `attributes` to send it.
 - A missing or empty list publishes nothing, with one warning per event.
 
+**fan_in** (optional, on a `publish` entry) is the mirror of `fan_out`: the parts of several cases make one
+message. Each case that passes the event hands in its part and moves on, and a group's message goes out once
+it has `fan_in` parts: a fixed number, or `{"object_attribute": "items"}`, read from the case. With `same`, the
+cases with the same values of its attributes form a group, one group per value. Without it, all parts of the
+entry form one group at a time ("any 5 parcels"); once it is sent, the next part opens a new group. For
+example, the items of an order, picked separately, sending one `OrderPicked` once all of them are picked:
+
+```json
+{"event_id": "Throw_OrderPicked", "type": "OrderPicked",
+ "fan_in": {"object_attribute": "items"}, "same": ["order_id"],
+ "attributes": ["order_id", {"item_ids": "object_id"}, {"total_weight": {"sum": "weight"}}]}
+```
+
+The attributes take the shapes of `copy` and `with` ([catalogue.md](catalogue.md)):
+
+- a plain name, which must be in `same`, is sent once, since every member has the same value; without `same`,
+  no attribute is sent by its plain name;
+- `{"item_ids": "object_id"}` sends a list of the members' values, in the order their parts came in;
+- `{"total_weight": {"sum": "weight"}}` sends a function over the members' values: `sum`, `count`, `min` or
+  `max`, with an optional `initial`, as for `aggregate`.
+
+`object_id` and `index` aren't sent by their names: the message has several publishers, and it is one
+message, not one of a numbered series. A member's own id goes into a list, as `item_ids` above.
+
 **qualifier** (optional, on any entry) makes this end of the message write OCEL links, and qualifies them: on
 a `publish` entry, the links from the last task before the event to the cases that took the messages; on
 a `consume` entry, the links from the next task after the event to the case that published the message
@@ -328,8 +352,8 @@ The section is checked when the model is loaded. An invalid section stops loadin
 `Invalid 'messages' section: messages.consume[0]: event_id 'Timer_Cancel' is an intermediateCatchEvent, expected an intermediate message catch event`.
 
 - The section holds only `publish` and `consume`, each a list.
-- No key is unknown: in the section, its entries, their `fan_out`, `collect` and `capacity`, and condition
-  terms. A misspelled key would otherwise be ignored and change the run without any message:
+- No key is unknown: in the section, its entries, their `fan_out`, `fan_in`, `collect` and `capacity`, and
+  condition terms. A misspelled key would otherwise be ignored and change the run without any message:
   `messages.consume[0]: unknown key 'colect'; allowed: aggregate, append, capacity, carry, collect, condition, copy, event_id, o2o, qualifier, same, type`.
 - Every `event_id` exists in the BPMN model.
 - A `publish` event is an intermediate message throw event or a message end event.
@@ -340,6 +364,14 @@ The section is checked when the model is loaded. An invalid section stops loadin
 - `fan_out` is either a whole number of at least 0, `{"object_attribute": <declared attribute>}` or
   `{"list": <declared attribute>, "as": <name other than object_id and index>}`, and only on a `publish`
   entry: only throw and end events publish, and a start event starts exactly one case per message.
+- `fan_in` is a whole number of at least 1 or `{"object_attribute": <declared attribute>}`, only on a
+  `publish` entry, and not together with `fan_out`, since one turns several cases into one message and the
+  other one case into several messages. Its `same`, if given, is a non-empty list of declared attributes, each
+  listed once. Its `attributes` are plain names in `same`, `{<name>: <attribute>}` lists or `{<name>: {<function>:
+  <attribute>}}` functions, each name sent once and each attribute declared or `object_id`; not `index`, and
+  not `object_id` by its name. A plain name not in `same` (any plain name, without `same`) is rejected, since
+  the members may differ in it: the error says to send it as a list or a function.
+- A list or a function in `attributes`, and `same`, are only on an entry with `fan_in`.
 - A catch event under `consume` has exactly one incoming arrow, since a case waits there once:
   waiting and `collect` are counted per case and event, so two tokens of one case can't wait at one
   event. Otherwise, the error says to draw one catch event per path, or a gateway before it. A message

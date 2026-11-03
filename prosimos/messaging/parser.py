@@ -15,7 +15,7 @@ MESSAGE_DEFINITION = BPMN_NS + "messageEventDefinition"
 PUBLISHING_EVENTS = {"intermediateThrowEvent": "an intermediate message throw event", "endEvent": "a message end event"}
 CONSUMING_EVENTS = {"intermediateCatchEvent": "an intermediate message catch event", "startEvent": "a message start event"}
 TERM_KEYS = {"attribute", "comparison", "value", "object_attribute"}
-PUBLISH_KEYS = {"event_id", "type", "attributes", "fan_out", "qualifier", "o2o", "carry"}
+PUBLISH_KEYS = {"event_id", "type", "attributes", "fan_out", "fan_in", "same", "qualifier", "o2o", "carry"}
 CONSUME_KEYS = {"event_id", "type", "condition", "copy", "append", "aggregate", "capacity", "collect", "same",
                 "qualifier", "o2o", "carry"}
 
@@ -56,8 +56,9 @@ def parse_messages(messages_json, bpmn_path, declared_attributes, case_attribute
     tasks = _tasks(bpmn_path)
     # consume first, so a malformed copy is reported as such, not as an undeclared published attribute
     consume, collecting = [], []
-    # fan_out gets its own reason below
-    for where, entry in _entries(messages_json, "consume", CONSUME_KEYS, events, CONSUMING_EVENTS, ("fan_out",)):
+    # fan_out and fan_in get their own reasons below
+    for where, entry in _entries(messages_json, "consume", CONSUME_KEYS, events, CONSUMING_EVENTS,
+                                 ("fan_out", "fan_in")):
         starts_case = events[entry["event_id"]][0] == "startEvent"
         low, low_attribute, high, high_attribute = _collect(entry, where, starts_case)
         fewest, fewest_attribute, most, most_attribute = _capacity(entry, where, starts_case)
@@ -70,6 +71,9 @@ def parse_messages(messages_json, bpmn_path, declared_attributes, case_attribute
         if "fan_out" in entry:
             _fail(f"{where}: fan_out is only for publish entries, on throw and end events: only they publish, and a "
                   f"start event starts exactly one case per message")
+        if "fan_in" in entry:
+            _fail(f"{where}: fan_in is only for publish entries, where several cases make one message; to take "
+                  f"several messages at a catch event, use collect")
         if point.starts_case:
             _check_start(where, point)
         consume.append(point)
@@ -79,13 +83,17 @@ def parse_messages(messages_json, bpmn_path, declared_attributes, case_attribute
     _check_appended_only(consume)
     _check_aggregated_only(consume)
     _check_races(consume, events, gateway_branches)
-    publish = tuple(
-        PublishPoint(entry["event_id"], entry["type"], _attributes(entry, where, declared_attributes),
-                     *_fan_out(entry, where, declared_attributes), _name(entry, "qualifier", where),
-                     _name(entry, "o2o", where), _carry(entry, where, tasks))
-        for where, entry in _entries(messages_json, "publish", PUBLISH_KEYS, events, PUBLISHING_EVENTS)
-    )
-    return MessagingModel(publish, tuple(consume))
+    publish = []
+    for where, entry in _entries(messages_json, "publish", PUBLISH_KEYS, events, PUBLISHING_EVENTS):
+        links = _name(entry, "qualifier", where), _name(entry, "o2o", where), _carry(entry, where, tasks)
+        if "fan_in" in entry:
+            publish.append(_fan_in_point(entry, where, declared_attributes, links))
+            continue
+        if "same" in entry:
+            _fail(f"{where}: 'same' on a publish entry needs a fan_in: it says which cases' parts make one message")
+        publish.append(PublishPoint(entry["event_id"], entry["type"], _attributes(entry, where, declared_attributes),
+                                    *_fan_out(entry, where, declared_attributes), *links))
+    return MessagingModel(tuple(publish), tuple(consume))
 
 
 def _check_start(where, point):
@@ -181,17 +189,18 @@ def _collect(entry, where, starts_case):
     return 1, collect["object_attribute"], None, None
 
 
-def _same(entry, where):
-    """The message attributes a collecting case's messages must all have the same values of: ["customer"]."""
+def _same(entry, where, kind="message"):
+    """The attributes whose values all messages a collecting case claims, or all members of a fan-in group,
+    share: ["customer"]."""
     if "same" not in entry:
         return ()
     same = entry["same"]
     if not isinstance(same, list) or not same or not all(isinstance(name, str) and name for name in same):
-        _fail(f"{where}: 'same' must be a non-empty list of message attribute names, got {same!r}")
+        _fail(f"{where}: 'same' must be a non-empty list of {kind} attribute names, got {same!r}")
     repeated = sorted(name for name, times in Counter(same).items() if times > 1)
     if repeated:
         _fail(f"{where}: 'same' lists {', '.join(repeated)} more than once")
-    if "collect" not in entry:
+    if "collect" not in entry and kind == "message":
         _fail(f"{where}: 'same' needs a collect: without one, a case takes a single message, so there is nothing "
               f"to compare it with")
     return tuple(same)
@@ -445,6 +454,9 @@ def _fan_out_over_list(fan_out, where, declared):
 
 def _attributes(entry, where, declared):
     attributes = entry.get("attributes", [])
+    if isinstance(attributes, list) and any(isinstance(name, dict) for name in attributes):
+        _fail(f"{where}: a list or a function in 'attributes' needs a fan_in: without one, the message carries a "
+              f"single case's values, by their names")
     if not isinstance(attributes, list) or not all(isinstance(name, str) and name for name in attributes):
         _fail(f"{where}: 'attributes' must be a list of attribute names")
     if "index" in attributes and "fan_out" not in entry:
@@ -459,6 +471,88 @@ def _attributes(entry, where, declared):
     if unknown:
         _fail(f"{where}: {', '.join(map(repr, unknown))} not declared as an object, global or event attribute")
     return tuple(attributes)
+
+
+def _fan_in_point(entry, where, declared, links):
+    """A publish entry with fan_in: e.g. {"fan_in": {"object_attribute": "items"}, "same": ["order_id"],
+    "attributes": ["order_id", {"item_ids": "object_id"}, {"total_weight": {"sum": "weight"}}]}."""
+    if "fan_out" in entry:
+        _fail(f"{where}: fan_in and fan_out can't be combined on one entry: one turns several cases into one "
+              f"message, the other one case into several messages")
+    size = entry["fan_in"]
+    if isinstance(size, dict):
+        _check_keys(f"{where}.fan_in", size, {"object_attribute"})
+    if is_whole_number_of_at_least_one(size):
+        number, attribute = int(size), None
+    elif isinstance(size, dict) and isinstance(size.get("object_attribute"), str):
+        number, attribute = None, size["object_attribute"]
+        if attribute not in declared:
+            _fail(f"{where}: 'fan_in' object_attribute {attribute!r} is not a declared object, global or event "
+                  f"attribute")
+    else:
+        _fail(f"{where}: 'fan_in' must be either a whole number of at least 1 or {{\"object_attribute\": <object "
+              f"attribute>}}, got {size!r}")
+    same = _same(entry, where, kind="object")
+    undeclared = [name for name in same if name not in declared]
+    if undeclared:
+        _fail(f"{where}: 'same' names {', '.join(map(repr, undeclared))}, not declared as an object, global or event "
+              f"attribute")
+    plain, gathered, computed = _fan_in_attributes(entry, where, declared, same)
+    qualifier, o2o, carry = links
+    return PublishPoint(entry["event_id"], entry["type"], plain, qualifier=qualifier, o2o=o2o, carry=carry,
+                        fan_in=number, fan_in_attribute=attribute, same=same, gathered=gathered, computed=computed)
+
+
+def _fan_in_attributes(entry, where, declared, same):
+    """(plain names, (name, source) lists, (name, function, source, initial) functions) of a fan-in entry."""
+    attributes = entry.get("attributes", [])
+    if not isinstance(attributes, list):
+        attributes = [None]
+    plain, gathered, computed = [], [], []
+    for item in attributes:
+        if isinstance(item, str) and item:
+            plain.append(item)
+            continue
+        if not isinstance(item, dict) or not item:
+            _fail(f"{where}: 'attributes' of a fan-in entry must list attribute names, {{<message attribute>: "
+                  f"<object attribute>}} or {{<message attribute>: {{<function>: <object attribute>}}}}")
+        for name, source in item.items():
+            if isinstance(source, str) and source:
+                gathered.append((name, source))
+                continue
+            if not isinstance(source, dict):
+                _fail(f"{where}: attribute {name!r} must be an object attribute, whose values go into a list, or "
+                      f"{{<function>: <object attribute>}}, got {source!r}")
+            _check_keys(f"{where}.attributes.{name}", source, AGGREGATE_FUNCTIONS | {"initial"})
+            functions = {key: value for key, value in source.items() if key != "initial"}
+            if len(functions) != 1 or not all(isinstance(value, str) and value for value in functions.values()):
+                _fail(f"{where}: attribute {name!r} must be one function and an object attribute, e.g. "
+                      f"{{\"sum\": \"weight\"}}")
+            if "initial" in source and not is_number(source["initial"]):
+                _fail(f"{where}: attribute {name!r} initial must be a number, got {source['initial']!r}")
+            (function, of), = functions.items()
+            computed.append((name, function, of, source.get("initial")))
+    names = plain + [name for name, _ in gathered] + [name for name, *_ in computed]
+    sources = [source for _, source in gathered] + [source for _, _, source, _ in computed]
+    if "index" in names + sources:
+        _fail(f"{where}: 'index' numbers the messages of a fan_out, but a fan-in entry sends one message per group")
+    if "object_id" in names:
+        _fail(f"{where}: a fan-in message can't carry object_id: it has several publishers. Send their ids as a "
+              f"list, e.g. {{\"item_ids\": \"object_id\"}}")
+    repeated = sorted(name for name, times in Counter(names).items() if times > 1)
+    if repeated:
+        _fail(f"{where}: 'attributes' sends {', '.join(map(repr, repeated))} more than once")
+    differing = [name for name in plain if name not in same]
+    if differing:
+        reason = "isn't in 'same', so the members of a group may differ in it" if same else (
+            "is sent by its plain name, but without 'same' the members of a group may differ in every attribute")
+        _fail(f"{where}: {', '.join(map(repr, differing))} {reason}: send it as a list, "
+              f"{{<name>: \"{differing[0]}\"}}, or a function over the members, {{<name>: {{\"sum\": "
+              f"\"{differing[0]}\"}}}}")
+    undeclared = [source for source in sources if source != "object_id" and source not in declared]
+    if undeclared:
+        _fail(f"{where}: {', '.join(map(repr, undeclared))} not declared as an object, global or event attribute")
+    return tuple(plain), tuple(gathered), tuple(computed)
 
 
 def _condition(entry, where):

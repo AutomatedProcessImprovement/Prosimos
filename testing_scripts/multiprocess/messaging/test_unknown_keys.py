@@ -173,7 +173,7 @@ def _messages_rejected(section, bpmn_path, message):
 def test_a_publish_entry(bpmn):
     _messages_rejected(publish(atributes=["object_id"]), bpmn,
                        r"messages.publish\[0\]: unknown key 'atributes'; allowed: attributes, carry, event_id, "
-                       r"fan_out, o2o, qualifier, type$")
+                       r"fan_in, fan_out, o2o, qualifier, same, type$")
 
 
 @pytest.mark.parametrize("section, where", [(publish(count=3), r"messages.publish\[0\]"),
