@@ -98,6 +98,9 @@ class SimBPMEnv(EngineMessaging):
         self._warned_missing_values = set()
         self._warned_fan_outs = set()
         self._warned_fan_out_lists = set()
+        self._piles = dict()  # (fan-in entry, its same values) -> the Pile of the parts handed in so far
+        self._warned_fan_in_sizes = set()
+        self._warned_fan_in_numbers = set()
 
         # waiting at catch events (docs/engine-internals.md, "Waiting at catch events")
         self._consume_points = dict()  # event id -> the 'consume' entries for it

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_OrderPackages" targetNamespace="http://bpmn.io/schema/bpmn">
+  <!-- packaging: every OrderPicked starts a package with all the items of its order -->
+  <bpmn:process id="Packaging" isExecutable="false">
+    <bpmn:startEvent id="Start_Package" name="Order picked"><bpmn:outgoing>Flow_1</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:startEvent>
+    <bpmn:task id="Pack" name="Pack"><bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing></bpmn:task>
+    <bpmn:endEvent id="End" name="Packed"><bpmn:incoming>Flow_2</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_Package" targetRef="Pack" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Pack" targetRef="End" />
+  </bpmn:process>
+</bpmn:definitions>

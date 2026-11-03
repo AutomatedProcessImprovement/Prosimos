@@ -428,6 +428,28 @@ order of `index` 1..N. A fan_out of 0 publishes nothing; a value that isn't a wh
 one message per entry, in the order of the list; a missing or empty list publishes nothing, with one
 warning per event.
 
+An entry with `fan_in` publishes nothing for a single case. A case passing its event doesn't wait there: at
+that time it hands in its part, its values of `same` and of the attributes the message lists or computes over,
+and goes on. The part goes on the pile of its group, and the part that completes the pile publishes the one
+message, at its own time:
+
+```
+item-1 picked 10:00 -> hands in its part, moves on
+item-2 picked 11:30 -> hands in its part, moves on
+item-3 picked 14:00 -> hands in its part -> at 14:00:
+                       OrderPicked {order_id: "order-7", item_ids: ["item-1", "item-2", "item-3"], total_weight: 1.7}
+```
+
+- The first part of a group decides its size. A size that isn't a whole number of at least 1 (or no value)
+  gives a size of 1 when its part opens a group, so that part goes out alone; a later part with another size,
+  or with an invalid one, joins its group, which keeps its size: each with one warning per event and attribute.
+- A part handed in after its group was sent opens a new group.
+- A function leaves out a value that isn't a number (`count` counts the values there are), with one warning
+  per event and attribute; a `min` or `max` over no numbers has no value.
+- A case ended by a terminate end event before it reaches the event hands in no part.
+- At the end of the run, each group still short of its size is one warning, e.g.
+  `fan-in OrderPicked for order_id order-7: 2 of 3 parts, never sent`.
+
 Publishing doesn't change the simulation itself: the log is the same with or without the `publish`
 entries.
 

@@ -61,6 +61,12 @@ held item; `step()` releases all items due at that time instead of running an ev
 times held items go first. An engine that still holds items isn't finished, even with an empty
 queue. The message is built when it is released, so attribute values are those at the real time.
 
+**Fan-in parts** are held the same way: releasing a part puts it on its group's pile (`_piles`, keyed by the
+entry and its `same` values) instead of publishing, and the release that completes the pile publishes the
+message. Prosimos works cases out ahead of the clock, in random order among ties, so the part computed last
+isn't always the last in time; counting a part only at its release makes the group's first part the first in
+time, takes each member's values at its own moment, and never counts a member a terminate ended before then.
+
 **Terminate end events.** A terminate end event ends its case at its own time T, which is often still
 ahead when it is computed: with an AND split into Send Invoice (1 h, then the terminate) and Ship Package
 (30 min, then Track Package), the terminate at 10:00 is computed at 09:00. So it takes only its own token

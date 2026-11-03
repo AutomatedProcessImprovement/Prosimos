@@ -128,6 +128,7 @@ class ProsimosEngine(SimulationEngine):
 
     def finish(self) -> EngineReport:
         with self._own_globals():
+            self._env.warn_unsent_fan_ins()
             stalled = [StalledCase(self._env.object_id(parked_event.p_case), place, message_types,
                                    parked_event.enabled_datetime, *self._env.collected(parked_event))
                        for parked_event, place, message_types in self._env.stalled_waits()]

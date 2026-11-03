@@ -1,0 +1,33 @@
+{
+  "resource_profiles": [
+    {"id": "Pickers", "name": "Pickers", "resource_list": [
+      {"id": "Picker", "name": "Picker", "cost_per_hour": 1, "amount": 10, "calendar": "Always",
+       "assigned_tasks": ["Pick_Item", "Put_On_Shelf"]}]}
+  ],
+  "gateway_branching_probabilities": [],
+  "task_resource_distribution": [
+    {"task_id": "Pick_Item", "resources": [{"resource_id": "Picker", "distribution_name": "expon",
+      "distribution_params": [{"value": 1800}, {"value": 60}, {"value": 7200}]}]},
+    {"task_id": "Put_On_Shelf", "resources": [{"resource_id": "Picker", "distribution_name": "fix",
+      "distribution_params": [{"value": 120}]}]}
+  ],
+  "resource_calendars": [
+    {"id": "Always", "name": "Always", "time_periods": [
+      {"from": "MONDAY", "to": "SUNDAY", "beginTime": "00:00:00", "endTime": "23:59:59"}]}
+  ],
+  "object_attributes": [
+    {"name": "weight", "type": "continuous", "values": {"distribution_name": "norm",
+     "distribution_params": [{"value": 0.5}, {"value": 0.2}, {"value": 0.1}, {"value": 1.0}]}}
+  ],
+  "messages": {
+    "consume": [
+      {"event_id": "Start_Item", "type": "ItemOrdered",
+       "copy": {"order_id": "object_id", "item_index": "index", "items": "items"}}
+    ],
+    "publish": [
+      {"event_id": "Throw_OrderPicked", "type": "OrderPicked",
+       "fan_in": {"object_attribute": "items"}, "same": ["order_id"],
+       "attributes": ["order_id", {"item_ids": "object_id"}, {"total_weight": {"sum": "weight"}}]}
+    ]
+  }
+}

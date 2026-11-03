@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_PickedItems" targetNamespace="http://bpmn.io/schema/bpmn">
+  <!-- warehouse: every ItemOrdered starts an item case, which picks the item, hands in its part of its order's
+       OrderPicked (fan-in) and puts the item on the shelf -->
+  <bpmn:process id="Warehouse" isExecutable="false">
+    <bpmn:startEvent id="Start_Item" name="Item ordered"><bpmn:outgoing>Flow_1</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:startEvent>
+    <bpmn:task id="Pick_Item" name="Pick item"><bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing></bpmn:task>
+    <bpmn:intermediateThrowEvent id="Throw_OrderPicked" name="Order picked"><bpmn:incoming>Flow_2</bpmn:incoming><bpmn:outgoing>Flow_3</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:intermediateThrowEvent>
+    <bpmn:task id="Put_On_Shelf" name="Put on shelf"><bpmn:incoming>Flow_3</bpmn:incoming><bpmn:outgoing>Flow_4</bpmn:outgoing></bpmn:task>
+    <bpmn:endEvent id="End" name="Item done"><bpmn:incoming>Flow_4</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_Item" targetRef="Pick_Item" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Pick_Item" targetRef="Throw_OrderPicked" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Throw_OrderPicked" targetRef="Put_On_Shelf" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Put_On_Shelf" targetRef="End" />
+  </bpmn:process>
+</bpmn:definitions>

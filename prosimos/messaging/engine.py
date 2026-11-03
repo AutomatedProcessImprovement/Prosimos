@@ -21,6 +21,15 @@ class Race:
         self.wins_at_once = None  # the message branch with nothing to collect that wins at once, if any
 
 
+class Pile:
+    """The parts handed in so far for one fan-in message: the first part's size decides when it is sent."""
+
+    def __init__(self, size, same_values):
+        self.size = size
+        self.same_values = same_values
+        self.parts = []  # (case id, {object attribute: its value when the part was handed in})
+
+
 class EngineMessaging:
     """The methods our messaging adds to SimBPMEnv, which inherits them as they are (same names, same self)."""
 
@@ -95,6 +104,9 @@ class EngineMessaging:
             if self.sim_setup.bpmn_graph.terminated_by(p_case, due):
                 continue
             for point in self._publish_points.get(element_id, []):
+                if point.fans_in:
+                    self._hand_in(point, p_case, element_id)
+                    continue
                 for index in range(1, self._fan_out(point, p_case) + 1):
                     self.outbox.append((point.type, self._message_attributes(point, p_case, index), p_case, element_id,
                                         point))
@@ -575,6 +587,83 @@ class EngineMessaging:
                 f"it publishes no {point.type} message")
         return ()
 
+    def _hand_in(self, point, p_case, element_id):
+        """Puts the part of p_case on its group's pile, at its own time; the part that completes the pile publishes
+        the group's one message."""
+        values = self.sim_setup.bpmn_graph.get_all_attributes(p_case)
+        same = tuple(self._part_value(point, p_case, values, name) for name in point.same)
+        key = (point, tuple(map(_hashable, same)))
+        size, valid = self._fan_in_size(point, p_case, values)
+        pile = self._piles.get(key)
+        if pile is None:
+            pile = self._piles[key] = Pile(size, same)
+        elif valid and size != pile.size and (point.event_id, point.fan_in_attribute) not in self._warned_fan_in_sizes:
+            self._warned_fan_in_sizes.add((point.event_id, point.fan_in_attribute))
+            warning_logger.add_warning(
+                f"case {p_case} passes {point.event_id} with {point.fan_in_attribute} {size}, but its fan-in group "
+                f"has {pile.size} from its first part; the group keeps {pile.size}")
+        sources = dict.fromkeys([source for _, source in point.gathered]
+                                + [source for _, _, source, _ in point.computed])
+        pile.parts.append((p_case, {source: self._part_value(point, p_case, values, source) for source in sources}))
+        if len(pile.parts) < pile.size:
+            return
+        del self._piles[key]
+        attributes = {name: pile.same_values[point.same.index(name)] for name in point.attributes}
+        attributes.update((name, [part[source] for _, part in pile.parts]) for name, source in point.gathered)
+        attributes.update((name, self._over_parts(point, name, function, source, initial, pile.parts))
+                          for name, function, source, initial in point.computed)
+        self.outbox.append((point.type, attributes, p_case, element_id, point))
+
+    def _fan_in_size(self, point, p_case, values):
+        """(the group size this part gives, whether it is valid): an invalid one counts as 1, with one warning."""
+        if point.fan_in_attribute is None:
+            return point.fan_in, True
+        size = values.get(point.fan_in_attribute)
+        if is_whole_number_of_at_least_one(size):
+            return int(size), True
+        if (point.event_id, point.fan_in_attribute) not in self._warned_fan_in_sizes:
+            self._warned_fan_in_sizes.add((point.event_id, point.fan_in_attribute))
+            warning_logger.add_warning(
+                f"case {p_case} passes {point.event_id} with no valid {point.fan_in_attribute} (got {size!r}); its "
+                f"part gives a group size of 1")
+        return 1, False
+
+    def _part_value(self, point, p_case, values, name):
+        if name == "object_id":
+            return self.object_id(p_case)
+        if name in values:
+            return values[name]
+        if (point.event_id, name) not in self._warned_missing_values:
+            self._warned_missing_values.add((point.event_id, name))
+            warning_logger.add_warning(f"Attribute {name} has no value when case {p_case} passes {point.event_id}; "
+                                       f"its part of the {point.type} message carries None")
+        return None
+
+    def _over_parts(self, point, name, function, source, initial, parts):
+        """function over the parts' values of source; 'count' counts those with a value, and a value that isn't a
+        number is left out of the others, with one warning."""
+        if function == "count":
+            return aggregate_of(function, [part[source] for _, part in parts if part[source] is not None], initial)
+        numbers_only = []
+        for p_case, part in parts:
+            if is_number(part[source]):
+                numbers_only.append(part[source])
+            elif (point.event_id, source) not in self._warned_fan_in_numbers:
+                self._warned_fan_in_numbers.add((point.event_id, source))
+                warning_logger.add_warning(
+                    f"case {p_case} passes {point.event_id} with {source} {part[source]!r}, which isn't a number to "
+                    f"{function} into {name}; its part is left out of {name}")
+        if not numbers_only and initial is None and function in ("min", "max"):
+            return None
+        return aggregate_of(function, numbers_only, initial)
+
+    def warn_unsent_fan_ins(self):
+        """One warning per fan-in group still short of its size when the run ends."""
+        for (point, _), pile in self._piles.items():
+            group = " and ".join(f"{name} {value}" for name, value in zip(point.same, pile.same_values))
+            warning_logger.add_warning(f"fan-in {point.type}{' for ' + group if group else ''}: "
+                                       f"{len(pile.parts)} of {pile.size} parts, never sent")
+
     def object_id(self, p_case):
         """How a case's object is named in messages, both when publishing and in conditions: e.g. order-7."""
         return f"{self.id_prefix}-{p_case}"
@@ -670,6 +759,11 @@ class EngineMessaging:
     def waiting_for(self, event_id):
         """The message types a case waiting at event_id accepts."""
         return sorted({point.type for point in self._consume_points[event_id]})
+
+
+def _hashable(value):
+    # a group's values key its pile; a list value becomes a tuple
+    return tuple(map(_hashable, value)) if isinstance(value, list) else value
 
 
 def aggregate_of(function, values, initial=None):
