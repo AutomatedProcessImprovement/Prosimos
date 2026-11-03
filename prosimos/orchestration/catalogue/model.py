@@ -46,8 +46,8 @@ class Computed:
 
 
 @dataclass(frozen=True)
-class CountFrom:
-    """A pick's count read from a case attribute when the case is created."""
+class QuantityFrom:
+    """A pick's quantity read from a case attribute when the case is created."""
 
     object_attribute: str
 
@@ -90,7 +90,7 @@ class Reference:
     pick: Union[None, str, Tuple[Tuple[str, float], ...], NewShare] = None
     with_attributes: Tuple[Tuple[str, Union[str, Computed]], ...] = ()  # JSON "with"
     tag_along: bool = False
-    count: Union[None, int, CountFrom] = None
+    quantity: Union[None, int, QuantityFrom] = None
     process: str = ""  # set by its ProcessSpec
 
     @property

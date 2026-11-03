@@ -9,7 +9,7 @@ from prosimos.case_attributes import CaseAttribute
 from prosimos.control_flow_manager import BPMN
 from prosimos.messaging.model import AGGREGATE_FUNCTIONS
 from prosimos.messaging.parser import is_number, is_whole_number
-from prosimos.orchestration.catalogue.model import (CataloguePool, Computed, CountFrom, GrowingCatalogue, NewShare,
+from prosimos.orchestration.catalogue.model import (CataloguePool, Computed, GrowingCatalogue, NewShare, QuantityFrom,
                                                     catalogue_ids)
 from prosimos.simulation_properties_parser import parse_simulation_model
 
@@ -101,8 +101,8 @@ def checked_catalogue(organizations):
         if reference.pick is not None:
             problems.extend(f"{where} {problem}"
                             for problem in _pick_problems(reference, catalogue[reference.catalogue], specs))
-        if reference.count is not None:
-            problems.extend(f"{where} {problem}" for problem in _count_problems(reference, specs))
+        if reference.quantity is not None:
+            problems.extend(f"{where} {problem}" for problem in _quantity_problems(reference, specs))
     picked = [(reference.process, reference.object_attribute) for _, reference in references if reference.pick is not None]
     for process, attribute in sorted({pair for pair in picked if picked.count(pair) > 1}):
         problems.append(f"more than one reference picks {attribute} of process {process}")
@@ -178,23 +178,23 @@ def _pick_problems(reference, entry, specs):
     return _settings_problems("picks", reference.object_attribute, reference.process, specs)
 
 
-def _count_problems(reference, specs):
-    count = reference.count
+def _quantity_problems(reference, specs):
+    quantity = reference.quantity
     if reference.pick is None:
-        return ["has count but no pick; count says how many objects the pick chooses"]
+        return ["has quantity but no pick; quantity says how many objects the pick chooses"]
     if reference.creates:
-        return ['has count with "new" or new_share; count works with "uniform" or weights, which choose among the '
-                'objects there are']
-    if isinstance(count, CountFrom):
+        return ['has quantity with "new" or new_share; quantity works with "uniform" or weights, which choose among '
+                'the objects there are']
+    if isinstance(quantity, QuantityFrom):
         with open(specs[reference.process].json_path) as file:
             declared = {entry.get("name") for entry in json.load(file).get("object_attributes", [])}
-        if count.object_attribute not in declared:
-            return [f"count reads {count.object_attribute!r}, which process {reference.process} doesn't draw in its "
-                    f"object_attributes; the count is read when the case is created"]
+        if quantity.object_attribute not in declared:
+            return [f"quantity reads {quantity.object_attribute!r}, which process {reference.process} doesn't draw in "
+                    f"its object_attributes; the quantity is read when the case is created"]
         return []
-    if not is_whole_number(count, minimum=0):
-        return [f'count must be a whole number of at least 0 or {{"object_attribute": <object attribute>}}, '
-                f"got {count!r}"]
+    if not is_whole_number(quantity, minimum=0):
+        return [f'quantity must be a whole number of at least 0 or {{"object_attribute": <object attribute>}}, '
+                f"got {quantity!r}"]
     return []
 
 
@@ -275,8 +275,8 @@ def _with_problems(reference, entry, specs, picked, brought):
         return [f"has with on growing catalogue {reference.catalogue!r}; with doesn't read a growing catalogue yet, "
                 f"a known limitation"]
     copied = [name for name, source in pairs if isinstance(source, str)]
-    if reference.count is not None and copied:
-        return [f"copies {copied} on a pick with count; a list pick needs a function over the picked objects, "
+    if reference.quantity is not None and copied:
+        return [f"copies {copied} on a pick with quantity; a list pick needs a function over the picked objects, "
                 f'e.g. {{"sum": "price"}}']
     if reference.pick is None and copied and reference.object_attribute in _consumed_into(reference.process, specs,
                                                                                           "append"):

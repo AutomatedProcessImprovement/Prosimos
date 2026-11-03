@@ -9,7 +9,7 @@ import numpy as np
 from prosimos.case_attributes import CaseAttribute
 from prosimos.messaging.engine import aggregate_of
 from prosimos.messaging.parser import is_whole_number
-from prosimos.orchestration.catalogue.model import CatalogueObject, Computed, CountFrom, NewShare, catalogue_ids
+from prosimos.orchestration.catalogue.model import CatalogueObject, Computed, NewShare, QuantityFrom, catalogue_ids
 from prosimos.orchestration.catalogue.timetable import CatalogueValues, Timetable
 from prosimos.orchestration.random_generators import engine_random_states
 from prosimos.warning_logger import warning_logger
@@ -23,41 +23,41 @@ class Pick:
     generator is its own (seed, process, attribute), so it doesn't change the engine's other draws."""
 
     def __init__(self, name: str, ids: List[str], weights: Optional[List[float]], seed: Optional[int], process: str,
-                 count: Union[None, int, CountFrom] = None):
-        self.name, self._ids, self._weights, self.count = name, ids, weights, count
+                 quantity: Union[None, int, QuantityFrom] = None):
+        self.name, self._ids, self._weights, self.quantity = name, ids, weights, quantity
         self.last = None  # the id picked for the latest case
-        self._counted = None  # the value of count's attribute drawn for the latest case
+        self._drawn_quantity = None  # the value of quantity's attribute drawn for the latest case
         self._warned = False
         self._generator = random.Random()
         self._generator.setstate(engine_random_states(seed, f"pick/{process}/{name}")[0])
 
-    def read_count_from(self, attribute):
-        """Makes the count's attribute, drawn before the picks, tell this pick its value for each case."""
+    def read_quantity_from(self, attribute):
+        """Makes the quantity's attribute, drawn before the picks, tell this pick its value for each case."""
         draw = attribute.get_next_value
 
         def drawn():
-            self._counted = draw()
-            return self._counted
+            self._drawn_quantity = draw()
+            return self._drawn_quantity
 
         attribute.get_next_value = drawn
 
     def get_next_value(self):
-        if self.count is None:
+        if self.quantity is None:
             self.last = self._generator.choices(self._ids, self._weights)[0]
         else:
             self.last = self._generator.choices(self._ids, self._weights, k=self._how_many())
         return self.last
 
     def _how_many(self):
-        """count, or the value its attribute drew for this case; an invalid one picks one, with one warning."""
-        if not isinstance(self.count, CountFrom):
-            return int(self.count)
-        if is_whole_number(self._counted, minimum=0):
-            return int(self._counted)
+        """quantity, or the value its attribute drew for this case; an invalid one picks one, with one warning."""
+        if not isinstance(self.quantity, QuantityFrom):
+            return int(self.quantity)
+        if is_whole_number(self._drawn_quantity, minimum=0):
+            return int(self._drawn_quantity)
         if not self._warned:
             self._warned = True
-            warning_logger.add_warning(f"{self.count.object_attribute} is {self._counted!r}, no whole number of at "
-                                       f"least 0; the pick of {self.name} picks one")
+            warning_logger.add_warning(f"{self.quantity.object_attribute} is {self._drawn_quantity!r}, no whole number "
+                                       f"of at least 0; the pick of {self.name} picks one")
         return 1
 
 
@@ -136,7 +136,7 @@ def picks_of(spec: ProcessSpec, seed: Optional[int], catalogues: Dict[str, List[
         else:
             ids = [obj.id for obj in catalogues[reference.catalogue]]
             weights = None if reference.pick == "uniform" else [dict(reference.pick).get(object_id, 0) for object_id in ids]
-            pick = Pick(reference.object_attribute, ids, weights, seed, spec.name, reference.count)
+            pick = Pick(reference.object_attribute, ids, weights, seed, spec.name, reference.quantity)
             picks.append(pick)
             for name, source in reference.with_attributes:
                 function, attribute, initial = ((source.function, source.source, source.initial)

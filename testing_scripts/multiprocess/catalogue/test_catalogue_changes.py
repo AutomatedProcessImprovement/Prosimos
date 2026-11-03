@@ -17,7 +17,7 @@ from prosimos.orchestration.config import Organization, ProcessSpec, SimulationC
 from prosimos.orchestration.simulation import run_multiprocess_simulation
 from testing_scripts.multiprocess.catalogue.test_catalogue import config_with, with_partner
 from testing_scripts.multiprocess.catalogue.test_pick import PICKING, START as LOANS_START, loans_config, run
-from testing_scripts.multiprocess.catalogue.test_pick_count import PRODUCTS, at_creation, sales_picking
+from testing_scripts.multiprocess.catalogue.test_pick_quantity import PRODUCTS, at_creation, sales_picking
 from testing_scripts.multiprocess.catalogue.test_with import PRICE, received, warehouse_receiving
 from testing_scripts.multiprocess.messaging.test_collect import ORDERS, START, at, settings_with
 from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
@@ -106,7 +106,7 @@ def price_rise(tmp_path_factory):
     """Order Management's Sales alone, 100 orders, each picking one product per item and starting with their total
     price; every product's price rises by 10% every three days."""
     path = tmp_path_factory.mktemp("price_rise")
-    config = sales_picking(path, {**PRODUCTS, "count": {"object_attribute": "items"},
+    config = sales_picking(path, {**PRODUCTS, "quantity": {"object_attribute": "items"},
                                   "with": {"price": {"sum": "price"}}})
     rise = CatalogueChange("product", "price", "multiply", 1.1, every=3 * DAY)
     return run(_with_changes(config, rise), path) + (config.start_datetime,)
@@ -139,7 +139,7 @@ def test_a_value_already_given_to_a_case_doesnt_change(price_rise):
 
 def test_the_rest_of_the_run_is_as_without_the_changes(tmp_path, price_rise):
     _, changed, _, _ = price_rise
-    _, unchanged, _ = run(sales_picking(tmp_path, {**PRODUCTS, "count": {"object_attribute": "items"},
+    _, unchanged, _ = run(sales_picking(tmp_path, {**PRODUCTS, "quantity": {"object_attribute": "items"},
                                                    "with": {"price": {"sum": "price"}}}), tmp_path, "unchanged")
 
     assert changed.drop(columns="price").equals(unchanged.drop(columns="price"))
@@ -241,7 +241,7 @@ def test_a_new_object_gets_the_changes_after_its_creation(growing_run):
 
 
 def test_changes_at_one_moment_give_one_timed_value_and_changes_after_the_run_none(tmp_path):
-    config = sales_picking(tmp_path, {**PRODUCTS, "count": {"object_attribute": "items"}})
+    config = sales_picking(tmp_path, {**PRODUCTS, "quantity": {"object_attribute": "items"}})
     start = config.start_datetime
     _, _, ocel = run(_with_changes(config, *(CatalogueChange("product", "price", operation, value, at=at,
                                                              objects=("Kindle",)) for operation, value, at in (

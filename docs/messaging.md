@@ -243,7 +243,7 @@ stays on the sending side: a start event still starts exactly one case per messa
 The third form, `{"list": <object attribute>, "as": <attribute name>}`, is the mirror of `append`: it
 publishes one message per entry of a list in the publishing case, each carrying its own entry under the
 name `as`. The list is one that `append` filled, one copied from a message that carried a list, or one picked
-by a reference with `count` ([catalogue.md](catalogue.md), "Count"), as Order Management's Sales sends one
+by a reference with `quantity` ([catalogue.md](catalogue.md), "Quantity"), as Order Management's Sales sends one
 `ItemOrdered` per product it picked. For example, a package telling each of its items that it was packed, while
 each item waits for its own:
 

@@ -120,8 +120,16 @@ def test_a_reference(tmp_path):
         reference["revers"] = reference.pop("reverse")
 
     _config_rejected(tmp_path, r"processes\[0\].references\[0\]: unknown keys 'link_event', 'revers'; allowed: "
-                               r"catalogue, count, link_events, o2o, object_attribute, pick, reverse, tag_along, with$",
-                     misspelled)
+                               r"catalogue, link_events, o2o, object_attribute, pick, quantity, reverse, tag_along, "
+                               r"with$", misspelled)
+
+
+def test_count_is_no_key_of_a_reference(tmp_path):
+    # quantity says how many objects a pick chooses
+    def counted(data):
+        data["organizations"][0]["processes"][0]["references"][0]["count"] = 2
+
+    _config_rejected(tmp_path, r"processes\[0\].references\[0\]: unknown key 'count'; allowed: ", counted)
 
 
 def test_a_pick_object(tmp_path):

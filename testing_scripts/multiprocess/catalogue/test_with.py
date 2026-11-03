@@ -16,7 +16,7 @@ from prosimos.orchestration.simulation import run_multiprocess_simulation
 from testing_scripts.multiprocess.catalogue.test_catalogue import config_with
 from testing_scripts.multiprocess.catalogue.test_pick import (CUSTOMERS, PICKING, POOL, PRODUCTS_LIST, RATED,
                                                               loans_config, run, starting_values)
-from testing_scripts.multiprocess.catalogue.test_pick_count import PRODUCTS, SALES, at_creation, sales_picking
+from testing_scripts.multiprocess.catalogue.test_pick_quantity import PRODUCTS, SALES, at_creation, sales_picking
 from testing_scripts.multiprocess.examples.test_order_management import CONFIG
 from testing_scripts.multiprocess.messaging.test_collect import ORDERS, START, at, settings_with
 from testing_scripts.multiprocess.orchestrator_settings import one_organization
@@ -64,7 +64,7 @@ ALL_FOUR = (("total", Computed("sum", "price")), ("lines", Computed("count", "pr
 
 
 def test_the_functions_over_a_list_pick_count_a_repeated_object_each_time():
-    pick = Pick("products", ["a", "b", "c"], [1, 1, 1], seed=1, process="P", count=4)
+    pick = Pick("products", ["a", "b", "c"], [1, 1, 1], seed=1, process="P", quantity=4)
 
     picked, values = next((picked, values) for picked, values in (_brought(pick, THREE, ALL_FOUR) for _ in range(20))
                           if len(set(picked)) < 4)  # one with a repeat
@@ -75,7 +75,7 @@ def test_the_functions_over_a_list_pick_count_a_repeated_object_each_time():
 
 def test_a_sum_of_whole_numbers_stays_whole_and_others_add_up_in_any_order():
     # as aggregate: a sum of whole numbers is a whole number; any other is rounded once, at the end
-    whole = Pick("products", ["a", "c"], None, seed=1, process="P", count=3)
+    whole = Pick("products", ["a", "c"], None, seed=1, process="P", quantity=3)
     assert isinstance(_brought(whole, THREE, ALL_FOUR[:1])[1]["total"], int)
     prices = {"x": 1.2, "y": 0.8, "z": 2.1}
 
@@ -88,7 +88,7 @@ def test_a_sum_of_whole_numbers_stays_whole_and_others_add_up_in_any_order():
 
 
 def test_over_no_objects_a_sum_and_a_count_are_0_and_a_min_and_a_max_have_no_value():
-    pick = Pick("products", ["a"], None, seed=1, process="P", count=0)
+    pick = Pick("products", ["a"], None, seed=1, process="P", quantity=0)
 
     assert _brought(pick, THREE, ALL_FOUR) == ([], {"total": 0, "lines": 0, "cheapest": None, "dearest": None})
 
@@ -107,7 +107,7 @@ def test_a_function_on_a_single_pick_works_over_the_one_object():
 @pytest.fixture(scope="module")
 def priced_run(tmp_path_factory):
     path = tmp_path_factory.mktemp("with")
-    return run(sales_picking(path, {**PRODUCTS, "count": {"object_attribute": "items"},
+    return run(sales_picking(path, {**PRODUCTS, "quantity": {"object_attribute": "items"},
                                     "with": {"price": {"sum": "price"}, "dearest": {"max": "price"}}}), path)
 
 
@@ -128,7 +128,7 @@ def test_every_order_starts_with_the_sum_of_its_products_prices(priced_run):
 
 def test_a_computed_with_doesnt_change_the_picks_or_the_rest_of_the_run(tmp_path, priced_run):
     _, priced, _ = priced_run
-    _, plain, _ = run(sales_picking(tmp_path, {**PRODUCTS, "count": {"object_attribute": "items"}}), tmp_path,
+    _, plain, _ = run(sales_picking(tmp_path, {**PRODUCTS, "quantity": {"object_attribute": "items"}}), tmp_path,
                       "plain")
 
     assert priced.drop(columns=["price", "dearest"]).equals(plain)
@@ -145,9 +145,9 @@ def test_order_management_spells_its_with_as_an_object():
 # load errors
 
 def test_a_plain_copy_on_a_list_pick_is_rejected(tmp_path):
-    with pytest.raises(ValueError, match=rf"{SALES} copies \['price'\] on a pick with count; a list pick needs a "
+    with pytest.raises(ValueError, match=rf"{SALES} copies \['price'\] on a pick with quantity; a list pick needs a "
                                          r'function over the picked objects, e.g. \{"sum": "price"\}'):
-        sales_picking(tmp_path, {**PRODUCTS, "count": 3, "with": {"price": "price", "total": {"sum": "price"}}})
+        sales_picking(tmp_path, {**PRODUCTS, "quantity": 3, "with": {"price": "price", "total": {"sum": "price"}}})
 
 
 @pytest.mark.parametrize("function", ["sum", "min", "max"])
@@ -157,7 +157,7 @@ def test_a_sum_min_or_max_of_an_attribute_that_isnt_a_number_is_rejected(tmp_pat
 
     path = config_with(tmp_path, catalogues={"customer": CUSTOMERS, "product": products},
                        references={"Sales": [{**PICKING, "pick": "uniform"},
-                                              {**PRODUCTS, "count": 3, "with": {"price": {function: "price"}}}]})
+                                              {**PRODUCTS, "quantity": 3, "with": {"price": {function: "price"}}}]})
 
     with pytest.raises(ValueError, match=rf"{SALES} with sums, or takes the min or max of, \['price'\], which not "
                                          r"every object of catalogue 'product' has as a number"):

@@ -124,7 +124,7 @@ catalogues:
 | `reverse`          | no       | `true`                             | turns the `o2o` link around: from the catalogue object to the case's object (default `false`)                   |
 | `link_events`      | no       | `["place order", "Confirm_Order"]` | which of the case's events link the catalogue object: task names or task ids; without it every event, `[]` none |
 | `pick`             | no       | `"uniform"`                        | the reference chooses the value itself (see "Pick")                                                             |
-| `count`            | no       | `{"object_attribute": "items"}`    | with `pick`, how many objects it chooses, into a list (see "Count")                                             |
+| `quantity`         | no       | `{"object_attribute": "items"}`    | with `pick`, how many objects it chooses, into a list (see "Quantity")                                          |
 | `with`             | no       | `{"weight": "weight"}`             | values the case starts with, copied from the picked object or computed over the picked objects (see "With")     |
 | `tag_along`        | no       | `true`                             | events of other cases that link the case's object link the catalogue object too (default `false`)               |
 
@@ -188,7 +188,7 @@ A value that isn't an id of the catalogue gets no link, and a warning (see "Erro
 ### A list of ids
 
 An attribute may hold a list of ids instead of one, such as a list that `append` builds from the messages a
-case collects ([messaging.md](messaging.md)), or a pick with `count` (see "Count"). Each entry of the list is then a catalogue object, linked exactly
+case collects ([messaging.md](messaging.md)), or a pick with `quantity` (see "Quantity"). Each entry of the list is then a catalogue object, linked exactly
 as a single value is: by `o2o` to the case's object, from the events named in `link_events`, and with
 `tag_along`. An event links the entries of the list the attribute held when it completed, and an id the list
 repeats is linked once. An order that appends the ids of the items it collects into `item_ids`:
@@ -253,14 +253,14 @@ the process's other draws. Engines stay black boxes: the orchestrator hands a pi
 builds it, as one more case attribute, and joins the links from the case objects and log rows after the
 run.
 
-### Count
+### Quantity
 
 ```json
 {"object_attribute": "products", "catalogue": "product",
- "pick": {"weights": {"iPhone X": 433, "iPhone 8": 408, ...}}, "count": {"object_attribute": "items"}}
+ "pick": {"weights": {"iPhone X": 433, "iPhone 8": 408, ...}}, "quantity": {"object_attribute": "items"}}
 ```
 
-With `count`, a `"uniform"` or weights pick chooses that many objects when the case is created, and the
+With `quantity`, a `"uniform"` or weights pick chooses that many objects when the case is created, and the
 attribute holds them as a list, which the reference links entry by entry (see "A list of ids"). Each choice is
 independent, by the same rule, so an object can come more than once, as `iPhone 8` does for `order-2` below. Picks
 of the first 4 orders of Order Management's Sales with seed 1, with its 20 products and weights per product:
@@ -272,11 +272,11 @@ of the first 4 orders of Order Management's Sales with seed 1, with its 20 produ
 | order-2 | 7     | iPhone 11, iPhone X, Echo Show 5, iPad, iPad Air, iPhone 8, iPhone 8             |
 | order-3 | 1     | Echo                                                                             |
 
-- `count` is a whole number of at least 0 (0 gives an empty list), or `{"object_attribute": ...}`: an attribute
+- `quantity` is a whole number of at least 0 (0 gives an empty list), or `{"object_attribute": ...}`: an attribute
   the process draws in its `object_attributes`, read when the case is created. A value it draws that isn't a
   whole number of at least 0 picks one object, with one warning.
-- Without `count`, the pick chooses one object, a single value, as before.
-- `count` needs a `pick`, and not `"new"` or `new_share`, which create objects rather than choose among them.
+- Without `quantity`, the pick chooses one object, a single value, as before.
+- `quantity` needs a `pick`, and not `"new"` or `new_share`, which create objects rather than choose among them.
   With `with`, a list pick computes values over the objects it chose (see "With").
 - The list is a column of the log, as JSON text, and messages and `copy` carry it like any other value.
   Choosing more objects draws more from the pick's own generator only, so the rest of the run stays the same.
@@ -302,11 +302,11 @@ attribute, on the left, to where the value comes from, on the right, in the shap
   With `"with": {"list_price": "price"}`, the case gets `list_price = 89.99` instead.
 
 - **`{"sum" | "count" | "min" | "max": attribute}` computes** over the picked objects, as `aggregate` does over
-  the messages a case claims. On a pick with `count` (see "Count"), an object picked twice counts twice:
+  the messages a case claims. On a pick with `quantity` (see "Quantity"), an object picked twice counts twice:
 
   ```json
   {"object_attribute": "products", "catalogue": "product",
-   "pick": {"weights": {...}}, "count": {"object_attribute": "items"}, "with": {"price": {"sum": "price"}}}
+   "pick": {"weights": {...}}, "quantity": {"object_attribute": "items"}, "with": {"price": {"sum": "price"}}}
   ```
 
   | Order   | products                                                             | price                                               |
@@ -315,7 +315,7 @@ attribute, on the left, to where the value comes from, on the right, in the shap
   | order-2 | iPhone 11, iPhone X, Echo Show 5, iPad, iPad Air, iPhone 8, iPhone 8 | 799 + 699 + 89.99 + 495 + 476 + 529 + 529 = 3616.99 |
 
   A sum of whole numbers is a whole number, any other is rounded once, at the end, so it doesn't depend on the
-  order of the picks. Over no objects (a count of 0), a sum and a count are 0, and a min or a max has no value.
+  order of the picks. Over no objects (a quantity of 0), a sum and a count are 0, and a min or a max has no value.
 
   `initial`, next to the function, is a number already among the values, as for `aggregate`
   ([messaging.md](messaging.md)): a count adds the objects to it, a sum, min or max takes it as one more value.
@@ -339,7 +339,7 @@ published messages and `aggregate`.
 - `with` reads a list or a pool, whose objects and attributes exist from the start of the run, not a growing
   catalogue (a known limitation), and every object of the catalogue must have each attribute it names; a sum, a
   min or a max needs it as a number (on a pool: a continuous attribute, or a discrete one whose keys are numbers).
-- On a pick with `count`, a plain name is a load error: say what to compute over the objects. On a single pick
+- On a pick with `quantity`, a plain name is a load error: say what to compute over the objects. On a single pick
   a function is allowed, over the one object: a sum is its value, a count is 1.
 - `initial` is a number, negative too, and only next to a function: a plain copy has none.
 - `with` draws nothing: adding it changes neither the picks nor any other draw.
@@ -364,7 +364,7 @@ Sales in its organization, can look up the weight and price of the product an `I
 
 - **A later value replaces the earlier one**: a substitute product copied at a later catch brings its own weight
   and price, at the new time, as `copy` does.
-- **A list needs a function**, as a pick with `count` does: an attribute that consume entries append to takes
+- **A list needs a function**, as a pick with `quantity` does: an attribute that consume entries append to takes
   `{"total_price": {"sum": "price"}}`, recomputed at every claim; a plain copy from it is a load error. Like an
   aggregate's starting value, the value over a list still empty when the case is created (a sum's or count's 0,
   or `initial`) stays out of the OCEL output until a message changes it.
@@ -502,7 +502,7 @@ prices rise by 3% every 60 days. This is its full configuration,
              "o2o": "places", "reverse": true, "link_events": ["place order", "confirm order"],
              "pick": "uniform"},
             {"object_attribute": "products", "catalogue": "product", "link_events": [],
-             "pick": "uniform", "count": {"object_attribute": "items"},
+             "pick": "uniform", "quantity": {"object_attribute": "items"},
              "with": {"price": {"sum": "price", "initial": 5.00}}}
           ]
         },
@@ -668,10 +668,10 @@ The messages, by the key they are about:
 | `pick`                       | `organizations[0].processes[1].references[0] picks customer, which process Warehouse also copies from a message (consume entries at ['Start_Item'])`                                                                                                           |
 | `pick`                       | `organizations[0].processes[2].references[0] picks item_ids, which process Packaging also appends to from a message (consume entries at ['Catch_Items'])`                                                                                                      |
 | `pick`                       | `more than one reference picks customer of process Sales`                                                                                                                                                                                                      |
-| `count` (pick)               | `organizations[0].processes[0].references[1] has count but no pick; count says how many objects the pick chooses`                                                                                                                                              |
-| `count` (pick)               | `organizations[0].processes[0].references[1] count must be a whole number of at least 0 or {"object_attribute": <object attribute>}, got -1`                                                                                                                   |
-| `count` (pick)               | `organizations[0].processes[0].references[1] count reads 'lines', which process Sales doesn't draw in its object_attributes; the count is read when the case is created`                                                                                       |
-| `count` (pick)               | `organizations[0].processes[0].references[1] has count with "new" or new_share; count works with "uniform" or weights, which choose among the objects there are`                                                                                               |
+| `quantity`                   | `organizations[0].processes[0].references[1] has quantity but no pick; quantity says how many objects the pick chooses`                                                                                                                                        |
+| `quantity`                   | `organizations[0].processes[0].references[1] quantity must be a whole number of at least 0 or {"object_attribute": <object attribute>}, got -1`                                                                                                                |
+| `quantity`                   | `organizations[0].processes[0].references[1] quantity reads 'lines', which process Sales doesn't draw in its object_attributes; the quantity is read when the case is created`                                                                                 |
+| `quantity`                   | `organizations[0].processes[0].references[1] has quantity with "new" or new_share; quantity works with "uniform" or weights, which choose among the objects there are`                                                                                         |
 | `weights`                    | `organizations[0].processes[0].references[0] weights name ['c99'], which are no ids of catalogue 'customer'`                                                                                                                                                   |
 | `weights`                    | `organizations[0].processes[0].references[0] weights must be numbers of at least 0, not all 0, got {'c1': 0, 'c2': 0}`                                                                                                                                         |
 | `weights`                    | `organizations[0].processes[0].references[0] has weights on pool 'customer'; a pool can only be picked from uniformly`                                                                                                                                         |
@@ -679,7 +679,7 @@ The messages, by the key they are about:
 | `"new"`, `new_share`         | `organizations[0].processes[0].references[0] picks from growing catalogue 'customer', which only takes "new" or {"new_share": ...}`                                                                                                                            |
 | `new_share`                  | `organizations[0].processes[0].references[0] new_share must be a number above 0 and at most 1, got 1.5`                                                                                                                                                        |
 | `with`                       | `organizations[0].processes[1].references[0] with must map attribute names to an attribute of the picked object or to one function of one, {"sum" \| "count" \| "min" \| "max": <attribute>}, got ['weight', 'price']`                                         |
-| `with`                       | `organizations[0].processes[0].references[1] copies ['price'] on a pick with count; a list pick needs a function over the picked objects, e.g. {"sum": "price"}`                                                                                               |
+| `with`                       | `organizations[0].processes[0].references[1] copies ['price'] on a pick with quantity; a list pick needs a function over the picked objects, e.g. {"sum": "price"}`                                                                                            |
 | `with`                       | `organizations[0].processes[2].references[0] copies ['price'] from item_ids, a list process Packaging appends to from messages; a list needs a function over its objects, e.g. {"sum": "price"}, recomputed at every claim`                                    |
 | `object_attribute`           | `organizations[0].processes[2].references[0] weight is computed by aggregate; a reference needs an attribute holding catalogue ids (copy, append, drawn or picked)`                                                                                            |
 | `with`                       | `organizations[0].processes[0].references[1] with sums, or takes the min or max of, ['price'], which not every object of catalogue 'product' has as a number`                                                                                                  |
@@ -711,7 +711,7 @@ object attribute customer has the value 'c99', which is not in catalogue custome
 ```
 
 A value is compared with the ids as text, so the number `7` matches the id `"7"`. The value keeps no link,
-but everything else about the case is written as usual. And a count read from an attribute that isn't a whole
+but everything else about the case is written as usual. And a quantity read from an attribute that isn't a whole
 number of at least 0, once per pick; the pick then chooses one object:
 
 ```

@@ -1,5 +1,5 @@
 """
-A pick with count (docs/catalogue.md, "Count"): the reference picks that many catalogue objects, each one
+A pick with quantity (docs/catalogue.md, "Quantity"): the reference picks that many catalogue objects, each one
 independently by the same rule, into a list, which the OCEL output links entry by entry.
 """
 import dataclasses
@@ -9,7 +9,7 @@ from collections import Counter
 import pandas as pd
 import pytest
 
-from prosimos.orchestration.catalogue.model import CountFrom
+from prosimos.orchestration.catalogue.model import QuantityFrom
 from prosimos.orchestration.catalogue.picks import Pick
 from prosimos.orchestration.config import SimulationConfig
 from prosimos.orchestration.simulation import run_multiprocess_simulation
@@ -55,8 +55,8 @@ def at_creation(report, process, attribute):
             for name, case_object in report.objects if name == process}
 
 
-def test_a_fixed_count_picks_that_many_ids_into_a_list():
-    pick = Pick("products", ["a", "b", "c"], None, seed=1, process="P", count=2)
+def test_a_fixed_quantity_picks_that_many_ids_into_a_list():
+    pick = Pick("products", ["a", "b", "c"], None, seed=1, process="P", quantity=2)
 
     picked = [pick.get_next_value() for _ in range(100)]
 
@@ -64,29 +64,29 @@ def test_a_fixed_count_picks_that_many_ids_into_a_list():
 
 
 def test_each_pick_is_independent_so_an_id_can_come_more_than_once():
-    pick = Pick("products", ["a", "b"], None, seed=1, process="P", count=5)
+    pick = Pick("products", ["a", "b"], None, seed=1, process="P", quantity=5)
 
     assert any(len(set(pick.get_next_value())) < 5 for _ in range(10))  # five picks among two ids repeat one
 
 
-def test_a_count_of_0_picks_an_empty_list():
-    assert Pick("products", ["a", "b"], None, seed=1, process="P", count=0).get_next_value() == []
+def test_a_quantity_of_0_picks_an_empty_list():
+    assert Pick("products", ["a", "b"], None, seed=1, process="P", quantity=0).get_next_value() == []
 
 
 def test_the_picks_follow_the_weights_over_many_cases():
-    pick = Pick("products", ["a", "b", "c"], [3, 1, 1], seed=1, process="P", count=3)
+    pick = Pick("products", ["a", "b", "c"], [3, 1, 1], seed=1, process="P", quantity=3)
 
     shares = Counter(product for _ in range(10000) for product in pick.get_next_value())
 
     assert {product: round(count / 30000, 2) for product, count in shares.items()} == {"a": 0.6, "b": 0.2, "c": 0.2}
 
 
-def test_without_count_a_pick_gives_a_single_value_as_before():
-    with_count = Pick("product", ["a", "b", "c"], [3, 1, 1], seed=1, process="P", count=1)
+def test_without_quantity_a_pick_gives_a_single_value_as_before():
+    with_quantity = Pick("product", ["a", "b", "c"], [3, 1, 1], seed=1, process="P", quantity=1)
     without = Pick("product", ["a", "b", "c"], [3, 1, 1], seed=1, process="P")
 
-    # the same draws; with count each is a list of one
-    assert [[without.get_next_value()] for _ in range(20)] == [with_count.get_next_value() for _ in range(20)]
+    # the same draws; with quantity each is a list of one
+    assert [[without.get_next_value()] for _ in range(20)] == [with_quantity.get_next_value() for _ in range(20)]
 
 
 class _Drawn:
@@ -99,23 +99,23 @@ class _Drawn:
         return next(self._values)
 
 
-def test_a_count_read_from_an_attribute_takes_the_value_drawn_for_the_same_case():
+def test_a_quantity_read_from_an_attribute_takes_the_value_drawn_for_the_same_case():
     items = _Drawn("items", [3, 1, 4])
-    pick = Pick("products", ["a", "b"], None, seed=1, process="P", count=CountFrom("items"))
-    pick.read_count_from(items)
+    pick = Pick("products", ["a", "b"], None, seed=1, process="P", quantity=QuantityFrom("items"))
+    pick.read_quantity_from(items)
 
     # the engine draws items, then the pick, for each case in turn
     drawn = [(items.get_next_value(), pick.get_next_value()) for _ in range(3)]
 
-    assert [(count, len(products)) for count, products in drawn] == [(3, 3), (1, 1), (4, 4)]
+    assert [(quantity, len(products)) for quantity, products in drawn] == [(3, 3), (1, 1), (4, 4)]
 
 
-def test_a_count_attribute_without_a_whole_number_picks_one_with_one_warning(monkeypatch):
+def test_a_quantity_attribute_without_a_whole_number_picks_one_with_one_warning(monkeypatch):
     warnings = []
     monkeypatch.setattr("prosimos.orchestration.catalogue.picks.warning_logger.add_warning", warnings.append)
     items = _Drawn("items", [2.5, -1])
-    pick = Pick("products", ["a", "b"], None, seed=1, process="P", count=CountFrom("items"))
-    pick.read_count_from(items)
+    pick = Pick("products", ["a", "b"], None, seed=1, process="P", quantity=QuantityFrom("items"))
+    pick.read_quantity_from(items)
 
     picked = [(items.get_next_value(), pick.get_next_value())[1] for _ in range(2)]
 
@@ -123,11 +123,11 @@ def test_a_count_attribute_without_a_whole_number_picks_one_with_one_warning(mon
     assert warnings == ["items is 2.5, no whole number of at least 0; the pick of products picks one"]
 
 
-# in a run: Sales picks one product per item, the count read from items, which sales.json draws
+# in a run: Sales picks one product per item, the quantity read from items, which sales.json draws
 
 @pytest.fixture(scope="module")
 def picking_run(tmp_path_factory):
-    return _run(tmp_path_factory.mktemp("pick_count"), {**PRODUCTS, "count": {"object_attribute": "items"},
+    return _run(tmp_path_factory.mktemp("pick_quantity"), {**PRODUCTS, "quantity": {"object_attribute": "items"},
                                                         "o2o": "contains"})
 
 
@@ -163,7 +163,7 @@ def test_the_list_is_a_column_of_the_log(picking_run):
                for case, value in sales["products"].items())
 
 
-def test_a_count_pick_doesnt_change_the_rest_of_the_run(tmp_path, picking_run):
+def test_a_quantity_pick_doesnt_change_the_rest_of_the_run(tmp_path, picking_run):
     _, picking, _ = picking_run
     _, plain, _ = _run(tmp_path, None, "plain")
 
@@ -173,33 +173,34 @@ def test_a_count_pick_doesnt_change_the_rest_of_the_run(tmp_path, picking_run):
 # load errors
 
 @pytest.mark.parametrize("products, problem", [
-    ({"object_attribute": "products", "catalogue": "product", "count": 3},
-     "has count but no pick; count says how many objects the pick chooses"),
-    ({**PRODUCTS, "count": -1}, r'count must be a whole number of at least 0 or \{"object_attribute": <object '
+    ({"object_attribute": "products", "catalogue": "product", "quantity": 3},
+     "has quantity but no pick; quantity says how many objects the pick chooses"),
+    ({**PRODUCTS, "quantity": -1}, r'quantity must be a whole number of at least 0 or \{"object_attribute": <object '
                                 r"attribute>\}, got -1"),
-    ({**PRODUCTS, "count": 2.5}, "count must be a whole number of at least 0"),
-    ({**PRODUCTS, "count": "3"}, "count must be a whole number of at least 0"),
-    ({**PRODUCTS, "count": True}, "count must be a whole number of at least 0"),
-    ({**PRODUCTS, "count": {"object_attribute": "lines"}},
-     "count reads 'lines', which process Sales doesn't draw in its object_attributes; the count is read when the "
+    ({**PRODUCTS, "quantity": 2.5}, "quantity must be a whole number of at least 0"),
+    ({**PRODUCTS, "quantity": "3"}, "quantity must be a whole number of at least 0"),
+    ({**PRODUCTS, "quantity": True}, "quantity must be a whole number of at least 0"),
+    ({**PRODUCTS, "quantity": {"object_attribute": "lines"}},
+     "quantity reads 'lines', which process Sales doesn't draw in its object_attributes; the quantity is read when the "
      "case is created"),
 ])
-def test_an_invalid_count_is_rejected(tmp_path, products, problem):
+def test_an_invalid_quantity_is_rejected(tmp_path, products, problem):
     with pytest.raises(ValueError, match=rf"{SALES} {problem}"):
         sales_picking(tmp_path, products)
 
 
 @pytest.mark.parametrize("pick", ["new", {"new_share": 0.5}])
-def test_count_on_a_growing_catalogue_is_rejected(tmp_path, pick):
+def test_quantity_on_a_growing_catalogue_is_rejected(tmp_path, pick):
     path = config_with(tmp_path, catalogues={"customer": CUSTOMERS, "product": {"attributes": []}},
-                       references={"Sales": [{**PICKING, "pick": "uniform"}, {**PRODUCTS, "pick": pick, "count": 3}]})
+                       references={"Sales": [{**PICKING, "pick": "uniform"},
+                                             {**PRODUCTS, "pick": pick, "quantity": 3}]})
 
-    with pytest.raises(ValueError, match=rf'{SALES} has count with "new" or new_share; count works with "uniform" or '
-                                         r"weights"):
+    with pytest.raises(ValueError, match=rf'{SALES} has quantity with "new" or new_share; quantity works with '
+                                         r'"uniform" or weights'):
         SimulationConfig.from_json(path)
 
 
-def test_a_count_object_with_another_key_is_rejected(tmp_path):
-    with pytest.raises(ValueError, match=r"processes\[0\].references\[1\].count: unknown key 'attribute'; allowed: "
+def test_a_quantity_object_with_another_key_is_rejected(tmp_path):
+    with pytest.raises(ValueError, match=r"processes\[0\].references\[1\].quantity: unknown key 'attribute'; allowed: "
                                          r"object_attribute$"):
-        sales_picking(tmp_path, {**PRODUCTS, "count": {"attribute": "items"}})
+        sales_picking(tmp_path, {**PRODUCTS, "quantity": {"attribute": "items"}})

@@ -11,7 +11,7 @@ from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import Message
 from testing_scripts.multiprocess.catalogue.test_catalogue import config_with
 from testing_scripts.multiprocess.catalogue.test_pick import CUSTOMERS, PICKING, PRODUCTS_LIST
-from testing_scripts.multiprocess.catalogue.test_pick_count import PRODUCTS, SALES, at_creation, sales_picking
+from testing_scripts.multiprocess.catalogue.test_pick_quantity import PRODUCTS, SALES, at_creation, sales_picking
 from testing_scripts.multiprocess.catalogue.test_with import PRICE
 from testing_scripts.multiprocess.catalogue.test_with import run as _run_picking
 from testing_scripts.multiprocess.messaging.test_aggregate import (WEIGHTS, aggregate_history, ocel_history, rejected,
@@ -57,7 +57,7 @@ def test_without_initial_with_stays_as_before():
 
 def test_every_order_costs_its_products_prices_plus_a_fee(tmp_path):
     # an order's price: the sum of its items' prices plus a fee of 5.00
-    report, _, _ = _run_picking(sales_picking(tmp_path, {**PRODUCTS, "count": {"object_attribute": "items"},
+    report, _, _ = _run_picking(sales_picking(tmp_path, {**PRODUCTS, "quantity": {"object_attribute": "items"},
                                                          "with": {"price": {"sum": "price", "initial": 5.0}}}),
                                 tmp_path)
 
@@ -71,7 +71,7 @@ def test_every_order_costs_its_products_prices_plus_a_fee(tmp_path):
 @pytest.mark.parametrize("initial", ["5", True, None])
 def test_with_an_initial_that_isnt_a_number_is_rejected(tmp_path, initial):
     with pytest.raises(ValueError, match=rf"{SALES} with 'price' initial must be a number, got {initial!r}"):
-        sales_picking(tmp_path, {**PRODUCTS, "count": 3, "with": {"price": {"sum": "price", "initial": initial}}})
+        sales_picking(tmp_path, {**PRODUCTS, "quantity": 3, "with": {"price": {"sum": "price", "initial": initial}}})
 
 
 def test_initial_on_a_plain_copy_is_rejected(tmp_path):

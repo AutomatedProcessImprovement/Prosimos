@@ -10,7 +10,7 @@ from typing import List, Optional, Tuple
 from prosimos.control_flow_manager import BPMN
 from prosimos.messaging.model import ConsumePoint, PublishPoint
 from prosimos.messaging.parser import unknown_keys
-from prosimos.orchestration.catalogue.model import CountFrom
+from prosimos.orchestration.catalogue.model import QuantityFrom
 from prosimos.orchestration.catalogue.picks import Brought, Pick, Received
 from prosimos.orchestration.config import ProcessSpec
 from prosimos.orchestration.protocol import (CaseObject, ClaimRecord, EngineReport, Message, PublishRecord,
@@ -67,9 +67,9 @@ class ProsimosEngine(SimulationEngine):
             # picked attributes join the declared ones: a column of the log, and messages may carry them
             sim_setup = load_process(spec.bpmn_path, spec.json_path, spec.arrivals, start_datetime, picks)
             for pick in picks:
-                if isinstance(pick, Pick) and isinstance(pick.count, CountFrom):
-                    pick.read_count_from(next(attribute for attribute in sim_setup.case_attributes.attributes
-                                              if attribute.name == pick.count.object_attribute))
+                if isinstance(pick, Pick) and isinstance(pick.quantity, QuantityFrom):
+                    pick.read_quantity_from(next(attribute for attribute in sim_setup.case_attributes.attributes
+                                              if attribute.name == pick.quantity.object_attribute))
             self._env = SimBPMEnv(sim_setup, None, log_writer, id_prefix=spec.id_prefix)
             # its organization's catalogue values, for the 'with' of its references (see Received and Brought)
             self._env.receive_catalogue_values([(pick.name, pick.source, pick.values, pick.function, pick.initial,

@@ -12,7 +12,7 @@ from prosimos.messaging.model import AGGREGATE_FUNCTIONS
 from prosimos.messaging.parser import is_number, is_whole_number, unknown_keys
 from prosimos.orchestration.catalogue.checks import brought_names, checked_catalogue
 from prosimos.orchestration.catalogue.model import (CatalogueChange, CatalogueObject, CataloguePool, Computed,
-                                                    CountFrom, GrowingCatalogue, NewShare, Reference)
+                                                    GrowingCatalogue, NewShare, QuantityFrom, Reference)
 from prosimos.simulation_properties_parser import parse_datetime
 
 
@@ -48,7 +48,7 @@ CONFIG_KEYS = {"organizations", "start_time", "seed", "consumer_groups"}
 ORGANIZATION_KEYS = {"name", "catalogues", "catalogue_changes", "processes"}
 PROCESS_KEYS = {"name", "bpmn_path", "json_path", "arrivals", "object_type", "qualifier", "qualifier_by_activity",
                 "ocel_attributes", "references"}
-REFERENCE_KEYS = {"object_attribute", "catalogue", "o2o", "reverse", "link_events", "pick", "count", "with",
+REFERENCE_KEYS = {"object_attribute", "catalogue", "o2o", "reverse", "link_events", "pick", "quantity", "with",
                   "tag_along"}
 CHANGE_KEYS = {"catalogue", "attribute", "every", "at", "multiply", "add", "set", "round", "objects"}
 PERIODS = ("weeks", "days", "hours")
@@ -310,17 +310,18 @@ def _reference(path, where, entry):
         pick = tuple(pick["weights"].items())
     elif isinstance(pick, dict) and list(pick) == ["new_share"]:
         pick = NewShare(pick["new_share"])
-    count = entry.get("count")
-    if isinstance(count, dict):
-        _check_keys(path, f"{where}.count", count, {"object_attribute"})
-        count = CountFrom(count["object_attribute"]) if isinstance(count.get("object_attribute"), str) else count
+    quantity = entry.get("quantity")
+    if isinstance(quantity, dict):
+        _check_keys(path, f"{where}.quantity", quantity, {"object_attribute"})
+        if isinstance(quantity.get("object_attribute"), str):
+            quantity = QuantityFrom(quantity["object_attribute"])
     with_attributes = entry.get("with", ())
     if isinstance(with_attributes, dict):  # anything else is rejected when the configuration is checked
         with_attributes = tuple((name, _computed(source)) for name, source in with_attributes.items())
     return Reference(entry["object_attribute"], entry["catalogue"], entry.get("o2o"),
                      entry.get("reverse", False), None if link_events is None else tuple(link_events), pick,
                      with_attributes,
-                     entry.get("tag_along", False), count)
+                     entry.get("tag_along", False), quantity)
 
 
 def _computed(source):

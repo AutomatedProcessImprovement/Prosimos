@@ -174,7 +174,7 @@ links each customer to the orders it **places** (`"reverse": true`, from the cus
 place order and confirm order to their customer; pay order isn't linked. Since `ItemOrdered` carries the picked
 `customer`, `sales.json` only runs inside this configuration, not on its own. Products come from Shop's other
 catalogue: 20, each with its `weight` and `price`. A second reference of Sales picks the order's `products`, one
-per item (`"count": {"object_attribute": "items"}`), uniformly, and prices the order with
+per item (`"quantity": {"object_attribute": "items"}`), uniformly, and prices the order with
 `"with": {"price": {"sum": "price", "initial": 5.00}}`: 5.00 plus its products' prices, written on the order's OCEL
 object (Sales's `ocel_attributes`). It links no events (`"link_events": []`): the order's events reach its products
 through its items. `ItemOrdered` is published once per product (`fan_out` over the list `products`, each message

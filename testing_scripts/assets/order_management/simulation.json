@@ -48,7 +48,7 @@
              "o2o": "places", "reverse": true, "link_events": ["place order", "confirm order"],
              "pick": "uniform"},
             {"object_attribute": "products", "catalogue": "product", "link_events": [],
-             "pick": "uniform", "count": {"object_attribute": "items"},
+             "pick": "uniform", "quantity": {"object_attribute": "items"},
              "with": {"price": {"sum": "price", "initial": 5.00}}}
           ]
         },

@@ -94,7 +94,7 @@ It is also rejected for a key it doesn't know, at the top level (a top-level `pr
 belong to an organization), in an organization entry, a process entry, a catalogue (a listed object, a pool or a
 growing catalogue), a reference or its `pick`, since a misspelled key would otherwise be ignored and change the
 run without any message, and every message names where the key is:
-`organizations[0].processes[0].references[0]: unknown key 'link_event'; allowed: catalogue, count, link_events, o2o, object_attribute, pick, reverse, tag_along, with`.
+`organizations[0].processes[0].references[0]: unknown key 'link_event'; allowed: catalogue, link_events, o2o, object_attribute, pick, quantity, reverse, tag_along, with`.
 
 **Organizations.** An organization is a box around a business's processes and its data: inside, its processes
 share its catalogues; between organizations, only messages pass. Messages, routing and consumer groups don't
