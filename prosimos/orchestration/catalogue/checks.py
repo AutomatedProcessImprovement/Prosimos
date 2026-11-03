@@ -38,9 +38,9 @@ def checked_catalogue(organizations):
     for name, entry in catalogue.items():
         if not isinstance(entry, (CataloguePool, GrowingCatalogue)):
             continue
-        if isinstance(entry, CataloguePool) and (not isinstance(entry.count, int) or isinstance(entry.count, bool)
-                                                 or entry.count < 1):
-            problems.append(f"catalogue {name!r}: count must be a whole number of at least 1, got {entry.count!r}")
+        if isinstance(entry, CataloguePool) and (not isinstance(entry.size, int) or isinstance(entry.size, bool)
+                                                 or entry.size < 1):
+            problems.append(f"catalogue {name!r}: size must be a whole number of at least 1, got {entry.size!r}")
         for number, attribute in enumerate(entry.attributes):
             try:
                 CaseAttribute(attribute["name"], attribute["type"], attribute["values"])

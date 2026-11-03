@@ -80,18 +80,27 @@ def test_an_object_of_a_listed_catalogue(tmp_path):
 
 def test_a_pool(tmp_path):
     def misspelled(data):
-        data["organizations"][0]["catalogues"]["customer"] = {"count": 10, "atributes": []}
+        data["organizations"][0]["catalogues"]["customer"] = {"size": 10, "atributes": []}
 
-    _config_rejected(tmp_path, r"organizations\[0\].catalogues.customer: unknown key 'atributes'; allowed: attributes, count$",
+    _config_rejected(tmp_path, r"organizations\[0\].catalogues.customer: unknown key 'atributes'; allowed: attributes, size$",
                      misspelled)
 
 
+def test_count_is_no_key_of_a_pool(tmp_path):
+    # size says how many objects a pool has
+    def counted(data):
+        data["organizations"][0]["catalogues"]["customer"] = {"count": 10, "attributes": []}
+
+    _config_rejected(tmp_path, r"organizations\[0\].catalogues.customer: unknown key 'count'; allowed: attributes, "
+                               r"size$", counted)
+
+
 def test_a_growing_catalogue(tmp_path):
-    # a misspelled count would otherwise make the pool a growing catalogue
+    # a misspelled size would otherwise make the pool a growing catalogue
     def misspelled(data):
         data["organizations"][0]["catalogues"]["customer"] = {"cont": 10, "attributes": []}
 
-    _config_rejected(tmp_path, r"organizations\[0\].catalogues.customer: unknown key 'cont'; allowed: attributes, count$",
+    _config_rejected(tmp_path, r"organizations\[0\].catalogues.customer: unknown key 'cont'; allowed: attributes, size$",
                      misspelled)
 
 

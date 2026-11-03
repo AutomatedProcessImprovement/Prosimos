@@ -52,7 +52,7 @@ address, they would be the cases of a process too.
 | Form    | Written as                                    | Ids                                     | Use it when                                                    | Written to OCEL                            |
 |---------|-----------------------------------------------|-----------------------------------------|----------------------------------------------------------------|--------------------------------------------|
 | List    | `[{"id": ..., "attributes": {...}}, ...]`     | as given                                | the objects are few and known, each with its own values        | every object, referred to or not           |
-| Pool    | `{"count": N, "attributes": [...]}`           | `<name>-1` to `<name>-N`                | the set is fixed but too large to type out                     | only the objects some case refers to       |
+| Pool    | `{"size": N, "attributes": [...]}`            | `<name>-1` to `<name>-N`                | the set is fixed but too large to type out                     | only the objects some case refers to       |
 | Growing | `{"attributes": [...]}`                       | `<name>-1`, `<name>-2`, ... as created  | the population isn't fixed: new customers keep arriving        | the objects cases created                  |
 
 The catalogue's name (`customer` above) is the objects' OCEL type.
@@ -76,7 +76,7 @@ it; an attribute that changes is written again at every change (see "Changes").
 ### Pool
 
 ```json
-"customer": {"count": 1500,
+"customer": {"size": 1500,
   "attributes": [
     {"name": "segment", "type": "discrete",
      "values": [{"key": "retail", "value": 0.8}, {"key": "business", "value": 0.2}]},
@@ -85,7 +85,7 @@ it; an attribute that changes is written again at every change (see "Changes").
                 "distribution_params": [{"value": 5000}, {"value": 1000}, {"value": 1000}, {"value": 9000}]}}]}
 ```
 
-- `count` (required): a whole number, at least 1.
+- `size` (required): a whole number, at least 1.
 - `attributes` (optional): in exactly the format of a process's `object_attributes`, discrete or continuous,
   drawn by Prosimos's case attribute code.
 
@@ -102,7 +102,7 @@ the start of the run: with 2,000 orders picking uniformly from 1,500 customers, 
    "values": [{"key": "retail", "value": 0.8}, {"key": "business", "value": 0.2}]}]}
 ```
 
-- `attributes` (optional): as for a pool. There is no list and no `count`.
+- `attributes` (optional): as for a pool. There is no list and no `size`.
 
 The catalogue starts empty. One reference of the organization creates its objects as cases are created, with
 `"pick": "new"` or `{"new_share": ...}` (see below); its other processes learn the ids from messages. Ids are
@@ -654,7 +654,7 @@ The messages, by the key they are about:
 | `id`                         | `catalogue ids are repeated: ['x']` (ids are unique across all catalogues)                                                                                                                                                                                     |
 | `id`                         | `catalogue ids look like object ids (<object type>-<number>): ['order-1']`                                                                                                                                                                                     |
 | catalogue name               | `catalogue 'order' is the object type of process Sales`                                                                                                                                                                                                        |
-| `count` (pool)               | `catalogue 'customer': count must be a whole number of at least 1, got 0`                                                                                                                                                                                      |
+| `size`                       | `catalogue 'customer': size must be a whole number of at least 1, got 0`                                                                                                                                                                                       |
 | `attributes` (pool, growing) | `catalogue 'customer': attributes[0]: InvalidCaseAttributeException: Case attribute segment: probabilities' sum should be equal to 1` (Prosimos's own message)                                                                                                 |
 | growing catalogue            | `catalogue ids look like the ids growing catalogue 'customer' creates (customer-<number>): ['customer-2']`                                                                                                                                                     |
 | growing catalogue            | `growing catalogue 'customer' needs exactly one reference that creates its objects ("new" or new_share), got 0                                                                                                                                                 |

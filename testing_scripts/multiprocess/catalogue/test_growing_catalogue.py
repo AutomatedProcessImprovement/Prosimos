@@ -160,7 +160,7 @@ def test_uniform_or_weights_on_a_growing_catalogue_are_rejected(tmp_path):
               references=[{**PICKING, "pick": "uniform"}])
 
 
-@pytest.mark.parametrize("catalogue", [{"customer": [{"id": "c1"}]}, {"customer": {"count": 10}}])
+@pytest.mark.parametrize("catalogue", [{"customer": [{"id": "c1"}]}, {"customer": {"size": 10}}])
 def test_new_on_a_listed_catalogue_or_a_pool_is_rejected(tmp_path, catalogue):
     _rejected(tmp_path, rf"{SALES}\[0\] picks \"new\" or new_share from catalogue 'customer', which is no growing",
               catalogues=catalogue)

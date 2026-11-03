@@ -173,7 +173,7 @@ def test_a_count_of_an_attribute_that_isnt_a_number_is_allowed(tmp_path):
     SimulationConfig.from_json(path)
 
 
-POOL_OF_TEXT = {"count": 10, "attributes": [{"name": "segment", "type": "discrete",
+POOL_OF_TEXT = {"size": 10, "attributes": [{"name": "segment", "type": "discrete",
                                              "values": [{"key": "retail", "value": 0.8},
                                                         {"key": "business", "value": 0.2}]}]}
 
@@ -188,7 +188,7 @@ def test_a_sum_of_a_pool_attribute_that_draws_text_is_rejected(tmp_path):
 
 
 def test_a_sum_of_a_pool_attribute_that_draws_numbers_is_allowed(tmp_path):
-    path = config_with(tmp_path, catalogues={"customer": {"count": 10, "attributes": list(POOL.attributes)}},
+    path = config_with(tmp_path, catalogues={"customer": {"size": 10, "attributes": list(POOL.attributes)}},
                        references={"Sales": [{**PICKING, "pick": "uniform",
                                               "with": {"limit": {"sum": "credit_limit"}}}]})
 

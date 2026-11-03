@@ -316,7 +316,7 @@ def test_a_change_of_an_attribute_the_objects_dont_have_is_rejected(tmp_path):
 def test_a_change_of_an_attribute_a_pool_doesnt_draw_is_rejected(tmp_path):
     _rejected(tmp_path, {**CHANGE, "catalogue": "customer", "attribute": "colour"},
               rf"{WHERE} changes 'colour', which catalogue 'customer' doesn't draw in its attributes",
-              catalogues={"customer": {"count": 10, "attributes": [
+              catalogues={"customer": {"size": 10, "attributes": [
                   {"name": "segment", "type": "discrete", "values": [{"key": "retail", "value": 1}]}]}},
               references={})
 
@@ -333,7 +333,7 @@ def test_multiply_or_add_on_an_attribute_that_isnt_a_number_is_rejected(tmp_path
 def test_multiply_on_a_pool_attribute_that_draws_text_is_rejected(tmp_path):
     _rejected(tmp_path, {**CHANGE, "catalogue": "customer", "attribute": "segment"},
               rf"{WHERE} multiply needs a number, and catalogue 'customer' doesn't always draw 'segment' as one",
-              catalogues={"customer": {"count": 10, "attributes": [
+              catalogues={"customer": {"size": 10, "attributes": [
                   {"name": "segment", "type": "discrete", "values": [{"key": "retail", "value": 1}]}]}},
               references={})
 

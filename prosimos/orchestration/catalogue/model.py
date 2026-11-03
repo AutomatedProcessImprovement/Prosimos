@@ -16,9 +16,9 @@ class CatalogueObject:
 
 @dataclass(frozen=True)
 class CataloguePool:
-    """A generated catalogue: count objects, <name>-1 to <name>-<count>, their attributes drawn at the start."""
+    """A generated catalogue: size objects, <name>-1 to <name>-<size>, their attributes drawn at the start."""
 
-    count: int
+    size: int
     attributes: Tuple[Dict[str, Any], ...] = ()
 
 
@@ -103,5 +103,5 @@ def catalogue_ids(name, entry) -> List[str]:
     if isinstance(entry, GrowingCatalogue):
         return []
     if isinstance(entry, CataloguePool):
-        return [f"{name}-{number}" for number in range(1, entry.count + 1)] if isinstance(entry.count, int) else []
+        return [f"{name}-{number}" for number in range(1, entry.size + 1)] if isinstance(entry.size, int) else []
     return [obj.id for obj in entry]

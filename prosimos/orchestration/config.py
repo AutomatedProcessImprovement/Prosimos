@@ -221,12 +221,12 @@ def _object_type(path, where, entry):
 
 
 def _catalogue(path, where, entries):
-    if isinstance(entries, dict):  # a pool, or growing without count
-        _check_keys(path, where, entries, {"count", "attributes"})
-    if isinstance(entries, dict) and "count" not in entries:
+    if isinstance(entries, dict):  # a pool, or growing without size
+        _check_keys(path, where, entries, {"size", "attributes"})
+    if isinstance(entries, dict) and "size" not in entries:
         return GrowingCatalogue(tuple(entries.get("attributes", [])))
     if isinstance(entries, dict):
-        return CataloguePool(entries.get("count"), tuple(entries.get("attributes", [])))
+        return CataloguePool(entries.get("size"), tuple(entries.get("attributes", [])))
     return [_catalogue_object(path, f"{where}[{number}]", entry) for number, entry in enumerate(entries)]
 
 

@@ -237,24 +237,24 @@ def test_weights_naming_unknown_ids_are_rejected(tmp_path):
 
 
 def test_weights_on_a_pool_are_rejected(tmp_path):
-    path = config_with(tmp_path, catalogues={"customer": {"count": 10}},
+    path = config_with(tmp_path, catalogues={"customer": {"size": 10}},
                        references={"Sales": [{**PICKING, "pick": {"weights": {"customer-1": 1}}}]})
 
     with pytest.raises(ValueError, match=r"processes\[0\].references\[0\] has weights on pool 'customer'"):
         SimulationConfig.from_json(path)
 
 
-@pytest.mark.parametrize("count", [0, -5, "10", 2.5, None])
-def test_a_pool_count_below_1_or_not_a_whole_number_is_rejected(tmp_path, count):
-    path = config_with(tmp_path, catalogues={"customer": {"count": count}},
+@pytest.mark.parametrize("size", [0, -5, "10", 2.5, None])
+def test_a_pool_size_below_1_or_not_a_whole_number_is_rejected(tmp_path, size):
+    path = config_with(tmp_path, catalogues={"customer": {"size": size}},
                        references={"Sales": [{**PICKING, "pick": "uniform"}]})
 
-    with pytest.raises(ValueError, match=r"catalogue 'customer': count must be a whole number of at least 1"):
+    with pytest.raises(ValueError, match=r"catalogue 'customer': size must be a whole number of at least 1"):
         SimulationConfig.from_json(path)
 
 
 def test_pool_attributes_prosimos_cant_parse_are_rejected(tmp_path):
-    path = config_with(tmp_path, catalogues={"customer": {"count": 10, "attributes": [
+    path = config_with(tmp_path, catalogues={"customer": {"size": 10, "attributes": [
         {"name": "segment", "type": "discrete", "values": [{"key": "retail", "value": 0.5}]}]}}, references={})
 
     with pytest.raises(ValueError, match=r"catalogue 'customer': attributes\[0\]: .*probabilities' sum should be equal to 1"):
@@ -365,7 +365,7 @@ def test_with_naming_an_attribute_not_every_object_has_is_rejected(tmp_path):
 
 
 def test_with_naming_an_attribute_a_pool_doesnt_draw_is_rejected(tmp_path):
-    path = config_with(tmp_path, catalogues={"product": {"count": 5, "attributes": [
+    path = config_with(tmp_path, catalogues={"product": {"size": 5, "attributes": [
         {"name": "weight", "type": "discrete", "values": [{"key": 1, "value": 1}]}]}},
                        references={"Warehouse": [{**PRODUCTS, "with": {"weight": "weight", "price": "price"}}]})
 
