@@ -83,7 +83,7 @@
       {
         "event_id": "Throw_Items",
         "type": "ItemOrdered",
-        "count": {
+        "fan_out": {
           "object_attribute": "items"
         },
         "attributes": [

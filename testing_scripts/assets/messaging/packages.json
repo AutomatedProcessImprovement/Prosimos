@@ -14,7 +14,7 @@
   "messages": {
     "publish": [
       {"event_id": "Throw_Packed", "type": "Packed", "attributes": ["object_id", "index"],
-       "count": {"list": "item_ids", "as": "item_id"}}
+       "fan_out": {"list": "item_ids", "as": "item_id"}}
     ],
     "consume": [
       {"event_id": "Start_Package", "type": "ItemPicked", "append": {"item_ids": "object_id"}},

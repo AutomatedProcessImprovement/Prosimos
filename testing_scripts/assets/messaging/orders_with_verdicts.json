@@ -83,7 +83,7 @@
       {
         "event_id": "Throw_Items",
         "type": "ItemOrdered",
-        "count": {
+        "fan_out": {
           "object_attribute": "items"
         },
         "attributes": [
@@ -94,7 +94,7 @@
       {
         "event_id": "Throw_Shipped",
         "type": "Shipped",
-        "count": {
+        "fan_out": {
           "object_attribute": "items"
         },
         "attributes": [
@@ -105,7 +105,7 @@
       {
         "event_id": "Throw_Cancelled",
         "type": "Cancelled",
-        "count": {
+        "fan_out": {
           "object_attribute": "items"
         },
         "attributes": [

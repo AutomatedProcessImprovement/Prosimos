@@ -95,7 +95,7 @@ class EngineMessaging:
             if self.sim_setup.bpmn_graph.terminated_by(p_case, due):
                 continue
             for point in self._publish_points.get(element_id, []):
-                for index in range(1, self._count(point, p_case) + 1):
+                for index in range(1, self._fan_out(point, p_case) + 1):
                     self.outbox.append((point.type, self._message_attributes(point, p_case, index), p_case, element_id,
                                         point))
 
@@ -545,33 +545,33 @@ class EngineMessaging:
         return (prefix == self.id_prefix and number.isdigit() and str(int(number)) == number
                 and int(number) >= len(self.log_info.trace_list))
 
-    def _count(self, point, p_case):
-        """How many messages point publishes for a case now: 1, its count, or one per entry of its list."""
-        if not point.counted:
+    def _fan_out(self, point, p_case):
+        """How many messages point publishes for a case now: 1, its fan_out, or one per entry of its list."""
+        if not point.fans_out:
             return 1
-        if point.count_list is not None:
-            return len(self._count_list(point, p_case))
-        if point.count_attribute is None:
-            return point.count
-        count = self.sim_setup.bpmn_graph.get_all_attributes(p_case).get(point.count_attribute)
-        if is_whole_number(count, minimum=0):
-            return int(count)
-        if (point.event_id, point.count_attribute) not in self._warned_counts:
-            self._warned_counts.add((point.event_id, point.count_attribute))
+        if point.fan_out_list is not None:
+            return len(self._fan_out_list(point, p_case))
+        if point.fan_out_attribute is None:
+            return point.fan_out
+        number = self.sim_setup.bpmn_graph.get_all_attributes(p_case).get(point.fan_out_attribute)
+        if is_whole_number(number, minimum=0):
+            return int(number)
+        if (point.event_id, point.fan_out_attribute) not in self._warned_fan_outs:
+            self._warned_fan_outs.add((point.event_id, point.fan_out_attribute))
             warning_logger.add_warning(
-                f"case {p_case} passes {point.event_id} with no valid {point.count_attribute} (got {count!r}); "
+                f"case {p_case} passes {point.event_id} with no valid {point.fan_out_attribute} (got {number!r}); "
                 f"it publishes one {point.type} message")
         return 1
 
-    def _count_list(self, point, p_case):
-        entries = self.sim_setup.bpmn_graph.get_all_attributes(p_case).get(point.count_list)
+    def _fan_out_list(self, point, p_case):
+        entries = self.sim_setup.bpmn_graph.get_all_attributes(p_case).get(point.fan_out_list)
         if isinstance(entries, (list, tuple)) and entries:
             return entries
-        if point.event_id not in self._warned_count_lists:
-            self._warned_count_lists.add(point.event_id)
+        if point.event_id not in self._warned_fan_out_lists:
+            self._warned_fan_out_lists.add(point.event_id)
             kind = "an empty" if isinstance(entries, (list, tuple)) else "no"
             warning_logger.add_warning(
-                f"case {p_case} passes {point.event_id} with {kind} list {point.count_list} (got {entries!r}); "
+                f"case {p_case} passes {point.event_id} with {kind} list {point.fan_out_list} (got {entries!r}); "
                 f"it publishes no {point.type} message")
         return ()
 
@@ -598,8 +598,8 @@ class EngineMessaging:
                     warning_logger.add_warning(
                         f"Attribute {name} has no value when case {p_case} passes {point.event_id}; "
                         f"its {point.type} message carries None")
-        if point.count_list is not None:  # only called for an index within the list
-            attributes[point.count_as] = values[point.count_list][index - 1]
+        if point.fan_out_list is not None:  # only called for an index within the list
+            attributes[point.fan_out_as] = values[point.fan_out_list][index - 1]
         return attributes
 
     def tasks_next_to(self, element_id, forward):

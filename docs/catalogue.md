@@ -551,7 +551,7 @@ poetry run prosimos start-orchestration --config testing_scripts/assets/order_ma
 `sales.json` has no `customer` in its `object_attributes`: the reference picks it. Its `ItemOrdered` message
 then carries it to the items, and `ItemPicked` to the packages. Sales's second reference picks the order's
 `products`, as many as `items` says, and gives the order `price`: 5.00 plus their prices. `ItemOrdered` is published
-once per product (`count` over the list `products`), naming it as `product`. `warehouse.json` copies `product` from
+once per product (`fan_out` over the list `products`), naming it as `product`. `warehouse.json` copies `product` from
 the message, and the Warehouse's reference, without a pick, brings the product's `weight` and `price` into the item
 (see "With for a received value"). `ItemPicked` carries the item's `weight` to the package. Both read the prices
 valid when the order and its items are created, so every order costs 5.00 plus its items' prices at every point

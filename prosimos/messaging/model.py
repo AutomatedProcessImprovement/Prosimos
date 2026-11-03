@@ -23,19 +23,19 @@ class PublishPoint:
     event_id: str
     type: str
     attributes: Tuple[str, ...]  # from the case's values; the engine fills in 'object_id' and 'index'
-    count: Optional[int] = None
-    count_attribute: Optional[str] = None  # the case attribute holding the count
-    count_list: Optional[str] = None  # a case attribute holding a list: one message per entry, carried as count_as
-    count_as: Optional[str] = None
+    fan_out: Optional[int] = None
+    fan_out_attribute: Optional[str] = None  # the case attribute holding the number
+    fan_out_list: Optional[str] = None  # a case attribute holding a list: one message per entry, carried as fan_out_as
+    fan_out_as: Optional[str] = None
     qualifier: Optional[str] = None  # of its messages' OCEL links; None: no links
     o2o: Optional[str] = None  # OCEL link from the publishing case's object to each claimer's
     # the later events of the case that also link the claimers' objects: True for all, or the activities named
     carry: Union[bool, Tuple[str, ...]] = False
 
     @property
-    def counted(self):
-        """Whether the entry has a count (else it publishes one message, without an index)."""
-        return self.count is not None or self.count_attribute is not None or self.count_list is not None
+    def fans_out(self):
+        """Whether the entry has a fan_out (else it publishes one message, without an index)."""
+        return self.fan_out is not None or self.fan_out_attribute is not None or self.fan_out_list is not None
 
 
 @dataclass(frozen=True)

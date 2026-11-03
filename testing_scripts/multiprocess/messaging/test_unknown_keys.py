@@ -155,8 +155,15 @@ def _messages_rejected(section, bpmn_path, message):
 
 def test_a_publish_entry(bpmn):
     _messages_rejected(publish(atributes=["object_id"]), bpmn,
-                       r"messages.publish\[0\]: unknown key 'atributes'; allowed: attributes, carry, count, event_id, "
-                       r"o2o, qualifier, type$")
+                       r"messages.publish\[0\]: unknown key 'atributes'; allowed: attributes, carry, event_id, "
+                       r"fan_out, o2o, qualifier, type$")
+
+
+@pytest.mark.parametrize("section, where", [(publish(count=3), r"messages.publish\[0\]"),
+                                            (consume(count=3), r"messages.consume\[0\]")])
+def test_count_is_no_key_of_a_message_entry(bpmn, section, where):
+    # fan_out says how many messages a publish entry sends
+    _messages_rejected(section, bpmn, rf"{where}: unknown key 'count'; allowed: ")
 
 
 def test_a_consume_entry(bpmn):
@@ -165,9 +172,9 @@ def test_a_consume_entry(bpmn):
                        r"collect, condition, copy, event_id, o2o, qualifier, same, type$")
 
 
-def test_a_count_object(bpmn):
-    _messages_rejected(publish(count={"object_atribute": "items"}), bpmn,
-                       r"messages.publish\[0\].count: unknown key 'object_atribute'; allowed: as, list, object_attribute$")
+def test_a_fan_out_object(bpmn):
+    _messages_rejected(publish(fan_out={"object_atribute": "items"}), bpmn,
+                       r"messages.publish\[0\].fan_out: unknown key 'object_atribute'; allowed: as, list, object_attribute$")
 
 
 def test_a_collect_object(bpmn):
@@ -180,8 +187,8 @@ def test_a_capacity_object(bpmn):
                        r"messages.consume\[0\].capacity: unknown key 'atribute'; allowed: attribute, max, min$")
 
 
-def test_count_on_a_consume_entry_keeps_its_own_reason(bpmn):
-    _messages_rejected(consume(count=2), bpmn, r"count is only for publish entries")
+def test_fan_out_on_a_consume_entry_keeps_its_own_reason(bpmn):
+    _messages_rejected(consume(fan_out=2), bpmn, r"fan_out is only for publish entries")
 
 
 # a process's JSON settings
@@ -240,7 +247,7 @@ def test_case_attributes_is_no_section_of_a_processs_settings(tmp_path):
 
 
 @pytest.mark.parametrize("section, where", [
-    (publish(count={"case_attribute": "items"}), r"messages.publish\[0\].count"),
+    (publish(fan_out={"case_attribute": "items"}), r"messages.publish\[0\].fan_out"),
     (consume(collect={"case_attribute": "items"}), r"messages.consume\[0\].collect"),
     (consume(collect={"min": {"case_attribute": "items"}}), r"messages.consume\[0\].collect.min"),
     (consume(condition=[[{"attribute": "order_id", "comparison": "=", "case_attribute": "order_id"}]]),

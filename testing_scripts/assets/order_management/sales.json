@@ -228,7 +228,7 @@
       {
         "event_id": "Throw_ItemOrdered",
         "type": "ItemOrdered",
-        "count": {
+        "fan_out": {
           "list": "products",
           "as": "product"
         },

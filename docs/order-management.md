@@ -5,7 +5,7 @@ realistic model: three processes, seven people on one calendar, and two catalogu
 products, whose prices rise during the run. The models are in `testing_scripts/assets/order_management/`; the tests are in
 `testing_scripts/multiprocess/examples/test_order_management.py`.
 
-It uses most messaging features ([messaging.md](messaging.md)): one message per object with `count` and
+It uses most messaging features ([messaging.md](messaging.md)): one message per object with `fan_out` and
 `index`, processes started by messages, `copy`, `append` and `aggregate`, and `collect` with `same`; and the
 catalogue ([catalogue.md](catalogue.md)) for its customers and products, with a change of their prices on the
 clock.
@@ -59,24 +59,24 @@ flowchart LR
     Warehouse([Warehouse<br/>one case per item])
     Packaging([Packaging<br/>one case per packing round])
 
-    Sales -->|"ItemOrdered<br/>(one per item: count)"| Warehouse
+    Sales -->|"ItemOrdered<br/>(one per item: fan_out)"| Warehouse
     Warehouse -->|"ItemPicked<br/>(a packing round takes all of one customer's)"| Packaging
 ```
 
 ## Messages
 
-| Process       | Publishes                                                                                                         | Consumes                                                                                                                                                                   |
-|---------------|-------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Sales**     | `ItemOrdered{object_id, index, customer, product}`, `count` over the list `products`, each carrying its `product` | nothing                                                                                                                                                                    |
-| **Warehouse** | `ItemPicked{order_id, item_index, customer, object_id, weight}`, at its message end event                         | `ItemOrdered` at its start event; copies `order_id` from `object_id`, `item_index` from `index`, `customer` from `customer`, `product` from `product`                      |
-| **Packaging** | nothing                                                                                                           | `ItemPicked` at "items picked": `"collect": "all"` with `"same": ["customer"]`, copying `customer`, appending `object_id` to `item_ids` and summing `weight` into `weight` |
+| Process       | Publishes                                                                                                           | Consumes                                                                                                                                                                   |
+|---------------|---------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Sales**     | `ItemOrdered{object_id, index, customer, product}`, `fan_out` over the list `products`, each carrying its `product` | nothing                                                                                                                                                                    |
+| **Warehouse** | `ItemPicked{order_id, item_index, customer, object_id, weight}`, at its message end event                           | `ItemOrdered` at its start event; copies `order_id` from `object_id`, `item_index` from `index`, `customer` from `customer`, `product` from `product`                      |
+| **Packaging** | nothing                                                                                                             | `ItemPicked` at "items picked": `"collect": "all"` with `"same": ["customer"]`, copying `customer`, appending `object_id` to `item_ids` and summing `weight` into `weight` |
 
 ## Objects and activities
 
 | In the OCEL output             | Process          | BPMN element                              | Feature                                                                                                                                                                   |
 |--------------------------------|------------------|-------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | object type **order**          | Sales            | one case per order                        | arrivals around the clock; object attribute `items`; `customer` and `products`, one per item, picked from the catalogues; `price` = 5.00 + their prices when it is placed |
-| object type **item**           | Warehouse        | one case per item                         | a message start event on `ItemOrdered`, published once per product with `count` over a list; `index` → `item_index`                                                       |
+| object type **item**           | Warehouse        | one case per item                         | a message start event on `ItemOrdered`, published once per product with `fan_out` over a list; `index` → `item_index`                                                     |
 | object type **package**        | Packaging        | one case per packing round                | arrivals in the packer's hours; `collect` `"all"` with `same` customer; `weight` the sum of its items'                                                                    |
 | object type **customer**       | all              | attribute `customer`                      | 15 in the catalogue; picked for the order, copied to items and packages; what a package's items share                                                                     |
 | object type **product**        | Sales, Warehouse | attributes `products` and `product`       | 20 in the catalogue; picked by the order, one per item, uniformly; the item gets its weight and price from it; its price rises 3% every 60 days                           |
@@ -177,7 +177,7 @@ catalogue: 20, each with its `weight` and `price`. A second reference of Sales p
 per item (`"count": {"object_attribute": "items"}`), uniformly, and prices the order with
 `"with": {"price": {"sum": "price", "initial": 5.00}}`: 5.00 plus its products' prices, written on the order's OCEL
 object (Sales's `ocel_attributes`). It links no events (`"link_events": []`): the order's events reach its products
-through its items. `ItemOrdered` is published once per product (`count` over the list `products`, each message
+through its items. `ItemOrdered` is published once per product (`fan_out` over the list `products`, each message
 carrying its entry as `product`). The Warehouse copies `product` from it, and its reference, without a pick
 ([catalogue.md](catalogue.md), "With for a received value"), links the item to the product (**is a**), links
 every event of the item to it and, with `"tag_along": true`, every other event that links the item, and, with

@@ -17,7 +17,7 @@ from testing_scripts.multiprocess.catalogue.test_with import run as _run_picking
 from testing_scripts.multiprocess.messaging.test_aggregate import (WEIGHTS, aggregate_history, ocel_history, rejected,
                                                                    run, settings_with)
 from testing_scripts.multiprocess.messaging.test_append import run as _run_orders
-from testing_scripts.multiprocess.messaging.test_count_over_list import PACKAGES, START
+from testing_scripts.multiprocess.messaging.test_fan_out_over_list import PACKAGES, START
 
 # the examples of docs/catalogue.md: initial 5, over the values 476 and 99.99, and over none
 OVER_TWO = {"sum": 580.99, "count": 7, "min": 5, "max": 476}

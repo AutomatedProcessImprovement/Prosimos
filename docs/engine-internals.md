@@ -234,7 +234,7 @@ single incoming arrow (checked at load), since waiting is counted once per case 
   - sub-processes (also ad hoc), transactions, call activities and complex gateways: the error says what
     to draw instead (`UNSUPPORTED`);
   - loop and multi-instance markers on a task, which Prosimos would ignore: a loop is drawn with a gateway;
-    in a multi-process run, a publish entry's `count` can start one case per instance.
+    in a multi-process run, a publish entry's `fan_out` can start one case per instance.
 - **Event-based gateways** without a branch waiting for a message are decided when the case reaches
   them: `get_event_gateway_choice` draws a duration for each following event and takes the shortest,
   breaking ties with `random.choice`. Those with such a branch are races (see "Waiting at catch

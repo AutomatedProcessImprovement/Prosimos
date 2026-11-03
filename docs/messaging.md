@@ -222,16 +222,16 @@ With items i1, i4 and i7 of customer c3 and i2 of customer c8 waiting, in that o
 and i7; i2 stays for the next package. A message without one of the listed attributes doesn't match, with one
 warning per event and attribute.
 
-**count** (optional, on a `publish` entry) publishes several messages at once, one per object: a
+**fan_out** (optional, on a `publish` entry) publishes several messages at once, one per object: a
 fixed number such as `3`, or `{"object_attribute": "items"}` to read it from the case when it passes the
 event. Without it, the entry publishes one message. `index` is a reserved name for the message's
-number, 1..N, and can only be listed on an entry with `count`; together with `object_id` it identifies
+number, 1..N, and can only be listed on an entry with `fan_out`; together with `object_id` it identifies
 the object (`order-7` item 2), e.g. for the receiver to copy into its new case. For example, an order
 announcing each of its items, so that Picking starts one case per item:
 
 ```json
 {"event_id": "Throw_Items", "type": "ItemOrdered",
- "count": {"object_attribute": "items"},
+ "fan_out": {"object_attribute": "items"},
  "attributes": ["object_id", "index"]}
 ```
 
@@ -249,7 +249,7 @@ each item waits for its own:
 
 ```
 packages.json:      "publish": [{"event_id": "Throw_Packed", "type": "Packed",
-                                 "count": {"list": "item_ids", "as": "item_id"}, "attributes": ["object_id", "index"]}]
+                                 "fan_out": {"list": "item_ids", "as": "item_id"}, "attributes": ["object_id", "index"]}]
 packed_items.json:  "consume": [{"event_id": "Catch_Packed", "type": "Packed",
                                  "condition": [[{"attribute": "item_id", "comparison": "=", "object_attribute": "object_id"}]]}]
 ```
@@ -290,8 +290,8 @@ carried link needs its role word, so `carry` without a `qualifier` on the same e
 activity that isn't a task of the model.
 
 One event may appear in several entries: under `publish`, passing it publishes one message per
-entry (or `count` messages); under `consume`, a case waiting there accepts any of the entries' types. To wait for all of
-them, use one catch event per message.
+entry (or `fan_out` messages); under `consume`, a case waiting there accepts any of the entries' types. To wait
+for all of them, use one catch event per message.
 
 ### Conditions
 
@@ -328,16 +328,16 @@ The section is checked when the model is loaded. An invalid section stops loadin
 `Invalid 'messages' section: messages.consume[0]: event_id 'Timer_Cancel' is an intermediateCatchEvent, expected an intermediate message catch event`.
 
 - The section holds only `publish` and `consume`, each a list.
-- No key is unknown: in the section, its entries, their `count`, `collect` and `capacity`, and condition
+- No key is unknown: in the section, its entries, their `fan_out`, `collect` and `capacity`, and condition
   terms. A misspelled key would otherwise be ignored and change the run without any message:
   `messages.consume[0]: unknown key 'colect'; allowed: aggregate, append, capacity, carry, collect, condition, copy, event_id, o2o, qualifier, same, type`.
 - Every `event_id` exists in the BPMN model.
 - A `publish` event is an intermediate message throw event or a message end event.
 - A `consume` event is an intermediate message catch event or a message start event.
 - `type` is a non-empty string.
-- `attributes` is a list of names, each `object_id`, `index` (only with `count`) or a declared object,
-  global or event attribute, and not count's `as`.
-- `count` is either a whole number of at least 0, `{"object_attribute": <declared attribute>}` or
+- `attributes` is a list of names, each `object_id`, `index` (only with `fan_out`) or a declared object,
+  global or event attribute, and not fan_out's `as`.
+- `fan_out` is either a whole number of at least 0, `{"object_attribute": <declared attribute>}` or
   `{"list": <declared attribute>, "as": <name other than object_id and index>}`, and only on a `publish`
   entry: only throw and end events publish, and a start event starts exactly one case per message.
 - A catch event under `consume` has exactly one incoming arrow, since a case waits there once:
@@ -390,8 +390,8 @@ Attribute values are taken at that time. A declared attribute without a value ye
 (e.g. an event attribute of a task the case hasn't done) is sent as `None`, with one warning per
 event and attribute in the engine's warnings.
 
-An entry with `count` reads the number at that time too, and publishes that many messages at once, in
-order of `index` 1..N. A count of 0 publishes nothing; a value that isn't a whole number of at least 0
+An entry with `fan_out` reads the number at that time too, and publishes that many messages at once, in
+order of `index` 1..N. A fan_out of 0 publishes nothing; a value that isn't a whole number of at least 0
 (or no value) publishes one message, with one warning per event and attribute. Over a list, it publishes
 one message per entry, in the order of the list; a missing or empty list publishes nothing, with one
 warning per event.
@@ -450,7 +450,7 @@ differ from the first one's doesn't match the case, so it goes to the next waiti
 
 The case takes the messages above min at the same instant: after the step whose offers gave it its min,
 the orchestrator may still offer other messages of that step (several published at once, e.g. with
-`count`, or waiting in the pool), and the case takes them up to max. Its collection closes once the
+`fan_out`, or waiting in the pool), and the case takes them up to max. Its collection closes once the
 orchestrator's offers for that step are done: a message published at the same time but in a later step
 (e.g. by another process) is no longer taken. With a min of 0 and a max above 0, the case takes up to max of
 the messages waiting when it arrives and goes on at once; with (0, 0) it passes straight on.
@@ -598,7 +598,7 @@ steps it, but it is still offered every message it subscribes to.
 
 An order can decide the fate of its items, e.g. ship them all or send them back, without remembering
 them: each item is its own case, waiting for its order's verdict on it, and the order sends one
-verdict per item with `count`. Each verdict is addressed to exactly one item, so none is shared or
+verdict per item with `fan_out`. Each verdict is addressed to exactly one item, so none is shared or
 used up by another item. Only the features above are needed (models:
 `testing_scripts/assets/messaging/orders_with_verdicts` and `items_awaiting_verdict`):
 
@@ -611,7 +611,7 @@ Item (Picking):  start ItemOrdered (copy order_id, index) -> Pick -> (throw Item
                         | (catch Cancelled, object_id = order_id and index = index) -> Return to stock
 ```
 
-- **The order** publishes `ItemOrdered` with `"count": {"object_attribute": "items"}` and attributes
+- **The order** publishes `ItemOrdered` with `"fan_out": {"object_attribute": "items"}` and attributes
   `object_id` and `index`; after its race, `Shipped` or `Cancelled` the same way, so verdict *i* carries
   the same `object_id` and `index` as item *i*'s `ItemOrdered`.
 - **The item** starts on `ItemOrdered` and copies both into the case
@@ -642,7 +642,7 @@ Item (Picking):  start ItemOrdered (copy order_id, index) -> Pick -> (throw Item
     only when offered after the case has finished;
   - a message matching several branches of one race goes to one of them, the one listed first, not to
     all.
-- **`index` is reserved for `count`.** A publish entry can list `index` only with `count`, where it is the
+- **`index` is reserved for `fan_out`.** A publish entry can list `index` only with `fan_out`, where it is the
   message's number, so a case can't pass on a number it was given under that name (e.g. an item publishing
   the `index` it copied from `ItemOrdered`). Copy it into a case attribute with another name, e.g.
   `"copy": {"item_index": "index"}`, and publish that.

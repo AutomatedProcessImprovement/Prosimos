@@ -15,7 +15,7 @@ MESSAGE_DEFINITION = BPMN_NS + "messageEventDefinition"
 PUBLISHING_EVENTS = {"intermediateThrowEvent": "an intermediate message throw event", "endEvent": "a message end event"}
 CONSUMING_EVENTS = {"intermediateCatchEvent": "an intermediate message catch event", "startEvent": "a message start event"}
 TERM_KEYS = {"attribute", "comparison", "value", "object_attribute"}
-PUBLISH_KEYS = {"event_id", "type", "attributes", "count", "qualifier", "o2o", "carry"}
+PUBLISH_KEYS = {"event_id", "type", "attributes", "fan_out", "qualifier", "o2o", "carry"}
 CONSUME_KEYS = {"event_id", "type", "condition", "copy", "append", "aggregate", "capacity", "collect", "same",
                 "qualifier", "o2o", "carry"}
 
@@ -56,8 +56,8 @@ def parse_messages(messages_json, bpmn_path, declared_attributes, case_attribute
     tasks = _tasks(bpmn_path)
     # consume first, so a malformed copy is reported as such, not as an undeclared published attribute
     consume, collecting = [], []
-    # count gets its own reason below
-    for where, entry in _entries(messages_json, "consume", CONSUME_KEYS, events, CONSUMING_EVENTS, ("count",)):
+    # fan_out gets its own reason below
+    for where, entry in _entries(messages_json, "consume", CONSUME_KEYS, events, CONSUMING_EVENTS, ("fan_out",)):
         starts_case = events[entry["event_id"]][0] == "startEvent"
         low, low_attribute, high, high_attribute = _collect(entry, where, starts_case)
         fewest, fewest_attribute, most, most_attribute = _capacity(entry, where, starts_case)
@@ -67,8 +67,8 @@ def parse_messages(messages_json, bpmn_path, declared_attributes, case_attribute
                              _append(entry, where, case_attributes), _aggregate(entry, where, case_attributes),
                              high, high_attribute, _same(entry, where), fewest, fewest_attribute,
                              _carry(entry, where, tasks))
-        if "count" in entry:
-            _fail(f"{where}: count is only for publish entries, on throw and end events: only they publish, and a "
+        if "fan_out" in entry:
+            _fail(f"{where}: fan_out is only for publish entries, on throw and end events: only they publish, and a "
                   f"start event starts exactly one case per message")
         if point.starts_case:
             _check_start(where, point)
@@ -81,7 +81,7 @@ def parse_messages(messages_json, bpmn_path, declared_attributes, case_attribute
     _check_races(consume, events, gateway_branches)
     publish = tuple(
         PublishPoint(entry["event_id"], entry["type"], _attributes(entry, where, declared_attributes),
-                     *_count(entry, where, declared_attributes), _name(entry, "qualifier", where),
+                     *_fan_out(entry, where, declared_attributes), _name(entry, "qualifier", where),
                      _name(entry, "o2o", where), _carry(entry, where, tasks))
         for where, entry in _entries(messages_json, "publish", PUBLISH_KEYS, events, PUBLISHING_EVENTS)
     )
@@ -406,55 +406,55 @@ def _tasks(bpmn_path):
             for key in (element.attrib.get("id"), element.attrib.get("name")) if key}
 
 
-def _count(entry, where, declared):
+def _fan_out(entry, where, declared):
     """(number, its case attribute, a list attribute, the name each message carries its entry under): e.g. 3,
-    {"object_attribute": "items"} or {"list": "item_ids", "as": "item_id"}; all None without count."""
-    if "count" not in entry:
+    {"object_attribute": "items"} or {"list": "item_ids", "as": "item_id"}; all None without fan_out."""
+    if "fan_out" not in entry:
         return None, None, None, None
-    count = entry["count"]
-    if is_whole_number(count, minimum=0):
-        return int(count), None, None, None
-    if isinstance(count, dict):
-        _check_keys(f"{where}.count", count, {"object_attribute", "list", "as"})
-    if isinstance(count, dict) and "list" in count:
-        return (None, None) + _count_over_list(count, where, declared)
-    if not isinstance(count, dict) or set(count) != {"object_attribute"}:
-        _fail(f"{where}: 'count' must be either a whole number of at least 0, {{\"object_attribute\": <object "
-              f"attribute>}} or {{\"list\": <object attribute>, \"as\": <attribute name>}}, got {count!r}")
-    if not isinstance(count["object_attribute"], str) or count["object_attribute"] not in declared:
-        _fail(f"{where}: 'count' object_attribute {count['object_attribute']!r} is not a declared object, global or "
-              f"event attribute")
-    return None, count["object_attribute"], None, None
+    fan_out = entry["fan_out"]
+    if is_whole_number(fan_out, minimum=0):
+        return int(fan_out), None, None, None
+    if isinstance(fan_out, dict):
+        _check_keys(f"{where}.fan_out", fan_out, {"object_attribute", "list", "as"})
+    if isinstance(fan_out, dict) and "list" in fan_out:
+        return (None, None) + _fan_out_over_list(fan_out, where, declared)
+    if not isinstance(fan_out, dict) or set(fan_out) != {"object_attribute"}:
+        _fail(f"{where}: 'fan_out' must be either a whole number of at least 0, {{\"object_attribute\": <object "
+              f"attribute>}} or {{\"list\": <object attribute>, \"as\": <attribute name>}}, got {fan_out!r}")
+    if not isinstance(fan_out["object_attribute"], str) or fan_out["object_attribute"] not in declared:
+        _fail(f"{where}: 'fan_out' object_attribute {fan_out['object_attribute']!r} is not a declared object, "
+              f"global or event attribute")
+    return None, fan_out["object_attribute"], None, None
 
 
-def _count_over_list(count, where, declared):
-    if not set(count) <= {"list", "as"}:
-        _fail(f"{where}: 'count' over a list has only 'list' and 'as', got {', '.join(map(repr, sorted(count)))}")
-    if not isinstance(count["list"], str) or count["list"] not in declared:
-        _fail(f"{where}: 'count' list {count['list']!r} is not a declared object, global or event attribute")
-    if "as" not in count:
-        _fail(f"{where}: 'count' over a list needs 'as', the attribute name under which each message carries its "
+def _fan_out_over_list(fan_out, where, declared):
+    if not set(fan_out) <= {"list", "as"}:
+        _fail(f"{where}: 'fan_out' over a list has only 'list' and 'as', got {', '.join(map(repr, sorted(fan_out)))}")
+    if not isinstance(fan_out["list"], str) or fan_out["list"] not in declared:
+        _fail(f"{where}: 'fan_out' list {fan_out['list']!r} is not a declared object, global or event attribute")
+    if "as" not in fan_out:
+        _fail(f"{where}: 'fan_out' over a list needs 'as', the attribute name under which each message carries its "
               f"entry")
-    if not isinstance(count["as"], str) or not count["as"].strip():
-        _fail(f"{where}: 'count' as must be a non-empty string")
-    if count["as"] in ("object_id", "index"):
-        _fail(f"{where}: 'count' as can't be {count['as']}, which is reserved: object_id is the publishing object's "
-              f"id and index the message's number")
-    return count["list"], count["as"]
+    if not isinstance(fan_out["as"], str) or not fan_out["as"].strip():
+        _fail(f"{where}: 'fan_out' as must be a non-empty string")
+    if fan_out["as"] in ("object_id", "index"):
+        _fail(f"{where}: 'fan_out' as can't be {fan_out['as']}, which is reserved: object_id is the publishing "
+              f"object's id and index the message's number")
+    return fan_out["list"], fan_out["as"]
 
 
 def _attributes(entry, where, declared):
     attributes = entry.get("attributes", [])
     if not isinstance(attributes, list) or not all(isinstance(name, str) and name for name in attributes):
         _fail(f"{where}: 'attributes' must be a list of attribute names")
-    if "index" in attributes and "count" not in entry:
-        _fail(f"{where}: 'index' is the message's number among the ones count publishes, so it needs a 'count' "
+    if "index" in attributes and "fan_out" not in entry:
+        _fail(f"{where}: 'index' is the message's number among the ones fan_out publishes, so it needs a 'fan_out' "
               f"on the same entry")
-    count = entry.get("count")
-    # (a reserved as is reported by _count)
-    if isinstance(count, dict) and count.get("as") in attributes and count["as"] not in ("object_id", "index"):
-        _fail(f"{where}: {count['as']!r} is both in 'attributes' and count's 'as': each message carries its own "
-              f"entry of {count.get('list')} under that name, so it can't also carry the case's attribute")
+    fan_out = entry.get("fan_out")
+    # (a reserved as is reported by _fan_out)
+    if isinstance(fan_out, dict) and fan_out.get("as") in attributes and fan_out["as"] not in ("object_id", "index"):
+        _fail(f"{where}: {fan_out['as']!r} is both in 'attributes' and fan_out's 'as': each message carries its own "
+              f"entry of {fan_out.get('list')} under that name, so it can't also carry the case's attribute")
     unknown = [name for name in attributes if name not in ("object_id", "index") and name not in declared]
     if unknown:
         _fail(f"{where}: {', '.join(map(repr, unknown))} not declared as an object, global or event attribute")

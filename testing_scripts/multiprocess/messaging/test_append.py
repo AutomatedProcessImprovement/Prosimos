@@ -16,7 +16,7 @@ from prosimos.orchestration.simulation import run_multiprocess_simulation
 from testing_scripts.multiprocess.catalogue.test_catalogue import config_with
 from testing_scripts.multiprocess.examples.test_order_management import order_management_config, package_items
 from testing_scripts.multiprocess.messaging.test_collect import ORDERS, START, at, settings_with
-from testing_scripts.multiprocess.messaging.test_count_over_list import PACKAGES, PACKAGES_JSON
+from testing_scripts.multiprocess.messaging.test_fan_out_over_list import PACKAGES, PACKAGES_JSON
 from testing_scripts.multiprocess.orchestrator_settings import one_organization
 from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 

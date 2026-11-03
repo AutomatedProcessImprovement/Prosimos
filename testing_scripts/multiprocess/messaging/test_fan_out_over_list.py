@@ -1,6 +1,6 @@
 """
-count over a list (docs/messaging.md): a publish entry's {"list": ..., "as": ...} count publishes one message per
-entry of a list in the publishing case, each carrying its own entry.
+fan_out over a list (docs/messaging.md): a publish entry's {"list": ..., "as": ...} fan_out publishes one message
+per entry of a list in the publishing case, each carrying its own entry.
 """
 import json
 from datetime import datetime
@@ -115,33 +115,35 @@ def test_a_missing_or_empty_list_publishes_nothing_with_one_warning_per_event(tm
 
 # load errors
 
-def _rejected(tmp_path, count, message, attributes=("object_id", "index")):
+def _rejected(tmp_path, fan_out, message, attributes=("object_id", "index")):
     def change(settings):
-        settings["messages"]["publish"][0]["count"] = count
+        settings["messages"]["publish"][0]["fan_out"] = fan_out
         settings["messages"]["publish"][0]["attributes"] = list(attributes)
 
     with pytest.raises(InvalidSimScenarioException, match=r"messages.publish\[0\]: " + message):
         ProsimosEngine(ProcessSpec("Packages", PACKAGES, _settings(tmp_path, change)), START, seed=1)
 
 
-def test_a_count_over_a_list_without_as_is_rejected(tmp_path):
-    _rejected(tmp_path, {"list": "item_ids"}, r"'count' over a list needs 'as'")
+def test_a_fan_out_over_a_list_without_as_is_rejected(tmp_path):
+    _rejected(tmp_path, {"list": "item_ids"}, r"'fan_out' over a list needs 'as'")
 
 
 @pytest.mark.parametrize("name", ["object_id", "index"])
 def test_as_equal_to_a_reserved_name_is_rejected(tmp_path, name):
-    _rejected(tmp_path, {"list": "item_ids", "as": name}, rf"'count' as can't be {name}, which is reserved")
+    _rejected(tmp_path, {"list": "item_ids", "as": name}, rf"'fan_out' as can't be {name}, which is reserved")
 
 
-@pytest.mark.parametrize("count, message", [
-    ({"list": "weights", "as": "item_id"}, r"'count' list 'weights' is not a declared object, global or event attribute"),
-    ({"list": "item_ids", "as": ""}, r"'count' as must be a non-empty string"),
-    ({"list": "item_ids", "as": 3}, r"'count' as must be a non-empty string"),
-    ({"list": "item_ids", "as": "item_id", "object_attribute": "items"}, r"'count' over a list has only 'list' and 'as'"),
-    ({"as": "item_id"}, r"'count' must be either"),
+@pytest.mark.parametrize("fan_out, message", [
+    ({"list": "weights", "as": "item_id"},
+     r"'fan_out' list 'weights' is not a declared object, global or event attribute"),
+    ({"list": "item_ids", "as": ""}, r"'fan_out' as must be a non-empty string"),
+    ({"list": "item_ids", "as": 3}, r"'fan_out' as must be a non-empty string"),
+    ({"list": "item_ids", "as": "item_id", "object_attribute": "items"},
+     r"'fan_out' over a list has only 'list' and 'as'"),
+    ({"as": "item_id"}, r"'fan_out' must be either"),
 ])
-def test_an_invalid_count_over_a_list_is_rejected(tmp_path, count, message):
-    _rejected(tmp_path, count, message)
+def test_an_invalid_fan_out_over_a_list_is_rejected(tmp_path, fan_out, message):
+    _rejected(tmp_path, fan_out, message)
 
 
 def test_as_also_listed_in_attributes_is_rejected(tmp_path):
@@ -150,5 +152,5 @@ def test_as_also_listed_in_attributes_is_rejected(tmp_path):
         settings["messages"]["publish"][0]["attributes"].append("item_id")
 
     with pytest.raises(InvalidSimScenarioException, match=r"messages.publish\[0\]: 'item_id' is both in "
-                                                          r"'attributes' and count's 'as'"):
+                                                          r"'attributes' and fan_out's 'as'"):
         ProsimosEngine(ProcessSpec("Packages", PACKAGES, _settings(tmp_path, listed)), START, seed=1)

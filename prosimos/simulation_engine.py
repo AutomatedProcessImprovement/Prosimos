@@ -96,8 +96,8 @@ class SimBPMEnv(EngineMessaging):
         self.logged_rows = []  # (case id, element id, enabled, completed) per row of the log, in order
         self._tasks_next_to = dict()  # (element id, forward) -> the tasks next to it, see tasks_next_to()
         self._warned_missing_values = set()
-        self._warned_counts = set()
-        self._warned_count_lists = set()
+        self._warned_fan_outs = set()
+        self._warned_fan_out_lists = set()
 
         # waiting at catch events (docs/engine-internals.md, "Waiting at catch events")
         self._consume_points = dict()  # event id -> the 'consume' entries for it

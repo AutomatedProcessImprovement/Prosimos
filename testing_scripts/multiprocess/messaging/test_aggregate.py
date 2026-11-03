@@ -15,7 +15,7 @@ from prosimos.orchestration.protocol import Message
 from prosimos.orchestration.simulation import run_multiprocess_simulation
 from testing_scripts.multiprocess.catalogue.test_catalogue import config_with
 from testing_scripts.multiprocess.messaging.test_append import run as _run_orders
-from testing_scripts.multiprocess.messaging.test_count_over_list import PACKAGES, PACKAGES_JSON, START, at
+from testing_scripts.multiprocess.messaging.test_fan_out_over_list import PACKAGES, PACKAGES_JSON, START, at
 from testing_scripts.multiprocess.orchestrator_settings import one_organization
 from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 

@@ -141,5 +141,5 @@ def test_a_task_with_a_loop_or_multi_instance_marker_is_rejected(tmp_path, tag, 
 
     with pytest.raises(InvalidBpmnModelException, match=f"^task Pick has a {what} marker, which is not supported: draw "
                                                         f"the loop with a gateway; in a multi-process run, a publish "
-                                                        f"entry's count can start one case per instance$"):
+                                                        f"entry's fan_out can start one case per instance$"):
         parse_simulation_model(bpmn)

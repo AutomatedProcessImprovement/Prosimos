@@ -30,7 +30,7 @@ def sales_picking(tmp_path, products, orders=100):
                        references={"Sales": [{**PICKING, "pick": "uniform"}, *([products] if products else [])]})
     with open(CONFIG.replace("simulation.json", "sales.json")) as file:
         sales = json.load(file)
-    sales["messages"]["publish"][0]["count"] = {"object_attribute": "items"}
+    sales["messages"]["publish"][0]["fan_out"] = {"object_attribute": "items"}
     (tmp_path / "sales.json").write_text(json.dumps(sales))
     data = json.loads(path.read_text())
     next(process for process in data["organizations"][0]["processes"] if process["name"] == "Sales")["json_path"] = \

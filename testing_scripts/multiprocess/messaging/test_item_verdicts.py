@@ -1,6 +1,6 @@
 """
 Returning items without a new feature (docs/messaging.md, "One verdict per item"): each item is its own
-case waiting for its order's verdict on it, and the order sends one verdict per item with count.
+case waiting for its order's verdict on it, and the order sends one verdict per item with fan_out.
 """
 import json
 from collections import Counter

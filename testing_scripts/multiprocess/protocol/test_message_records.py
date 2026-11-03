@@ -40,7 +40,7 @@ def _claimers(records):
 
 
 def verdicts_run():
-    """One order with 3 items: Sales publishes ItemOrdered per item (count), each starts an item case in Picking,
+    """One order with 3 items: Sales publishes ItemOrdered per item (fan_out), each starts an item case in Picking,
     which publishes ItemReady; Sales collects all 3, then sends each item its Shipped, taken at a race branch."""
     sales = _engine("Sales", "orders_with_verdicts", f"{ASSETS}/orders_with_verdicts.json", 1)
     picking = _engine("Picking", "items_awaiting_verdict", f"{ASSETS}/items_awaiting_verdict.json")

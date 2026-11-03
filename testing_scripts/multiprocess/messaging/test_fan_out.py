@@ -1,5 +1,5 @@
 """
-Fan-out (docs/messaging.md): a count on a publish entry publishes N messages at once, one per object, each
+Fan-out (docs/messaging.md): a fan_out on a publish entry publishes N messages at once, one per object, each
 with its index 1..N.
 """
 import json
@@ -87,16 +87,16 @@ def test_items_0_publishes_none(tmp_path):
     assert picking_log.rows == []
 
 
-def test_a_fixed_count_publishes_that_many(tmp_path):
+def test_a_fixed_fan_out_publishes_that_many(tmp_path):
     def fixed_2(settings):
-        settings["messages"]["publish"][0]["count"] = 2
+        settings["messages"]["publish"][0]["fan_out"] = 2
 
     report, _, _ = _run(_settings(tmp_path, fixed_2))
 
     assert [attributes["index"] for _, attributes, _ in _published(report)] == [1, 2]
 
 
-def test_a_count_that_is_not_a_whole_number_publishes_one_message_with_one_warning(tmp_path):
+def test_a_fan_out_that_is_not_a_whole_number_publishes_one_message_with_one_warning(tmp_path):
     report, _, _ = _run(_settings(tmp_path, _items(2.5)), orders=2)
 
     assert _published(report) == [
@@ -110,41 +110,41 @@ def _load(json_path, bpmn_path=SALES):
     return load_process(bpmn_path, json_path, 1 if bpmn_path == SALES else None, START)
 
 
-def test_index_on_an_entry_without_count_is_rejected(tmp_path):
-    def no_count(settings):
-        del settings["messages"]["publish"][0]["count"]
+def test_index_on_an_entry_without_fan_out_is_rejected(tmp_path):
+    def no_fan_out(settings):
+        del settings["messages"]["publish"][0]["fan_out"]
 
     with pytest.raises(InvalidSimScenarioException,
-                       match=r"messages.publish\[0\]: 'index' is the message's number among the ones count publishes, "
-                             r"so it needs a 'count' on the same entry"):
-        _load(_settings(tmp_path, no_count))
+                       match=r"messages.publish\[0\]: 'index' is the message's number among the ones fan_out "
+                             r"publishes, so it needs a 'fan_out' on the same entry"):
+        _load(_settings(tmp_path, no_fan_out))
 
 
 @pytest.mark.parametrize("bpmn_path, base, where", [
     (PICKING, PICKING_JSON, "the start event"),
     (f"{ASSETS}/orders_and_items.bpmn", f"{ASSETS}/orders_and_items.json", "a catch event"),
 ])
-def test_count_on_a_start_or_catch_event_is_rejected(tmp_path, bpmn_path, base, where):
-    def counted(settings):
-        settings["messages"]["consume"][0]["count"] = 2
+def test_fan_out_on_a_start_or_catch_event_is_rejected(tmp_path, bpmn_path, base, where):
+    def fanned_out(settings):
+        settings["messages"]["consume"][0]["fan_out"] = 2
 
     with pytest.raises(InvalidSimScenarioException,
-                       match=r"messages.consume\[0\]: count is only for publish entries, on throw and end events: "
+                       match=r"messages.consume\[0\]: fan_out is only for publish entries, on throw and end events: "
                              r"only they publish, and a start event starts exactly one case per message"):
-        load_process(bpmn_path, _settings(tmp_path, counted, base=base), None if bpmn_path == PICKING else 1, START)
+        load_process(bpmn_path, _settings(tmp_path, fanned_out, base=base), None if bpmn_path == PICKING else 1, START)
 
 
-@pytest.mark.parametrize("count, message", [
-    (-1, r"'count' must be either a whole number of at least 0, \{\"object_attribute\": <object attribute>\} or "
+@pytest.mark.parametrize("fan_out, message", [
+    (-1, r"'fan_out' must be either a whole number of at least 0, \{\"object_attribute\": <object attribute>\} or "
          r"\{\"list\": <object attribute>, \"as\": <attribute name>\}, got -1"),
-    (1.5, r"'count' must be either a whole number of at least 0, .*, got 1.5"),
-    ("2", r"'count' must be either a whole number of at least 0, .*, got '2'"),
-    ({}, r"'count' must be either a whole number of at least 0, .*, got \{\}"),
-    ({"object_attribute": "weight"}, r"'count' object_attribute 'weight' is not a declared object, global or event attribute"),
+    (1.5, r"'fan_out' must be either a whole number of at least 0, .*, got 1.5"),
+    ("2", r"'fan_out' must be either a whole number of at least 0, .*, got '2'"),
+    ({}, r"'fan_out' must be either a whole number of at least 0, .*, got \{\}"),
+    ({"object_attribute": "weight"}, r"'fan_out' object_attribute 'weight' is not a declared object, global or event attribute"),
 ])
-def test_an_invalid_count_is_rejected(tmp_path, count, message):
+def test_an_invalid_fan_out_is_rejected(tmp_path, fan_out, message):
     def invalid(settings):
-        settings["messages"]["publish"][0]["count"] = count
+        settings["messages"]["publish"][0]["fan_out"] = fan_out
 
     with pytest.raises(InvalidSimScenarioException, match=r"messages.publish\[0\](: |\.)" + message):
         _load(_settings(tmp_path, invalid))

@@ -583,7 +583,7 @@ def _check_no_loop_marker(task):
         if task.find(f"xmlns:{marker}", bpmn_element_ns) is not None:
             raise InvalidBpmnModelException(
                 f"task {task.attrib['id']} has a {what} marker, which is not supported: draw the loop with a gateway; "
-                f"in a multi-process run, a publish entry's count can start one case per instance")
+                f"in a multi-process run, a publish entry's fan_out can start one case per instance")
 
 
 def _check_no_boundary_events(process):
