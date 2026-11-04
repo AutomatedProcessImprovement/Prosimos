@@ -92,7 +92,8 @@ class SimBPMEnv(EngineMessaging):
         self._held = []  # heap of (due datetime, case id, pass order, element id)
         self._terminations_held = set()  # the cases whose terminate end event is held
         self._pass_order = itertools.count()
-        self.outbox = []  # (message type, attributes, case id, element id, publish entry) released by step()
+        # (message type, attributes, its publishers' (case id, time), element id, publish entry) released by step()
+        self.outbox = []
         self.logged_rows = []  # (case id, element id, enabled, completed) per row of the log, in order
         self._tasks_next_to = dict()  # (element id, forward) -> the tasks next to it, see tasks_next_to()
         self._warned_missing_values = set()

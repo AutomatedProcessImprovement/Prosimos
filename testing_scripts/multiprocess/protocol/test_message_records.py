@@ -32,7 +32,7 @@ def _where(element):
 
 
 def _publishers(records):
-    return [_where(record.publisher) for record in records]
+    return [_where(publisher) for record in records for publisher in record.publishers]
 
 
 def _claimers(records):
@@ -91,8 +91,9 @@ def test_a_catch_event_records_the_waiting_case():
     for record in records:
         messages = {message.id: message for message in report.published}
         order = messages[record.message_id].attributes["order_id"]
-        assert record.publisher.process in ("TartuWarehouse", "TallinnWarehouse")
-        assert record.publisher.element_id == "End_Shipped"
+        [publisher] = record.publishers
+        assert publisher.process in ("TartuWarehouse", "TallinnWarehouse")
+        assert publisher.element_id == "End_Shipped"
         assert _claimers([record]) == [[("Sales", order, "Catch_Shipment")]]
 
 
@@ -105,7 +106,7 @@ def test_capacity_2_records_both_claimers():
     report = orchestrate({"Orders": orders, "Carrier": carrier}, None, 1)
 
     [record] = _records(report, "Truck")
-    assert record.publisher is None  # a scripted engine keeps no records
+    assert record.publishers == []  # a scripted engine keeps no records
     assert _claimers([record]) == [[("Orders", "Orders-0", "Catch_Truck"), ("Orders", "Orders-1", "Catch_Truck")]]
 
 
@@ -141,7 +142,7 @@ def test_the_records_are_in_the_report_as_json():
     first = report.to_dict()["message_records"][0]
     # the links attach to row 0 of each log: order-0's place order and item-0's pick item
     assert first == {"message": report.published[0].id, "type": "ItemOrdered",
-                     "publisher": {"process": "Sales", "object_id": "order-0", "element_id": "Throw_Items",
-                                   "qualifier": "ItemOrdered", "task_rows": [0], "o2o": None, "carry": False},
+                     "publishers": [{"process": "Sales", "object_id": "order-0", "element_id": "Throw_Items",
+                                     "qualifier": "ItemOrdered", "task_rows": [0], "o2o": None, "carry": False}],
                      "claimers": [{"process": "Picking", "object_id": "item-0", "element_id": "Start_Item",
                                    "qualifier": "ItemOrdered", "task_rows": [0], "o2o": None, "carry": False}]}

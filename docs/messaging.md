@@ -284,7 +284,9 @@ The attributes take the shapes of `copy` and `with` ([catalogue.md](catalogue.md
   `max`, with an optional `initial`, as for `aggregate`.
 
 `object_id` and `index` aren't sent by their names: the message has several publishers, and it is one
-message, not one of a numbered series. A member's own id goes into a list, as `item_ids` above.
+message, not one of a numbered series. A member's own id goes into a list, as `item_ids` above. Each member is
+a publisher of the message, so `qualifier`, `o2o` and `carry` link each one, as for an ordinary message: each
+item's Pick item links the package, and the package's first task links all its items.
 
 **qualifier** (optional, on any entry) makes this end of the message write OCEL links, and qualifies them: on
 a `publish` entry, the links from the last task before the event to the cases that took the messages; on

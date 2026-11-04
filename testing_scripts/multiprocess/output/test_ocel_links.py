@@ -161,8 +161,8 @@ def test_a_process_without_objects_attaches_nothing_and_warns_nothing():
                                                              consumer_groups=None), None)
 
     elements = [element for record in report.message_records
-                for element in [record.publisher, *record.claimers] if element and element.process == "Relay"]
-    assert any(record.publisher and record.publisher.process == "Relay" for record in report.message_records)
+                for element in [*record.publishers, *record.claimers] if element.process == "Relay"]
+    assert any(publisher.process == "Relay" for record in report.message_records for publisher in record.publishers)
     assert any(claimer.process == "Relay" for record in report.message_records for claimer in record.claimers)
     assert all(element.task_rows == () for element in elements)
     assert not any(process == "Relay" for process, _ in report.engine_warnings)
@@ -239,11 +239,11 @@ def test_a_publish_attaches_to_the_last_task_before_it_and_a_message_start_to_th
 
     for record in report.message_records:
         if record.type == "ItemOrdered":
-            assert _attached(engines, record.publisher) == [("order-0", "Place_Order")]
+            assert [_attached(engines, publisher) for publisher in record.publishers] == [[("order-0", "Place_Order")]]
             [claimer] = record.claimers
             assert _attached(engines, claimer) == [(claimer.object_id, "Pick_Item")]
         if record.type == "Shipped":  # the last task before it is place order, back across the race
-            assert _attached(engines, record.publisher) == [("order-0", "Place_Order")]
+            assert [_attached(engines, publisher) for publisher in record.publishers] == [[("order-0", "Place_Order")]]
 
 
 def test_an_element_with_no_task_next_to_it_drops_its_links_with_one_warning():
@@ -382,7 +382,7 @@ def _rows_of(report, engine, message_type, element_id):
     to, in time order."""
     rows = engine._env.logged_rows
     ends = [end for record in report.message_records if record.type == message_type
-            for end in [record.publisher, *record.claimers] if end is not None and end.element_id == element_id]
+            for end in [*record.publishers, *record.claimers] if end.element_id == element_id]
     return [sorted((rows[row][1], rows[row][3]) for row in end.task_rows) for end in ends]
 
 
@@ -485,7 +485,7 @@ def test_after_an_event_based_gateway_a_claim_links_only_the_winning_branchs_tas
 
 
 def test_a_message_attached_to_several_tasks_links_its_objects_from_each():
-    record = MessageRecord("m1", "Go", CaseElement("S", "S-0", "Throw_Go", "go", (4,)),
+    record = MessageRecord("m1", "Go", [CaseElement("S", "S-0", "Throw_Go", "go", (4,))],
                            [CaseElement("P", "P-0", "Catch_Go", "sender", (1, 2))])
 
     assert message_links([record], {"S": OcelProcess("s"), "P": OcelProcess("p")}) == {

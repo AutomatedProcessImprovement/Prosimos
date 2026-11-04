@@ -83,7 +83,7 @@ def test_a_run_without_o2o_keys_links_no_objects():
 
 
 def _record(publisher_o2o=None, claimer_o2o=None, claimer_process="P"):
-    return MessageRecord("m1", "Go", CaseElement("S", "S-0", "Throw_Go", o2o=publisher_o2o),
+    return MessageRecord("m1", "Go", [CaseElement("S", "S-0", "Throw_Go", o2o=publisher_o2o)],
                          [CaseElement(claimer_process, f"{claimer_process}-0", "Catch_Go", o2o=claimer_o2o),
                           CaseElement(claimer_process, f"{claimer_process}-1", "Catch_Go", o2o=claimer_o2o)])
 

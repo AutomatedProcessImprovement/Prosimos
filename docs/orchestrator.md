@@ -196,7 +196,8 @@ object of the case on the other end of the message. Each end writes its links on
 `qualifier` (see below), so a message may link from both ends, one, or neither:
 
 - **Publishing** (throw or end event): the last task before it. In Order Management, place order →
-  ItemOrdered ×3, so place order is linked to the 3 items the messages started.
+  ItemOrdered ×3, so place order is linked to the 3 items the messages started. With `fan_in`, each member
+  links from its own task: each item's Pick item is linked to the package its OrderPicked started.
 - **Claiming** (start or catch event): the next task after it. Collect ItemPicked ×6 → create package,
   so create package is linked to the 6 items that sent them. At an event-based gateway, the claiming
   event is the winning branch's catch event, so the links go to the next task on that branch; when the
@@ -274,18 +275,19 @@ is expected, for example a shipment for an order that was canceled.
 **Message records.** Each engine keeps its own records of which of its cases and elements published
 and took each message, and hands them over in `finish()`, at the end of the run; the orchestrator joins
 them on the message id only then. Nothing it decides during the run uses them, so engines stay black
-boxes. A `MessageRecord` has the message's `message_id` and `type`, its `publisher`, and its
+boxes. A `MessageRecord` has the message's `message_id` and `type`, its `publishers`, and its
 `claimers`, each a `CaseElement` (`process`, `object_id`, `element_id`, and for the OCEL links its
 end's `qualifier`, `task_rows`, the rows of its process's log the links go to, empty if there is
 no such task, and `o2o`, its entry's object link, if any):
 
-- **publisher**: the case and the throw or end event that published it;
+- **publishers**: the case and the throw or end event that published it; with `fan_in`, every case that
+  handed in a part, in the order the parts came in, each with its own publish record;
 - **claimers**: at a start event, the case the message started; at a catch event or race branch, the
   waiting case and that catch event; with `capacity`, every case the message resumed; with `collect`,
   the collecting case, once for each message it claimed. A message that was discarded or never claimed
   has no claimers.
 
-An engine that keeps no records, such as a scripted test engine, leaves `publisher` empty for its
+An engine that keeps no records, such as a scripted test engine, leaves `publishers` empty for its
 messages and appears in no `claimers`.
 
 ## Message routing

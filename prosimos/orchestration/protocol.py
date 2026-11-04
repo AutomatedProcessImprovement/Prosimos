@@ -114,12 +114,12 @@ class CaseElement:
 
 @dataclass
 class MessageRecord:
-    """Who published a message and who took it, joined after the run: several claimers with capacity, none if no
-    case took it, and no publisher if its engine keeps no records."""
+    """Who published a message and who took it, joined after the run: several publishers with fan-in, several
+    claimers with capacity, none if no case took it, and no publishers if its engine keeps no records."""
 
     message_id: str
     type: str
-    publisher: Optional[CaseElement]
+    publishers: List[CaseElement] = field(default_factory=list)
     claimers: List[CaseElement] = field(default_factory=list)
 
 

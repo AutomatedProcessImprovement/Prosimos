@@ -27,7 +27,7 @@ class Pile:
     def __init__(self, size, same_values):
         self.size = size
         self.same_values = same_values
-        self.parts = []  # (case id, {object attribute: its value when the part was handed in})
+        self.parts = []  # (case id, when it was handed in, {object attribute: its value then})
 
 
 class EngineMessaging:
@@ -105,11 +105,11 @@ class EngineMessaging:
                 continue
             for point in self._publish_points.get(element_id, []):
                 if point.fans_in:
-                    self._hand_in(point, p_case, element_id)
+                    self._hand_in(point, p_case, element_id, due)
                     continue
                 for index in range(1, self._fan_out(point, p_case) + 1):
-                    self.outbox.append((point.type, self._message_attributes(point, p_case, index), p_case, element_id,
-                                        point))
+                    self.outbox.append((point.type, self._message_attributes(point, p_case, index), ((p_case, due),),
+                                        element_id, point))
 
     def deliver(self, message_type, attributes, source, now):
         """Offers one message: 'claimed' (by the case waiting longest, or a new case), 'discarded' if it can
@@ -587,7 +587,7 @@ class EngineMessaging:
                 f"it publishes no {point.type} message")
         return ()
 
-    def _hand_in(self, point, p_case, element_id):
+    def _hand_in(self, point, p_case, element_id, due):
         """Puts the part of p_case on its group's pile, at its own time; the part that completes the pile publishes
         the group's one message."""
         values = self.sim_setup.bpmn_graph.get_all_attributes(p_case)
@@ -604,15 +604,17 @@ class EngineMessaging:
                 f"has {pile.size} from its first part; the group keeps {pile.size}")
         sources = dict.fromkeys([source for _, source in point.gathered]
                                 + [source for _, _, source, _ in point.computed])
-        pile.parts.append((p_case, {source: self._part_value(point, p_case, values, source) for source in sources}))
+        pile.parts.append((p_case, due, {source: self._part_value(point, p_case, values, source)
+                                         for source in sources}))
         if len(pile.parts) < pile.size:
             return
         del self._piles[key]
         attributes = {name: pile.same_values[point.same.index(name)] for name in point.attributes}
-        attributes.update((name, [part[source] for _, part in pile.parts]) for name, source in point.gathered)
+        attributes.update((name, [part[source] for _, _, part in pile.parts]) for name, source in point.gathered)
         attributes.update((name, self._over_parts(point, name, function, source, initial, pile.parts))
                           for name, function, source, initial in point.computed)
-        self.outbox.append((point.type, attributes, p_case, element_id, point))
+        self.outbox.append((point.type, attributes, tuple((member, time) for member, time, _ in pile.parts), element_id,
+                            point))
 
     def _fan_in_size(self, point, p_case, values):
         """(the group size this part gives, whether it is valid): an invalid one counts as 1, with one warning."""
@@ -643,9 +645,9 @@ class EngineMessaging:
         """function over the parts' values of source; 'count' counts those with a value, and a value that isn't a
         number is left out of the others, with one warning."""
         if function == "count":
-            return aggregate_of(function, [part[source] for _, part in parts if part[source] is not None], initial)
+            return aggregate_of(function, [part[source] for _, _, part in parts if part[source] is not None], initial)
         numbers_only = []
-        for p_case, part in parts:
+        for p_case, _, part in parts:
             if is_number(part[source]):
                 numbers_only.append(part[source])
             elif (point.event_id, source) not in self._warned_fan_in_numbers:

@@ -1,5 +1,6 @@
 """The run's output: the merged log and the links of the OCEL file (docs/orchestrator.md, "Output")."""
 import csv
+import itertools
 from collections import defaultdict
 from dataclasses import asdict
 from datetime import datetime
@@ -87,10 +88,7 @@ def message_links(records: List[MessageRecord], processes: Dict[str, OcelProcess
 
     links = defaultdict(list)
     for record in records:
-        if record.publisher is None:
-            continue
-        publisher = record.publisher
-        for claimer in record.claimers:
+        for publisher, claimer in itertools.product(record.publishers, record.claimers):
             for row in publisher.task_rows if has_object(claimer) else ():
                 links[(publisher.process, row)].append(((claimer.process, claimer.object_id), publisher.qualifier,
                                                         publisher.carry))
@@ -116,9 +114,10 @@ def message_object_links(records: List[MessageRecord], processes: Dict[str, Ocel
             links[(source.process, source.object_id)].append((end, qualifier))
 
     for record in records:
-        for claimer in record.claimers if record.publisher is not None else ():
-            link(record.publisher, claimer, record.publisher.o2o)
-            link(claimer, record.publisher, claimer.o2o)
+        for publisher in record.publishers:
+            for claimer in record.claimers:
+                link(publisher, claimer, publisher.o2o)
+                link(claimer, publisher, claimer.o2o)
     return dict(links)
 
 

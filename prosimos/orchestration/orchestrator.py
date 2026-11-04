@@ -63,7 +63,7 @@ class RunReport:
             "warnings": list(self.warnings),
             "engine_warnings": [{"process": process, "warning": warning} for process, warning in self.engine_warnings],
             "message_records": [{"message": record.message_id, "type": record.type,
-                                 "publisher": plain(record.publisher) if record.publisher else None,
+                                 "publishers": [plain(publisher) for publisher in record.publishers],
                                  "claimers": [plain(claimer) for claimer in record.claimers]}
                                 for record in self.message_records],
         }
@@ -180,7 +180,7 @@ def orchestrate(
 
     report.unclaimed = [(pooled.group, pooled.message) for pooled in pool]
     # the engines' records are only joined here, once the run is over: nothing during the run uses them
-    publishers, claimers = {}, defaultdict(list)
+    publishers, claimers = defaultdict(list), defaultdict(list)
     for name in names:
         engine_report = engines[name].finish()
         if not isinstance(engine_report, EngineReport):
@@ -190,11 +190,12 @@ def orchestrate(
         report.objects.extend((name, case_object) for case_object in engine_report.objects)
         report.logged_elements[name] = engine_report.logged_elements
         for record in engine_report.published:
-            publishers[record.message_id] = CaseElement(name, record.object_id, record.element_id, record.qualifier,
-                                                        record.task_rows, record.o2o, record.carry)
+            publishers[record.message_id].append(CaseElement(name, record.object_id, record.element_id,
+                                                             record.qualifier, record.task_rows, record.o2o,
+                                                             record.carry))
         for record in engine_report.claimed:
             claimers[record.message_id].append(CaseElement(name, record.object_id, record.element_id, record.qualifier,
                                                            record.task_rows, record.o2o, record.carry))
-    report.message_records = [MessageRecord(message.id, message.type, publishers.get(message.id), claimers[message.id])
+    report.message_records = [MessageRecord(message.id, message.type, publishers[message.id], claimers[message.id])
                               for message in report.published]
     return report

@@ -225,3 +225,74 @@ def test_a_value_that_isnt_a_number_is_left_out_of_a_sum_with_one_warning(tmp_pa
     assert report.engine_warnings == [("Warehouse", "case 2 passes Throw_OrderPicked with weight 'light', which isn't "
                                                     "a number to sum into total_weight; its part is left out of "
                                                     "total_weight")]
+
+
+# several publishers: every item that handed in a part publishes the message, for its records and OCEL links
+
+def _with_links(tmp_path):
+    def picked_for(settings):
+        settings["messages"]["publish"][0].update(qualifier="picked for", o2o="part of", carry=["Put on shelf"])
+
+    def contains(settings):
+        settings["messages"]["consume"][0].update(qualifier="contains", o2o="holds")
+
+    config = SimulationConfig(one_organization([
+        ProcessSpec("Sales", SALES, _settings(tmp_path, SALES_JSON, _sends_items, "sales.json"), ORDERS, "order"),
+        ProcessSpec("Warehouse", WAREHOUSE, _settings(tmp_path, WAREHOUSE_JSON, picked_for, "warehouse.json"), None,
+                    "item"),
+        ProcessSpec("Packaging", PACKAGING, _settings(tmp_path, PACKAGING_JSON, contains, "packaging.json"), None,
+                    "package")]), START, 1)
+    report = run_multiprocess_simulation(config, None, ocel_out_path=tmp_path / "ocel.json")
+    with open(tmp_path / "ocel.json") as file:
+        return report, json.load(file)
+
+
+@pytest.fixture(scope="module")
+def linked_run(tmp_path_factory):
+    return _with_links(tmp_path_factory.mktemp("fan_in_links"))
+
+
+def _packages(report):
+    """Package id -> the items of the OrderPicked that started it."""
+    item_ids = {message.id: message.attributes["item_ids"] for message in report.published
+                if message.type == "OrderPicked"}
+    return {record.claimers[0].object_id: item_ids[record.message_id] for record in report.message_records
+            if record.type == "OrderPicked"}
+
+
+def test_every_member_is_a_publisher_of_the_message(linked_run):
+    report, _ = linked_run
+    item_ids = {message.id: message.attributes["item_ids"] for message in report.published
+                if message.type == "OrderPicked"}
+
+    records = [record for record in report.message_records if record.type == "OrderPicked"]
+    assert len(records) == ORDERS
+    for record in records:
+        assert [(publisher.object_id, publisher.element_id) for publisher in record.publishers] == [
+            (item, "Throw_OrderPicked") for item in item_ids[record.message_id]]
+        assert [claimer.process for claimer in record.claimers] == ["Packaging"]
+
+
+def test_each_items_pick_and_shelving_link_its_package_and_the_pack_links_all_its_items(linked_run):
+    report, ocel = linked_run
+    package_of = {item: package for package, items in _packages(report).items() for item in items}
+
+    def linked(event, qualifier):
+        return [link["objectId"] for link in event["relationships"] if link["qualifier"] == qualifier]
+
+    for event in ocel["events"]:
+        own = event["relationships"][0]["objectId"]
+        if event["type"] in ("Pick item", "Put on shelf"):  # Put on shelf by carry
+            assert linked(event, "picked for") == [package_of[own]]
+        if event["type"] == "Pack":
+            assert linked(event, "contains") == _packages(report)[own]
+
+
+def test_o2o_links_each_item_and_its_package_both_ways(linked_run):
+    report, ocel = linked_run
+    links = {obj["id"]: [(link["objectId"], link["qualifier"]) for link in obj.get("relationships", [])]
+             for obj in ocel["objects"]}
+
+    for package, items in _packages(report).items():
+        assert links[package] == [(item, "holds") for item in items]
+        assert all(links[item] == [(package, "part of")] for item in items)

@@ -110,10 +110,11 @@ class ProsimosEngine(SimulationEngine):
             # hand the buffered log rows over now, so nobody outside the engine reaches into it at the end
             self._env.log_writer.force_write()
             released = []
-            for message_type, attributes, p_case, element_id, point in self._env.outbox:
+            for message_type, attributes, publishers, element_id, point in self._env.outbox:
                 message = Message(message_type, attributes)
-                # the orchestrator stamps the id on this same object, so it can be read at the end
-                self._published.append((message, p_case, element_id, point, now))
+                # the orchestrator stamps the id on this same object, so it can be read at the end; a fan-in
+                # message has one publish record per member, at its own time
+                self._published.extend((message, p_case, element_id, point, when) for p_case, when in publishers)
                 released.append(message)
             self._env.outbox.clear()
             return released
