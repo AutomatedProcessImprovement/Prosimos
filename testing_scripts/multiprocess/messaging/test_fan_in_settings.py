@@ -47,14 +47,14 @@ def test_an_entry_without_fan_in_doesnt_fan_in(bpmn):
 
 
 @pytest.mark.parametrize("fan_in, message", [
-    (0, r"'fan_in' must be either a whole number of at least 1 or \{\"object_attribute\": <object attribute>\}, "
-        r"got 0"),
-    (1.5, r"'fan_in' must be either a whole number of at least 1 .*, got 1.5"),
-    ("3", r"'fan_in' must be either a whole number of at least 1 .*, got '3'"),
-    ({}, r"'fan_in' must be either a whole number of at least 1 .*, got \{\}"),
+    (0, r"'fan_in' must be a whole number of at least 1 or \{\"object_attribute\": <object attribute>\}, or "
+        r"\{\"min\": <whole number>, \"max\": <whole number or object_attribute>\}, got 0"),
+    (1.5, r"'fan_in' must be a whole number of at least 1 .*, got 1.5"),
+    ("3", r"'fan_in' must be a whole number of at least 1 .*, got '3'"),
+    ({}, r"'fan_in' must be a whole number of at least 1 .*, got \{\}"),
     ({"object_attribute": "lines"}, r"'fan_in' object_attribute 'lines' is not a declared object, global or event "
                                     r"attribute"),
-    ({"object_atribute": "items"}, r"messages.publish\[0\].fan_in: unknown key 'object_atribute'; allowed: "
+    ({"object_atribute": "items"}, r"messages.publish\[0\].fan_in: unknown key 'object_atribute'; allowed: max, min, "
                                    r"object_attribute$"),
 ])
 def test_an_invalid_fan_in_is_rejected(bpmn, fan_in, message):
@@ -159,3 +159,49 @@ def test_an_invalid_deadline_is_rejected(bpmn, deadline, message):
 
 def test_a_deadline_without_fan_in_is_rejected(bpmn):
     _rejected(bpmn, r"messages.publish\[0\]: 'deadline' on a publish entry needs a fan_in", deadline={"days": 2})
+
+
+def test_min_and_max_with_a_deadline(bpmn):
+    point = _parsed(bpmn, **{**ORDER_PICKED, "fan_in": {"min": 2, "max": {"object_attribute": "items"}},
+                             "deadline": {"days": 2}})
+
+    assert (point.fan_in_min, point.fan_in, point.fan_in_attribute) == (2, None, "items")
+    assert _parsed(bpmn, **{**ORDER_PICKED, "fan_in": {"min": 2, "max": 5}, "deadline": {"days": 2}}).fan_in == 5
+
+
+def test_a_min_read_from_an_attribute(bpmn):
+    point = _parsed(bpmn, **{**ORDER_PICKED, "fan_in": {"min": {"object_attribute": "items"}, "max": 5},
+                             "deadline": {"days": 2}})
+
+    assert (point.fan_in_min, point.fan_in_min_attribute, point.fan_in) == (None, "items", 5)
+
+
+def test_a_plain_size_has_no_min_of_its_own(bpmn):
+    # the engine takes 1 with a deadline, the size without one
+    assert _parsed(bpmn, **{**ORDER_PICKED, "deadline": {"days": 2}}).fan_in_min is None
+
+
+def test_min_without_a_deadline_is_rejected(bpmn):
+    _rejected(bpmn, r"'fan_in' min needs a deadline: without one, a group is sent only once it has max parts, so min "
+                    r"would never count", **{**ORDER_PICKED, "fan_in": {"min": 2, "max": 5}})
+
+
+@pytest.mark.parametrize("fan_in, message", [
+    ({"min": 6, "max": 5}, r"'fan_in' min 6 is above max 5"),
+    ({"min": 2}, r"'fan_in' needs both min and max, e\.g\. \{\"min\": 2, \"max\": 5\}, got \{'min': 2\}"),
+    ({"max": 5}, r"'fan_in' needs both min and max"),
+    ({"min": 0, "max": 5}, r"'fan_in' min must be a whole number of at least 1 or \{\"object_attribute\": <object "
+                           r"attribute>\}, got 0"),
+    ({"min": {"object_attribute": "lines"}, "max": 5}, r"'fan_in' min object_attribute 'lines' is not a declared"),
+    ({"min": {"atribute": "items"}, "max": 5}, r"messages.publish\[0\].fan_in.min: unknown key 'atribute'; allowed: "
+                                              r"object_attribute$"),
+    ({"min": 2, "max": 0}, r"'fan_in' max must be a whole number of at least 1 or \{\"object_attribute\": <object "
+                           r"attribute>\}, got 0"),
+    ({"min": 2, "max": {"object_attribute": "lines"}}, r"'fan_in' max object_attribute 'lines' is not a declared"),
+    ({"min": 2, "max": {"atribute": "items"}}, r"messages.publish\[0\].fan_in.max: unknown key 'atribute'; allowed: "
+                                              r"object_attribute$"),
+    ({"min": 2, "max": 5, "object_attribute": "items"}, r"messages.publish\[0\].fan_in: unknown key "
+                                                        r"'object_attribute'; allowed: max, min$"),
+])
+def test_an_invalid_min_or_max_is_rejected(bpmn, fan_in, message):
+    _rejected(bpmn, message, **{**ORDER_PICKED, "fan_in": fan_in, "deadline": {"days": 2}})

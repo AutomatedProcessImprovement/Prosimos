@@ -29,26 +29,38 @@ def deadline_run(tmp_path_factory):
     return _run(tmp_path_factory.mktemp("fan_in_deadline"), _within_an_hour)
 
 
-def _expected(picked):
-    """(time, order, items) of each message: a group opens at its first part and is sent at its third part or an
-    hour after its first (1 µs late, after every part of that instant), whichever comes first; a later part opens
-    the next group."""
-    expected = []
+def expected_messages(picked, fewest=1, deadline=HOUR):
+    """(time, order, items) of each message, the rule that sent it and the orders of the groups never sent.
+    A group is sent at its third part ("max"), at its deadline, 1 µs late, if it has fewest parts then
+    ("deadline"), else at its fewest-th part ("min"); a later part opens the next group."""
+    expected, rules, never_sent = [], [], []
     for order in (f"order-{number}" for number in range(ORDERS)):
         parts = sorted((time, item) for item, (time, of, _) in picked.items() if of == order)
         while parts:
-            due = parts[0][0] + HOUR
-            group = [part for part in parts[:3] if part[0] <= due]
-            sent = group[-1][0] if len(group) == 3 else due + MICROSECOND
-            expected.append((sent, order, [item for _, item in group]))
+            due, group, sent = parts[0][0] + deadline, [], None
+            for time, item in parts:
+                if time > due and len(group) >= fewest:
+                    sent, rule = due + MICROSECOND, "deadline"
+                    break
+                group.append(item)
+                if len(group) == 3 or time > due and len(group) >= fewest:
+                    sent, rule = time, "max" if len(group) == 3 else "min"
+                    break
+            if sent is None and len(group) >= fewest:
+                sent, rule = due + MICROSECOND, "deadline"
+            if sent is None:
+                never_sent.append(order)
+            else:
+                expected.append((sent, order, group))
+                rules.append(rule)
             parts = parts[len(group):]
-    return sorted(expected)
+    return sorted(expected), rules, never_sent
 
 
 def test_a_group_is_sent_when_complete_or_at_its_deadline_with_the_parts_so_far(deadline_run):
     report, log = deadline_run
 
-    expected = _expected(_picked(log))
+    expected, _, _ = expected_messages(_picked(log))
     sent = sorted((time, attributes["order_id"], attributes["item_ids"]) for time, attributes in _order_picked(report))
     assert sent == expected
     assert any(len(items) == 3 for _, _, items in expected) and any(len(items) < 3 for _, _, items in expected)
@@ -110,26 +122,35 @@ RELEASED_ITEMS = """<?xml version="1.0" encoding="UTF-8"?>
 </bpmn:definitions>"""
 
 
-def test_a_part_whose_member_another_process_resumes_exactly_at_the_deadline_is_in_its_message(tmp_path):
-    # each item waits for Dispatch to release it, then hands in its part at once
+def released(tmp_path, fan_in, deadline, releases, needed=None):
+    """The run of one order of 3 items, each waiting until Dispatch releases it at its time in releases (item-0
+    first), then handing in its part of OrderPicked at once. needed, if given, is each item's value of needed, or
+    "index" to copy it from its ItemOrdered's index (1, 2, 3)."""
+    drawn = [] if needed in (None, "index") else [{"name": "needed", "type": "continuous", "values": {
+        "distribution_name": "fix", "distribution_params": [{"value": needed}]}}]
+    copy = {"order_id": "object_id", "items": "items", **({"needed": "index"} if needed == "index" else {})}
     (tmp_path / "released_items.bpmn").write_text(RELEASED_ITEMS)
     (tmp_path / "released_items.json").write_text(json.dumps({
         "resource_profiles": [], "gateway_branching_probabilities": [], "task_resource_distribution": [],
-        "resource_calendars": [], "messages": {
-            "consume": [{"event_id": "Start_Item", "type": "ItemOrdered", "copy": {"order_id": "object_id"}},
+        "resource_calendars": [], "object_attributes": drawn, "messages": {
+            "consume": [{"event_id": "Start_Item", "type": "ItemOrdered", "copy": copy},
                         {"event_id": "Catch_Released", "type": "Released",
                          "condition": [[{"attribute": "item", "comparison": "=", "object_attribute": "object_id"}]]}],
-            "publish": [{"event_id": "Throw_OrderPicked", "type": "OrderPicked", "fan_in": 3, "same": ["order_id"],
-                         "deadline": {"hours": 0.5}, "attributes": ["order_id", {"item_ids": "object_id"}]}]}}))
+            "publish": [{"event_id": "Throw_OrderPicked", "type": "OrderPicked", "fan_in": fan_in,
+                         "same": ["order_id"], "deadline": deadline,
+                         "attributes": ["order_id", {"item_ids": "object_id"}, {"picked": {"count": "object_id"}}]}]}}))
     dispatch = ScriptedEngine("Dispatch")
-    for hh_mm, item in (("09:40", "item-0"), ("10:10", "item-1"), ("10:40", "item-2")):
-        dispatch.publish_at(at(hh_mm), "Released", item=item)
+    for number, hh_mm in enumerate(releases):
+        dispatch.publish_at(at(hh_mm), "Released", item=f"item-{number}")
     sales, _, _ = _specs(tmp_path, orders=1)
     config = SimulationConfig(one_organization([
         sales, ProcessSpec("Warehouse", str(tmp_path / "released_items.bpmn"), str(tmp_path / "released_items.json"),
                            None, "item")]), START, 1, extra_processes=["Dispatch"])
+    return run_multiprocess_simulation(config, None, {"Dispatch": dispatch})
 
-    report = run_multiprocess_simulation(config, None, {"Dispatch": dispatch})
+
+def test_a_part_whose_member_another_process_resumes_exactly_at_the_deadline_is_in_its_message(tmp_path):
+    report = released(tmp_path, 3, {"hours": 0.5}, ["09:40", "10:10", "10:40"])
 
     # the group opened at 09:40 is due at 10:10, when Dispatch releases item-1
     assert [(time, attributes["item_ids"]) for time, attributes in _order_picked(report)] == [

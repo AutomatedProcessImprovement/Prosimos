@@ -19,6 +19,8 @@ TERM_KEYS = {"attribute", "comparison", "value", "object_attribute"}
 PUBLISH_KEYS = {"event_id", "type", "attributes", "fan_out", "fan_in", "same", "deadline", "qualifier", "o2o",
                 "carry"}
 PERIODS = ("weeks", "days", "hours")  # of a deadline, and of a catalogue change
+ONE_SIZE = "a whole number of at least 1 or {\"object_attribute\": <object attribute>}"
+MIN_MAX = "{\"min\": <whole number>, \"max\": <whole number or object_attribute>}"
 CONSUME_KEYS = {"event_id", "type", "condition", "copy", "append", "aggregate", "capacity", "collect", "same",
                 "qualifier", "o2o", "carry"}
 
@@ -483,19 +485,26 @@ def _fan_in_point(entry, where, declared, links):
     if "fan_out" in entry:
         _fail(f"{where}: fan_in and fan_out can't be combined on one entry: one turns several cases into one "
               f"message, the other one case into several messages")
-    size = entry["fan_in"]
-    if isinstance(size, dict):
-        _check_keys(f"{where}.fan_in", size, {"object_attribute"})
-    if is_whole_number_of_at_least_one(size):
-        number, attribute = int(size), None
-    elif isinstance(size, dict) and isinstance(size.get("object_attribute"), str):
-        number, attribute = None, size["object_attribute"]
-        if attribute not in declared:
-            _fail(f"{where}: 'fan_in' object_attribute {attribute!r} is not a declared object, global or event "
-                  f"attribute")
+    size, fewest, fewest_attribute = entry["fan_in"], None, None
+    if isinstance(size, dict) and ("min" in size or "max" in size):
+        _check_keys(f"{where}.fan_in", size, {"min", "max"})
+        if set(size) != {"min", "max"}:
+            _fail(f"{where}: 'fan_in' needs both min and max, e.g. {{\"min\": 2, \"max\": 5}}, got {size!r}")
+        for bound in ("min", "max"):
+            if isinstance(size[bound], dict):
+                _check_keys(f"{where}.fan_in.{bound}", size[bound], {"object_attribute"})
+        fewest, fewest_attribute = _fan_in_size(size["min"], "'fan_in' min", ONE_SIZE, where, declared)
+        number, attribute = _fan_in_size(size["max"], "'fan_in' max", ONE_SIZE, where, declared)
+        # from the case, a max below min counts as min, with a warning
+        if number is not None and fewest is not None and fewest > number:
+            _fail(f"{where}: 'fan_in' min {fewest} is above max {number}")
+        if "deadline" not in entry:
+            _fail(f"{where}: 'fan_in' min needs a deadline: without one, a group is sent only once it has max "
+                  f"parts, so min would never count")
     else:
-        _fail(f"{where}: 'fan_in' must be either a whole number of at least 1 or {{\"object_attribute\": <object "
-              f"attribute>}}, got {size!r}")
+        if isinstance(size, dict):
+            _check_keys(f"{where}.fan_in", size, {"object_attribute", "min", "max"})
+        number, attribute = _fan_in_size(size, "'fan_in'", f"{ONE_SIZE}, or {MIN_MAX}", where, declared)
     same = _same(entry, where, kind="object")
     undeclared = [name for name in same if name not in declared]
     if undeclared:
@@ -505,7 +514,19 @@ def _fan_in_point(entry, where, declared, links):
     qualifier, o2o, carry = links
     return PublishPoint(entry["event_id"], entry["type"], plain, qualifier=qualifier, o2o=o2o, carry=carry,
                         fan_in=number, fan_in_attribute=attribute, same=same, gathered=gathered, computed=computed,
-                        deadline=_deadline(entry, where))
+                        deadline=_deadline(entry, where), fan_in_min=fewest, fan_in_min_attribute=fewest_attribute)
+
+
+def _fan_in_size(size, what, forms, where, declared):
+    """(a fixed size, the case attribute holding it) of a fan_in, or of its max: 3 or {"object_attribute": "items"}."""
+    if is_whole_number_of_at_least_one(size):
+        return int(size), None
+    if isinstance(size, dict) and isinstance(size.get("object_attribute"), str):
+        if size["object_attribute"] not in declared:
+            _fail(f"{where}: {what} object_attribute {size['object_attribute']!r} is not a declared object, global or "
+                  f"event attribute")
+        return None, size["object_attribute"]
+    _fail(f"{where}: {what} must be {forms}, got {size!r}")
 
 
 def _deadline(entry, where):

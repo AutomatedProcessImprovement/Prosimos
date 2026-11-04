@@ -297,6 +297,28 @@ is sent at 12:20 with that one item. A part handed in exactly at the deadline is
 is inclusive, as a catalogue change is valid from its moment on, inclusive. Like a race timer, a deadline is due
 one microsecond late, so its message goes out 1 µs after the deadline, after every part of that instant.
 
+With a deadline, `fan_in` can also be `{"min": a, "max": b}`, each a whole number or `{"object_attribute": ...}`,
+as for `collect`.
+"Wait until 3 parcels are gathered, or leave with what you have after 2 days, but with at least 2":
+
+```json
+"fan_in": {"min": 2, "max": 3}, "same": ["route"], "deadline": {"days": 2}
+```
+
+1. a group with max parts is sent at once;
+2. when the deadline passes with at least min parts, it is sent at the deadline;
+3. when the deadline passes with fewer, it stays open and is sent the moment its min-th part comes in:
+
+```
+Mon 10:00  parcel-1 -> group opens, deadline Wed 10:00
+Wed 10:00  deadline, only 1 parcel (< min 2) -> keeps waiting
+Wed 16:00  parcel-2 -> min reached after the deadline -> the message goes out at Wed 16:00 with 2
+```
+
+A plain number or `object_attribute` means min = max, except that with a deadline min is 1 (any group is sent at
+its deadline). The receiver can tell a short group from a full one by counting its parts, e.g.
+`{"parcels": {"count": "object_id"}}` in the attributes.
+
 **qualifier** (optional, on any entry) makes this end of the message write OCEL links, and qualifies them: on
 a `publish` entry, the links from the last task before the event to the cases that took the messages; on
 a `consume` entry, the links from the next task after the event to the case that published the message
@@ -383,6 +405,9 @@ The section is checked when the model is loaded. An invalid section stops loadin
   not `object_id` by its name. A plain name not in `same` (any plain name, without `same`) is rejected, since
   the members may differ in it: the error says to send it as a list or a function.
 - `deadline` is `{"weeks" | "days" | "hours": n}`, n a number above 0.
+- `fan_in` `{"min": a, "max": b}` has both, each a whole number of at least 1 or `{"object_attribute": <declared
+  attribute>}`, and a fixed max isn't below a fixed min. It needs a `deadline`: without one, a group is sent
+  only once it has max parts, so min would never count.
 - A list or a function in `attributes`, `same` and `deadline` are only on an entry with `fan_in`.
 - A catch event under `consume` has exactly one incoming arrow, since a case waits there once:
   waiting and `collect` are counted per case and event, so two tokens of one case can't wait at one
@@ -452,15 +477,19 @@ item-3 picked 14:00 -> hands in its part -> at 14:00:
                        OrderPicked {order_id: "order-7", item_ids: ["item-1", "item-2", "item-3"], total_weight: 1.7}
 ```
 
-- The first part of a group decides its size. A size that isn't a whole number of at least 1 (or no value)
-  gives a size of 1 when its part opens a group, so that part goes out alone; a later part with another size,
-  or with an invalid one, joins its group, which keeps its size: each with one warning per event and attribute.
+- The first part of a group decides its size, and its min and max. A size that isn't a whole number of at
+  least 1 (or no value) gives a size of 1 when its part opens a group, so that part goes out alone; a later part
+  with another size, or with an invalid one, joins its group, which keeps its size: each with one warning per
+  event and attribute. An invalid min counts as 1, a max below min, read from the case, counts as min, as for
+  `collect`, and a later part with another min joins its group, which keeps its min: each with one warning per
+  event and attribute.
 - A part handed in after its group was sent opens a new group, with its own deadline.
 - A function leaves out a value that isn't a number (`count` counts the values there are), with one warning
   per event and attribute; a `min` or `max` over no numbers has no value.
 - A case ended by a terminate end event before it reaches the event hands in no part.
-- At the end of the run, each group still short of its size is one warning, e.g.
-  `fan-in OrderPicked for order_id order-7: 2 of 3 parts, never sent`.
+- At the end of the run, each group still short of its size, or past its deadline and short of its min, is
+  one warning, e.g. `fan-in OrderPicked for order_id order-7: 2 of 3 parts, never sent`, or
+  `fan-in Loaded for route r1: 1 of 3 parts (min 2), never sent`.
 
 Publishing doesn't change the simulation itself: the log is the same with or without the `publish`
 entries.

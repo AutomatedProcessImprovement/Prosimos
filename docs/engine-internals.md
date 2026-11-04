@@ -66,7 +66,8 @@ entry and its `same` values) instead of publishing, and the release that complet
 message. Prosimos works cases out ahead of the clock, in random order among ties, so the part computed last
 isn't always the last in time; counting a part only at its release makes the group's first part the first in
 time, takes each member's values at its own moment, and never counts a member a terminate ended before then.
-A deadline is a held item too, due its period after the group's first part, which sends the pile as it is; a
+A deadline is a held item too, due its period after the group's first part, which sends the pile as it is, or,
+with a min it hasn't reached, marks it overdue, so the part that brings it to its min sends it; a
 pile complete before then takes its deadline out of the heap, so it doesn't keep the engine going. Like a race
 timer, a deadline is due one microsecond after its time, so every part handed in at that instant comes first, also
 one whose member another engine's message resumes then: the orchestrator steps the earliest time first.

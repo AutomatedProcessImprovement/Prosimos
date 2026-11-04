@@ -40,6 +40,9 @@ class PublishPoint:
     # (message attribute, function, case attribute, initial): over the members' values
     computed: Tuple[Tuple[str, str, str, Optional[float]], ...] = ()
     deadline: Optional[timedelta] = None  # after a group's first part, it is sent with the parts it has
+    # the parts a group needs to be sent at its deadline; None: 1 with a deadline (fan_in, the max, without)
+    fan_in_min: Optional[int] = None
+    fan_in_min_attribute: Optional[str] = None  # the case attribute holding that min
 
     @property
     def fans_out(self):
