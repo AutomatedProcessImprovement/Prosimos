@@ -2,8 +2,9 @@
 
 How Prosimos runs a case, and what that means for messaging. For developers changing the engine
 (`prosimos/simulation_engine.py`, `prosimos/control_flow_manager.py`) or the messaging code (the
-methods `SimBPMEnv` inherits from `prosimos/messaging/engine.py`). The user-facing behaviour is
-described in [messaging.md](messaging.md) and [orchestrator.md](orchestrator.md).
+methods `SimBPMEnv` inherits from `EngineMessaging`, which combines one class per job from the files of
+`prosimos/messaging/engine/`). The user-facing behavior is described in [messaging.md](messaging.md) and
+[orchestrator.md](orchestrator.md).
 
 ## How a case moves
 

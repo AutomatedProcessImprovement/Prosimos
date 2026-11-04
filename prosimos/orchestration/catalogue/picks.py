@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 import numpy as np
 
 from prosimos.case_attributes import CaseAttribute
-from prosimos.messaging.engine import aggregate_of
+from prosimos.messaging.engine.values import aggregate_of
 from prosimos.messaging.parser import is_whole_number
 from prosimos.orchestration.catalogue.model import CatalogueObject, Computed, NewShare, QuantityFrom, catalogue_ids
 from prosimos.orchestration.catalogue.timetable import CatalogueValues, Timetable
