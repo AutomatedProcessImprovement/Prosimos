@@ -2,7 +2,7 @@
 import math
 import numbers
 
-from prosimos.messaging.parser import is_number
+from prosimos.messaging.parser.common import is_number
 from prosimos.warning_logger import warning_logger
 
 

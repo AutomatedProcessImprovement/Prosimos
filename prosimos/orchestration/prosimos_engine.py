@@ -9,7 +9,7 @@ from typing import List, Optional, Tuple
 
 from prosimos.control_flow_manager import BPMN
 from prosimos.messaging.model import ConsumePoint, PublishPoint
-from prosimos.messaging.parser import unknown_keys
+from prosimos.messaging.parser.common import unknown_keys
 from prosimos.orchestration.catalogue.model import QuantityFrom
 from prosimos.orchestration.catalogue.picks import Brought, Pick, Received
 from prosimos.orchestration.config import ProcessSpec

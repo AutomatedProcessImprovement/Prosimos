@@ -1,5 +1,5 @@
 """The messages a case publishes: how many (fan-out), their attributes and its object id."""
-from prosimos.messaging.parser import is_whole_number
+from prosimos.messaging.parser.common import is_whole_number
 from prosimos.warning_logger import warning_logger
 
 

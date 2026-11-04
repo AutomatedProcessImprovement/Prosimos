@@ -8,7 +8,7 @@ from collections import Counter, defaultdict
 from prosimos.case_attributes import CaseAttribute
 from prosimos.control_flow_manager import BPMN
 from prosimos.messaging.model import AGGREGATE_FUNCTIONS
-from prosimos.messaging.parser import is_number, is_whole_number
+from prosimos.messaging.parser.common import is_number, is_whole_number
 from prosimos.orchestration.catalogue.model import (CataloguePool, Computed, GrowingCatalogue, NewShare, QuantityFrom,
                                                     catalogue_ids)
 from prosimos.simulation_properties_parser import parse_simulation_model

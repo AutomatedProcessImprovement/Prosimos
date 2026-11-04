@@ -9,7 +9,7 @@ import pytz
 
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.messaging.model import ConditionTerm, ConsumePoint, MessagingModel, PublishPoint
-from prosimos.messaging.parser import declared_attributes, parse_messages
+from prosimos.messaging.parser.reading import declared_attributes, parse_messages
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
 from prosimos.orchestration.prosimos_engine import load_process
 from prosimos.orchestration.simulation import run_multiprocess_simulation

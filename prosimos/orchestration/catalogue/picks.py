@@ -8,7 +8,7 @@ import numpy as np
 
 from prosimos.case_attributes import CaseAttribute
 from prosimos.messaging.engine.values import aggregate_of
-from prosimos.messaging.parser import is_whole_number
+from prosimos.messaging.parser.common import is_whole_number
 from prosimos.orchestration.catalogue.model import CatalogueObject, Computed, NewShare, QuantityFrom, catalogue_ids
 from prosimos.orchestration.catalogue.timetable import CatalogueValues, Timetable
 from prosimos.orchestration.random_generators import engine_random_states

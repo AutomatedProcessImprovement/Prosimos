@@ -3,7 +3,7 @@ Task types: a user, service, send, receive, script, manual or business rule task
 same durations, resources and log row.
 """
 from prosimos.control_flow_manager import TASK_TAGS
-from prosimos.messaging.parser import parse_messages
+from prosimos.messaging.parser.reading import parse_messages
 from testing_scripts.multiprocess.bpmn.test_end_events import _log, _model
 
 FLOWS = [("start", "Start", "Approve"), ("approved", "Approve", "Notify"), ("notified", "Notify", "End")]

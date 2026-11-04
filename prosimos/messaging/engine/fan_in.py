@@ -3,7 +3,7 @@ from datetime import timedelta
 from heapq import heapify, heappush
 
 from prosimos.messaging.engine.values import aggregate_of
-from prosimos.messaging.parser import is_number, is_whole_number_of_at_least_one
+from prosimos.messaging.parser.common import is_number, is_whole_number_of_at_least_one
 from prosimos.warning_logger import warning_logger
 
 

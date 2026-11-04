@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Tuple, Union
 import pytz
 
 from prosimos.messaging.model import AGGREGATE_FUNCTIONS
-from prosimos.messaging.parser import PERIODS, is_number, is_whole_number, unknown_keys
+from prosimos.messaging.parser.common import PERIODS, is_number, is_whole_number, unknown_keys
 from prosimos.orchestration.catalogue.checks import brought_names, checked_catalogue
 from prosimos.orchestration.catalogue.model import (CatalogueChange, CatalogueObject, CataloguePool, Computed,
                                                     GrowingCatalogue, NewShare, QuantityFrom, Reference)

@@ -8,7 +8,7 @@ import pytest
 
 from prosimos.exceptions import InvalidSimScenarioException
 from prosimos.messaging.model import PublishPoint
-from prosimos.messaging.parser import parse_messages
+from prosimos.messaging.parser.reading import parse_messages
 from testing_scripts.multiprocess.messaging.test_messaging_parser import (  # noqa: F401 (bpmn is a fixture)
     bpmn, consume, publish)
 
