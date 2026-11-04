@@ -89,7 +89,7 @@ def test_pm4py_reads_the_file(order_management):
     assert set(ocel.objects["ocel:type"]) == {"order", "item", "package", "customer", "product"}
 
 
-# start_time and enable_time: our extension of OCEL, whose events have one time, the completion
+# start_time and enable_time: an extension of OCEL, whose events have one time, the completion
 
 def _times(event):
     """An event's time, start_time and enable_time, as the file writes them."""

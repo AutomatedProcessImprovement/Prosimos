@@ -123,7 +123,7 @@ def write_ocel(path, processes, objects, rows, logged_elements=None, message_lin
             "id": f"e{number}",
             "type": event["row"]["activity"],
             "time": _time(event["time"]),
-            # our extension of OCEL, whose events are atomic: when the task started and when it was enabled
+            # an extension of OCEL, whose events are atomic: when the task started and when it was enabled
             "attributes": [{"name": "resource", "value": event["row"]["resource"]},
                            {"name": "start_time", "value": _time(_as_datetime(event["row"]["start_time"]))},
                            {"name": "enable_time", "value": _time(_as_datetime(event["row"]["enable_time"]))}],

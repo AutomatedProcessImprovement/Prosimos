@@ -19,7 +19,7 @@ processes:
 A first example, with two customers and Sales choosing one for every order:
 
 ```json
-{"name": "Our company",
+{"name": "Shop",
  "catalogues": {
    "customer": [
      {"id": "c1", "attributes": {"segment": "retail"}},

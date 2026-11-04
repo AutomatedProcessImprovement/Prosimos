@@ -62,9 +62,9 @@ group: each order is offered to both, and the first that accepts it takes it. A 
 both, so which one packs it is a random choice of the orchestrator, fixed by the seed. A Pärnu order
 suits neither: both discard it, and its Sales case waits for a shipment that never comes.
 
-The processes belong to two organizations ([orchestrator.md](orchestrator.md), "Organizations"): Our company
+The processes belong to two organizations ([orchestrator.md](orchestrator.md), "Organizations"): Shop
 runs Sales, Billing and TartuWarehouse, and Tallinn partner runs TallinnWarehouse. The Warehouses group spans
-both, so a partner's warehouse competes with ours for the same orders; routing doesn't depend on organizations.
+both, so a partner's warehouse competes with Shop's for the same orders; routing doesn't depend on organizations.
 
 ## Running it
 

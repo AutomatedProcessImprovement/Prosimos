@@ -19,7 +19,7 @@ packed by one of two warehouses, which are started by those orders, so they have
 ```json
 {
   "organizations": [
-    {"name": "Our company",
+    {"name": "Shop",
      "processes": [
        {"name": "Sales", "bpmn_path": "sales.bpmn", "json_path": "sales.json", "arrivals": 20, "object_type": "order"},
        {"name": "Billing", "bpmn_path": "billing.bpmn", "json_path": "billing.json", "object_type": "invoice"},
@@ -99,7 +99,7 @@ run without any message, and every message names where the key is:
 **Organizations.** An organization is a box around a business's processes and its data: inside, its processes
 share its catalogues; between organizations, only messages pass. Messages, routing and consumer groups don't
 depend on organizations: a group may name processes of any organization, e.g. a partner's warehouse competing
-with ours (the running example's Warehouses group holds Our company's TartuWarehouse and Tallinn partner's
+with a business's own (the running example's Warehouses group holds Shop's TartuWarehouse and Tallinn partner's
 TallinnWarehouse). Engines never learn their organization: catalogues and picks are handled before the engines
 are built, and each process still draws its picks from its own generator. The organization isn't written in
 the output yet. Ready-made engines passed from Python (`extra_processes`) belong to no organization and read no
@@ -160,7 +160,7 @@ written as an OCEL 2.0 JSON file, the format of the OCEL 2.0 sample logs, readab
   completion as time, `resource`, `start_time` and `enable_time` as attributes, a link to its case's object, and
   links to the objects on the other end of its messages (see below) and to the catalogue objects its references
   name. Event ids (`e1`, `e2`, ...) follow time order.
-- **Event times, our extension of OCEL.** OCEL events are atomic: one time each, in OCEL 2.0 and in the 2.1
+- **Event times, an extension of OCEL.** OCEL events are atomic: one time each, in OCEL 2.0 and in the 2.1
   pre-release. A simulated task takes time and may wait to start, and both matter for simulation (waiting, working
   time, resource use), so every event also carries the task's `start_time` and `enable_time` from its log row,
   written like `time` (e.g. `2023-04-03T09:00:00.000000Z`) and declared with type `time` in every event type. OCEL

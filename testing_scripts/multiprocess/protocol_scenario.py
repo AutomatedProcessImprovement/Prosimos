@@ -84,7 +84,7 @@ def sales():
             return Verdict.CLAIMED
         if state == "open":
             return Verdict.PENDING
-        return Verdict.DISCARDED  # canceled, already closed, or not an order of ours
+        return Verdict.DISCARDED  # canceled, already closed, or not an order of this process
 
     engine.consume("Shipment", shipment)
     engine.waiting = lambda: sorted(order for order, state in engine.cases.items() if state == "waiting")

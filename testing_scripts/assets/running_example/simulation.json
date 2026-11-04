@@ -1,6 +1,6 @@
 {
   "organizations": [
-    {"name": "Our company",
+    {"name": "Shop",
      "processes": [
        {"name": "Sales", "bpmn_path": "sales.bpmn", "json_path": "sales.json", "arrivals": 20, "object_type": "order"},
        {"name": "Billing", "bpmn_path": "billing.bpmn", "json_path": "billing.json", "object_type": "invoice"},
