@@ -288,6 +288,15 @@ message, not one of a numbered series. A member's own id goes into a list, as `i
 a publisher of the message, so `qualifier`, `o2o` and `carry` link each one, as for an ordinary message: each
 item's Pick item links the package, and the package's first task links all its items.
 
+`deadline` (optional, with `fan_in`) sends a group that isn't complete in time with the parts it has:
+`{"weeks" | "days" | "hours": n}`, as for catalogue changes ([catalogue.md](catalogue.md)). A group isn't a case,
+since its members have moved on, so BPMN has nowhere to draw the timer; the deadline is a setting of the entry.
+Its clock starts at the group's first part. With `"deadline": {"hours": 1}`, an order whose items are picked
+at 10:00, 10:40 and 11:20 sends `OrderPicked` with the first two at 11:00; the third opens a new group, which
+is sent at 12:20 with that one item. A part handed in exactly at the deadline is in that message: the deadline
+is inclusive, as a catalogue change is valid from its moment on, inclusive. Like a race timer, a deadline is due
+one microsecond late, so its message goes out 1 µs after the deadline, after every part of that instant.
+
 **qualifier** (optional, on any entry) makes this end of the message write OCEL links, and qualifies them: on
 a `publish` entry, the links from the last task before the event to the cases that took the messages; on
 a `consume` entry, the links from the next task after the event to the case that published the message
@@ -373,7 +382,8 @@ The section is checked when the model is loaded. An invalid section stops loadin
   <attribute>}}` functions, each name sent once and each attribute declared or `object_id`; not `index`, and
   not `object_id` by its name. A plain name not in `same` (any plain name, without `same`) is rejected, since
   the members may differ in it: the error says to send it as a list or a function.
-- A list or a function in `attributes`, and `same`, are only on an entry with `fan_in`.
+- `deadline` is `{"weeks" | "days" | "hours": n}`, n a number above 0.
+- A list or a function in `attributes`, `same` and `deadline` are only on an entry with `fan_in`.
 - A catch event under `consume` has exactly one incoming arrow, since a case waits there once:
   waiting and `collect` are counted per case and event, so two tokens of one case can't wait at one
   event. Otherwise, the error says to draw one catch event per path, or a gateway before it. A message
@@ -445,7 +455,7 @@ item-3 picked 14:00 -> hands in its part -> at 14:00:
 - The first part of a group decides its size. A size that isn't a whole number of at least 1 (or no value)
   gives a size of 1 when its part opens a group, so that part goes out alone; a later part with another size,
   or with an invalid one, joins its group, which keeps its size: each with one warning per event and attribute.
-- A part handed in after its group was sent opens a new group.
+- A part handed in after its group was sent opens a new group, with its own deadline.
 - A function leaves out a value that isn't a number (`count` counts the values there are), with one warning
   per event and attribute; a `min` or `max` over no numbers has no value.
 - A case ended by a terminate end event before it reaches the event hands in no part.

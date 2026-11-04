@@ -2,6 +2,8 @@
 Fan-in settings (docs/messaging.md, "Fan-in"): a publish entry's fan_in makes one message of the parts of
 several cases with the same values of 'same'. Loading and load errors only.
 """
+from datetime import timedelta
+
 import pytest
 
 from prosimos.exceptions import InvalidSimScenarioException
@@ -135,3 +137,25 @@ def test_a_list_or_a_function_without_fan_in_is_rejected(bpmn):
 def test_fan_in_on_a_consume_entry_is_rejected(bpmn):
     _rejected(bpmn, r"messages.consume\[0\]: fan_in is only for publish entries, where several cases make one "
                     r"message; to take several messages at a catch event, use collect", section=consume(fan_in=3))
+
+
+@pytest.mark.parametrize("deadline, after", [({"days": 2}, timedelta(days=2)), ({"hours": 1.5}, timedelta(hours=1.5)),
+                                             ({"weeks": 1}, timedelta(weeks=1))])
+def test_a_deadline_is_a_period(bpmn, deadline, after):
+    assert _parsed(bpmn, **{**ORDER_PICKED, "deadline": deadline}).deadline == after
+
+
+@pytest.mark.parametrize("deadline, message", [
+    ({"days": 0}, r"'deadline' must be \{\"weeks\" \| \"days\" \| \"hours\": n\}, n a number above 0, got "
+                  r"\{'days': 0\}"),
+    ({"days": "2"}, r"'deadline' must be .*, got \{'days': '2'\}"),
+    ({"days": 1, "hours": 2}, r"'deadline' must be .*, got \{'days': 1, 'hours': 2\}"),
+    (2, r"'deadline' must be .*, got 2"),
+    ({"minutes": 30}, r"messages.publish\[0\].deadline: unknown key 'minutes'; allowed: days, hours, weeks$"),
+])
+def test_an_invalid_deadline_is_rejected(bpmn, deadline, message):
+    _rejected(bpmn, message, **{**ORDER_PICKED, "deadline": deadline})
+
+
+def test_a_deadline_without_fan_in_is_rejected(bpmn):
+    _rejected(bpmn, r"messages.publish\[0\]: 'deadline' on a publish entry needs a fan_in", deadline={"days": 2})

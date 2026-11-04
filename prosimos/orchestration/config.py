@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Tuple, Union
 import pytz
 
 from prosimos.messaging.model import AGGREGATE_FUNCTIONS
-from prosimos.messaging.parser import is_number, is_whole_number, unknown_keys
+from prosimos.messaging.parser import PERIODS, is_number, is_whole_number, unknown_keys
 from prosimos.orchestration.catalogue.checks import brought_names, checked_catalogue
 from prosimos.orchestration.catalogue.model import (CatalogueChange, CatalogueObject, CataloguePool, Computed,
                                                     GrowingCatalogue, NewShare, QuantityFrom, Reference)
@@ -51,7 +51,6 @@ PROCESS_KEYS = {"name", "bpmn_path", "json_path", "arrivals", "object_type", "qu
 REFERENCE_KEYS = {"object_attribute", "catalogue", "o2o", "reverse", "link_events", "pick", "quantity", "with",
                   "tag_along"}
 CHANGE_KEYS = {"catalogue", "attribute", "every", "at", "multiply", "add", "set", "round", "objects"}
-PERIODS = ("weeks", "days", "hours")
 OPERATIONS = ("multiply", "add", "set")
 
 

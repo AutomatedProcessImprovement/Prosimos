@@ -1,5 +1,6 @@
 """A process's 'messages' section once read (docs/messaging.md): the parser builds it, the engine acts on it."""
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import Any, List, Optional, Tuple, Union
 
 COMPARISONS = ("=", "!=", "<", "<=", ">", ">=", "in")  # the ones branch rules understand
@@ -38,6 +39,7 @@ class PublishPoint:
     gathered: Tuple[Tuple[str, str], ...] = ()  # (message attribute, case attribute): a list of the members' values
     # (message attribute, function, case attribute, initial): over the members' values
     computed: Tuple[Tuple[str, str, str, Optional[float]], ...] = ()
+    deadline: Optional[timedelta] = None  # after a group's first part, it is sent with the parts it has
 
     @property
     def fans_out(self):

@@ -2,7 +2,7 @@
 import math
 import numbers
 from datetime import timedelta
-from heapq import heappop, heappush
+from heapq import heapify, heappop, heappush
 
 from prosimos.branch_condition_rules import BranchConditionRule
 from prosimos.control_flow_manager import BPMN
@@ -24,10 +24,12 @@ class Race:
 class Pile:
     """The parts handed in so far for one fan-in message: the first part's size decides when it is sent."""
 
-    def __init__(self, size, same_values):
+    def __init__(self, point, key, element_id, size, same_values):
+        self.point, self.key, self.element_id = point, key, element_id
         self.size = size
         self.same_values = same_values
         self.parts = []  # (case id, when it was handed in, {object attribute: its value then})
+        self.deadline_held = None  # its item in the held heap, if its entry has a deadline
 
 
 class EngineMessaging:
@@ -99,6 +101,9 @@ class EngineMessaging:
     def _release_held(self, due):
         while self._held and self._held[0][0] == due:
             _, p_case, _, element_id = heappop(self._held)
+            if isinstance(element_id, Pile):  # its deadline
+                self._send(element_id)
+                continue
             if element_id is None:
                 self._end_terminated(p_case)
             if self.sim_setup.bpmn_graph.terminated_by(p_case, due):
@@ -596,7 +601,12 @@ class EngineMessaging:
         size, valid = self._fan_in_size(point, p_case, values)
         pile = self._piles.get(key)
         if pile is None:
-            pile = self._piles[key] = Pile(size, same)
+            pile = self._piles[key] = Pile(point, key, element_id, size, same)
+            if point.deadline is not None:
+                # due a microsecond late, as a race timer, so every part of that instant comes first
+                pile.deadline_held = (due + point.deadline + timedelta(microseconds=1), p_case,
+                                      next(self._pass_order), pile)
+                heappush(self._held, pile.deadline_held)
         elif valid and size != pile.size and (point.event_id, point.fan_in_attribute) not in self._warned_fan_in_sizes:
             self._warned_fan_in_sizes.add((point.event_id, point.fan_in_attribute))
             warning_logger.add_warning(
@@ -606,15 +616,23 @@ class EngineMessaging:
                                 + [source for _, _, source, _ in point.computed])
         pile.parts.append((p_case, due, {source: self._part_value(point, p_case, values, source)
                                          for source in sources}))
-        if len(pile.parts) < pile.size:
-            return
-        del self._piles[key]
+        if len(pile.parts) == pile.size:
+            self._send(pile)
+
+    def _send(self, pile):
+        """Publishes the message of pile's parts, now: it is complete, or its deadline has come."""
+        point = pile.point
+        del self._piles[pile.key]
+        if pile.deadline_held is not None and pile.deadline_held in self._held:
+            # not due any more, so it doesn't keep the engine going
+            self._held.remove(pile.deadline_held)
+            heapify(self._held)
         attributes = {name: pile.same_values[point.same.index(name)] for name in point.attributes}
         attributes.update((name, [part[source] for _, _, part in pile.parts]) for name, source in point.gathered)
         attributes.update((name, self._over_parts(point, name, function, source, initial, pile.parts))
                           for name, function, source, initial in point.computed)
-        self.outbox.append((point.type, attributes, tuple((member, time) for member, time, _ in pile.parts), element_id,
-                            point))
+        self.outbox.append((point.type, attributes, tuple((member, time) for member, time, _ in pile.parts),
+                            pile.element_id, point))
 
     def _fan_in_size(self, point, p_case, values):
         """(the group size this part gives, whether it is valid): an invalid one counts as 1, with one warning."""

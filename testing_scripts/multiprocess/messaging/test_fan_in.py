@@ -38,13 +38,17 @@ def _sends_items(settings):
     settings["messages"]["publish"][0]["attributes"].append("items")
 
 
-def _run(tmp_path, change=lambda settings: None, warehouse=WAREHOUSE):
+def _specs(tmp_path, change=lambda settings: None, warehouse=WAREHOUSE, orders=ORDERS):
+    """Sales with 20 orders of 3 items, the Warehouse, its settings changed by change, and Packaging."""
+    return [ProcessSpec("Sales", SALES, _settings(tmp_path, SALES_JSON, _sends_items, "sales.json"), orders, "order"),
+            ProcessSpec("Warehouse", warehouse, _settings(tmp_path, WAREHOUSE_JSON, change, "warehouse.json"), None,
+                        "item"),
+            ProcessSpec("Packaging", PACKAGING, PACKAGING_JSON, None, "package")]
+
+
+def _run(tmp_path, change=lambda settings: None, warehouse=WAREHOUSE, orders=ORDERS):
     """20 orders of 3 items through the Warehouse, its settings changed by change; the report and the log."""
-    config = SimulationConfig(one_organization([
-        ProcessSpec("Sales", SALES, _settings(tmp_path, SALES_JSON, _sends_items, "sales.json"), ORDERS, "order"),
-        ProcessSpec("Warehouse", warehouse, _settings(tmp_path, WAREHOUSE_JSON, change, "warehouse.json"), None,
-                    "item"),
-        ProcessSpec("Packaging", PACKAGING, PACKAGING_JSON, None, "package")]), START, 1)
+    config = SimulationConfig(one_organization(_specs(tmp_path, change, warehouse, orders)), START, 1)
     report = run_multiprocess_simulation(config, tmp_path / "log.csv")
     log = pd.read_csv(tmp_path / "log.csv", parse_dates=["enable_time", "start_time", "end_time"])
     return report, log

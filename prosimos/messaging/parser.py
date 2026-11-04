@@ -4,6 +4,7 @@ import math
 import numbers
 import xml.etree.ElementTree as ET
 from collections import Counter
+from datetime import timedelta
 
 from prosimos.control_flow_manager import TASK_TAGS
 from prosimos.exceptions import InvalidSimScenarioException
@@ -15,7 +16,9 @@ MESSAGE_DEFINITION = BPMN_NS + "messageEventDefinition"
 PUBLISHING_EVENTS = {"intermediateThrowEvent": "an intermediate message throw event", "endEvent": "a message end event"}
 CONSUMING_EVENTS = {"intermediateCatchEvent": "an intermediate message catch event", "startEvent": "a message start event"}
 TERM_KEYS = {"attribute", "comparison", "value", "object_attribute"}
-PUBLISH_KEYS = {"event_id", "type", "attributes", "fan_out", "fan_in", "same", "qualifier", "o2o", "carry"}
+PUBLISH_KEYS = {"event_id", "type", "attributes", "fan_out", "fan_in", "same", "deadline", "qualifier", "o2o",
+                "carry"}
+PERIODS = ("weeks", "days", "hours")  # of a deadline, and of a catalogue change
 CONSUME_KEYS = {"event_id", "type", "condition", "copy", "append", "aggregate", "capacity", "collect", "same",
                 "qualifier", "o2o", "carry"}
 
@@ -89,8 +92,9 @@ def parse_messages(messages_json, bpmn_path, declared_attributes, case_attribute
         if "fan_in" in entry:
             publish.append(_fan_in_point(entry, where, declared_attributes, links))
             continue
-        if "same" in entry:
-            _fail(f"{where}: 'same' on a publish entry needs a fan_in: it says which cases' parts make one message")
+        for key in ("same", "deadline"):
+            if key in entry:
+                _fail(f"{where}: '{key}' on a publish entry needs a fan_in: it is about a group of cases' parts")
         publish.append(PublishPoint(entry["event_id"], entry["type"], _attributes(entry, where, declared_attributes),
                                     *_fan_out(entry, where, declared_attributes), *links))
     return MessagingModel(tuple(publish), tuple(consume))
@@ -500,7 +504,22 @@ def _fan_in_point(entry, where, declared, links):
     plain, gathered, computed = _fan_in_attributes(entry, where, declared, same)
     qualifier, o2o, carry = links
     return PublishPoint(entry["event_id"], entry["type"], plain, qualifier=qualifier, o2o=o2o, carry=carry,
-                        fan_in=number, fan_in_attribute=attribute, same=same, gathered=gathered, computed=computed)
+                        fan_in=number, fan_in_attribute=attribute, same=same, gathered=gathered, computed=computed,
+                        deadline=_deadline(entry, where))
+
+
+def _deadline(entry, where):
+    if "deadline" not in entry:
+        return None
+    deadline = entry["deadline"]
+    if isinstance(deadline, dict):
+        _check_keys(f"{where}.deadline", deadline, set(PERIODS))
+    if not (isinstance(deadline, dict) and len(deadline) == 1 and is_number(next(iter(deadline.values())))
+            and next(iter(deadline.values())) > 0):
+        _fail(f"{where}: 'deadline' must be {{\"weeks\" | \"days\" | \"hours\": n}}, n a number above 0, got "
+              f"{deadline!r}")
+    [(unit, amount)] = deadline.items()
+    return timedelta(**{unit: amount})
 
 
 def _fan_in_attributes(entry, where, declared, same):
