@@ -86,10 +86,14 @@ Extra engines (see "Configuration") can only be passed from Python.
 | `start_time`      | the simulation's start, shared by all processes; a time without a time zone is taken as UTC                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `seed`            | optional; the same seed gives the same run. Each Prosimos engine gets its own random generators, seeded from the seed and its process name, so adding or changing one process doesn't change the others' draws. Without a seed, every run draws different random values                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `consumer_groups` | optional; group name → processes in it. Without it, every process is its own group (see "Message routing")                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `load_balancing`  | optional; group name → its policy, the order its members are offered a message: `{"weighted": {member: weight}}` or `{"preferred": [members]}`. A group without one is offered in random order (see "Message routing")                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
 File paths are relative to the configuration file's folder. A configuration is rejected if organization
 or process names repeat, a process is in no group or in more than one, a group names a process that doesn't
-exist, or the catalogues and references break one of the rules listed in [catalogue.md](catalogue.md).
+exist, or the catalogues and references break one of the rules listed in [catalogue.md](catalogue.md). In
+`load_balancing`, each entry names a consumer group with more than one member and has exactly one policy; a
+weighted policy gives every member, and only members, a weight that is a number of at least 0, not all 0, and a
+preferred one lists each member exactly once.
 It is also rejected for a key it doesn't know, at the top level (a top-level `processes`, for example: processes
 belong to an organization), in an organization entry, a process entry, a catalogue (a listed object, a pool or a
 growing catalogue), a reference or its `pick`, since a misspelled key would otherwise be ignored and change the
@@ -313,12 +317,34 @@ it with an `id` (`m1`, `m2`, ...), its `source` process and the `time` of the st
   `PartFreed m1 from Workshop: no subscriber other than its publisher` when only the publisher does.
   Unclaimed copies and stalled cases at the end are the other signs of such a model; none of this is a
   load error.
-- **Offers.** After each step, the orchestrator offers the new copies and the pooled copies of the
-  stepping engine's group, oldest first, to the group's members, in random order, at the step's time,
-  until one claims it. A member is offered copies only of the types it subscribes to, and never a copy it
-  discarded before. An engine is offered new copies even when it has no next event of its own.
+- **Offers.** After each step, the orchestrator offers the new copies and the pooled copies of the stepping
+  engine's group, oldest first, to the group's members, in the order of the group's policy (see "Load
+  balancing"), at the step's time, until one claims it. A member is offered copies only of the types it
+  subscribes to, and never a copy it discarded before. An engine is offered new copies even when it has no next
+  event of its own.
 - **Randomness.** The member order comes from the orchestrator's own random generator, seeded from
   the simulation seed, so choosing a member never changes the engines' own random draws.
+
+**Load balancing.** A group's policy in `load_balancing` decides only the order in which its members are offered
+a copy; the round itself is the same for every policy (only subscribed members, never the publisher or a member
+that discarded the copy, one by one, the first claim wins, a PENDING answer passes it to the next):
+
+| Policy           | The order of the members asked                                             | Example                                                                                    |
+|------------------|----------------------------------------------------------------------------|--------------------------------------------------------------------------------------------|
+| random (default) | a fresh shuffle                                                            | Tartu or Tallinn first, 50/50                                                              |
+| `weighted`       | the first member drawn by weight, then the next by weight among those left | `{"weighted": {"TartuWarehouse": 8, "TallinnWarehouse": 2}}`: Tartu first in 80% of offers |
+| `preferred`      | a fixed ranking, the fallback chain                                        | `{"preferred": ["TartuWarehouse", "RigaWarehouse", "TallinnWarehouse"]}`                   |
+
+- **A weight is a preference, not a quota:** it says how often a member is asked first. Weights are relative
+  (8 and 2 mean 80% and 20%), and members with weight 0 are asked last, in random order. A member that discards
+  a copy or answers PENDING passes it on, so its share of the messages handled can end up lower: with 8/2 and
+  Tartu unable to take every other order yet, Tartu handles about 40% of them.
+- **Preferred is a ranking, not just a favourite:** with two members it equals weights 100/0, with three or more
+  it also fixes the fallback order. Members not asked in a round are left out of it.
+- **Decided at every offer round:** a copy waiting in the pool gets a fresh order each time it is offered: a new
+  draw (weighted), the same ranking (preferred) or a new shuffle (random). Every draw comes from the
+  orchestrator's generator, so the same seed gives the same run, and a configuration without `load_balancing`
+  makes exactly the draws it made before policies existed.
 - **Order of steps.** The engine with the earliest next event steps first; ties are broken by
   process name. Engines are built in name order. Together with the seed, this makes runs repeatable.
 

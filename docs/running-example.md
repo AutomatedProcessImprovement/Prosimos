@@ -66,6 +66,17 @@ The processes belong to two organizations ([orchestrator.md](orchestrator.md), "
 runs Sales, Billing and TartuWarehouse, and Tallinn partner runs TallinnWarehouse. The Warehouses group spans
 both, so a partner's warehouse competes with Shop's for the same orders; routing doesn't depend on organizations.
 
+The sample leaves the Warehouses group random. To send every Tapa order to Shop's own warehouse first, and to
+Tallinn partner's only when TartuWarehouse discards it, the configuration can add a policy
+([orchestrator.md](orchestrator.md), "Message routing"):
+
+```json
+"load_balancing": {"Warehouses": {"preferred": ["TartuWarehouse", "TallinnWarehouse"]}}
+```
+
+`{"weighted": {"TartuWarehouse": 8, "TallinnWarehouse": 2}}` would instead ask TartuWarehouse first for about
+80% of the Tapa orders.
+
 ## Running it
 
 From the command line (the [Quick start](orchestrator.md#quick-start) shows the configuration):
