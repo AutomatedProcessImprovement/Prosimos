@@ -40,7 +40,7 @@ def test_the_top_level(tmp_path):
         data["sead"] = data.pop("seed")
 
     _config_rejected(tmp_path, r"simulation.json: top level: unknown key 'sead'; allowed: consumer_groups, "
-                               r"organizations, seed, start_time$", misspelled)
+                               r"load_balancing, organizations, seed, start_time$", misspelled)
 
 
 def test_processes_belong_to_an_organization_not_to_the_top_level(tmp_path):
@@ -48,7 +48,7 @@ def test_processes_belong_to_an_organization_not_to_the_top_level(tmp_path):
         data["processes"] = data.pop("organizations")[0]["processes"]
 
     _config_rejected(tmp_path, r"simulation.json: top level: unknown key 'processes'; allowed: consumer_groups, "
-                               r"organizations, seed, start_time$", at_the_top_level)
+                               r"load_balancing, organizations, seed, start_time$", at_the_top_level)
 
 
 def test_an_organization_entry(tmp_path):

@@ -44,7 +44,8 @@ class ProcessSpec:
         return self.object_type or self.name
 
 
-CONFIG_KEYS = {"organizations", "start_time", "seed", "consumer_groups"}
+CONFIG_KEYS = {"organizations", "start_time", "seed", "consumer_groups", "load_balancing"}
+POLICIES = ("preferred", "weighted")  # a group without one is offered in random order
 ORGANIZATION_KEYS = {"name", "catalogues", "catalogue_changes", "processes"}
 PROCESS_KEYS = {"name", "bpmn_path", "json_path", "arrivals", "object_type", "qualifier", "qualifier_by_activity",
                 "ocel_attributes", "references"}
@@ -105,6 +106,56 @@ def checked_consumer_groups(names, consumer_groups):
     return consumer_groups
 
 
+def checked_load_balancing(consumer_groups, load_balancing):
+    """Checks each group's policy, {"weighted": {member: weight}} or {"preferred": [members]}; without
+    load_balancing, every group is offered in random order."""
+    if load_balancing is None:
+        return {}
+    if not isinstance(load_balancing, dict):
+        raise ValueError(f"Invalid load_balancing: it must map consumer groups to a policy, got {load_balancing!r}")
+    problems = []
+    for group, policy in load_balancing.items():
+        where = f"group {group!r}"
+        if group not in consumer_groups:
+            problems.append(f"{where} is no consumer group (groups: {sorted(consumer_groups)})")
+            continue
+        members = consumer_groups[group]
+        if not isinstance(policy, dict) or len(policy) != 1:
+            problems.append(f'{where} needs exactly one policy, {{"weighted": {{<member>: <weight>}}}} or '
+                            f'{{"preferred": [<members>]}}, got {policy!r}')
+            continue
+        [(name, spec)] = policy.items()
+        if name not in POLICIES:
+            problems.append(f"{where}: unknown policy {name!r}; allowed: {', '.join(POLICIES)}")
+        elif len(members) == 1:
+            problems.append(f"{where} has one member, {members[0]}, so there is nothing to choose")
+        elif name == "weighted":
+            problems.extend(f"{where}: weighted {problem}" for problem in _weights_problems(members, spec))
+        elif not (isinstance(spec, list) and sorted(spec, key=str) == sorted(members)):
+            problems.append(f"{where}: preferred must list each member of the group once, {members}, got {spec!r}")
+    if problems:
+        raise ValueError("Invalid load_balancing: " + "; ".join(problems))
+    return load_balancing
+
+
+def _weights_problems(members, weights):
+    if not isinstance(weights, dict):
+        return [f"must map each member to its weight, got {weights!r}"]
+    problems = []
+    strangers = [name for name in weights if name not in members]
+    if strangers:
+        problems.append(f"names {strangers}, which are not members of the group {members}")
+    missing = [member for member in members if member not in weights]
+    if missing:
+        problems.append(f"gives no weight to {missing}")
+    invalid = {name: weight for name, weight in weights.items() if not (is_number(weight) and weight >= 0)}
+    if invalid:
+        problems.append(f"weights must be numbers of at least 0, got {invalid}")
+    elif weights and not any(weights.values()):
+        problems.append("weights are all 0: no member would be asked first")
+    return problems
+
+
 @dataclass(frozen=True)
 class Organization:
     """A business: a box around its processes and catalogues. Engines never learn their organization."""
@@ -127,6 +178,8 @@ class SimulationConfig:
     seed: Optional[int] = None
     consumer_groups: Optional[Dict[str, List[str]]] = None
     extra_processes: Tuple[str, ...] = ()
+    # group -> its policy, {"weighted": {member: weight}} or {"preferred": [members]}; random without one
+    load_balancing: Optional[Dict[str, Dict[str, Union[Dict[str, float], List[str]]]]] = None
 
     @property
     def processes(self) -> List[ProcessSpec]:
@@ -155,6 +208,7 @@ class SimulationConfig:
             raise ValueError(f"Process names must be unique, repeated: {duplicates}")
 
         object.__setattr__(self, "consumer_groups", checked_consumer_groups(names, self.consumer_groups))
+        object.__setattr__(self, "load_balancing", checked_load_balancing(self.consumer_groups, self.load_balancing))
         checked_catalogue(self.organizations)
         _checked_ocel_attributes(self.organizations)
 
@@ -202,7 +256,8 @@ class SimulationConfig:
 
         start = _utc_if_naive(parse_datetime(data["start_time"], True))
 
-        return cls(organizations, start, data.get("seed"), data.get("consumer_groups"))
+        return cls(organizations, start, data.get("seed"), data.get("consumer_groups"),
+                   load_balancing=data.get("load_balancing"))
 
 
 def _ocel_attributes(path, where, entry):
