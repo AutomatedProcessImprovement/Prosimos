@@ -5,9 +5,10 @@ import random
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
-from prosimos.orchestration.config import checked_consumer_groups
+from prosimos.orchestration.config import checked_consumer_groups, checked_load_balancing
+from prosimos.orchestration.load_balancing import offer_order
 from prosimos.orchestration.output import plain
 from prosimos.orchestration.protocol import (CaseElement, CaseObject, EngineReport, Message, MessageRecord,
                                            SimulationEngine, StalledCase, Verdict)
@@ -82,11 +83,14 @@ def orchestrate(
     engines: Dict[str, SimulationEngine],
     consumer_groups: Optional[Dict[str, List[str]]] = None,
     seed: Optional[int] = None,
+    load_balancing: Optional[Dict[str, Dict[str, Union[Dict[str, float], List[str]]]]] = None,
 ) -> RunReport:
     """Runs built engines, keyed by process name, on one clock (docs/orchestrator.md, "Message routing"). The
-    order members are offered a message in comes from the orchestrator's own generator, not the engines'."""
+    order members are offered a message in follows their group's policy in load_balancing (random without one),
+    drawn from the orchestrator's own generator, not the engines'."""
     names = sorted(engines)
     consumer_groups = checked_consumer_groups(names, consumer_groups)
+    load_balancing = checked_load_balancing(consumer_groups, load_balancing)
     group_of = {member: group for group, members in consumer_groups.items() for member in members}
     subscriptions = {name: set(engines[name].subscriptions()) for name in names}
     routing = {}
@@ -158,8 +162,7 @@ def orchestrate(
                 message = pooled.message
                 recipients = recipients_of(pooled.group, message)
                 candidates = [m for m in recipients if m not in pooled.discarded_by]
-                rng.shuffle(candidates)
-                for member in candidates:
+                for member in offer_order(load_balancing.get(pooled.group), candidates, rng):
                     verdict = engine(member).deliver(message, now)
                     if not isinstance(verdict, Verdict):
                         raise TypeError(f"{member}.deliver() must return a Verdict, got {verdict!r}")

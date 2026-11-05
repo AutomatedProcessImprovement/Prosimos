@@ -39,7 +39,7 @@ def run_multiprocess_simulation(config: SimulationConfig, log_out_path: Optional
                                             tuple(picks[spec.name]))
     engines.update(extra_engines)
 
-    report = orchestrate(engines, config.consumer_groups, config.seed)
+    report = orchestrate(engines, config.consumer_groups, config.seed, config.load_balancing)
     # the OCEL output needs every organization's catalogue objects, the growing ones as the run left them
     catalogue = {name: objects for organization in config.organizations
                  for name, objects in grown_catalogues(organization, config.seed, drawn[organization.name],
