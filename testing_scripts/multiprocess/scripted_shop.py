@@ -1,6 +1,7 @@
 """
-Scripted engines for the orchestrator protocol tests (test_protocol_scenario.py), which show that the orchestrator
-works with any engine, not only Prosimos. Five processes, each a ScriptedEngine with fixed orders and trucks:
+The Scripted Shop: scripted engines for Sales, Billing, two warehouses and a carrier, for the tests of the
+orchestrator's rules (test_orchestrator_rules.py), which show that the orchestrator works with any engine, not only
+Prosimos. Five processes, each a ScriptedEngine with fixed orders and trucks:
 
 - Sales places five orders between 09:00 and 09:40 (ORDERS: ord1 Tartu, ord2 Tallinn, ord3 Tapa, ord4 Pärnu, ord5
   Tartu), each announced as OrderPlaced{order_id, city}; it sends a Newsletter at 09:05, which nobody subscribes
@@ -143,7 +144,7 @@ def build_engines():
     return {engine.name: engine for engine in engines}
 
 
-def run_scenario(seed):
+def run_shop(seed):
     engines = build_engines()
     report = orchestrate(engines, CONSUMER_GROUPS, seed)
     return engines, report

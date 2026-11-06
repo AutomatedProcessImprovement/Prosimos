@@ -1,12 +1,12 @@
 """
-The orchestrator protocol, played through with the scripted engines of protocol_scenario.py (orders, a billing
+The orchestrator's rules, played through with the Scripted Shop of scripted_shop.py (orders, a billing
 process, two warehouses in one group and a carrier's trucks), one test per rule: announcements reach every group, a
 shared group gives each copy to one member, ties are broken by the seed, a message nobody can take yet stays
 pending, discards, warnings for messages nobody could use, pooled copies offered oldest first, the end-of-run
 report, time never going backwards and the same seed giving the same run. ord3 (Tapa) can go to either warehouse
 depending on the seed, so rules that always hold are checked for many seeds, and the exact outcome of one seed is
 recorded separately. The truck loading rule is scripted in the fake warehouses, so the capacity check tests the
-scenario, not the orchestrator.
+Scripted Shop, not the orchestrator.
 """
 import random
 from collections import Counter
@@ -15,7 +15,7 @@ import pytest
 
 from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.protocol import Verdict
-from testing_scripts.multiprocess.protocol_scenario import at, run_scenario
+from testing_scripts.multiprocess.scripted_shop import at, run_shop
 from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
 SEEDS = list(range(20))
@@ -48,7 +48,7 @@ def _warehouse_of(report, order_id):
 
 @pytest.mark.parametrize("seed", SEEDS)
 def test_announcement(seed):
-    _, report = run_scenario(seed)
+    _, report = run_shop(seed)
     orders = [m.id for m in report.published if m.type == "OrderPlaced"]
 
     assert len(orders) == 5
@@ -59,7 +59,7 @@ def test_announcement(seed):
 
 @pytest.mark.parametrize("seed", SEEDS)
 def test_shared_group(seed):
-    _, report = run_scenario(seed)
+    _, report = run_shop(seed)
 
     for order_id in ("ord1", "ord2", "ord3", "ord4", "ord5"):
         assert len(_warehouse_of(report, order_id)) <= 1
@@ -71,8 +71,8 @@ def test_shared_group(seed):
 def test_random_tie():
     outcomes = {}
     for seed in SEEDS:
-        first = _warehouse_of(run_scenario(seed)[1], "ord3")
-        second = _warehouse_of(run_scenario(seed)[1], "ord3")
+        first = _warehouse_of(run_shop(seed)[1], "ord3")
+        second = _warehouse_of(run_shop(seed)[1], "ord3")
         assert first == second and len(first) == 1
         outcomes[seed] = first[0]
 
@@ -82,7 +82,7 @@ def test_random_tie():
 
 @pytest.mark.parametrize("seed", SEEDS)
 def test_pending(seed):
-    engines, report = run_scenario(seed)
+    engines, report = run_shop(seed)
     shipment = next(m for m in report.published if _label(m) == "Shipment ord1")
 
     assert shipment.time == at("10:30")
@@ -92,7 +92,7 @@ def test_pending(seed):
 
 @pytest.mark.parametrize("seed", SEEDS)
 def test_discard(seed):
-    engines, report = run_scenario(seed)
+    engines, report = run_shop(seed)
     discarded = {(label, process) for label, process, _ in _discards(report)}
 
     for warehouse in ("TartuWarehouse", "TallinnWarehouse"):
@@ -104,7 +104,7 @@ def test_discard(seed):
 
 @pytest.mark.parametrize("seed", SEEDS)
 def test_warnings(seed):
-    _, report = run_scenario(seed)
+    _, report = run_shop(seed)
     messages = _messages(report)
     warned_about = [_label(messages[text.split()[1]]) for text in report.warnings]
 
@@ -117,7 +117,7 @@ def test_warnings(seed):
 
 @pytest.mark.parametrize("seed", SEEDS)
 def test_capacity(seed):
-    engines, _ = run_scenario(seed)
+    engines, _ = run_shop(seed)
     loads = {truck: orders for name in ("TartuWarehouse", "TallinnWarehouse")
              for truck, orders in engines[name].loads.items()}
 
@@ -129,7 +129,7 @@ def test_capacity(seed):
 
 @pytest.mark.parametrize("seed", SEEDS)
 def test_end_of_run(seed):
-    engines, report = run_scenario(seed)
+    engines, report = run_shop(seed)
 
     assert sorted((group, _label(message)) for group, message in report.unclaimed) == [
         ("Sales", "Shipment ord3"), ("Warehouses", "Truck T4"),
@@ -142,7 +142,7 @@ def test_end_of_run(seed):
 
 @pytest.mark.parametrize("seed", SEEDS)
 def test_time_never_goes_backwards(seed):
-    _, report = run_scenario(seed)
+    _, report = run_shop(seed)
     times = [time for time, _ in report.executed]
 
     assert times == sorted(times)
@@ -150,7 +150,7 @@ def test_time_never_goes_backwards(seed):
 
 @pytest.mark.parametrize("seed", SEEDS)
 def test_same_seed_gives_identical_runs(seed):
-    assert run_scenario(seed)[1] == run_scenario(seed)[1]
+    assert run_shop(seed)[1] == run_shop(seed)[1]
 
 
 def test_orchestrator_leaves_the_global_random_generator_alone():
@@ -158,13 +158,13 @@ def test_orchestrator_leaves_the_global_random_generator_alone():
     # every later draw inside the engines would shift
     random.seed(123)
     before = random.getstate()
-    run_scenario(FIXED_SEED)
+    run_shop(FIXED_SEED)
 
     assert random.getstate() == before
 
 
 def test_exact_outcome_of_a_fixed_seed():
-    engines, report = run_scenario(FIXED_SEED)
+    engines, report = run_shop(FIXED_SEED)
 
     assert [(time.strftime("%H:%M"), source, _label(message)) for message, time, source in
             ((m, m.time, m.source) for m in report.published)] == [
@@ -217,7 +217,7 @@ def test_exact_outcome_of_a_fixed_seed():
 
 
 def test_a_member_that_discarded_a_copy_is_not_offered_it_again():
-    # not exercised by the protocol scenario: A discards, B leaves the copy pending, then B has an
+    # not exercised by the Scripted Shop: A discards, B leaves the copy pending, then B has an
     # event of its own, so the orchestrator offers the pooled copy again, to B only
     publisher, a, b = ScriptedEngine("P"), ScriptedEngine("A"), ScriptedEngine("B")
     publisher.publish_at(at("09:00"), "X")
@@ -233,7 +233,7 @@ def test_a_member_that_discarded_a_copy_is_not_offered_it_again():
 
 
 def test_pooled_copies_are_offered_oldest_first_even_when_the_stepping_engine_publishes_a_new_one():
-    # not exercised by the protocol scenario: B and C, one group, leave X 1 pending; at 10:00 B publishes X 2,
+    # not exercised by the Scripted Shop: B and C, one group, leave X 1 pending; at 10:00 B publishes X 2,
     # which only C is offered, so both are offered to C in that step: the older one first
     publisher, b, c = ScriptedEngine("P"), ScriptedEngine("B"), ScriptedEngine("C")
     publisher.publish_at(at("09:00"), "X", number=1)

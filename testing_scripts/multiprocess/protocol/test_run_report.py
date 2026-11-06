@@ -1,7 +1,7 @@
 """The run report: one test per warning and per count. Stalled cases are future work."""
 from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.protocol import Verdict
-from testing_scripts.multiprocess.protocol_scenario import at, run_scenario
+from testing_scripts.multiprocess.scripted_shop import at, run_shop
 from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
 SEED = 1
@@ -28,8 +28,8 @@ def test_warning_for_a_message_type_nobody_subscribes_to():
 
 
 def test_warning_for_a_message_every_recipient_discarded():
-    # the Narva truck from the protocol scenario: both warehouses discard it, nobody else subscribes
-    _, report = run_scenario(SEED)
+    # the Narva truck from the Scripted Shop: both warehouses discard it, nobody else subscribes
+    _, report = run_shop(SEED)
     narva = next(m for m in report.published if m.attributes.get("dock") == "Narva")
 
     assert f"Truck {narva.id} from Carrier was discarded by every recipient" in report.warnings
@@ -78,7 +78,7 @@ def test_unclaimed_copies_are_the_ones_left_in_the_pool():
 
 
 def test_warnings_are_collected_not_printed(capsys, caplog):
-    _, report = run_scenario(SEED)
+    _, report = run_shop(SEED)
 
     assert len(report.warnings) == 3
     printed = capsys.readouterr()
