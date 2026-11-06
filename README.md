@@ -50,10 +50,10 @@ run from the root folder:
 
 It prints a short summary of the run: messages published, claimed, discarded and unclaimed, the cases
 still waiting for a message per process, and warnings. Without a seed in either the configuration or
-**_seed_**, every run draws different random values. For example, the running example with four
+**_seed_**, every run draws different random values. For example, Order Routing, with four
 processes:
 
-    poetry run prosimos start-orchestration --config testing_scripts/assets/running_example/simulation.json --log_out_path merged_log.csv
+    poetry run prosimos start-orchestration --config testing_scripts/assets/order_routing/simulation.json --log_out_path merged_log.csv
 
 ## Multi-process simulation
 
@@ -84,7 +84,7 @@ processes. See:
 - [docs/messaging.md](docs/messaging.md): how to model message events and the `messages` section;
 - [docs/catalogue.md](docs/catalogue.md): objects without events of their own, such as customers and
   products, and how cases refer to them;
-- [docs/running-example.md](docs/running-example.md): the running example, with orders, invoices and
+- [docs/order-routing.md](docs/order-routing.md): the Order Routing example, with orders, invoices and
   shipments;
 - [docs/order-management.md](docs/order-management.md): an example with orders, items and packages;
 - [docs/engine-internals.md](docs/engine-internals.md): how Prosimos runs a case, for developers.

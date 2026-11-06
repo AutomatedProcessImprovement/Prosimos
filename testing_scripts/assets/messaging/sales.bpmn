@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Sales" targetNamespace="http://bpmn.io/schema/bpmn">
-  <!-- Sales from docs/running-example.md: take an order, announce it, wait for its shipment, close it -->
+  <!-- Sales from docs/order-routing.md: take an order, announce it, wait for its shipment, close it -->
   <bpmn:process id="Sales" isExecutable="false">
     <bpmn:startEvent id="Start" name="Order received">
       <bpmn:outgoing>Flow_1</bpmn:outgoing>

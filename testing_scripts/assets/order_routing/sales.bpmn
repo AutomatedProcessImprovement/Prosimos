@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Sales" targetNamespace="http://bpmn.io/schema/bpmn">
-  <!-- Sales of the running example (docs/running-example.md), as a real Prosimos model -->
+  <!-- Sales of the Order Routing example (docs/order-routing.md), as a real Prosimos model -->
   <bpmn:process id="Sales" isExecutable="false">
     <bpmn:startEvent id="Start" name="Order received">
       <bpmn:outgoing>Flow_1</bpmn:outgoing>

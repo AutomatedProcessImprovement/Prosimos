@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Billing" targetNamespace="http://bpmn.io/schema/bpmn">
-  <!-- Billing of the running example: every placed order starts a case that creates an invoice -->
+  <!-- Billing of the Order Routing example: every placed order starts a case that creates an invoice -->
   <bpmn:process id="Billing" isExecutable="false">
     <bpmn:startEvent id="Start_Order" name="Order placed">
       <bpmn:outgoing>Flow_1</bpmn:outgoing>

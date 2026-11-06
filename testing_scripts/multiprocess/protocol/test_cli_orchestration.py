@@ -1,6 +1,6 @@
 """
 The start-orchestration command: a multi-process simulation from the command line, on the
-configuration of the running example.
+configuration of the Order Routing example.
 """
 import dataclasses
 import json
@@ -14,7 +14,7 @@ from cli.diff_res_bpsim import cli, run_summary
 from prosimos.orchestration.config import SimulationConfig
 from prosimos.orchestration.simulation import run_multiprocess_simulation
 
-CONFIG = "testing_scripts/assets/running_example/simulation.json"  # its seed is 1
+CONFIG = "testing_scripts/assets/order_routing/simulation.json"  # its seed is 1
 
 
 def _command(tmp_path, *extra):
@@ -72,7 +72,7 @@ def test_without_output_paths_the_command_only_prints_the_summary(tmp_path):
 
 
 def test_the_quick_start_runs_as_written(tmp_path):
-    # docs/orchestrator.md shows the running example's configuration, the command that runs it and what it prints
+    # docs/orchestrator.md shows the Order Routing example's configuration, the command that runs it and what it prints
     quick_start = Path("docs/orchestrator.md").read_text(encoding="utf-8").split("## Quick start")[1].split("\n## ")[0]
     config, command, summary = re.findall(r"```(?:json)?\n(.*?)```", quick_start, re.DOTALL)[:3]
     assert config == _text(Path(CONFIG))
@@ -85,4 +85,4 @@ def test_the_quick_start_runs_as_written(tmp_path):
     result = CliRunner().invoke(cli, arguments)
     assert result.exit_code == 0, result.output
     assert result.output == summary
-    assert all((tmp_path / name).exists() for name in ("merged_log.csv", "report.json", "running_example.json"))
+    assert all((tmp_path / name).exists() for name in ("merged_log.csv", "report.json", "order_routing.json"))

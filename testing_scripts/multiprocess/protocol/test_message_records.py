@@ -84,7 +84,7 @@ def test_a_race_branch_records_the_waiting_case_at_its_catch_event():
 
 
 def test_a_catch_event_records_the_waiting_case():
-    report = run_multiprocess_simulation(SimulationConfig.from_json("testing_scripts/assets/running_example/simulation.json"), None)
+    report = run_multiprocess_simulation(SimulationConfig.from_json("testing_scripts/assets/order_routing/simulation.json"), None)
 
     records = _records(report, "Shipment")
     assert records  # with this seed, warehouses ship orders
@@ -111,10 +111,10 @@ def test_capacity_2_records_both_claimers():
 
 
 def test_a_discarded_and_an_unclaimed_message_have_no_claimer():
-    # the running example's Sales: each order publishes OrderPlaced; a scripted archive discards order 0's and
+    # the Order Routing example's Sales: each order publishes OrderPlaced; a scripted archive discards order 0's and
     # keeps answering PENDING to order 1's, which stays in the pool until the end
-    sales = ProsimosEngine(ProcessSpec("Sales", "testing_scripts/assets/running_example/sales.bpmn",
-                                       "testing_scripts/assets/running_example/sales.json", 2), START, None, seed=1)
+    sales = ProsimosEngine(ProcessSpec("Sales", "testing_scripts/assets/order_routing/sales.bpmn",
+                                       "testing_scripts/assets/order_routing/sales.json", 2), START, None, seed=1)
     archive = ScriptedEngine("Archive")
     archive.consume("OrderPlaced", lambda message, now:
                     Verdict.DISCARDED if message.attributes["object_id"] == "Sales-0" else Verdict.PENDING)

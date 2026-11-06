@@ -28,7 +28,7 @@ def test_warning_for_a_message_type_nobody_subscribes_to():
 
 
 def test_warning_for_a_message_every_recipient_discarded():
-    # the Narva truck from the running example: both warehouses discard it, nobody else subscribes
+    # the Narva truck from the protocol scenario: both warehouses discard it, nobody else subscribes
     _, report = run_scenario(SEED)
     narva = next(m for m in report.published if m.attributes.get("dock") == "Narva")
 

@@ -11,16 +11,16 @@ import pytz
 
 from prosimos.orchestration.config import SimulationConfig
 
-RUNNING_EXAMPLE = "testing_scripts/assets/running_example/simulation.json"
+ORDER_ROUTING = "testing_scripts/assets/order_routing/simulation.json"
 START = pytz.utc.localize(datetime(2024, 1, 1, 9))
 WAREHOUSES = ["Tartu", "Riga", "Tallinn"]
 
 
 def _from_file(tmp_path, load_balancing):
-    """The running example's configuration with load_balancing added, read from a file."""
-    with open(RUNNING_EXAMPLE) as file:
+    """The Order Routing example's configuration with load_balancing added, read from a file."""
+    with open(ORDER_ROUTING) as file:
         data = json.load(file)
-    folder = Path(RUNNING_EXAMPLE).resolve().parent
+    folder = Path(ORDER_ROUTING).resolve().parent
     for organization in data["organizations"]:
         for process in organization["processes"]:
             process["bpmn_path"], process["json_path"] = (str(folder / process[key]) for key in ("bpmn_path",
@@ -44,7 +44,7 @@ def test_both_policies_load_from_a_configuration_file(tmp_path, policy):
 
 
 def test_without_load_balancing_every_group_stays_random():
-    assert SimulationConfig.from_json(RUNNING_EXAMPLE).load_balancing == {}
+    assert SimulationConfig.from_json(ORDER_ROUTING).load_balancing == {}
 
 
 def test_a_group_of_extra_engines_can_have_a_policy():

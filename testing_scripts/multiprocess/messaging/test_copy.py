@@ -93,10 +93,10 @@ def test_a_missing_message_attribute_leaves_the_value_unchanged_with_one_warning
 
 
 def test_the_warehouses_copied_order_id_appears_in_the_merged_log(tmp_path):
-    # real Sales (running example) and the real Tartu warehouse, which starts a case for every Tartu or
+    # real Sales (Order Routing example) and the real Tartu warehouse, which starts a case for every Tartu or
     # Tapa order and copies the order's case_id into order_id, a name it doesn't declare
-    sales = ProcessSpec("Sales", "testing_scripts/assets/running_example/sales.bpmn",
-                        "testing_scripts/assets/running_example/sales.json", 10)
+    sales = ProcessSpec("Sales", "testing_scripts/assets/order_routing/sales.bpmn",
+                        "testing_scripts/assets/order_routing/sales.json", 10)
     warehouse = ProcessSpec("TartuWarehouse", f"{ASSETS}/tartu_warehouse.bpmn", f"{ASSETS}/tartu_warehouse.json")
     run_multiprocess_simulation(SimulationConfig(one_organization([sales, warehouse]), START, seed=1),
                                 tmp_path / "merged_log.csv")

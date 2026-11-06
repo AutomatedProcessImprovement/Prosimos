@@ -1,11 +1,12 @@
-# Running example: orders, invoices and shipments
+# Order Routing example: orders, invoices and shipments
 
 One scenario, used throughout this documentation and in the tests, that shows how processes
 exchange messages through the orchestrator ([orchestrator.md](orchestrator.md)): orders placed in
-Sales are billed, packed by one of two warehouses, shipped, and closed. All four processes are real
-Prosimos models in `testing_scripts/assets/running_example/`, run from one configuration file,
+Sales are billed and routed to two competing warehouses, one of them a partner's; the one that takes an
+order packs and ships it, and Sales closes it. All four processes are real
+Prosimos models in `testing_scripts/assets/order_routing/`, run from one configuration file,
 `simulation.json` (checked by
-`testing_scripts/multiprocess/examples/test_real_running_example.py`).
+`testing_scripts/multiprocess/examples/test_order_routing.py`).
 
 A larger example, with orders, items and packages, is the [Order Management example](order-management.md).
 
@@ -82,7 +83,7 @@ Tallinn partner's only when TartuWarehouse discards it, the configuration can ad
 From the command line (the [Quick start](orchestrator.md#quick-start) shows the configuration):
 
 ```
-poetry run prosimos start-orchestration --config testing_scripts/assets/running_example/simulation.json --log_out_path merged_log.csv --ocel_out_path running_example.json
+poetry run prosimos start-orchestration --config testing_scripts/assets/order_routing/simulation.json --log_out_path merged_log.csv --ocel_out_path order_routing.json
 ```
 
 or from Python:
@@ -91,8 +92,8 @@ or from Python:
 from prosimos.orchestration.config import SimulationConfig
 from prosimos.orchestration.simulation import run_multiprocess_simulation
 
-config = SimulationConfig.from_json("testing_scripts/assets/running_example/simulation.json")
-report = run_multiprocess_simulation(config, log_out_path="merged_log.csv", ocel_out_path="running_example.json")
+config = SimulationConfig.from_json("testing_scripts/assets/order_routing/simulation.json")
+report = run_multiprocess_simulation(config, log_out_path="merged_log.csv", ocel_out_path="order_routing.json")
 ```
 
 ## What a run shows

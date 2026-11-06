@@ -1,5 +1,5 @@
 """
-The running example (docs/running-example.md): Sales, Billing and the two warehouses, all real Prosimos models
+The Order Routing example (docs/order-routing.md): Sales, Billing and the two warehouses, all real Prosimos models
 loaded from one configuration file and run with run_multiprocess_simulation.
 """
 import csv
@@ -12,7 +12,7 @@ import pytest
 from prosimos.orchestration.config import SimulationConfig
 from prosimos.orchestration.simulation import run_multiprocess_simulation
 
-CONFIG = "testing_scripts/assets/running_example/simulation.json"  # seed 1, 20 orders
+CONFIG = "testing_scripts/assets/order_routing/simulation.json"  # seed 1, 20 orders
 SERVES = {"TartuWarehouse": {"Tartu", "Tapa"}, "TallinnWarehouse": {"Tallinn", "Tapa"}}
 
 

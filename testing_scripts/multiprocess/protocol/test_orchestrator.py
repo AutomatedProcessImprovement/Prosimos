@@ -185,8 +185,8 @@ def test_config_accepts_processes_sharing_a_group():
 
 
 def test_a_group_across_two_organizations_routes_as_within_one():
-    # the running example's Warehouses group: Shop's TartuWarehouse and Tallinn partner's TallinnWarehouse
-    config = SimulationConfig.from_json("testing_scripts/assets/running_example/simulation.json")
+    # the Order Routing example's Warehouses group: Shop's TartuWarehouse and Tallinn partner's TallinnWarehouse
+    config = SimulationConfig.from_json("testing_scripts/assets/order_routing/simulation.json")
     organization_of = {spec.name: organization.name for organization in config.organizations
                        for spec in organization.processes}
     assert {organization_of[name] for name in config.consumer_groups["Warehouses"]} == {"Shop", "Tallinn partner"}

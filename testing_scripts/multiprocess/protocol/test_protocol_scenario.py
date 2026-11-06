@@ -217,7 +217,7 @@ def test_exact_outcome_of_a_fixed_seed():
 
 
 def test_a_member_that_discarded_a_copy_is_not_offered_it_again():
-    # not exercised by the running example: A discards, B leaves the copy pending, then B has an
+    # not exercised by the protocol scenario: A discards, B leaves the copy pending, then B has an
     # event of its own, so the orchestrator offers the pooled copy again, to B only
     publisher, a, b = ScriptedEngine("P"), ScriptedEngine("A"), ScriptedEngine("B")
     publisher.publish_at(at("09:00"), "X")
@@ -233,7 +233,7 @@ def test_a_member_that_discarded_a_copy_is_not_offered_it_again():
 
 
 def test_pooled_copies_are_offered_oldest_first_even_when_the_stepping_engine_publishes_a_new_one():
-    # not exercised by the running example: B and C, one group, leave X 1 pending; at 10:00 B publishes X 2,
+    # not exercised by the protocol scenario: B and C, one group, leave X 1 pending; at 10:00 B publishes X 2,
     # which only C is offered, so both are offered to C in that step: the older one first
     publisher, b, c = ScriptedEngine("P"), ScriptedEngine("B"), ScriptedEngine("C")
     publisher.publish_at(at("09:00"), "X", number=1)

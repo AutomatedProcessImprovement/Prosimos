@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_TallinnWarehouse" targetNamespace="http://bpmn.io/schema/bpmn">
-  <!-- TallinnWarehouse of the running example: every order from Tallinn or Tapa starts a case, which packs the order and
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_TartuWarehouse" targetNamespace="http://bpmn.io/schema/bpmn">
+  <!-- TartuWarehouse of the Order Routing example: every order from Tartu or Tapa starts a case, which packs the order and
        ships it, announcing the Shipment at its message end event -->
-  <bpmn:process id="TallinnWarehouse" isExecutable="false">
+  <bpmn:process id="TartuWarehouse" isExecutable="false">
     <bpmn:startEvent id="Start_Order" name="Order placed">
       <bpmn:outgoing>Flow_1</bpmn:outgoing>
       <bpmn:messageEventDefinition id="Start_Order_definition" />

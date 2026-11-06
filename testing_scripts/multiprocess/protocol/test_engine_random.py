@@ -19,7 +19,7 @@ from prosimos.simulation_engine import SimBPMEnv, run_simulation
 from testing_scripts.multiprocess.orchestrator_settings import one_organization
 from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
-EXAMPLE = "testing_scripts/assets/running_example"
+EXAMPLE = "testing_scripts/assets/order_routing"
 START = pytz.utc.localize(datetime(2024, 1, 1, 9))
 SEED = 1
 

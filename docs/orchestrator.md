@@ -6,14 +6,14 @@ repeatedly steps the engine whose next event is earliest, passes the messages en
 processes that consume them, and writes one merged event log.
 
 How a process model publishes and waits for messages is described in [messaging.md](messaging.md).
-There are two examples: the [running example](running-example.md), with orders, invoices and shipments, and the
+There are two examples: the [Order Routing example](order-routing.md), with orders, invoices and shipments, and the
 [Order Management example](order-management.md), after a real OCEL 2.0 event log.
 
 ## Quick start
 
 A configuration file lists the organizations, each with its processes, the shared start time and,
-optionally, a seed and the consumer groups. This is the [running example](running-example.md)'s,
-`testing_scripts/assets/running_example/simulation.json`: Sales's orders are billed by Billing and
+optionally, a seed and the consumer groups. This is the [Order Routing example](order-routing.md)'s,
+`testing_scripts/assets/order_routing/simulation.json`: Sales's orders are billed by Billing and
 packed by one of two warehouses, which are started by those orders, so they have no `arrivals`:
 
 ```json
@@ -45,7 +45,7 @@ packed by one of two warehouses, which are started by those orders, so they have
 Run it from the repository's root folder:
 
 ```
-poetry run prosimos start-orchestration --config testing_scripts/assets/running_example/simulation.json --log_out_path merged_log.csv --report_out_path report.json --ocel_out_path running_example.json
+poetry run prosimos start-orchestration --config testing_scripts/assets/order_routing/simulation.json --log_out_path merged_log.csv --report_out_path report.json --ocel_out_path order_routing.json
 ```
 
 `--log_out_path` (the merged event log), `--report_out_path` (the run report as JSON) and
@@ -65,8 +65,8 @@ or from Python:
 from prosimos.orchestration.config import SimulationConfig
 from prosimos.orchestration.simulation import run_multiprocess_simulation
 
-config = SimulationConfig.from_json("testing_scripts/assets/running_example/simulation.json")
-report = run_multiprocess_simulation(config, log_out_path="merged_log.csv", ocel_out_path="running_example.json")
+config = SimulationConfig.from_json("testing_scripts/assets/order_routing/simulation.json")
+report = run_multiprocess_simulation(config, log_out_path="merged_log.csv", ocel_out_path="order_routing.json")
 
 print(report.stalled)    # cases still waiting for a message at the end
 print(report.warnings)   # e.g. messages nobody could use
@@ -103,7 +103,7 @@ run without any message, and every message names where the key is:
 **Organizations.** An organization is a box around a business's processes and its data: inside, its processes
 share its catalogues; between organizations, only messages pass. Messages, routing and consumer groups don't
 depend on organizations: a group may name processes of any organization, e.g. a partner's warehouse competing
-with a business's own (the running example's Warehouses group holds Shop's TartuWarehouse and Tallinn partner's
+with a business's own (the Order Routing example's Warehouses group holds Shop's TartuWarehouse and Tallinn partner's
 TallinnWarehouse). Engines never learn their organization: catalogues and picks are handled before the engines
 are built, and each process still draws its picks from its own generator. The organization isn't written in
 the output yet. Ready-made engines passed from Python (`extra_processes`) belong to no organization and read no

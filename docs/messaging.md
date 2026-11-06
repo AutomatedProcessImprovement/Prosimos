@@ -31,8 +31,8 @@ model.
 
 ## JSON: what
 
-The Sales process of the [running example](running-example.md) places an order, announces it, and
-waits for the shipment of that order (model: `testing_scripts/assets/running_example/`):
+The Sales process of the [Order Routing example](order-routing.md) places an order, announces it, and
+waits for the shipment of that order (model: `testing_scripts/assets/order_routing/`):
 
 ```
 Start ──> Place order ──> (Throw_OrderPlaced) ──> (Catch_Shipment) ──> Close order ──> End
