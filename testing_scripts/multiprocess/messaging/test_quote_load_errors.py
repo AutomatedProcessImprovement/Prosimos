@@ -98,3 +98,79 @@ def test_fan_out_still_allows_0(bpmn):
     messages = {"publish": [{"event_id": "Throw_OrderPlaced", "type": "ItemOrdered", "fan_out": 0}]}
 
     assert parse_messages(messages, bpmn, DECLARED).publish[0].fan_out == 0
+
+
+# the replies: a catch or start event taking a quote's accepted or declined type needs a condition on request
+
+NAMED = {"Throw_Quote": ("intermediateThrowEvent", "Ask quote"), "Throw_Cancel": ("intermediateThrowEvent", None),
+         "Catch_Accepted": ("intermediateCatchEvent", "Quote accepted"),
+         "Catch_Declined": ("intermediateCatchEvent", None)}
+FOR_THIS_CASE = [[{"attribute": "request", "comparison": "=", "object_attribute": "object_id"}]]
+
+
+@pytest.fixture
+def named(tmp_path):
+    """Sales with a quote's events, all after one task; only some of them have a name."""
+    elements = "".join(f'<bpmn:{kind} id="{element}"{f" name={chr(34)}{name}{chr(34)}" if name else ""}>'
+                       f'<bpmn:messageEventDefinition/></bpmn:{kind}>' for element, (kind, name) in NAMED.items())
+    flows = "".join(f'<bpmn:sequenceFlow id="Flow_{index}" sourceRef="Ask" targetRef="{element}"/>'
+                    for index, element in enumerate(NAMED))
+    path = tmp_path / "sales.bpmn"
+    path.write_text('<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL">'
+                    f'<bpmn:process id="Sales"><bpmn:task id="Ask"/>{elements}{flows}</bpmn:process>'
+                    '</bpmn:definitions>')
+    return path
+
+
+def _replies(*consume):
+    """The quote at Throw_Quote, without modify, its cancel at Throw_Cancel, and the consume entries."""
+    quote = {**{key: value for key, value in QUOTE.items() if key != "modify"}, "quantity": 1}
+    return {"publish": [{"event_id": "Throw_Quote", "type": "ItemQuote", "attributes": ["object_id"], "quote": quote},
+                        {"event_id": "Throw_Cancel", "type": "QuoteCanceled"}],
+            "consume": list(consume)}
+
+
+def _without_request(bpmn, index, reply, messages):
+    message = rf"^Invalid 'messages' section: messages\.consume\[{index}\]: {reply} has no condition on request: it " \
+              rf"would take the replies to other objects' quotes$"
+    with pytest.raises(InvalidSimScenarioException, match=message):
+        parse_messages(messages, bpmn, DECLARED)
+
+
+def _reply(event_id, type, condition=None):
+    return {"event_id": event_id, "type": type, **({} if condition is None else {"condition": condition})}
+
+
+def test_the_replies_with_a_condition_on_request_load(named):
+    model = parse_messages(_replies(_reply("Catch_Accepted", "QuoteAccepted", FOR_THIS_CASE),
+                                    _reply("Catch_Declined", "QuoteDeclined", FOR_THIS_CASE)), named, DECLARED)
+
+    assert [point.type for point in model.consume] == ["QuoteAccepted", "QuoteDeclined"]
+
+
+def test_an_accepted_reply_without_a_condition(named):
+    _without_request(named, 0, "QuoteAccepted at 'Quote accepted'",
+                     _replies(_reply("Catch_Accepted", "QuoteAccepted"),
+                              _reply("Catch_Declined", "QuoteDeclined", FOR_THIS_CASE)))
+
+
+def test_a_declined_reply_with_a_condition_on_another_attribute(named):
+    # the event has no name, so the error names its id
+    _without_request(named, 1, "QuoteDeclined at 'Catch_Declined'",
+                     _replies(_reply("Catch_Accepted", "QuoteAccepted", FOR_THIS_CASE),
+                              _reply("Catch_Declined", "QuoteDeclined",
+                                     [[{"attribute": "source", "comparison": "=", "value": "orchestrator"}]])))
+
+
+def test_a_reply_with_an_alternative_without_request(named):
+    either = [*FOR_THIS_CASE, [{"attribute": "source", "comparison": "=", "value": "orchestrator"}]]
+
+    _without_request(named, 0, "QuoteAccepted at 'Quote accepted'", _replies(_reply("Catch_Accepted", "QuoteAccepted",
+                                                                                     either)))
+
+
+def test_another_process_may_take_the_types_without_a_condition(named):
+    # only the process that asks the quote takes its replies by request
+    messages = {"consume": [_reply("Catch_Accepted", "QuoteAccepted")]}
+
+    assert parse_messages(messages, named, DECLARED).consume[0].condition is None

@@ -11,7 +11,7 @@ from prosimos.messaging.parser.consume import (check_aggregated_only, check_appe
                                                read_aggregate, read_append, read_capacity, read_collect, read_condition,
                                                read_copy, read_same)
 from prosimos.messaging.parser.publish import read_attributes, read_carry, read_fan_in
-from prosimos.messaging.parser.quote import check_quote_types, read_quote
+from prosimos.messaging.parser.quote import check_quote_replies, check_quote_types, read_quote
 
 BPMN_NS = "{http://www.omg.org/spec/BPMN/20100524/MODEL}"
 MESSAGE_DEFINITION = BPMN_NS + "messageEventDefinition"
@@ -101,6 +101,7 @@ def parse_messages(messages_json, bpmn_path, declared_attributes, case_attribute
                                             *read_multiplicity(entry, where, declared_attributes, "fan_out"), *links,
                                             quote=quote)))
     check_quote_types(publish)
+    check_quote_replies(consume, publish, _event_names(bpmn_path))
     return MessagingModel(tuple(point for _, point in publish), tuple(consume))
 
 
@@ -148,6 +149,12 @@ def _tasks(bpmn_path):
     tags = {BPMN_NS + tag for tag in TASK_TAGS}
     return {key for element in ET.parse(bpmn_path).getroot().iter() if element.tag in tags
             for key in (element.attrib.get("id"), element.attrib.get("name")) if key}
+
+
+def _event_names(bpmn_path):
+    """Element id -> its name in the model, or its id without one."""
+    return {element.attrib["id"]: element.attrib.get("name") or element.attrib["id"]
+            for element in ET.parse(bpmn_path).getroot().iter() if "id" in element.attrib}
 
 
 def _bpmn_events(bpmn_path):

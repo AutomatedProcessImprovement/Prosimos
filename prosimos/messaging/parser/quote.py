@@ -53,6 +53,19 @@ def _within(quote, in_quote, declared):
     return None, attribute, unit
 
 
+def check_quote_replies(consume, publish, names):
+    """A consume entry for a quote's accepted or declined type has a term on request in every alternative of its
+    condition: else it would take the replies to other objects' quotes. names: event id -> its name in the model,
+    or its id."""
+    replies = {name for _, point in publish if point.quote is not None
+               for name in (point.quote.accepted, point.quote.declined)}
+    for index, point in enumerate(consume):
+        if point.type in replies and not (point.condition and all(
+                any(term.attribute == "request" for term in alternative) for alternative in point.condition)):
+            fail(f"messages.consume[{index}]: {point.type} at {names[point.event_id]!r} has no condition on request: "
+                 f"it would take the replies to other objects' quotes")
+
+
 def check_quote_types(publish):
     """Each quote's cancel and modify type has a publish entry of its own: the case throws it at its own event."""
     published = {point.type for _, point in publish}
