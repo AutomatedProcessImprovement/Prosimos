@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from prosimos.orchestration.config import check_no_orchestrator, checked_consumer_groups, checked_load_balancing
 from prosimos.orchestration.load_balancing import offer_order
-from prosimos.orchestration.quotes import answer_quote, ask_members
+from prosimos.orchestration.quotes import QuoteBook, ask_members
 from prosimos.orchestration.output import plain
 from prosimos.orchestration.protocol import (ORCHESTRATOR, CaseElement, CaseObject, EngineReport, Message,
                                            MessageRecord, QuoteKind, SimulationEngine, StalledCase, Verdict)
@@ -112,6 +112,7 @@ def orchestrate(
     report = RunReport()
     # only the requester's settings say which types are quote types, so each is checked at its first quote
     checked_quote_types: Set[str] = set()
+    quote_book = QuoteBook()
     pool: List[_PooledCopy] = []
     copies_left: Dict[str, int] = {}
     claimed_ids: Set[str] = set()
@@ -167,7 +168,7 @@ def orchestrate(
                     members = [member for group in groups for member in consumer_groups[group]
                                if quote_type in subscriptions[member] and member != name]
                     if message.quote.kind is QuoteKind.QUOTE:
-                        outgoing.append((answer_quote(message, members, engine, now, warn), ORCHESTRATOR))
+                        outgoing.append((quote_book.answer(message, members, engine, now, warn), ORCHESTRATOR))
                     else:
                         ask_members(message, members, engine, now)
                     continue

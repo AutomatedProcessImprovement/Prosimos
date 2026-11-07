@@ -15,20 +15,20 @@ START = pytz.utc.localize(datetime(2024, 1, 1, 9))
 LATER = START + timedelta(hours=1)
 
 
-def _quote(*products):
-    return Message("ItemQuote", {"object_id": "order-7"}, quote=Quote(
-        QuoteKind.QUOTE, "ItemQuote", "order-7", [Line({"product": product}) for product in products],
+def _quote(*products, request="order-7"):
+    return Message("ItemQuote", {"object_id": request}, quote=Quote(
+        QuoteKind.QUOTE, "ItemQuote", request, [Line({"product": product}) for product in products],
         timedelta(days=3), "QuoteAccepted", "QuoteDeclined"))
 
 
 def _run():
-    """Sales asks a quote for an iPhone and an iPad at 09:00, publishes OrderPlaced at 10:00 and asks a quote for a
-    MacBook then, and takes the replies; Tartu and Tallinn answer ItemQuote and would also claim any ItemQuote they
-    were offered."""
+    """Sales asks order-7's quote for an iPhone and an iPad at 09:00, publishes OrderPlaced at 10:00 and asks
+    order-8's quote for a MacBook then, and takes the replies; Tartu and Tallinn answer ItemQuote and would also
+    claim any ItemQuote they were offered."""
     sales = ScriptedEngine("Sales")
     sales.consume("QuoteAccepted", lambda message, now: Verdict.CLAIMED)
     sales.at(START, lambda now: [_quote("iPhone", "iPad")])
-    sales.at(LATER, lambda now: [Message("OrderPlaced", {"order_id": "order-8"}), _quote("MacBook")])
+    sales.at(LATER, lambda now: [Message("OrderPlaced", {"order_id": "order-8"}), _quote("MacBook", request="order-8")])
     engines = {"Sales": sales}
     for name in ("Tartu", "Tallinn"):
         engines[name] = ScriptedEngine(name)
