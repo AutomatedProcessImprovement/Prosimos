@@ -79,6 +79,14 @@ class _PooledCopy:
     discarded_by: Set[str] = field(default_factory=set)
 
 
+def _check_one_group(message, groups):
+    """A quote type reaches exactly one group: the members of that group answer its quotes."""
+    if len(groups) > 1:
+        raise ValueError(f"{message.type} {message.id} from {message.source} asks a quote of type "
+                         f"{message.quote.quote_type}, which the groups {groups} subscribe to: a quote type must "
+                         f"reach exactly one group")
+
+
 def orchestrate(
     engines: Dict[str, SimulationEngine],
     consumer_groups: Optional[Dict[str, List[str]]] = None,
@@ -100,6 +108,8 @@ def orchestrate(
 
     rng = random.Random(f"orchestrator-{seed}") if seed is not None else random.Random()
     report = RunReport()
+    # only the requester's settings say which types are quote types, so each is checked at its first quote
+    checked_quote_types: Set[str] = set()
     pool: List[_PooledCopy] = []
     copies_left: Dict[str, int] = {}
     claimed_ids: Set[str] = set()
@@ -140,6 +150,9 @@ def orchestrate(
             for message in published:
                 message.id, message.source, message.time = f"m{next(next_id)}", name, now
                 report.published.append(message)
+                if message.quote is not None and message.quote.quote_type not in checked_quote_types:
+                    _check_one_group(message, routing.get(message.quote.quote_type, []))
+                    checked_quote_types.add(message.quote.quote_type)
                 # a message never goes back to its publisher, so a group with no other subscriber gets no copy
                 groups = [group for group in routing.get(message.type, []) if recipients_of(group, message)]
                 if not groups:
