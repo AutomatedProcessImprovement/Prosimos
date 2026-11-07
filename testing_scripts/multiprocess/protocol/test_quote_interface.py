@@ -1,6 +1,7 @@
 """
-The quote calls of the engine interface (docs/orchestrator.md, "Engine interface"): estimate, reserve, and release,
-next to the five messaging and lifecycle calls. A Prosimos engine answers no slots for now.
+The quote calls of the engine interface (docs/orchestrator.md, "Engine interface"): estimate, moved, reserve, and
+release, next to the five messaging and lifecycle calls. A Prosimos engine answers no slots, and nothing moved, for
+now.
 """
 from datetime import datetime, timedelta
 
@@ -8,7 +9,7 @@ import pytz
 
 from prosimos.orchestration.config import ProcessSpec
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
-from prosimos.orchestration.protocol import Estimate, Line, Message, Quote, QuoteKind, SimulationEngine
+from prosimos.orchestration.protocol import Line, Message, Quote, QuoteKind, SimulationEngine
 from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
 START = pytz.utc.localize(datetime(2024, 1, 1, 9))
@@ -19,9 +20,9 @@ QUOTE = Quote(QuoteKind.QUOTE, "ItemQuote", "order-7", LINES, timedelta(days=3))
 ASKED = Message("ItemQuote", {"object_id": "order-7"}, "m1", "Sales", START, QUOTE)
 
 
-def test_the_interface_has_eight_methods():
+def test_the_interface_has_nine_methods():
     assert SimulationEngine.__abstractmethods__ == {"subscriptions", "next_event_time", "step", "deliver", "estimate",
-                                                    "reserve", "release", "finish"}
+                                                    "moved", "reserve", "release", "finish"}
 
 
 def test_every_engine_implements_them():
@@ -40,7 +41,8 @@ def test_a_line_has_no_id_until_the_orchestrator_stamps_it():
 def test_a_prosimos_engine_answers_no_slots_and_nothing_moved_for_now():
     engine = ProsimosEngine(ProcessSpec("TartuWarehouse", f"{WAREHOUSE}.bpmn", f"{WAREHOUSE}.json"), START, seed=1)
 
-    assert engine.estimate(ASKED, START) == Estimate(slots={}, moved=False)
+    assert engine.estimate(ASKED, START) == {}
+    assert engine.moved(ASKED, START) is False
     assert engine.reserve(ASKED, ["l1", "l2"], START) is None
     assert engine.release(ASKED, ["l1"], START) is None
     assert engine.next_event_time() is None  # nothing booked: the warehouse waits for orders as before

@@ -57,13 +57,8 @@ class Message:
     quote: Optional[Quote] = None
 
 
-@dataclass
-class Estimate:
-    """A member's answer to a quote: per line id, the times its matching items not yet promised would be ready,
-    earliest first; moved: some line of this quote has already moved on here."""
-
-    slots: Dict[str, List[datetime]] = field(default_factory=dict)
-    moved: bool = False
+# a member's answer to a quote: line id -> the times its matching items not yet promised would be ready, earliest first
+Slots = Dict[str, List[datetime]]
 
 
 class Verdict(Enum):
@@ -190,9 +185,14 @@ class SimulationEngine(ABC):
         must answer PENDING."""
 
     @abstractmethod
-    def estimate(self, message: Message, now: datetime) -> Estimate:
+    def estimate(self, message: Message, now: datetime) -> Slots:
         """When this member could have each line of the stamped quote message (its quote in message.quote) ready at
         now; changes nothing."""
+
+    @abstractmethod
+    def moved(self, message: Message, now: datetime) -> bool:
+        """Whether some line the stamped quote message reserved here has already moved on at now; changes
+        nothing."""
 
     @abstractmethod
     def reserve(self, message: Message, line_ids: List[str], now: datetime) -> None:

@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Callable, Dict, List, Optional, Tuple
 
-from prosimos.orchestration.protocol import Estimate, Line, Message, SimulationEngine
+from prosimos.orchestration.protocol import Line, Message, SimulationEngine, Slots
 
 
 @dataclass
@@ -16,8 +16,8 @@ class Plan:
 
 
 def ask_members(message: Message, members: List[str], engine: Callable[[str], SimulationEngine],
-                now: datetime) -> Dict[str, Estimate]:
-    """Each member's estimate for the stamped quote message, asked at now; engine(name) gives a member's engine."""
+                now: datetime) -> Dict[str, Slots]:
+    """Each member's slots for the stamped quote message, asked at now; engine(name) gives a member's engine."""
     return {member: engine(member).estimate(message, now) for member in members}
 
 
@@ -65,15 +65,15 @@ class QuoteBook:
             warn(f"{message.type} {message.id} from {message.source} has no lines")
             self.quotes[key] = TrackedQuote(QuoteState.OPEN, limit)
             return Message(quote.accepted, {"request": quote.request, "ready_by": message.time, "deliveries": 0})
-        estimates = ask_members(message, members, engine, now)
-        plan = plan_lines(quote.lines, estimates)
+        slots_of = ask_members(message, members, engine, now)
+        plan = plan_lines(quote.lines, slots_of)
         if plan is None or limit is not None and plan.ready_by > limit:
             self.quotes[key] = TrackedQuote(QuoteState.DECLINED, limit)
             return Message(quote.declined, {"request": quote.request, "earliest": plan.ready_by if plan else None})
         tracked = self.quotes[key] = TrackedQuote(QuoteState.OPEN, limit)
         line_of = {line.id: line for line in quote.lines}
         deliveries = 0  # the members holding lines: each delivers its share at once
-        for member in estimates:  # in the order the members were asked
+        for member in slots_of:  # in the order the members were asked
             line_ids = [line_id for line_id, (holder, _) in plan.lines.items() if holder == member]
             if line_ids:
                 engine(member).reserve(message, line_ids, now)
@@ -83,16 +83,16 @@ class QuoteBook:
                                         "deliveries": deliveries})
 
 
-def plan_lines(lines: List[Line], estimates: Dict[str, Estimate]) -> Optional[Plan]:
-    """The slot rule: each line takes the earliest unused slot across the members, whose estimates are in the order
+def plan_lines(lines: List[Line], slots_of: Dict[str, Slots]) -> Optional[Plan]:
+    """The slot rule: each line takes the earliest unused slot across the members, whose slots are in the order
     the members are asked; identical lines share one slot list, so they take its 1st, 2nd, ... slot. None if a line
     has no slot."""
     plan = Plan()
     for same in _identical(lines):
         # a member answers the same list for identical lines: its 1st, 2nd, ... matching item
         slots = sorted((time, order, index, member)
-                       for order, (member, estimate) in enumerate(estimates.items())
-                       for index, time in enumerate(estimate.slots.get(same[0].id, [])))
+                       for order, (member, member_slots) in enumerate(slots_of.items())
+                       for index, time in enumerate(member_slots.get(same[0].id, [])))
         if len(slots) < len(same):
             return None
         for line, (time, _, _, member) in zip(same, slots):
