@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from prosimos.orchestration.config import checked_consumer_groups, checked_load_balancing
 from prosimos.orchestration.load_balancing import offer_order
+from prosimos.orchestration.quotes import ask_members
 from prosimos.orchestration.output import plain
 from prosimos.orchestration.protocol import (CaseElement, CaseObject, EngineReport, Message, MessageRecord,
                                            SimulationEngine, StalledCase, Verdict)
@@ -114,6 +115,7 @@ def orchestrate(
     copies_left: Dict[str, int] = {}
     claimed_ids: Set[str] = set()
     next_id = itertools.count(1)
+    next_line_id = itertools.count(1)
 
     def warn(text):
         report.warnings.append(text)
@@ -150,9 +152,19 @@ def orchestrate(
             for message in published:
                 message.id, message.source, message.time = f"m{next(next_id)}", name, now
                 report.published.append(message)
-                if message.quote is not None and message.quote.quote_type not in checked_quote_types:
-                    _check_one_group(message, routing.get(message.quote.quote_type, []))
-                    checked_quote_types.add(message.quote.quote_type)
+                if message.quote is not None:
+                    for line in message.quote.lines:
+                        line.id = f"l{next(next_line_id)}"
+                    quote_type = message.quote.quote_type
+                    groups = routing.get(quote_type, [])
+                    if quote_type not in checked_quote_types:
+                        _check_one_group(message, groups)
+                        checked_quote_types.add(quote_type)
+                    # a quote isn't pooled: the members of its one group are asked at once, never the requester
+                    members = [member for group in groups for member in consumer_groups[group]
+                               if quote_type in subscriptions[member] and member != name]
+                    ask_members(message, members, engine, now)
+                    continue
                 # a message never goes back to its publisher, so a group with no other subscriber gets no copy
                 groups = [group for group in routing.get(message.type, []) if recipients_of(group, message)]
                 if not groups:
