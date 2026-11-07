@@ -50,8 +50,8 @@ def test_the_same_type_twice(bpmn, change, repeated):
 def test_a_cancel_or_modify_type_without_its_own_publish_entry(bpmn, key, name):
     messages = section(**QUOTE)
     messages["publish"] = [entry for entry in messages["publish"] if entry["type"] != name]
-    _rejected(bpmn, rf": the quote's {key} type '{name}' has no publish entry of its own in this process: the case "
-                    rf"throws it at its own event$", messages)
+    _rejected(bpmn, rf": the quote's {key} type '{name}' has no publish entry of its own in this process: the "
+                    rf"requester throws it at its own event$", messages)
 
 
 @pytest.mark.parametrize("quantity, message", [
@@ -105,7 +105,7 @@ def test_fan_out_still_allows_0(bpmn):
 NAMED = {"Throw_Quote": ("intermediateThrowEvent", "Ask quote"), "Throw_Cancel": ("intermediateThrowEvent", None),
          "Catch_Accepted": ("intermediateCatchEvent", "Quote accepted"),
          "Catch_Declined": ("intermediateCatchEvent", None)}
-FOR_THIS_CASE = [[{"attribute": "request", "comparison": "=", "object_attribute": "object_id"}]]
+BY_REQUEST = [[{"attribute": "request", "comparison": "=", "object_attribute": "object_id"}]]
 
 
 @pytest.fixture
@@ -142,8 +142,8 @@ def _reply(event_id, type, condition=None):
 
 
 def test_the_replies_with_a_condition_on_request_load(named):
-    model = parse_messages(_replies(_reply("Catch_Accepted", "QuoteAccepted", FOR_THIS_CASE),
-                                    _reply("Catch_Declined", "QuoteDeclined", FOR_THIS_CASE)), named, DECLARED)
+    model = parse_messages(_replies(_reply("Catch_Accepted", "QuoteAccepted", BY_REQUEST),
+                                    _reply("Catch_Declined", "QuoteDeclined", BY_REQUEST)), named, DECLARED)
 
     assert [point.type for point in model.consume] == ["QuoteAccepted", "QuoteDeclined"]
 
@@ -151,22 +151,30 @@ def test_the_replies_with_a_condition_on_request_load(named):
 def test_an_accepted_reply_without_a_condition(named):
     _without_request(named, 0, "QuoteAccepted at 'Quote accepted'",
                      _replies(_reply("Catch_Accepted", "QuoteAccepted"),
-                              _reply("Catch_Declined", "QuoteDeclined", FOR_THIS_CASE)))
+                              _reply("Catch_Declined", "QuoteDeclined", BY_REQUEST)))
 
 
 def test_a_declined_reply_with_a_condition_on_another_attribute(named):
     # the event has no name, so the error names its id
     _without_request(named, 1, "QuoteDeclined at 'Catch_Declined'",
-                     _replies(_reply("Catch_Accepted", "QuoteAccepted", FOR_THIS_CASE),
+                     _replies(_reply("Catch_Accepted", "QuoteAccepted", BY_REQUEST),
                               _reply("Catch_Declined", "QuoteDeclined",
                                      [[{"attribute": "source", "comparison": "=", "value": "orchestrator"}]])))
 
 
 def test_a_reply_with_an_alternative_without_request(named):
-    either = [*FOR_THIS_CASE, [{"attribute": "source", "comparison": "=", "value": "orchestrator"}]]
+    either = [*BY_REQUEST, [{"attribute": "source", "comparison": "=", "value": "orchestrator"}]]
 
     _without_request(named, 0, "QuoteAccepted at 'Quote accepted'", _replies(_reply("Catch_Accepted", "QuoteAccepted",
                                                                                      either)))
+
+
+def test_a_message_start_event_taking_a_reply_without_a_condition(bpmn):
+    # the rule covers start events too; the model's start event has no name, so the error names its id
+    messages = section(**QUOTE)
+    messages["consume"] = [_reply("Start_Message", "QuoteAccepted")]
+
+    _without_request(bpmn, 0, "QuoteAccepted at 'Start_Message'", messages)
 
 
 def test_another_process_may_take_the_types_without_a_condition(named):

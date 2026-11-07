@@ -67,11 +67,11 @@ def check_quote_replies(consume, publish, names):
 
 
 def check_quote_types(publish):
-    """Each quote's cancel and modify type has a publish entry of its own: the case throws it at its own event."""
+    """Each quote's cancel and modify type has a publish entry of its own: the requester throws it at its own event."""
     published = {point.type for _, point in publish}
     for where, point in publish:
         for key in ("cancel", "modify"):
             name = getattr(point.quote, key) if point.quote is not None else None
             if name is not None and name not in published:
                 fail(f"{where}: the quote's {key} type {name!r} has no publish entry of its own in this process: "
-                     f"the case throws it at its own event")
+                     f"the requester throws it at its own event")

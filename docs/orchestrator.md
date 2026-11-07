@@ -360,16 +360,16 @@ resources, attributes or logs, and the orchestrator doesn't look inside engines 
 that passes between processes is a message: it leaves an engine as the result of `step()` and enters
 another through `deliver()`. Engines never call the orchestrator.
 
-| Method                            | Returns                                                      | Called                              |
-|-----------------------------------|--------------------------------------------------------------|-------------------------------------|
-| `subscriptions()`                 | list of message types                                        | once, at the start                  |
-| `next_event_time()`               | date and time, or `None`                                     | before every step                   |
-| `step()`                          | list of published messages                                   | to perform one event                |
-| `deliver(message, now)`           | `CLAIMED`, `DISCARDED` or `PENDING`                          | to offer one message to an engine   |
-| `estimate(message, now)`          | an `Estimate`: per line, when the engine could have it ready | to ask a member about a quote       |
-| `reserve(message, line_ids, now)` | nothing                                                      | to book a quote's lines at a member |
-| `release(message, line_ids, now)` | nothing                                                      | to free lines a member booked       |
-| `finish()`                        | an `EngineReport`                                            | once, after the loop stops          |
+| Method                            | Returns                                                                                                  | Called                              |
+|-----------------------------------|----------------------------------------------------------------------------------------------------------|-------------------------------------|
+| `subscriptions()`                 | list of message types                                                                                    | once, at the start                  |
+| `next_event_time()`               | date and time, or `None`                                                                                 | before every step                   |
+| `step()`                          | list of published messages                                                                               | to perform one event                |
+| `deliver(message, now)`           | `CLAIMED`, `DISCARDED` or `PENDING`                                                                      | to offer one message to an engine   |
+| `estimate(message, now)`          | an `Estimate`: per line, when the engine could have it ready, and whether some line has already moved on | to ask a member about a quote       |
+| `reserve(message, line_ids, now)` | nothing                                                                                                  | to book a quote's lines at a member |
+| `release(message, line_ids, now)` | nothing                                                                                                  | to free lines a member booked       |
+| `finish()`                        | an `EngineReport`                                                                                        | once, after the loop stops          |
 
 The first four are the messaging calls; `estimate()`, `reserve()`, and `release()` are the quote calls, for a
 process that asks the members of a group whether they could deliver. Like `deliver()`, they take the stamped
