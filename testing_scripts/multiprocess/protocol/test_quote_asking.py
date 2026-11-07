@@ -18,13 +18,15 @@ LATER = START + timedelta(hours=1)
 def _quote(*products):
     return Message("ItemQuote", {"object_id": "order-7"}, quote=Quote(
         QuoteKind.QUOTE, "ItemQuote", "order-7", [Line({"product": product}) for product in products],
-        timedelta(days=3)))
+        timedelta(days=3), "QuoteAccepted", "QuoteDeclined"))
 
 
 def _run():
     """Sales asks a quote for an iPhone and an iPad at 09:00, publishes OrderPlaced at 10:00 and asks a quote for a
-    MacBook then; Tartu and Tallinn answer ItemQuote and would also claim any ItemQuote they were offered."""
+    MacBook then, and takes the replies; Tartu and Tallinn answer ItemQuote and would also claim any ItemQuote they
+    were offered."""
     sales = ScriptedEngine("Sales")
+    sales.consume("QuoteAccepted", lambda message, now: Verdict.CLAIMED)
     sales.at(START, lambda now: [_quote("iPhone", "iPad")])
     sales.at(LATER, lambda now: [Message("OrderPlaced", {"order_id": "order-8"}), _quote("MacBook")])
     engines = {"Sales": sales}
@@ -40,11 +42,11 @@ def test_a_quote_never_reaches_deliver_and_each_member_is_asked_once_per_quote()
     report, engines = _run()
 
     for name in ("Tartu", "Tallinn"):
-        assert [(message.id, now) for message, now in engines[name].estimated] == [("m1", START), ("m3", LATER)]
-    # only the ordinary order is offered, to the warehouse that claims it
+        assert [(message.id, now) for message, now in engines[name].estimated] == [("m1", START), ("m4", LATER)]
+    # only the ordinary order is offered, to the warehouse that claims it; m2 and m5 are the replies to Sales
     offered = [message.id for name in ("Tartu", "Tallinn") for message, _ in engines[name].offered]
-    assert offered == ["m2"]
-    assert report.copies == [("m2", "Warehouses")]
+    assert offered == ["m3"]
+    assert report.copies == [("m2", "Sales"), ("m3", "Warehouses"), ("m5", "Sales")]
     assert report.warnings == [] and report.unclaimed == []
 
 
@@ -55,7 +57,7 @@ def test_the_quote_is_stamped_and_its_lines_get_ids_across_quotes():
     assert (first.id, first.source, first.time) == ("m1", "Sales", START)
     assert [line.id for line in first.quote.lines] == ["l1", "l2"]
     assert [line.id for line in second.quote.lines] == ["l3"]
-    assert [message.id for message in report.published] == ["m1", "m2", "m3"]
+    assert [message.id for message in report.published] == ["m1", "m2", "m3", "m4", "m5"]
 
 
 def test_the_requester_and_members_not_subscribed_to_the_quote_type_are_never_asked():

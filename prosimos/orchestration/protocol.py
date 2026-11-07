@@ -9,6 +9,9 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 
+ORCHESTRATOR = "orchestrator"  # the source of the replies to quotes, so no process may have this name
+
+
 @dataclass
 class Line:
     """One line of a quote, matched by a member's consume condition for the quote type like a message of that type.
@@ -29,13 +32,16 @@ class QuoteKind(Enum):
 @dataclass
 class Quote:
     """What a quote, modify, or cancel message asks of the members that supply its lines. request: the requester's
-    object_id; limit: the quote's within, None for no limit."""
+    object_id; limit: the quote's within, None for no limit; accepted and declined: the types of the replies the
+    orchestrator publishes to a quote or modify."""
 
     kind: QuoteKind
     quote_type: str
     request: str
     lines: List[Line] = field(default_factory=list)
     limit: Optional[timedelta] = None
+    accepted: Optional[str] = None
+    declined: Optional[str] = None
 
 
 @dataclass

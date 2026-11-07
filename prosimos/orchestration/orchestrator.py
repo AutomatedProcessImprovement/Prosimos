@@ -7,12 +7,12 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
-from prosimos.orchestration.config import checked_consumer_groups, checked_load_balancing
+from prosimos.orchestration.config import check_no_orchestrator, checked_consumer_groups, checked_load_balancing
 from prosimos.orchestration.load_balancing import offer_order
-from prosimos.orchestration.quotes import ask_members
+from prosimos.orchestration.quotes import answer_quote, ask_members
 from prosimos.orchestration.output import plain
-from prosimos.orchestration.protocol import (CaseElement, CaseObject, EngineReport, Message, MessageRecord,
-                                           SimulationEngine, StalledCase, Verdict)
+from prosimos.orchestration.protocol import (ORCHESTRATOR, CaseElement, CaseObject, EngineReport, Message,
+                                           MessageRecord, QuoteKind, SimulationEngine, StalledCase, Verdict)
 from prosimos.orchestration.random_generators import generators
 
 
@@ -98,6 +98,7 @@ def orchestrate(
     order members are offered a message in follows their group's policy in load_balancing (random without one),
     drawn from the orchestrator's own generator, not the engines'."""
     names = sorted(engines)
+    check_no_orchestrator(names)
     consumer_groups = checked_consumer_groups(names, consumer_groups)
     load_balancing = checked_load_balancing(consumer_groups, load_balancing)
     group_of = {member: group for group, members in consumer_groups.items() for member in members}
@@ -149,8 +150,10 @@ def orchestrate(
             report.executed.append((now, name))
 
             new_copies = []
-            for message in published:
-                message.id, message.source, message.time = f"m{next(next_id)}", name, now
+            # the replies to quotes join the messages of this step, published by the orchestrator
+            outgoing = [(message, name) for message in published]
+            for message, source in outgoing:
+                message.id, message.source, message.time = f"m{next(next_id)}", source, now
                 report.published.append(message)
                 if message.quote is not None:
                     for line in message.quote.lines:
@@ -163,15 +166,18 @@ def orchestrate(
                     # a quote isn't pooled: the members of its one group are asked at once, never the requester
                     members = [member for group in groups for member in consumer_groups[group]
                                if quote_type in subscriptions[member] and member != name]
-                    ask_members(message, members, engine, now)
+                    if message.quote.kind is QuoteKind.QUOTE:
+                        outgoing.append((answer_quote(message, members, engine, now, warn), ORCHESTRATOR))
+                    else:
+                        ask_members(message, members, engine, now)
                     continue
                 # a message never goes back to its publisher, so a group with no other subscriber gets no copy
                 groups = [group for group in routing.get(message.type, []) if recipients_of(group, message)]
                 if not groups:
-                    if message.type in subscriptions[name]:
-                        warn(f"{message.type} {message.id} from {name}: no subscriber other than its publisher")
+                    if message.type in subscriptions.get(source, ()):
+                        warn(f"{message.type} {message.id} from {source}: no subscriber other than its publisher")
                     else:
-                        warn(f"{message.type} {message.id} from {name} has no subscribers")
+                        warn(f"{message.type} {message.id} from {source} has no subscribers")
                 copies_left[message.id] = len(groups)
                 for group in groups:
                     pooled = _PooledCopy(copy.deepcopy(message), group)

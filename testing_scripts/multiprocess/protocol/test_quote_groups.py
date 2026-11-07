@@ -18,7 +18,8 @@ def _engines(*suppliers):
     """Sales asks a quote for an iPhone at 09:00; each supplier answers ItemQuote from a script."""
     sales = ScriptedEngine("Sales")
     sales.at(START, lambda now: [Message("ItemQuote", {"object_id": "order-7"}, quote=Quote(
-        QuoteKind.QUOTE, "ItemQuote", "order-7", [Line({"product": "iPhone"})], timedelta(days=3)))])
+        QuoteKind.QUOTE, "ItemQuote", "order-7", [Line({"product": "iPhone"})], timedelta(days=3), "QuoteAccepted",
+        "QuoteDeclined"))])
     engines = {"Sales": sales}
     for name in suppliers:
         engines[name] = ScriptedEngine(name)
@@ -43,4 +44,5 @@ def test_without_consumer_groups_two_suppliers_are_two_groups():
 def test_a_quote_type_subscribed_in_one_group_runs():
     report = orchestrate(_engines("Tartu", "Tallinn"), {"Sales": ["Sales"], "Warehouses": ["Tartu", "Tallinn"]}, 1)
 
-    assert [message.type for message in report.published] == ["ItemQuote"]
+    assert [(message.type, message.source) for message in report.published] == [("ItemQuote", "Sales"),
+                                                                                  ("QuoteAccepted", "orchestrator")]

@@ -13,6 +13,7 @@ from prosimos.messaging.parser.common import PERIODS, is_number, is_whole_number
 from prosimos.orchestration.catalogue.checks import brought_names, checked_catalogue
 from prosimos.orchestration.catalogue.model import (CatalogueChange, CatalogueObject, CataloguePool, Computed,
                                                     GrowingCatalogue, NewShare, QuantityFrom, Reference)
+from prosimos.orchestration.protocol import ORCHESTRATOR
 from prosimos.simulation_properties_parser import parse_datetime
 
 
@@ -79,6 +80,13 @@ def _checked_ocel_attributes(organizations):
                             f"{spec.name} never have (they have {sorted(has)})")
     if problems:
         raise ValueError("Invalid ocel_attributes: " + "; ".join(problems))
+
+
+def check_no_orchestrator(names):
+    """No process is named orchestrator: the replies to quotes come from the orchestrator under that name."""
+    if ORCHESTRATOR in names:
+        raise ValueError(f"A process can't be named {ORCHESTRATOR}: the replies to quotes come from the "
+                         f"orchestrator under that name")
 
 
 def checked_consumer_groups(names, consumer_groups):
@@ -206,6 +214,7 @@ class SimulationConfig:
         duplicates = sorted({name for name in names if names.count(name) > 1})
         if duplicates:
             raise ValueError(f"Process names must be unique, repeated: {duplicates}")
+        check_no_orchestrator(names)
 
         object.__setattr__(self, "consumer_groups", checked_consumer_groups(names, self.consumer_groups))
         object.__setattr__(self, "load_balancing", checked_load_balancing(self.consumer_groups, self.load_balancing))
