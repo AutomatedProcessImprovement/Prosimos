@@ -14,6 +14,7 @@ from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
 START = pytz.utc.localize(datetime(2024, 1, 1, 9))
 LATER = START + timedelta(hours=1)
+HALF_HOUR = timedelta(minutes=30)
 WITHIN = timedelta(days=3)
 
 
@@ -23,9 +24,9 @@ def _quote(request="order-7", *products):
         WITHIN, "QuoteAccepted", "QuoteDeclined"))
 
 
-def _run(asks, shelf=lambda line, now: [now], requesters=("Sales",)):
-    """Each requester asks the quotes asks gives, (time, object id), and takes the replies; Tartu answers with shelf.
-    The replies and the warnings."""
+def _run(asks, shelf=lambda line, now: [now], requesters=("Sales",), moved=None):
+    """Each requester asks the quotes asks gives, (time, object id), and takes the replies; Tartu answers with shelf,
+    and with moved whether a quote's share has moved on. The replies and the warnings."""
     engines = {}
     for name in requesters:
         engines[name] = ScriptedEngine(name)
@@ -35,6 +36,8 @@ def _run(asks, shelf=lambda line, now: [now], requesters=("Sales",)):
             engines[name].at(time, lambda now, request=request: [_quote(request)])
     engines["Tartu"] = ScriptedEngine("Tartu")
     engines["Tartu"].slots("ItemQuote", shelf)
+    if moved is not None:
+        engines["Tartu"].moved_when(moved)
     groups = {name: [name] for name in requesters} | {"Warehouses": ["Tartu"]}
     report = orchestrate(engines, groups, 1)
     replies = [(message.time, message.type, message.attributes["request"]) for message in report.published
@@ -47,9 +50,37 @@ def test_a_second_quote_while_one_is_open_is_declined_at_once_with_a_warning():
 
     assert replies == [(START, "QuoteAccepted", "order-7"), (LATER, "QuoteDeclined", "order-7")]
     assert warnings == ["order-7 already has an open ItemQuote; use modify"]
-    # the members aren't asked again
+    # only whether the first quote's share has moved: the members aren't asked for slots again
+    assert [(message.id, now) for message, now in engines["Tartu"].moved_checks] == [("m1", LATER)]
     assert [message.id for message, _ in engines["Tartu"].estimated] == ["m1"]
     assert [message.id for message, _, _ in engines["Tartu"].reserved] == ["m1"]
+
+
+def test_a_second_quote_after_the_firsts_share_moved_is_answered_and_replaces_it():
+    # the first order's iPhone left Tartu at 09:30; order-7 loops and quotes again at 10:00, then once more at 11:00
+    replies, warnings, engines = _run([(START, "order-7"), (LATER, "order-7"), (LATER + timedelta(hours=1), "order-7")],
+                                      moved=lambda message, now: message.id == "m1" and now >= START + HALF_HOUR)
+
+    assert replies == [(START, "QuoteAccepted", "order-7"), (LATER, "QuoteAccepted", "order-7"),
+                       (LATER + timedelta(hours=1), "QuoteDeclined", "order-7")]
+    # at 11:00 the second quote, m3, is the one asked about, and nothing of it has moved
+    assert [message.id for message, _ in engines["Tartu"].moved_checks] == ["m1", "m3"]
+    assert warnings == ["order-7 already has an open ItemQuote; use modify"]
+
+
+def test_a_quote_without_lines_never_blocks_the_next():
+    sales, tartu = ScriptedEngine("Sales"), ScriptedEngine("Tartu")
+    tartu.slots("ItemQuote", lambda line, now: [now])
+    for time, products in ((START, ()), (LATER, ("iPhone",))):
+        sales.at(time, lambda now, products=products: [Message("ItemQuote", {"object_id": "order-7"}, quote=Quote(
+            QuoteKind.QUOTE, "ItemQuote", "order-7", [Line({"product": product}) for product in products], WITHIN,
+            "QuoteAccepted", "QuoteDeclined"))])
+
+    report = orchestrate({"Sales": sales, "Tartu": tartu}, None, 1)
+
+    assert [message.type for message in report.published if message.source == "orchestrator"] == [
+        "QuoteAccepted", "QuoteAccepted"]
+    assert tartu.moved_checks == []
 
 
 def test_after_a_decline_quoting_again_is_fine():
@@ -104,3 +135,18 @@ def test_a_declined_quote_is_tracked_declined_holding_nothing():
     book, _ = _book_answers({"iPhone": [LATER]}, {})
 
     assert book.quotes == {("Sales", "order-7", "ItemQuote"): TrackedQuote(QuoteState.DECLINED, START + WITHIN)}
+
+
+def test_each_member_holding_lines_is_asked_with_the_message_that_reserved_them():
+    book, first = _book_answers({"iPhone": [LATER]}, {"iPad": [LATER]})
+    engines = {"Tartu": ScriptedEngine("Tartu"), "Tallinn": ScriptedEngine("Tallinn")}
+    engines["Tallinn"].moved_when(lambda message, now: True)
+    second = _quote("order-7", "iPhone")
+    second.id, second.source, second.time = "m2", "Sales", LATER
+
+    book.answer(second, [], engines.get, LATER, lambda warning: None)
+
+    assert [(message.id, now) for message, now in engines["Tartu"].moved_checks] == [("m1", LATER)]
+    assert [(message.id, now) for message, now in engines["Tallinn"].moved_checks] == [("m1", LATER)]
+    # Tallinn's iPad has left, so the second quote replaced the first
+    assert book.quotes[("Sales", "order-7", "ItemQuote")].lines == {}

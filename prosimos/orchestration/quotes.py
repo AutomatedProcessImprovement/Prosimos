@@ -51,13 +51,13 @@ class QuoteBook:
         """Asks the members, and if their plan is ready by the limit, the quote's time plus within (or there is no
         limit), reserves its lines at each member and returns the accepted reply; else the declined reply. A quote
         without lines is accepted at once, and a second one while the requester's quote of its type is open is
-        declined at once, each with a warning."""
+        declined at once, each with a warning; once some of the first has moved on, the second replaces it."""
         quote = message.quote
         if quote.accepted is None or quote.declined is None:
             raise ValueError(f"{message.type} {message.id} from {message.source} asks a quote without the types of "
                              f"its replies: a quote needs accepted and declined")
         key = (message.source, quote.request, quote.quote_type)
-        if key in self.quotes and self.quotes[key].state is QuoteState.OPEN:
+        if key in self.quotes and self._still_open(self.quotes[key], engine, now):
             warn(f"{quote.request} already has an open {quote.quote_type}; use modify")
             return Message(quote.declined, {"request": quote.request, "earliest": None})
         limit = None if quote.limit is None else message.time + quote.limit
@@ -81,6 +81,16 @@ class QuoteBook:
                 deliveries += 1
         return Message(quote.accepted, {"request": quote.request, "ready_by": plan.ready_by,
                                         "deliveries": deliveries})
+
+
+    @staticmethod
+    def _still_open(tracked, engine, now):
+        """Whether the tracked quote is open and nothing of it has moved on: its members are asked with the
+        messages that reserved their lines. One without lines has nothing to deliver."""
+        if tracked.state is not QuoteState.OPEN or not tracked.lines:
+            return False
+        holders = {(member, id(reserving)): (member, reserving) for _, member, reserving in tracked.lines.values()}
+        return not any(engine(member).moved(reserving, now) for member, reserving in holders.values())
 
 
 def plan_lines(lines: List[Line], slots_of: Dict[str, Slots]) -> Optional[Plan]:
