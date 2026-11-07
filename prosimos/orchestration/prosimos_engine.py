@@ -13,8 +13,8 @@ from prosimos.messaging.parser.common import unknown_keys
 from prosimos.orchestration.catalogue.model import QuantityFrom
 from prosimos.orchestration.catalogue.picks import Brought, Pick, Received
 from prosimos.orchestration.config import ProcessSpec
-from prosimos.orchestration.protocol import (CaseObject, ClaimRecord, EngineReport, Message, PublishRecord,
-                                           SimulationEngine, StalledCase, Verdict)
+from prosimos.orchestration.protocol import (CaseObject, ClaimRecord, EngineReport, Estimate, Message,
+                                           PublishRecord, SimulationEngine, StalledCase, Verdict)
 from prosimos.orchestration.random_generators import engine_random_states, generators
 from prosimos.simulation_engine import SimBPMEnv
 from prosimos.simulation_setup import SimDiffSetup
@@ -126,6 +126,15 @@ class ProsimosEngine(SimulationEngine):
                 self._claimed.extend((message.id, p_case, element_id, point, now)
                                      for p_case, element_id, point in self._env.claimed_by)
             return verdict
+
+    def estimate(self, message: Message, now: datetime) -> Estimate:
+        return Estimate()
+
+    def reserve(self, message: Message, line_ids: List[str], now: datetime) -> None:
+        pass
+
+    def release(self, message: Message, line_ids: List[str], now: datetime) -> None:
+        pass
 
     def finish(self) -> EngineReport:
         with self._own_globals():

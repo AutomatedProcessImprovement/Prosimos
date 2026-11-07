@@ -1,7 +1,7 @@
 import itertools
 from heapq import heappop, heappush
 
-from prosimos.orchestration.protocol import EngineReport, Message, SimulationEngine, Verdict
+from prosimos.orchestration.protocol import EngineReport, Estimate, Message, SimulationEngine, Verdict
 
 
 class ScriptedEngine(SimulationEngine):
@@ -56,6 +56,15 @@ class ScriptedEngine(SimulationEngine):
             self.discarded.append((message, now))
             return Verdict.DISCARDED
         return Verdict.PENDING
+
+    def estimate(self, message, now):
+        return Estimate()
+
+    def reserve(self, message, line_ids, now):
+        pass
+
+    def release(self, message, line_ids, now):
+        pass
 
     def finish(self):
         return self.report

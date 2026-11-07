@@ -353,22 +353,28 @@ that discarded the copy, one by one, the first claim wins, a PENDING answer pass
 Everything the orchestrator may ask of an engine; nothing else crosses that boundary. It follows the
 Orchestrator Protocol (kept outside this repository). In code it is the `SimulationEngine` class in
 `prosimos/orchestration/protocol.py`, and `ProsimosEngine` implements it for a Prosimos simulation. To
-add another kind of engine, implement these five methods.
+add another kind of engine, implement these eight methods.
 
 Each engine is a black box: no process may read or change another process's cases, queues,
 resources, attributes or logs, and the orchestrator doesn't look inside engines either. Anything
 that passes between processes is a message: it leaves an engine as the result of `step()` and enters
 another through `deliver()`. Engines never call the orchestrator.
 
-| Method                  | Returns                             | Called                            |
-|-------------------------|-------------------------------------|-----------------------------------|
-| `subscriptions()`       | list of message types               | once, at the start                |
-| `next_event_time()`     | date and time, or `None`            | before every step                 |
-| `step()`                | list of published messages          | to perform one event              |
-| `deliver(message, now)` | `CLAIMED`, `DISCARDED` or `PENDING` | to offer one message to an engine |
-| `finish()`              | an `EngineReport`                   | once, after the loop stops        |
+| Method                            | Returns                                                      | Called                              |
+|-----------------------------------|--------------------------------------------------------------|-------------------------------------|
+| `subscriptions()`                 | list of message types                                        | once, at the start                  |
+| `next_event_time()`               | date and time, or `None`                                     | before every step                   |
+| `step()`                          | list of published messages                                   | to perform one event                |
+| `deliver(message, now)`           | `CLAIMED`, `DISCARDED` or `PENDING`                          | to offer one message to an engine   |
+| `estimate(message, now)`          | an `Estimate`: per line, when the engine could have it ready | to ask a member about a quote       |
+| `reserve(message, line_ids, now)` | nothing                                                      | to book a quote's lines at a member |
+| `release(message, line_ids, now)` | nothing                                                      | to free lines a member booked       |
+| `finish()`                        | an `EngineReport`                                            | once, after the loop stops          |
 
-The first four are the messaging calls; `finish()` is a lifecycle call that publishes and delivers
+The first four are the messaging calls; `estimate()`, `reserve()`, and `release()` are the quote calls, for a
+process that asks the members of a group whether they could deliver. Like `deliver()`, they take the stamped
+message, with its id and source, and the quote it asks is `message.quote`. `finish()` is a lifecycle call that
+publishes and delivers nothing. A Prosimos engine answers every quote with no slots for now, and books and frees
 nothing.
 
 **`subscriptions()`**: the message types this process consumes. For a Prosimos engine, the types
@@ -419,7 +425,7 @@ of its methods, and two engines' warnings never mix. Prosimos's end-of-run usage
 ## Limitations
 
 - **Outside the interface.** Building an engine (from a BPMN file, a JSON file, a number of cases and
-  the start time) and handing it a log writer happen outside the five methods.
+  the start time) and handing it a log writer happen outside the eight methods.
 - **OCEL links across parallel branches.** A message's objects are linked to every task a parallel or
   inclusive gateway lets through next to its event, even when each branch handles only some of the
   objects (see "Gateways between the event and its tasks"). Routing each object to the branch task that

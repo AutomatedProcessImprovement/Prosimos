@@ -4,21 +4,60 @@ particular simulator.
 """
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 
 @dataclass
+class Line:
+    """One line of a quote, matched by a member's consume condition for the quote type like a message of that type.
+    The requester sets attributes; the orchestrator sets id when it stamps the quote."""
+
+    attributes: Dict[str, Any] = field(default_factory=dict)
+    id: Optional[str] = None
+
+
+class QuoteKind(Enum):
+    """What a message with a Quote asks for."""
+
+    QUOTE = "quote"
+    MODIFY = "modify"
+    CANCEL = "cancel"
+
+
+@dataclass
+class Quote:
+    """What a quote, modify, or cancel message asks of the members that supply its lines. request: the requester's
+    object_id; limit: the quote's within, None for no limit."""
+
+    kind: QuoteKind
+    quote_type: str
+    request: str
+    lines: List[Line] = field(default_factory=list)
+    limit: Optional[timedelta] = None
+
+
+@dataclass
 class Message:
-    """One object passed between processes. The publishing process sets type and attributes;
-    the orchestrator sets id, source and time when it stamps the message."""
+    """One object passed between processes. The publishing process sets type and attributes, and a quote's
+    requester its quote; the orchestrator sets id, source and time when it stamps the message."""
 
     type: str
     attributes: Dict[str, Any] = field(default_factory=dict)
     id: Optional[str] = None
     source: Optional[str] = None
     time: Optional[datetime] = None
+    quote: Optional[Quote] = None
+
+
+@dataclass
+class Estimate:
+    """A member's answer to a quote: per line id, the times its matching items not yet promised would be ready,
+    earliest first; moved: some line of this quote has already moved on here."""
+
+    slots: Dict[str, List[datetime]] = field(default_factory=dict)
+    moved: bool = False
 
 
 class Verdict(Enum):
@@ -143,6 +182,19 @@ class SimulationEngine(ABC):
         """Offers one pending message at now. CLAIMED binds it to one case at now; this copy is never offered again.
         DISCARDED: the engine will never want it, whatever happens. PENDING: not now; an engine that isn't sure
         must answer PENDING."""
+
+    @abstractmethod
+    def estimate(self, message: Message, now: datetime) -> Estimate:
+        """When this member could have each line of the stamped quote message (its quote in message.quote) ready at
+        now; changes nothing."""
+
+    @abstractmethod
+    def reserve(self, message: Message, line_ids: List[str], now: datetime) -> None:
+        """Books the lines line_ids of the stamped quote message at now, for its requester."""
+
+    @abstractmethod
+    def release(self, message: Message, line_ids: List[str], now: datetime) -> None:
+        """Frees the lines line_ids of the stamped quote message at now, which this member booked."""
 
     @abstractmethod
     def finish(self) -> EngineReport:
