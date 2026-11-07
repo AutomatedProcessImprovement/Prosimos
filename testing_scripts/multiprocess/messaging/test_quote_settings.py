@@ -14,9 +14,16 @@ DECLARED = {"products", "items", "patience"}
 TYPES = {"accepted": "QuoteAccepted", "declined": "QuoteDeclined", "cancel": "QuoteCanceled"}
 
 
+def section(**quote):
+    """A quote entry at Throw_OrderPlaced, with the publish entries of its cancel and modify types."""
+    return {"publish": [{"event_id": "Throw_OrderPlaced", "type": "ItemQuote", "attributes": ["object_id"],
+                         "quote": quote},
+                        {"event_id": "End_Closed", "type": "QuoteCanceled"},
+                        {"event_id": "End_Merged", "type": "QuoteModified"}]}
+
+
 def _quote(bpmn, **quote):
-    return parse_messages(publish(type="ItemQuote", attributes=["object_id"], quote=quote), bpmn,
-                          DECLARED).publish[0].quote
+    return parse_messages(section(**quote), bpmn, DECLARED).publish[0].quote
 
 
 def test_the_sheets_entry_loads(bpmn):

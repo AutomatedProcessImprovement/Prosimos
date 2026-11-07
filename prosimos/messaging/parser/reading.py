@@ -11,7 +11,7 @@ from prosimos.messaging.parser.consume import (check_aggregated_only, check_appe
                                                read_aggregate, read_append, read_capacity, read_collect, read_condition,
                                                read_copy, read_same)
 from prosimos.messaging.parser.publish import read_attributes, read_carry, read_fan_in
-from prosimos.messaging.parser.quote import read_quote
+from prosimos.messaging.parser.quote import check_quote_types, read_quote
 
 BPMN_NS = "{http://www.omg.org/spec/BPMN/20100524/MODEL}"
 MESSAGE_DEFINITION = BPMN_NS + "messageEventDefinition"
@@ -89,17 +89,19 @@ def parse_messages(messages_json, bpmn_path, declared_attributes, case_attribute
     publish = []
     for where, entry in _entries(messages_json, "publish", PUBLISH_KEYS, events, PUBLISHING_EVENTS):
         links = _name(entry, "qualifier", where), _name(entry, "o2o", where), read_carry(entry, where, tasks)
+        quote = read_quote(entry, where, declared_attributes)
         if "fan_in" in entry:
-            publish.append(read_fan_in(entry, where, declared_attributes, links))
+            publish.append((where, read_fan_in(entry, where, declared_attributes, links)))
             continue
         for key in ("same", "deadline"):
             if key in entry:
                 fail(f"{where}: '{key}' on a publish entry needs a fan_in: it is about a group of cases' parts")
-        publish.append(PublishPoint(entry["event_id"], entry["type"],
-                                    read_attributes(entry, where, declared_attributes),
-                                    *read_multiplicity(entry, where, declared_attributes, "fan_out"), *links,
-                                    quote=read_quote(entry, where, declared_attributes)))
-    return MessagingModel(tuple(publish), tuple(consume))
+        publish.append((where, PublishPoint(entry["event_id"], entry["type"],
+                                            read_attributes(entry, where, declared_attributes),
+                                            *read_multiplicity(entry, where, declared_attributes, "fan_out"), *links,
+                                            quote=quote)))
+    check_quote_types(publish)
+    return MessagingModel(tuple(point for _, point in publish), tuple(consume))
 
 
 def _entries(messages_json, section, allowed_keys, events, allowed_kinds, own_reasons=()):

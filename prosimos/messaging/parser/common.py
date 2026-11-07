@@ -6,6 +6,9 @@ from datetime import timedelta
 from prosimos.exceptions import InvalidSimScenarioException
 
 PERIODS = ("weeks", "days", "hours")  # of a deadline, and of a catalogue change
+# what each multiplicity counts, its least number, and whose object_id the reserved name means
+MULTIPLICITIES = {"fan_out": ("message", 0, "publishing"),
+                  "quantity": ("line", 1, "requesting")}
 
 
 def is_number(value):
@@ -13,7 +16,8 @@ def is_number(value):
 
 
 def is_whole_number(value, minimum):
-    return not isinstance(value, bool) and isinstance(value, (int, float)) and value >= minimum and float(value).is_integer()
+    return (not isinstance(value, bool) and isinstance(value, (int, float)) and value >= minimum
+            and float(value).is_integer())
 
 
 def is_whole_number_of_at_least_one(value):
@@ -45,15 +49,15 @@ def read_multiplicity(entry, where, declared, key):
     entry[key], fan_out or a quote's quantity; all None without it."""
     if key not in entry:
         return None, None, None, None
-    multiplicity = entry[key]
-    if is_whole_number(multiplicity, minimum=0):
+    multiplicity, (_, least, _) = entry[key], MULTIPLICITIES[key]
+    if is_whole_number(multiplicity, minimum=least):
         return int(multiplicity), None, None, None
     if isinstance(multiplicity, dict):
         check_keys(f"{where}.{key}", multiplicity, {"object_attribute", "list", "as"})
     if isinstance(multiplicity, dict) and "list" in multiplicity:
         return (None, None) + _multiplicity_over_list(multiplicity, where, declared, key)
     if not isinstance(multiplicity, dict) or set(multiplicity) != {"object_attribute"}:
-        fail(f"{where}: '{key}' must be either a whole number of at least 0, {{\"object_attribute\": <object "
+        fail(f"{where}: '{key}' must be either a whole number of at least {least}, {{\"object_attribute\": <object "
               f"attribute>}} or {{\"list\": <object attribute>, \"as\": <attribute name>}}, got {multiplicity!r}")
     if not isinstance(multiplicity["object_attribute"], str) or multiplicity["object_attribute"] not in declared:
         fail(f"{where}: '{key}' object_attribute {multiplicity['object_attribute']!r} is not a declared object, "
@@ -62,19 +66,20 @@ def read_multiplicity(entry, where, declared, key):
 
 
 def _multiplicity_over_list(multiplicity, where, declared, key):
+    each, _, whose = MULTIPLICITIES[key]
     if not set(multiplicity) <= {"list", "as"}:
         fail(f"{where}: '{key}' over a list has only 'list' and 'as', got "
              f"{', '.join(map(repr, sorted(multiplicity)))}")
     if not isinstance(multiplicity["list"], str) or multiplicity["list"] not in declared:
         fail(f"{where}: '{key}' list {multiplicity['list']!r} is not a declared object, global or event attribute")
     if "as" not in multiplicity:
-        fail(f"{where}: '{key}' over a list needs 'as', the attribute name under which each message carries its "
+        fail(f"{where}: '{key}' over a list needs 'as', the attribute name under which each {each} carries its "
               f"entry")
     if not isinstance(multiplicity["as"], str) or not multiplicity["as"].strip():
         fail(f"{where}: '{key}' as must be a non-empty string")
     if multiplicity["as"] in ("object_id", "index"):
-        fail(f"{where}: '{key}' as can't be {multiplicity['as']}, which is reserved: object_id is the publishing "
-              f"object's id and index the message's number")
+        fail(f"{where}: '{key}' as can't be {multiplicity['as']}, which is reserved: object_id is the {whose} "
+              f"object's id and index the {each}'s number")
     return multiplicity["list"], multiplicity["as"]
 
 
