@@ -1,10 +1,9 @@
-"""The rules of 'publish' entries: fan-out, attributes, fan-in, deadline and carry."""
+"""The rules of 'publish' entries: fan-out, attributes, fan-in, deadline, and carry."""
 from collections import Counter
-from datetime import timedelta
 
 from prosimos.messaging.model import AGGREGATE_FUNCTIONS, PublishPoint
-from prosimos.messaging.parser.common import (PERIODS, check_keys, fail, is_number, is_whole_number,
-                                              is_whole_number_of_at_least_one)
+from prosimos.messaging.parser.common import (check_keys, fail, is_number, is_whole_number_of_at_least_one,
+                                              read_period)
 from prosimos.messaging.parser.consume import read_same
 
 ONE_SIZE = "a whole number of at least 1 or {\"object_attribute\": <object attribute>}"
@@ -27,43 +26,6 @@ def read_carry(entry, where, tasks):
     return tuple(carry) if isinstance(carry, list) else carry
 
 
-def read_fan_out(entry, where, declared):
-    """(number, its case attribute, a list attribute, the name each message carries its entry under): e.g. 3,
-    {"object_attribute": "items"} or {"list": "item_ids", "as": "item_id"}; all None without fan_out."""
-    if "fan_out" not in entry:
-        return None, None, None, None
-    fan_out = entry["fan_out"]
-    if is_whole_number(fan_out, minimum=0):
-        return int(fan_out), None, None, None
-    if isinstance(fan_out, dict):
-        check_keys(f"{where}.fan_out", fan_out, {"object_attribute", "list", "as"})
-    if isinstance(fan_out, dict) and "list" in fan_out:
-        return (None, None) + _fan_out_over_list(fan_out, where, declared)
-    if not isinstance(fan_out, dict) or set(fan_out) != {"object_attribute"}:
-        fail(f"{where}: 'fan_out' must be either a whole number of at least 0, {{\"object_attribute\": <object "
-              f"attribute>}} or {{\"list\": <object attribute>, \"as\": <attribute name>}}, got {fan_out!r}")
-    if not isinstance(fan_out["object_attribute"], str) or fan_out["object_attribute"] not in declared:
-        fail(f"{where}: 'fan_out' object_attribute {fan_out['object_attribute']!r} is not a declared object, "
-              f"global or event attribute")
-    return None, fan_out["object_attribute"], None, None
-
-
-def _fan_out_over_list(fan_out, where, declared):
-    if not set(fan_out) <= {"list", "as"}:
-        fail(f"{where}: 'fan_out' over a list has only 'list' and 'as', got {', '.join(map(repr, sorted(fan_out)))}")
-    if not isinstance(fan_out["list"], str) or fan_out["list"] not in declared:
-        fail(f"{where}: 'fan_out' list {fan_out['list']!r} is not a declared object, global or event attribute")
-    if "as" not in fan_out:
-        fail(f"{where}: 'fan_out' over a list needs 'as', the attribute name under which each message carries its "
-              f"entry")
-    if not isinstance(fan_out["as"], str) or not fan_out["as"].strip():
-        fail(f"{where}: 'fan_out' as must be a non-empty string")
-    if fan_out["as"] in ("object_id", "index"):
-        fail(f"{where}: 'fan_out' as can't be {fan_out['as']}, which is reserved: object_id is the publishing "
-              f"object's id and index the message's number")
-    return fan_out["list"], fan_out["as"]
-
-
 def read_attributes(entry, where, declared):
     attributes = entry.get("attributes", [])
     if isinstance(attributes, list) and any(isinstance(name, dict) for name in attributes):
@@ -75,7 +37,7 @@ def read_attributes(entry, where, declared):
         fail(f"{where}: 'index' is the message's number among the ones fan_out publishes, so it needs a 'fan_out' "
               f"on the same entry")
     fan_out = entry.get("fan_out")
-    # (a reserved as is reported by read_fan_out)
+    # (a reserved as is reported by read_multiplicity)
     if isinstance(fan_out, dict) and fan_out.get("as") in attributes and fan_out["as"] not in ("object_id", "index"):
         fail(f"{where}: {fan_out['as']!r} is both in 'attributes' and fan_out's 'as': each message carries its own "
               f"entry of {fan_out.get('list')} under that name, so it can't also carry the case's attribute")
@@ -120,7 +82,8 @@ def read_fan_in(entry, where, declared, links):
     qualifier, o2o, carry = links
     return PublishPoint(entry["event_id"], entry["type"], plain, qualifier=qualifier, o2o=o2o, carry=carry,
                         fan_in=number, fan_in_attribute=attribute, same=same, gathered=gathered, computed=computed,
-                        deadline=_deadline(entry, where), fan_in_min=fewest, fan_in_min_attribute=fewest_attribute)
+                        deadline=read_period(entry, where, "deadline"), fan_in_min=fewest,
+                        fan_in_min_attribute=fewest_attribute)
 
 
 def _fan_in_size(size, what, forms, where, declared):
@@ -133,20 +96,6 @@ def _fan_in_size(size, what, forms, where, declared):
                   f"event attribute")
         return None, size["object_attribute"]
     fail(f"{where}: {what} must be {forms}, got {size!r}")
-
-
-def _deadline(entry, where):
-    if "deadline" not in entry:
-        return None
-    deadline = entry["deadline"]
-    if isinstance(deadline, dict):
-        check_keys(f"{where}.deadline", deadline, set(PERIODS))
-    if not (isinstance(deadline, dict) and len(deadline) == 1 and is_number(next(iter(deadline.values())))
-            and next(iter(deadline.values())) > 0):
-        fail(f"{where}: 'deadline' must be {{\"weeks\" | \"days\" | \"hours\": n}}, n a number above 0, got "
-              f"{deadline!r}")
-    [(unit, amount)] = deadline.items()
-    return timedelta(**{unit: amount})
 
 
 def _fan_in_attributes(entry, where, declared, same):

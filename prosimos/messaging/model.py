@@ -18,6 +18,25 @@ class ConditionTerm:
 
 
 @dataclass(frozen=True)
+class QuoteSettings:
+    """A publish entry's quote: the lines it asks for, by when, and the types of its replies, modify and cancel."""
+
+    accepted: str
+    declined: str
+    cancel: str
+    modify: Optional[str] = None
+    # the lines, read as fan_out reads its messages: N identical ones, N from a case attribute, or one per entry of a
+    # list, carried as quantity_as
+    quantity: Optional[int] = None
+    quantity_attribute: Optional[str] = None
+    quantity_list: Optional[str] = None
+    quantity_as: Optional[str] = None
+    within: Optional[timedelta] = None  # None, and no within_attribute: no limit
+    within_attribute: Optional[str] = None  # the case attribute holding the limit, a number of within_unit
+    within_unit: Optional[str] = None  # weeks, days or hours
+
+
+@dataclass(frozen=True)
 class PublishPoint:
     """A 'publish' entry: the messages a case publishes when it passes event_id."""
 
@@ -43,6 +62,7 @@ class PublishPoint:
     # the parts a group needs to be sent at its deadline; None: 1 with a deadline (fan_in, the max, without)
     fan_in_min: Optional[int] = None
     fan_in_min_attribute: Optional[str] = None  # the case attribute holding that min
+    quote: Optional[QuoteSettings] = None  # with it, the case asks a quote instead of throwing a plain message
 
     @property
     def fans_out(self):

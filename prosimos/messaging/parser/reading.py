@@ -5,19 +5,20 @@ from collections import Counter
 
 from prosimos.control_flow_manager import TASK_TAGS
 from prosimos.messaging.model import ConsumePoint, MessagingModel, PublishPoint
-from prosimos.messaging.parser.common import check_keys, fail
+from prosimos.messaging.parser.common import check_keys, fail, read_multiplicity
 from prosimos.messaging.parser.consume import (check_aggregated_only, check_appended_only,
                                                check_collect_has_its_own_event, check_races, check_start,
                                                read_aggregate, read_append, read_capacity, read_collect, read_condition,
                                                read_copy, read_same)
-from prosimos.messaging.parser.publish import read_attributes, read_carry, read_fan_in, read_fan_out
+from prosimos.messaging.parser.publish import read_attributes, read_carry, read_fan_in
+from prosimos.messaging.parser.quote import read_quote
 
 BPMN_NS = "{http://www.omg.org/spec/BPMN/20100524/MODEL}"
 MESSAGE_DEFINITION = BPMN_NS + "messageEventDefinition"
 PUBLISHING_EVENTS = {"intermediateThrowEvent": "an intermediate message throw event", "endEvent": "a message end event"}
 CONSUMING_EVENTS = {"intermediateCatchEvent": "an intermediate message catch event", "startEvent": "a message start event"}
 PUBLISH_KEYS = {"event_id", "type", "attributes", "fan_out", "fan_in", "same", "deadline", "qualifier", "o2o",
-                "carry"}
+                "carry", "quote"}
 CONSUME_KEYS = {"event_id", "type", "condition", "copy", "append", "aggregate", "capacity", "collect", "same",
                 "qualifier", "o2o", "carry"}
 
@@ -96,7 +97,8 @@ def parse_messages(messages_json, bpmn_path, declared_attributes, case_attribute
                 fail(f"{where}: '{key}' on a publish entry needs a fan_in: it is about a group of cases' parts")
         publish.append(PublishPoint(entry["event_id"], entry["type"],
                                     read_attributes(entry, where, declared_attributes),
-                                    *read_fan_out(entry, where, declared_attributes), *links))
+                                    *read_multiplicity(entry, where, declared_attributes, "fan_out"), *links,
+                                    quote=read_quote(entry, where, declared_attributes)))
     return MessagingModel(tuple(publish), tuple(consume))
 
 
