@@ -9,7 +9,9 @@ class ScriptedEngine(SimulationEngine):
     A test double implementing the engine interface, so the orchestrator can't tell it from a real
     engine. Actions run at scheduled times and may publish messages. Consuming points decide, for
     each offered message, whether it is CLAIMED (and may schedule a reaction), DISCARDED (it can
-    never match) or PENDING. A message type with no consuming point here is discarded.
+    never match) or PENDING. A message type with no consuming point here is discarded. Quotes are
+    answered from a script too: slots give each line's slot times, and moved says whether some line
+    of the quote has moved on.
     """
 
     def __init__(self, name):
@@ -20,6 +22,11 @@ class ScriptedEngine(SimulationEngine):
         self.offered = []  # (message, time) every offer this engine received
         self.claimed = []  # (message, time) this engine claimed
         self.discarded = []  # (message, time) this engine discarded
+        self._slots = {}
+        self.moved = False  # what estimate() answers as moved; tests may set it
+        self.estimated = []  # (quote message, time) every estimate() call
+        self.reserved = []  # (quote message, line ids, time) every reserve() call
+        self.released = []  # (quote message, line ids, time) every release() call
         self.report = EngineReport()  # what finish() returns; tests may fill it in
 
     def at(self, time, action):
@@ -33,8 +40,13 @@ class ScriptedEngine(SimulationEngine):
         """decide(message, now) returns a Verdict."""
         self._consumers.setdefault(message_type, []).append(decide)
 
+    def slots(self, quote_type, decide):
+        """decide(line, now) returns that line's slot times for the quotes of quote_type, which this engine then
+        subscribes to; without it, a quote gets no slots."""
+        self._slots[quote_type] = decide
+
     def subscriptions(self):
-        return sorted(self._consumers)
+        return sorted({*self._consumers, *self._slots})
 
     def next_event_time(self):
         return self._agenda[0][0] if self._agenda else None
@@ -58,13 +70,16 @@ class ScriptedEngine(SimulationEngine):
         return Verdict.PENDING
 
     def estimate(self, message, now):
-        return Estimate()
+        self.estimated.append((message, now))
+        decide = self._slots.get(message.quote.quote_type)
+        slots = {line.id: list(decide(line, now)) for line in message.quote.lines} if decide is not None else {}
+        return Estimate(slots, self.moved)
 
     def reserve(self, message, line_ids, now):
-        pass
+        self.reserved.append((message, list(line_ids), now))
 
     def release(self, message, line_ids, now):
-        pass
+        self.released.append((message, list(line_ids), now))
 
     def finish(self):
         return self.report
