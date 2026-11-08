@@ -5,11 +5,12 @@ or unknown quote does nothing, and a cancel gets no reply.
 """
 from datetime import datetime, timedelta
 
+import pytest
 import pytz
 
 from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.protocol import Line, Message, Quote, QuoteKind, Verdict
-from prosimos.orchestration.quotes import QuoteBook
+from prosimos.orchestration.quotes import QuoteBook, QuoteState
 from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
 START = pytz.utc.localize(datetime(2024, 1, 1, 9))
@@ -19,6 +20,12 @@ HOUR = timedelta(hours=1)
 def _quote(*products):
     return Message("ItemQuote", {"object_id": "order-7"}, quote=Quote(
         QuoteKind.QUOTE, "ItemQuote", "order-7", [Line({"product": product}) for product in products],
+        timedelta(days=3), "QuoteAccepted", "QuoteDeclined"))
+
+
+def modify_message(*products):
+    return Message("QuoteModified", {"object_id": "order-7"}, quote=Quote(
+        QuoteKind.MODIFY, "ItemQuote", "order-7", [Line({"product": product}) for product in products],
         timedelta(days=3), "QuoteAccepted", "QuoteDeclined"))
 
 
@@ -103,3 +110,62 @@ def test_a_cancel_of_an_unknown_quote_does_nothing():
 
     assert replies == []
     assert all(engine.released == [] and engine.moved_checks == [] for engine in engines.values())
+
+
+def _book_with_shares(tartu_moved, tallinn_moved):
+    """A book whose quote holds the iPhone at Tartu and the iPad at Tallinn, each of whose shares has moved on or
+    not, and its cancel at 10:00; the book, the engines, and the cancel."""
+    engines = {name: ScriptedEngine(name) for name in ("Tartu", "Tallinn")}
+    for name, product, moved in (("Tartu", "iPhone", tartu_moved), ("Tallinn", "iPad", tallinn_moved)):
+        engines[name].slots("ItemQuote", lambda line, now, product=product:
+                            [now] if line.attributes["product"] == product else [])
+        engines[name].moved_when(lambda message, now, moved=moved: moved)
+    asked, canceled = _quote("iPhone", "iPad"), _cancel()
+    for number, (message, time) in enumerate(((asked, START), (canceled, START + HOUR)), 1):
+        message.id, message.source, message.time = f"m{number}", "Sales", time
+    for number, line in enumerate(asked.quote.lines, 1):
+        line.id = f"l{number}"
+    book = QuoteBook()
+    book.answer(asked, list(engines), engines.get, START, lambda warning: None)
+    return book, engines, canceled
+
+
+@pytest.mark.parametrize("tartu_moved, tallinn_moved, state", [
+    (True, True, QuoteState.COMPLETE),  # delivered in full: the cancel does nothing, and isn't too late
+    (True, False, QuoteState.LOCKED),  # one share shipped: too late
+    (False, True, QuoteState.LOCKED)])
+def test_a_cancel_after_a_share_moved_releases_nothing(tartu_moved, tallinn_moved, state):
+    book, engines, canceled = _book_with_shares(tartu_moved, tallinn_moved)
+
+    book.cancel(canceled, engines.get, START + HOUR)
+
+    assert book.quotes[("Sales", "order-7", "ItemQuote")].state is state
+    assert all(engine.released == [] for engine in engines.values())
+    # every member holding lines is asked, not only until the first yes
+    assert [len(engine.moved_checks) for engine in engines.values()] == [1, 1]
+
+
+def test_a_modify_after_full_delivery_is_declined_and_the_quote_stays_complete():
+    book, engines, canceled = _book_with_shares(True, True)
+    book.cancel(canceled, engines.get, START + HOUR)
+    changed = modify_message("iPhone")
+    changed.id, changed.source, changed.time = "m3", "Sales", START + 2 * HOUR
+
+    reply = book.modify(changed, list(engines), engines.get, START + 2 * HOUR, lambda warning: None)
+
+    assert (reply.type, reply.attributes["earliest"]) == ("QuoteDeclined", None)
+    assert book.quotes[("Sales", "order-7", "ItemQuote")].state is QuoteState.COMPLETE
+
+
+@pytest.mark.parametrize("tartu_moved, tallinn_moved, state", [
+    (True, True, QuoteState.COMPLETE), (False, True, QuoteState.LOCKED)])
+def test_a_modify_right_after_a_share_moved_is_declined_and_marks_the_quote(tartu_moved, tallinn_moved, state):
+    book, engines, _ = _book_with_shares(tartu_moved, tallinn_moved)
+    changed = modify_message("iPhone")
+    changed.id, changed.source, changed.time = "m3", "Sales", START + HOUR
+
+    reply = book.modify(changed, list(engines), engines.get, START + HOUR, lambda warning: None)
+
+    assert (reply.type, reply.attributes["earliest"]) == ("QuoteDeclined", None)
+    assert book.quotes[("Sales", "order-7", "ItemQuote")].state is state
+    assert all(engine.released == [] for engine in engines.values())

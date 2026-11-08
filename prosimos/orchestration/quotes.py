@@ -27,6 +27,7 @@ class QuoteState(Enum):
     OPEN = "open"
     DECLINED = "declined"
     LOCKED = "locked"  # some member's share has moved on: it can no longer be modified or canceled
+    COMPLETE = "complete"  # every member's share has moved on: the quote was delivered in full
 
 
 @dataclass
@@ -86,8 +87,9 @@ class QuoteBook:
             return _declined(quote, None)
         if tracked.state is QuoteState.DECLINED:
             return self._quote(message, quote.lines, members, engine, now, tracked.limit, warn)
-        if tracked.state is QuoteState.LOCKED or tracked.lines and not self._still_open(tracked, engine, now):
-            tracked.state = QuoteState.LOCKED
+        if tracked.state is QuoteState.OPEN:
+            tracked.state = _moved_state(tracked, engine, now)
+        if tracked.state is not QuoteState.OPEN:
             return _declined(quote, None)
         kept, added = _matched(tracked, quote.lines)
         plan = plan_lines(added, ask_members(message, members, engine, now)) if added else Plan()
@@ -107,15 +109,16 @@ class QuoteBook:
         return _accepted(quote, tracked, ready_by)
 
     def cancel(self, message: Message, engine: Callable[[str], SimulationEngine], now: datetime):
-        """Releases every line of the requester's open quote at its member, unless some line has moved on: then it
-        is too late, nothing is released, and the quote is locked. One without lines simply leaves the book. A
-        declined, locked, or unknown quote is left as it is; a cancel gets no reply."""
+        """Releases every line of the requester's open quote at its member, unless some share has moved on: then
+        nothing is released, and the quote is complete if every member's share has, else locked, too late. One
+        without lines simply leaves the book. A declined, locked, complete, or unknown quote is left as it is; a
+        cancel gets no reply."""
         key = _key(message)
         tracked = self.quotes.get(key)
         if tracked is None or tracked.state is not QuoteState.OPEN:
             return
-        if tracked.lines and not self._still_open(tracked, engine, now):
-            tracked.state = QuoteState.LOCKED
+        tracked.state = _moved_state(tracked, engine, now)
+        if tracked.state is not QuoteState.OPEN:
             return
         for member, reserving, line_ids in _held(tracked, tracked.lines):
             engine(member).release(reserving, line_ids, now)
@@ -142,9 +145,17 @@ class QuoteBook:
     def _still_open(tracked, engine, now):
         """Whether the tracked quote is open and nothing of it has moved on: its members are asked with the
         messages that reserved their lines. One without lines has nothing to deliver."""
-        if tracked.state is not QuoteState.OPEN or not tracked.lines:
-            return False
-        return not any(engine(member).moved(reserving, now) for member, reserving, _ in _held(tracked, tracked.lines))
+        return tracked.state is QuoteState.OPEN and bool(tracked.lines) and \
+            _moved_state(tracked, engine, now) is QuoteState.OPEN
+
+
+def _moved_state(tracked, engine, now):
+    """What the open quote is now, by whether its members' shares have moved on, asking every member holding lines
+    with the messages that reserved them: complete if all have, locked if some have, else still open."""
+    moved = [engine(member).moved(reserving, now) for member, reserving, _ in _held(tracked, tracked.lines)]
+    if moved and all(moved):
+        return QuoteState.COMPLETE
+    return QuoteState.LOCKED if any(moved) else QuoteState.OPEN
 
 
 def _key(message):
