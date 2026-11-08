@@ -140,12 +140,13 @@ class ProsimosEngine(SimulationEngine):
         return {}
 
     def moved(self, message: Message, now: datetime) -> bool:
-        return False
+        return self._env.has_moved(message.id)
 
     def reserve(self, message: Message, line_ids: List[str], now: datetime) -> None:
         with self._own_globals():
             lines = [(line.id, line.attributes) for line in message.quote.lines if line.id in line_ids]
-            self._env.open_lines(message.id, message.quote.quote_type, message.source, lines)
+            self._env.open_lines(message.id, message.quote.quote_type, message.source, message.quote.request, lines,
+                                 now)
 
     def release(self, message: Message, line_ids: List[str], now: datetime) -> None:
         pass

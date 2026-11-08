@@ -107,7 +107,8 @@ class SimBPMEnv(EngineMessaging):
         self._warned_quotes = set()
         # reservations (docs/messaging.md, "Quotes")
         self._open_lines = []  # the reserved lines no item has taken yet, oldest first
-        self._set_aside = dict()  # (case id, event id) of a waiting item -> the line it took
+        self._set_aside = dict()  # (case id, event id) of a waiting item -> (the line it took, the consume entry)
+        self._moved_quotes = dict()  # the id of each quote or modify message whose lines moved on here -> when
         self._piles = dict()  # (fan-in entry, its same values) -> the Pile of the parts handed in so far
         self._warned_fan_in_sizes = set()
         self._warned_fan_in_numbers = set()
@@ -254,7 +255,7 @@ class SimBPMEnv(EngineMessaging):
                     if needed == 0:  # it goes on now, taking up to max of the messages offered at this instant
                         self._resume(c_event, c_event.enabled_datetime, keep_open=True)
                     else:
-                        self._take_open_line(c_event)
+                        self._take_open_line(c_event, c_event.enabled_datetime)
                     return
                 c_event.complete_at_once = True  # nothing to collect: the case passes straight on
                 if c_event.race is not None:
