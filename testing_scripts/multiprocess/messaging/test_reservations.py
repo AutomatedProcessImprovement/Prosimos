@@ -21,18 +21,19 @@ FLOW = [("startEvent", "Start", False), ("task", "Make_Item", False), ("intermed
         ("task", "Ship", False), ("endEvent", "End", False)]
 
 
-def warehouse(tmp_path, product="iPhone", items=3, source=None):
+def warehouse(tmp_path, product="iPhone", items=3, source=None, straight=False):
     """The warehouse's engine: an item that takes a quote's line copies the requester's object_id into order_id. Its
     shelf also takes ordinary ItemOrdered messages for its product; with source, it takes only the quotes of that
-    requester."""
+    requester. With straight, an item goes from its start to the shelf, without Make_Item."""
+    flow = [element for element in FLOW if not (straight and element[1] == "Make_Item")]
     elements = []
-    for index, (kind, element_id, message) in enumerate(FLOW):
+    for index, (kind, element_id, message) in enumerate(flow):
         arrows = (f"<bpmn:incoming>Flow_{index}</bpmn:incoming>" if index else "") + \
-                 (f"<bpmn:outgoing>Flow_{index + 1}</bpmn:outgoing>" if index < len(FLOW) - 1 else "")
+                 (f"<bpmn:outgoing>Flow_{index + 1}</bpmn:outgoing>" if index < len(flow) - 1 else "")
         definition = "<bpmn:messageEventDefinition/>" if message else ""
         elements.append(f'<bpmn:{kind} id="{element_id}">{arrows}{definition}</bpmn:{kind}>')
-    flows = "".join(f'<bpmn:sequenceFlow id="Flow_{index + 1}" sourceRef="{FLOW[index][1]}" '
-                    f'targetRef="{FLOW[index + 1][1]}"/>' for index in range(len(FLOW) - 1))
+    flows = "".join(f'<bpmn:sequenceFlow id="Flow_{index + 1}" sourceRef="{flow[index][1]}" '
+                    f'targetRef="{flow[index + 1][1]}"/>' for index in range(len(flow) - 1))
     (tmp_path / "warehouse.bpmn").write_text(
         '<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL">'
         f'<bpmn:process id="Warehouse">{"".join(elements)}{flows}</bpmn:process></bpmn:definitions>')
@@ -327,21 +328,13 @@ def test_releasing_a_shares_last_open_line_lets_its_items_move_on(tmp_path):
 
 # a freed item and the orchestrator's pool
 
-class _AnsweringWarehouse(ProsimosEngine):
-    """The Prosimos warehouse, but answering every line of a quote with the time it is asked."""
-
-    def estimate(self, message, now):
-        return {line.id: [now] for line in message.quote.lines}
-
-
 def test_a_cancel_offers_the_members_waiting_messages_at_once(tmp_path):
-    # Sales quotes an iPhone and a MacBook at 09:30: item-0 takes the iPhone line, the MacBook line stays open. Shop's
-    # ordinary order at 09:35 waits in the pool. The cancel at 09:45 frees item-0, which takes the order then, not
-    # at the warehouse's next step at 10:00
-    spec = warehouse(tmp_path)._spec
-    store = _AnsweringWarehouse(spec, START, seed=1)
+    # items reach the shelf at 09:00, 10:00, and 11:00. Sales quotes two iPhones at 09:30: item-0 takes one line, the
+    # other waits for item-1. Shop's ordinary order at 09:35 waits in the pool. The cancel at 09:45 frees item-0,
+    # which takes the order then, not at the warehouse's next step at 10:00
+    store = warehouse(tmp_path, straight=True)
     sales, shop = ScriptedEngine("Sales"), ScriptedEngine("Shop")
-    sales.at(START + 30 * MINUTE, lambda now: [quote("m0", "iPhone", "MacBook")])
+    sales.at(START + 30 * MINUTE, lambda now: [quote("m0", "iPhone", "iPhone")])
     sales.at(START + 45 * MINUTE, lambda now: [Message("QuoteCanceled", {"object_id": "order-7"}, quote=Quote(
         QuoteKind.CANCEL, "ItemQuote", "order-7"))])
     sales.consume("QuoteAccepted", lambda message, now: Verdict.CLAIMED)
@@ -352,3 +345,54 @@ def test_a_cancel_offers_the_members_waiting_messages_at_once(tmp_path):
     order = next(message for message in report.published if message.type == "ItemOrdered")
     assert [(process, time) for message_id, process, time in report.claims if message_id == order.id] == [
         ("Warehouse", START + 45 * MINUTE)]
+
+
+
+# estimate: exact slots
+
+def slots(engine, *products, now=START):
+    """The engine's slots for a quote of products from Sales, by product."""
+    asked = quote("m9", *products, request="order-9")
+    answer = engine.estimate(asked, now)
+    return [answer[line.id] for line in asked.quote.lines]
+
+
+def test_the_slots_are_the_times_items_reached_the_shelf_or_are_queued_to(tmp_path):
+    engine = warehouse(tmp_path)
+    until(engine, START + 30 * MINUTE)
+    assert slots(engine, "iPhone", now=START + 30 * MINUTE) == [[START + 10 * MINUTE]]  # item-0, on the shelf
+
+    # item-1 started Make_Item at 10:00: it is queued to reach the shelf at 10:10
+    until(engine, START + HOUR + 5 * MINUTE)
+    assert slots(engine, "iPhone", now=START + HOUR + 5 * MINUTE) == [[START + 10 * MINUTE,
+                                                                      START + HOUR + 10 * MINUTE]]
+
+
+def test_planned_items_going_straight_to_the_shelf_give_their_arrival_times(tmp_path):
+    engine = warehouse(tmp_path, straight=True)
+
+    assert slots(engine, "iPhone", "iPhone") == [[START, START + HOUR, START + 2 * HOUR]] * 2
+
+
+def test_a_line_no_item_matches_has_no_slot(tmp_path):
+    assert slots(warehouse(tmp_path, straight=True), "MacBook") == [[]]
+
+
+def test_items_promised_to_lines_are_skipped(tmp_path):
+    # at 09:30 item-0 holds order-7's line, and order-8's open line will take item-1 at 10:00
+    engine = warehouse(tmp_path, straight=True)
+    until(engine, START + 30 * MINUTE)
+    engine.reserve(quote("m1", "iPhone", "MacBook"), ["m1.1", "m1.2"], START + 30 * MINUTE)
+    engine.reserve(quote("m2", "MacBook", "iPhone", request="order-8"), ["m2.1", "m2.2"], START + 30 * MINUTE)
+
+    assert slots(engine, "iPhone", now=START + 30 * MINUTE) == [[START + 2 * HOUR]]
+
+
+def test_an_estimate_changes_nothing(tmp_path):
+    engine = warehouse(tmp_path, straight=True)
+    until(engine, START + 30 * MINUTE)
+    before = engine.next_event_time()
+
+    slots(engine, "iPhone", now=START + 30 * MINUTE)
+
+    assert held(engine) == {} and engine._env._open_lines == [] and engine.next_event_time() == before

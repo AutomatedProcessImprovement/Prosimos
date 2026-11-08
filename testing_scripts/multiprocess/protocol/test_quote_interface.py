@@ -1,7 +1,6 @@
 """
 The quote calls of the engine interface (docs/orchestrator.md, "Engine interface"): estimate, moved, reserve, and
-release, next to the five messaging and lifecycle calls. A Prosimos engine answers no slots, and nothing moved, for
-now.
+release, next to the five messaging and lifecycle calls.
 """
 from datetime import datetime, timedelta
 
@@ -38,11 +37,10 @@ def test_a_line_has_no_id_until_the_orchestrator_stamps_it():
     assert Line({"product": "iPhone"}).id is None
 
 
-def test_a_prosimos_engine_answers_no_slots_and_nothing_moved_for_now():
+def test_a_prosimos_engine_that_takes_no_such_quote_answers_no_slots_and_nothing_moved():
+    # the Order Routing warehouse takes orders, not ItemQuote
     engine = ProsimosEngine(ProcessSpec("TartuWarehouse", f"{WAREHOUSE}.bpmn", f"{WAREHOUSE}.json"), START, seed=1)
 
-    assert engine.estimate(ASKED, START) == {}
+    assert engine.estimate(ASKED, START) == {"l1": [], "l2": []}
     assert engine.moved(ASKED, START) is False
-    assert engine.reserve(ASKED, ["l1", "l2"], START) is None
-    assert engine.release(ASKED, ["l1"], START) is None
-    assert engine.next_event_time() is None  # nothing booked: the warehouse waits for orders as before
+    assert engine.next_event_time() is None  # the warehouse waits for orders as before

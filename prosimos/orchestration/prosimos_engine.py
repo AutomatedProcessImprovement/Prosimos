@@ -137,7 +137,9 @@ class ProsimosEngine(SimulationEngine):
             return verdict
 
     def estimate(self, message: Message, now: datetime) -> Slots:
-        return {}
+        with self._own_globals():
+            return self._env.slots_for(message.quote.quote_type, message.source,
+                                       [(line.id, line.attributes) for line in message.quote.lines])
 
     def moved(self, message: Message, now: datetime) -> bool:
         return self._env.has_moved(message.id)
