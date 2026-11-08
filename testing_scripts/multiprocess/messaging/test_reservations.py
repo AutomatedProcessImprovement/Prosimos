@@ -361,12 +361,14 @@ def slots(engine, *products, now=START):
 def test_the_slots_are_the_times_items_reached_the_shelf_or_are_queued_to(tmp_path):
     engine = warehouse(tmp_path)
     until(engine, START + 30 * MINUTE)
-    assert slots(engine, "iPhone", now=START + 30 * MINUTE) == [[START + 10 * MINUTE]]  # item-0, on the shelf
+    # item-0 is on the shelf; item-1 and item-2 are forecast through Make_Item (10 minutes, no wait)
+    assert slots(engine, "iPhone", now=START + 30 * MINUTE) == [[START + 10 * MINUTE, START + HOUR + 10 * MINUTE,
+                                                                 START + 2 * HOUR + 10 * MINUTE]]
 
     # item-1 started Make_Item at 10:00: it is queued to reach the shelf at 10:10
     until(engine, START + HOUR + 5 * MINUTE)
-    assert slots(engine, "iPhone", now=START + HOUR + 5 * MINUTE) == [[START + 10 * MINUTE,
-                                                                      START + HOUR + 10 * MINUTE]]
+    assert slots(engine, "iPhone", now=START + HOUR + 5 * MINUTE) == [[START + 10 * MINUTE, START + HOUR + 10 * MINUTE,
+                                                                      START + 2 * HOUR + 10 * MINUTE]]
 
 
 def test_planned_items_going_straight_to_the_shelf_give_their_arrival_times(tmp_path):
@@ -402,7 +404,7 @@ def test_an_estimate_changes_nothing(tmp_path):
 def test_while_a_task_on_the_way_runs_the_slot_is_its_drawn_end(tmp_path):
     # Make_Item, then a throw, then the shelf: Prosimos passes the throw when Make_Item starts and queues the item at
     # the shelf at Make_Item's drawn end
-    engine = warehouse(tmp_path, throw=True)
+    engine = warehouse(tmp_path, items=1, throw=True)
     until(engine, START + 5 * MINUTE)  # item-0's Make_Item runs from 09:00 to 09:10
 
     assert slots(engine, "iPhone", now=START + 5 * MINUTE) == [[START + 10 * MINUTE]]
