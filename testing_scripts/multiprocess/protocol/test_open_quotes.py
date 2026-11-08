@@ -9,7 +9,7 @@ import pytz
 
 from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.protocol import Line, Message, Quote, QuoteKind, Verdict
-from prosimos.orchestration.quotes import QuoteBook, QuoteState, TrackedQuote
+from prosimos.orchestration.quotes import HeldLine, QuoteBook, QuoteState, TrackedQuote
 from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
 START = pytz.utc.localize(datetime(2024, 1, 1, 9))
@@ -123,12 +123,12 @@ def _book_answers(*shelves):
     return book, message
 
 
-def test_an_accepted_quote_is_tracked_open_with_its_limit_date_and_each_lines_member_and_message():
+def test_an_accepted_quote_is_tracked_open_with_its_limit_date_and_each_lines_member_message_and_time():
     book, message = _book_answers({"iPhone": [LATER]}, {"iPad": [LATER]})
     iphone, ipad = message.quote.lines
 
-    assert book.quotes == {("Sales", "order-7", "ItemQuote"): TrackedQuote(
-        QuoteState.OPEN, START + WITHIN, {"l1": (iphone, "Tartu", message), "l2": (ipad, "Tallinn", message)})}
+    assert book.quotes == {("Sales", "order-7", "ItemQuote"): TrackedQuote(QuoteState.OPEN, START + WITHIN, {
+        "l1": HeldLine(iphone, "Tartu", message, LATER), "l2": HeldLine(ipad, "Tallinn", message, LATER)})}
 
 
 def test_a_declined_quote_is_tracked_declined_holding_nothing():

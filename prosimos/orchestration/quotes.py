@@ -30,13 +30,23 @@ class QuoteState(Enum):
 
 
 @dataclass
+class HeldLine:
+    """A line of a tracked quote: the member holding it, the message that reserved it there, and when it would be
+    ready."""
+
+    line: Line
+    member: str
+    reserving: Message
+    ready: datetime
+
+
+@dataclass
 class TrackedQuote:
-    """A quote the orchestrator tracks: its state, its limit date (None: no limit), and per line id the line, the
-    member holding it, and the message that reserved it there."""
+    """A quote the orchestrator tracks: its state, its limit date (None: no limit), and its held lines by line id."""
 
     state: QuoteState
     limit: Optional[datetime] = None
-    lines: Dict[str, Tuple[Line, str, Message]] = field(default_factory=dict)
+    lines: Dict[str, HeldLine] = field(default_factory=dict)
 
 
 class QuoteBook:
@@ -52,51 +62,76 @@ class QuoteBook:
         limit), reserves its lines at each member and returns the accepted reply; else the declined reply. A quote
         without lines is accepted at once, and a second one while the requester's quote of its type is open is
         declined at once, each with a warning; once some of the first has moved on, the second replaces it."""
-        quote = message.quote
-        if quote.accepted is None or quote.declined is None:
-            raise ValueError(f"{message.type} {message.id} from {message.source} asks a quote without the types of "
-                             f"its replies: a quote needs accepted and declined")
-        key = (message.source, quote.request, quote.quote_type)
+        quote, key = _replied(message), _key(message)
         if key in self.quotes and self._still_open(self.quotes[key], engine, now):
             warn(f"{quote.request} already has an open {quote.quote_type}; use modify")
-            return Message(quote.declined, {"request": quote.request, "earliest": None})
+            return _declined(quote, None)
         limit = None if quote.limit is None else message.time + quote.limit
-        if not quote.lines:
-            warn(f"{message.type} {message.id} from {message.source} has no lines")
-            self.quotes[key] = TrackedQuote(QuoteState.OPEN, limit)
-            return Message(quote.accepted, {"request": quote.request, "ready_by": message.time, "deliveries": 0})
-        slots_of = ask_members(message, members, engine, now)
-        plan = plan_lines(quote.lines, slots_of)
-        if plan is None or limit is not None and plan.ready_by > limit:
-            self.quotes[key] = TrackedQuote(QuoteState.DECLINED, limit)
-            return Message(quote.declined, {"request": quote.request, "earliest": plan.ready_by if plan else None})
-        tracked = self.quotes[key] = TrackedQuote(QuoteState.OPEN, limit)
-        line_of = {line.id: line for line in quote.lines}
-        deliveries = 0  # the members holding lines: each delivers its share at once
-        for member in slots_of:  # in the order the members were asked
-            line_ids = [line_id for line_id, (holder, _) in plan.lines.items() if holder == member]
-            if line_ids:
-                engine(member).reserve(message, line_ids, now)
-                tracked.lines.update((line_id, (line_of[line_id], member, message)) for line_id in line_ids)
-                deliveries += 1
-        return Message(quote.accepted, {"request": quote.request, "ready_by": plan.ready_by,
-                                        "deliveries": deliveries})
+        return self._quote(message, quote.lines, members, engine, now, limit, warn)
 
+    def modify(self, message: Message, members: List[str], engine: Callable[[str], SimulationEngine],
+               now: datetime, warn: Callable[[str], None]) -> Message:
+        """Changes the requester's open quote to the modify's lines: lines in both lists, matched by their
+        attributes, stay where they are, and the added ones are quoted; within the original limit date, the dropped
+        lines are released, the added ones reserved, and the reply is accepted, else nothing changes and it is
+        declined. Too late once some line has moved on; after a decline, a fresh quote of the new list; without a
+        quote, declined with a warning."""
+        quote, key = _replied(message), _key(message)
+        tracked = self.quotes.get(key)
+        if tracked is None:
+            warn(f"{quote.request} has no {quote.quote_type} to modify")
+            return _declined(quote, None)
+        if tracked.state is QuoteState.DECLINED:
+            return self._quote(message, quote.lines, members, engine, now, tracked.limit, warn)
+        if tracked.state is QuoteState.LOCKED or tracked.lines and not self._still_open(tracked, engine, now):
+            tracked.state = QuoteState.LOCKED
+            return _declined(quote, None)
+        kept, added = _matched(tracked, quote.lines)
+        plan = plan_lines(added, ask_members(message, members, engine, now)) if added else Plan()
+        if plan is None:
+            return _declined(quote, None)
+        ready_by = max([tracked.lines[line_id].ready for line_id in kept] + [time for _, time in plan.lines.values()],
+                       default=message.time)
+        if tracked.limit is not None and ready_by > tracked.limit:
+            return _declined(quote, ready_by)
+        dropped = [line_id for line_id in tracked.lines if line_id not in kept]
+        for member, reserving, line_ids in _held(tracked, dropped):
+            engine(member).release(reserving, line_ids, now)
+        for line_id in dropped:
+            del tracked.lines[line_id]
+        _reserve(tracked, message, added, plan, members, engine, now)
+        return _accepted(quote, tracked, ready_by)
 
     def cancel(self, message: Message, engine: Callable[[str], SimulationEngine], now: datetime):
         """Releases every line of the requester's open quote at its member, unless some line has moved on: then it
         is too late, nothing is released, and the quote is locked. One without lines simply leaves the book. A
         declined, locked, or unknown quote is left as it is; a cancel gets no reply."""
-        key = (message.source, message.quote.request, message.quote.quote_type)
+        key = _key(message)
         tracked = self.quotes.get(key)
         if tracked is None or tracked.state is not QuoteState.OPEN:
             return
         if tracked.lines and not self._still_open(tracked, engine, now):
             tracked.state = QuoteState.LOCKED
             return
-        for member, reserving, line_ids in _held(tracked):
+        for member, reserving, line_ids in _held(tracked, tracked.lines):
             engine(member).release(reserving, line_ids, now)
         del self.quotes[key]
+
+    def _quote(self, message, lines, members, engine, now, limit, warn):
+        """A fresh quote of lines against limit: tracked open with its reserved lines and accepted, or declined.
+        Without lines, it is accepted at once, with a warning."""
+        quote = message.quote
+        if not lines:
+            warn(f"{message.type} {message.id} from {message.source} has no lines")
+            self.quotes[_key(message)] = TrackedQuote(QuoteState.OPEN, limit)
+            return _accepted(quote, self.quotes[_key(message)], message.time)
+        plan = plan_lines(lines, ask_members(message, members, engine, now))
+        if plan is None or limit is not None and plan.ready_by > limit:
+            self.quotes[_key(message)] = TrackedQuote(QuoteState.DECLINED, limit)
+            return _declined(quote, plan.ready_by if plan else None)
+        tracked = self.quotes[_key(message)] = TrackedQuote(QuoteState.OPEN, limit)
+        _reserve(tracked, message, lines, plan, members, engine, now)
+        return _accepted(quote, tracked, plan.ready_by)
 
     @staticmethod
     def _still_open(tracked, engine, now):
@@ -104,15 +139,65 @@ class QuoteBook:
         messages that reserved their lines. One without lines has nothing to deliver."""
         if tracked.state is not QuoteState.OPEN or not tracked.lines:
             return False
-        return not any(engine(member).moved(reserving, now) for member, reserving, _ in _held(tracked))
+        return not any(engine(member).moved(reserving, now) for member, reserving, _ in _held(tracked, tracked.lines))
 
 
-def _held(tracked):
-    """(member, the message that reserved them there, the line ids) of each member and message holding lines, in
-    the order of the lines."""
+def _key(message):
+    """A quote's place in the book: the requesting process, its object's id, and the quote type."""
+    return message.source, message.quote.request, message.quote.quote_type
+
+
+def _replied(message):
+    """The quote of a quote or modify message, which the orchestrator replies to with its accepted or declined
+    type."""
+    if message.quote.accepted is None or message.quote.declined is None:
+        raise ValueError(f"{message.type} {message.id} from {message.source} asks a quote without the types of its "
+                         f"replies: a quote needs accepted and declined")
+    return message.quote
+
+
+def _matched(tracked, lines):
+    """(the held line ids the new lines keep, the new lines added): a new line keeps the first held line with the
+    same attributes not kept yet."""
+    unmatched, kept, added = list(tracked.lines.items()), [], []
+    for line in lines:
+        found = next((index for index, (_, held) in enumerate(unmatched) if held.line.attributes == line.attributes),
+                     None)
+        if found is None:
+            added.append(line)
+        else:
+            kept.append(unmatched.pop(found)[0])
+    return kept, added
+
+
+def _reserve(tracked, message, lines, plan, members, engine, now):
+    """Reserves the plan's lines at each member with message, in the order the members are asked, and tracks them."""
+    line_of = {line.id: line for line in lines}
+    for member in members:
+        line_ids = [line_id for line_id, (holder, _) in plan.lines.items() if holder == member]
+        if line_ids:
+            engine(member).reserve(message, line_ids, now)
+            tracked.lines.update((line_id, HeldLine(line_of[line_id], member, message, plan.lines[line_id][1]))
+                                 for line_id in line_ids)
+
+
+def _accepted(quote, tracked, ready_by):
+    # deliveries: the members holding lines, each delivering its share at once
+    return Message(quote.accepted, {"request": quote.request, "ready_by": ready_by,
+                                    "deliveries": len({held.member for held in tracked.lines.values()})})
+
+
+def _declined(quote, earliest):
+    return Message(quote.declined, {"request": quote.request, "earliest": earliest})
+
+
+def _held(tracked, line_ids):
+    """(member, the message that reserved them there, the line ids) of each member and message holding some of
+    line_ids, in the order of the lines."""
     held = {}
-    for line_id, (_, member, reserving) in tracked.lines.items():
-        held.setdefault((member, id(reserving)), (member, reserving, []))[2].append(line_id)
+    for line_id in line_ids:
+        line = tracked.lines[line_id]
+        held.setdefault((line.member, id(line.reserving)), (line.member, line.reserving, []))[2].append(line_id)
     return list(held.values())
 
 

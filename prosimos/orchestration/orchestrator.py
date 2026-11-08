@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from prosimos.orchestration.config import check_no_orchestrator, checked_consumer_groups, checked_load_balancing
 from prosimos.orchestration.load_balancing import offer_order
-from prosimos.orchestration.quotes import QuoteBook, ask_members
+from prosimos.orchestration.quotes import QuoteBook
 from prosimos.orchestration.output import plain
 from prosimos.orchestration.protocol import (ORCHESTRATOR, CaseElement, CaseObject, EngineReport, Message,
                                            MessageRecord, QuoteKind, SimulationEngine, StalledCase, Verdict)
@@ -169,10 +169,10 @@ def orchestrate(
                                if quote_type in subscriptions[member] and member != name]
                     if message.quote.kind is QuoteKind.QUOTE:
                         outgoing.append((quote_book.answer(message, members, engine, now, warn), ORCHESTRATOR))
-                    elif message.quote.kind is QuoteKind.CANCEL:
-                        quote_book.cancel(message, engine, now)
+                    elif message.quote.kind is QuoteKind.MODIFY:
+                        outgoing.append((quote_book.modify(message, members, engine, now, warn), ORCHESTRATOR))
                     else:
-                        ask_members(message, members, engine, now)
+                        quote_book.cancel(message, engine, now)
                     continue
                 # a message never goes back to its publisher, so a group with no other subscriber gets no copy
                 groups = [group for group in routing.get(message.type, []) if recipients_of(group, message)]
