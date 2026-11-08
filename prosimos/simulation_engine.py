@@ -93,6 +93,13 @@ class SimBPMEnv(EngineMessaging):
         self._quote_kinds = {name: (kind, point) for point in sim_setup.messaging.publish if point.quote is not None
                              for kind, name in (("modify", point.quote.modify), ("cancel", point.quote.cancel))
                              if name is not None}
+        # a quote's cancel type -> the event of its publish entry, which an ended case's open quote is canceled from
+        self._cancel_events = {point.type: point.event_id for point in sim_setup.messaging.publish
+                               if self._quote_kinds.get(point.type, (None, None))[0] == "cancel"}
+        self._open_quotes = dict()  # case id -> quote type -> the quote entry of each quote it published, not canceled
+        # a requester's end events, to cancel the quotes a case leaves open when it ends
+        self._watched_ends = set(sim_setup.bpmn_graph.end_events) if self._quote_kinds else set()
+        self.sim_setup.bpmn_graph.watched_elements |= self._watched_ends
         self._held = []  # heap of (due datetime, case id, pass order, element id)
         self._terminations_held = set()  # the cases whose terminate end event is held
         self._pass_order = itertools.count()

@@ -23,6 +23,22 @@ class Publishing:
             asked["limit"] = self._quote_limit(point, p_case)
         return asked
 
+    def _track_quote(self, point, p_case):
+        """Notes that the case published a quote with point, or canceled it."""
+        if point.quote is not None:
+            self._open_quotes.setdefault(p_case, {})[point.type] = point
+        elif self._quote_kinds.get(point.type, (None, None))[0] == "cancel":
+            self._open_quotes.get(p_case, {}).pop(self._quote_kinds[point.type][1].type, None)
+
+    def _cancel_open_quotes(self, p_case, due):
+        """Publishes the cancel of each quote the ended case left open, at due, as if the model had thrown it at the
+        cancel's own event."""
+        for quoted in self._open_quotes.pop(p_case, {}).values():
+            cancel = next(point for point in self._publish_points.get(self._cancel_events[quoted.quote.cancel], [])
+                          if point.type == quoted.quote.cancel)
+            self.outbox.append((cancel.type, self._message_attributes(cancel, p_case, 1), ((p_case, due),),
+                                cancel.event_id, cancel, self._quote_of(cancel, p_case)))
+
     def _quote_lines(self, quoted, p_case, event_id):
         """The lines of the quote entry quoted, read from the case now, as a case passing event_id asks them: the
         entry's attributes, and over a list each line's entry under its as name."""
