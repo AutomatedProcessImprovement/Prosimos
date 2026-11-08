@@ -9,8 +9,10 @@ from datetime import datetime, timedelta
 import pytz
 
 from prosimos.orchestration.config import ProcessSpec
+from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
-from prosimos.orchestration.protocol import Line, Message, Quote, QuoteKind
+from prosimos.orchestration.protocol import Line, Message, Quote, QuoteKind, Verdict
+from testing_scripts.multiprocess.scripted_engine import ScriptedEngine
 
 START = pytz.utc.localize(datetime(2024, 1, 1, 9))
 MINUTE, HOUR = timedelta(minutes=1), timedelta(hours=1)
@@ -321,3 +323,32 @@ def test_releasing_a_shares_last_open_line_lets_its_items_move_on(tmp_path):
     assert engine.moved(asked, START + 40 * MINUTE)
     until(engine, START + timedelta(days=1))
     assert shipped(engine)["item-0"] == START + 40 * MINUTE
+
+
+# a freed item and the orchestrator's pool
+
+class _AnsweringWarehouse(ProsimosEngine):
+    """The Prosimos warehouse, but answering every line of a quote with the time it is asked."""
+
+    def estimate(self, message, now):
+        return {line.id: [now] for line in message.quote.lines}
+
+
+def test_a_cancel_offers_the_members_waiting_messages_at_once(tmp_path):
+    # Sales quotes an iPhone and a MacBook at 09:30: item-0 takes the iPhone line, the MacBook line stays open. Shop's
+    # ordinary order at 09:35 waits in the pool. The cancel at 09:45 frees item-0, which takes the order then, not
+    # at the warehouse's next step at 10:00
+    spec = warehouse(tmp_path)._spec
+    store = _AnsweringWarehouse(spec, START, seed=1)
+    sales, shop = ScriptedEngine("Sales"), ScriptedEngine("Shop")
+    sales.at(START + 30 * MINUTE, lambda now: [quote("m0", "iPhone", "MacBook")])
+    sales.at(START + 45 * MINUTE, lambda now: [Message("QuoteCanceled", {"object_id": "order-7"}, quote=Quote(
+        QuoteKind.CANCEL, "ItemQuote", "order-7"))])
+    sales.consume("QuoteAccepted", lambda message, now: Verdict.CLAIMED)
+    shop.publish_at(START + 35 * MINUTE, "ItemOrdered", product="iPhone")
+
+    report = orchestrate({"Sales": sales, "Shop": shop, "Warehouse": store}, None, 1)
+
+    order = next(message for message in report.published if message.type == "ItemOrdered")
+    assert [(process, time) for message_id, process, time in report.claims if message_id == order.id] == [
+        ("Warehouse", START + 45 * MINUTE)]

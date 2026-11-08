@@ -55,6 +55,9 @@ class QuoteBook:
 
     def __init__(self):
         self.quotes: Dict[Tuple[str, str, str], TrackedQuote] = {}
+        # the members a cancel or modify released lines at, since the orchestrator last took them: its pooled copies
+        # are offered again, as a freed item may take one
+        self.released_at: List[str] = []
 
     def answer(self, message: Message, members: List[str], engine: Callable[[str], SimulationEngine],
                now: datetime, warn: Callable[[str], None]) -> Message:
@@ -97,6 +100,7 @@ class QuoteBook:
         dropped = [line_id for line_id in tracked.lines if line_id not in kept]
         for member, reserving, line_ids in _held(tracked, dropped):
             engine(member).release(reserving, line_ids, now)
+            self.released_at.append(member)
         for line_id in dropped:
             del tracked.lines[line_id]
         _reserve(tracked, message, added, plan, members, engine, now)
@@ -115,6 +119,7 @@ class QuoteBook:
             return
         for member, reserving, line_ids in _held(tracked, tracked.lines):
             engine(member).release(reserving, line_ids, now)
+            self.released_at.append(member)
         del self.quotes[key]
 
     def _quote(self, message, lines, members, engine, now, limit, warn):

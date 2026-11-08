@@ -188,10 +188,12 @@ def orchestrate(
                     new_copies.append(pooled)
                     report.copies.append((message.id, group))
 
+            # the stepping engine's group, and any group whose member a cancel or modify freed items at
+            offered_groups = {group_of[name], *(group_of[member] for member in quote_book.released_at)}
+            quote_book.released_at.clear()
             # oldest first: the pool keeps copies in the order they were published, the new ones last
-            own_group = group_of[name]
             new_ids = {id(pooled) for pooled in new_copies}
-            to_offer = [pooled for pooled in pool if id(pooled) in new_ids or pooled.group == own_group]
+            to_offer = [pooled for pooled in pool if id(pooled) in new_ids or pooled.group in offered_groups]
             for pooled in to_offer:
                 message = pooled.message
                 recipients = recipients_of(pooled.group, message)
