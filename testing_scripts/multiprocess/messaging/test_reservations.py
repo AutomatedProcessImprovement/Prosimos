@@ -21,11 +21,12 @@ FLOW = [("startEvent", "Start", False), ("task", "Make_Item", False), ("intermed
         ("task", "Ship", False), ("endEvent", "End", False)]
 
 
-def warehouse(tmp_path, product="iPhone", items=3, source=None, straight=False):
-    """The warehouse's engine: an item that takes a quote's line copies the requester's object_id into order_id. Its
-    shelf also takes ordinary ItemOrdered messages for its product; with source, it takes only the quotes of that
-    requester. With straight, an item goes from its start to the shelf, without Make_Item."""
+def warehouse(tmp_path, product="iPhone", items=3, source=None, straight=False, throw=False):
+    """The warehouse's engine; its shelf takes quote lines (only source's, if given) and ItemOrdered. straight skips
+    Make_Item; throw adds a throw event after it."""
     flow = [element for element in FLOW if not (straight and element[1] == "Make_Item")]
+    if throw:
+        flow.insert(2, ("intermediateThrowEvent", "Throw_Made", True))
     elements = []
     for index, (kind, element_id, message) in enumerate(flow):
         arrows = (f"<bpmn:incoming>Flow_{index}</bpmn:incoming>" if index else "") + \
@@ -396,3 +397,12 @@ def test_an_estimate_changes_nothing(tmp_path):
     slots(engine, "iPhone", now=START + 30 * MINUTE)
 
     assert held(engine) == {} and engine._env._open_lines == [] and engine.next_event_time() == before
+
+
+def test_while_a_task_on_the_way_runs_the_slot_is_its_drawn_end(tmp_path):
+    # Make_Item, then a throw, then the shelf: Prosimos passes the throw when Make_Item starts and queues the item at
+    # the shelf at Make_Item's drawn end
+    engine = warehouse(tmp_path, throw=True)
+    until(engine, START + 5 * MINUTE)  # item-0's Make_Item runs from 09:00 to 09:10
+
+    assert slots(engine, "iPhone", now=START + 5 * MINUTE) == [[START + 10 * MINUTE]]
