@@ -23,57 +23,110 @@ class Estimating:
 
     def _quote_candidates(self, quote_type, now):
         """[time, case id, event id, chance] of each item not holding a line that may reach a catch event taking
-        quote_type: waiting there, queued to reach it, or forecast from a task it is queued at, in time order."""
+        quote_type: waiting there, queued to reach it, or forecast from where its branches are queued, in time
+        order."""
         events = {point.event_id for points in self._consume_points.values() for point in points
                   if point.type == quote_type and not point.starts_case}
         waiting = [[parked_event.enabled_datetime, parked_event.p_case, parked_event.task_id, 1.0]
                    for parked_event in self.parked_events() if parked_event.task_id in events
                    and (parked_event.p_case, parked_event.task_id) not in self._set_aside]
-        queued, waits = [], {}
+        # a case waiting for a message elsewhere may be held up there in a branch: it isn't forecast
+        held_up = {parked_event.p_case for parked_event in self.parked_events() if parked_event.task_id not in events}
+        queued, ahead = [], {}
         for event in self.events_queue.enabled_events.entry_finder:
-            if event.task_id in events:
-                if event.parked_event is None:
-                    queued.append([event.enabled_datetime, event.p_case, event.task_id, 1.0])
-                continue
-            if self.sim_setup.bpmn_graph.element_info[event.task_id].type != BPMN.TASK:
-                continue
-            reached = self._forecast(event.p_case, event.task_id, event.enabled_datetime, events, now, waits)
-            queued += [[ready, event.p_case, catch_event, chance]
-                       for catch_event, (chance, ready) in (reached or {}).items()]
+            if event.task_id not in events:
+                ahead.setdefault(event.p_case, []).append(event)
+            elif event.parked_event is None:
+                queued.append([event.enabled_datetime, event.p_case, event.task_id, 1.0])
+        waits = {}
+        for p_case, case_events in ahead.items():
+            if p_case not in held_up:
+                reached = self._case_forecast(p_case, case_events, events, now, waits)
+                queued += [[ready, p_case, catch_event, chance]
+                           for catch_event, (chance, ready) in (reached or {}).items()]
         return sorted(waiting + queued, key=lambda item: item[:3])
 
-    def _forecast(self, p_case, element_id, ready, events, now, waits):
-        """catch event in events -> (chance, average ready time) of the case p_case ready at element_id at ready;
-        None if a way has anything but tasks, throw events, exclusive gateways, and end events. waits caches the
-        average waits."""
+    def _case_forecast(self, p_case, case_events, events, now, waits):
+        """catch event in events -> (chance, average ready time) of the case p_case from its queued case_events;
+        None if not forecast. The branches of a split go on together from their join when the latest gets there,
+        the innermost join first, which then is one branch of the next."""
+        forecasts = [self._forecast(p_case, event.task_id, event.enabled_datetime, events, now, waits)
+                     for event in case_events]
+        if None in forecasts:
+            return None
+        if all(target in events for forecast in forecasts for target in forecast):
+            return {target: reached for forecast in forecasts for target, reached in forecast.items()}
+        arriving = {}  # join -> when the branches on their way get there
+        for forecast in forecasts:
+            joined = _joined([forecast], events)
+            if joined is None:
+                return None
+            arriving.setdefault(joined[0], []).append(joined[1])
+        while True:
+            onward = {join: self._forecast(p_case, join, self._join_ready(p_case, join, times), events, now, waits,
+                                           onward=True) for join, times in arriving.items()}
+            if None in onward.values():
+                return None
+            # no other join's way leads to this one: all its branches are in
+            join = next((join for join in arriving
+                         if not any(join in onward[other] for other in arriving if other != join)), None)
+            if join is None:
+                return None
+            del arriving[join]
+            if all(target in events for target in onward[join]):
+                return None if arriving else onward[join]
+            joined = _joined([onward[join]], events)
+            if joined is None:
+                return None
+            arriving.setdefault(joined[0], []).append(joined[1])
+
+    def _join_ready(self, p_case, join, times):
+        """When the join goes on for the case p_case: at the latest of times, or of a branch already there, which
+        got there at its task's end (Prosimos keeps the join's latest token time)."""
+        arrived = self.sim_setup.bpmn_graph.last_datetime[join].get(p_case)
+        return max(times + ([arrived.datetime] if arrived is not None else []))
+
+    def _forecast(self, p_case, element_id, ready, events, now, waits, onward=False):
+        """target -> (chance, average ready time) of the case p_case ready at element_id at ready; a target is a
+        catch event in events or the first parallel join a way meets (onward: other than element_id). None if a way
+        has anything but tasks, throw events, exclusive and parallel gateways, and end events. waits caches waits."""
         graph = self.sim_setup.bpmn_graph
         reached = {}
-        ways = [(element_id, ready, 1.0, 0)]
+        ways = [(element_id, ready, 1.0, 0, onward)]  # passing: the way goes on from it, even from a join
         while ways:
-            element_id, ready, chance, steps = ways.pop()
+            element_id, ready, chance, steps, passing = ways.pop()
             # a loop back is followed until its chance is negligible; one the case's data decides never ends: it is cut
             if chance < _NEGLIGIBLE or steps > _MOST_STEPS:
                 continue
-            if element_id in events:
+            info = graph.element_info[element_id]
+            if element_id in events or (_is_join(info) and not passing):
                 reached.setdefault(element_id, []).append((chance, ready))
                 continue
-            info = graph.element_info[element_id]
             if info.type is BPMN.END_EVENT:
                 continue
-            if info.type is BPMN.EXCLUSIVE_GATEWAY and len(info.outgoing_flows) > 1:
-                branches = self._branches(info, p_case)
-            elif info.type in (BPMN.TASK, BPMN.INTERMEDIATE_THROW_EVENT, BPMN.EXCLUSIVE_GATEWAY) \
-                    and len(info.outgoing_flows) == 1:
-                branches = [(info.outgoing_flows[0], 1.0)]
-            else:
+            if info.type not in (BPMN.TASK, BPMN.INTERMEDIATE_THROW_EVENT, BPMN.EXCLUSIVE_GATEWAY,
+                                 BPMN.PARALLEL_GATEWAY):
                 return None
             if info.type is BPMN.TASK:
                 if element_id not in waits:
                     waits[element_id] = self._average_wait(element_id, now)
                 ready = forecast_end(ready, self._staff_calendars(element_id),
                                      waits[element_id] + self._average_duration(element_id))
-            ways += [(graph.flow_arcs[flow][1], ready, chance * share, steps + 1) for flow, share in branches]
-        return {event: _average(ways) for event, ways in reached.items()}
+            if len(info.outgoing_flows) == 1:
+                ways.append((graph.flow_arcs[info.outgoing_flows[0]][1], ready, chance, steps + 1, False))
+            elif info.type is BPMN.EXCLUSIVE_GATEWAY:
+                ways += [(graph.flow_arcs[flow][1], ready, chance * share, steps + 1, False)
+                         for flow, share in self._branches(info, p_case)]
+            elif info.type is BPMN.PARALLEL_GATEWAY:  # a split: on from its join when the longest branch gets there
+                joined = _joined([self._forecast(p_case, graph.flow_arcs[flow][1], ready, events, now, waits)
+                                  for flow in info.outgoing_flows], events)
+                if joined is None:
+                    return None
+                join, ready = joined
+                ways.append((join, ready, chance, steps + 1, True))
+            else:
+                return None
+        return {target: _average(ways) for target, ways in reached.items()}
 
     def _branches(self, info, p_case):
         """(flow, chance) of each branch of the exclusive split info for the case p_case, as Prosimos picks one:
@@ -126,6 +179,26 @@ _NEGLIGIBLE = 1e-9
 _MOST_STEPS = 1000
 # an expected count summed from chances, less the negligible ones, may fall a little short of a whole number
 _WHOLE = 1 - 1e-6
+
+
+def _is_join(info):
+    """Whether info is a parallel join. A task or throw event with several incoming flows never is one: Prosimos's
+    loader puts a hidden exclusive join before it."""
+    return info.type is BPMN.PARALLEL_GATEWAY and len(info.incoming_flows) > 1
+
+
+def _joined(forecasts, events):
+    """(join, ready) of branches whose forecasts all reach one join, not a catch event in events, for sure: ready
+    when the latest gets there; None otherwise."""
+    if None in forecasts:
+        return None
+    targets = {target for forecast in forecasts for target in forecast}
+    if len(targets) != 1 or targets & events:
+        return None
+    [join] = targets
+    if any(forecast.get(join, (0.0, None))[0] < _WHOLE for forecast in forecasts):
+        return None
+    return join, max(forecast[join][1] for forecast in forecasts)
 
 
 def _take_one(items):
