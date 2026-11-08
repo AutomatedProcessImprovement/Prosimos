@@ -83,14 +83,37 @@ class QuoteBook:
                                         "deliveries": deliveries})
 
 
+    def cancel(self, message: Message, engine: Callable[[str], SimulationEngine], now: datetime):
+        """Releases every line of the requester's open quote at its member, unless some line has moved on: then it
+        is too late, nothing is released, and the quote is locked. One without lines simply leaves the book. A
+        declined, locked, or unknown quote is left as it is; a cancel gets no reply."""
+        key = (message.source, message.quote.request, message.quote.quote_type)
+        tracked = self.quotes.get(key)
+        if tracked is None or tracked.state is not QuoteState.OPEN:
+            return
+        if tracked.lines and not self._still_open(tracked, engine, now):
+            tracked.state = QuoteState.LOCKED
+            return
+        for member, reserving, line_ids in _held(tracked):
+            engine(member).release(reserving, line_ids, now)
+        del self.quotes[key]
+
     @staticmethod
     def _still_open(tracked, engine, now):
         """Whether the tracked quote is open and nothing of it has moved on: its members are asked with the
         messages that reserved their lines. One without lines has nothing to deliver."""
         if tracked.state is not QuoteState.OPEN or not tracked.lines:
             return False
-        holders = {(member, id(reserving)): (member, reserving) for _, member, reserving in tracked.lines.values()}
-        return not any(engine(member).moved(reserving, now) for member, reserving in holders.values())
+        return not any(engine(member).moved(reserving, now) for member, reserving, _ in _held(tracked))
+
+
+def _held(tracked):
+    """(member, the message that reserved them there, the line ids) of each member and message holding lines, in
+    the order of the lines."""
+    held = {}
+    for line_id, (_, member, reserving) in tracked.lines.items():
+        held.setdefault((member, id(reserving)), (member, reserving, []))[2].append(line_id)
+    return list(held.values())
 
 
 def plan_lines(lines: List[Line], slots_of: Dict[str, Slots]) -> Optional[Plan]:

@@ -169,6 +169,8 @@ def orchestrate(
                                if quote_type in subscriptions[member] and member != name]
                     if message.quote.kind is QuoteKind.QUOTE:
                         outgoing.append((quote_book.answer(message, members, engine, now, warn), ORCHESTRATOR))
+                    elif message.quote.kind is QuoteKind.CANCEL:
+                        quote_book.cancel(message, engine, now)
                     else:
                         ask_members(message, members, engine, now)
                     continue
