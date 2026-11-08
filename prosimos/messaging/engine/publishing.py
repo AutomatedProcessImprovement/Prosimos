@@ -1,10 +1,66 @@
-"""The messages a case publishes: how many (fan-out), their attributes and its object id."""
-from prosimos.messaging.parser.common import is_whole_number
+"""The messages a case publishes: how many (fan-out), their attributes, its quotes, and its object id."""
+from datetime import timedelta
+
+from prosimos.messaging.parser.common import is_number, is_whole_number
 from prosimos.warning_logger import warning_logger
 
 
 class Publishing:
     """Builds the messages a case publishes."""
+
+    def _quote_of(self, point, p_case):
+        """What point's message asks as a quote, modify, or cancel, for the orchestration's Quote: its kind, the quote
+        type, the requester's object id, and for a quote or modify its lines (attribute dicts), and reply types, and
+        for a quote its limit; None for an ordinary message."""
+        kind, quoted = ("quote", point) if point.quote is not None else self._quote_kinds.get(point.type, (None, None))
+        if kind is None:
+            return None
+        asked = {"kind": kind, "quote_type": quoted.type, "request": self.object_id(p_case)}
+        if kind != "cancel":
+            asked.update(lines=self._quote_lines(quoted, p_case, point.event_id), accepted=quoted.quote.accepted,
+                         declined=quoted.quote.declined)
+        if kind == "quote":
+            asked["limit"] = self._quote_limit(point, p_case)
+        return asked
+
+    def _quote_lines(self, quoted, p_case, event_id):
+        """The lines of the quote entry quoted, read from the case now, as a case passing event_id asks them: the
+        entry's attributes, and over a list each line's entry under its as name."""
+        settings, values = quoted.quote, self.sim_setup.bpmn_graph.get_all_attributes(p_case)
+        carried = self._message_attributes(quoted, p_case, 1)
+        if settings.quantity_list is not None:
+            entries = values.get(settings.quantity_list)
+            if isinstance(entries, (list, tuple)):
+                return [{**carried, settings.quantity_as: entry} for entry in entries]
+            self._warn_quote(event_id, settings.quantity_list, f"case {p_case} passes {event_id} with no list "
+                             f"{settings.quantity_list} (got {entries!r}); its {quoted.type} has no lines")
+            return []
+        number = settings.quantity
+        if settings.quantity_attribute is not None:
+            number = values.get(settings.quantity_attribute)
+            if not is_whole_number(number, minimum=0):
+                self._warn_quote(event_id, settings.quantity_attribute, f"case {p_case} passes {event_id} with no "
+                                 f"valid {settings.quantity_attribute} (got {number!r}); its {quoted.type} asks one "
+                                 f"line")
+                number = 1
+        return [dict(carried) for _ in range(int(number))]
+
+    def _quote_limit(self, point, p_case):
+        """The quote's within: fixed, or a number of its unit read from the case now; None without a limit."""
+        settings = point.quote
+        if settings.within_attribute is None:
+            return settings.within
+        number = self.sim_setup.bpmn_graph.get_all_attributes(p_case).get(settings.within_attribute)
+        if is_number(number) and number > 0:
+            return timedelta(**{settings.within_unit: number})
+        self._warn_quote(point.event_id, settings.within_attribute, f"case {p_case} passes {point.event_id} with no "
+                         f"valid {settings.within_attribute} (got {number!r}); its {point.type} has no limit")
+        return None
+
+    def _warn_quote(self, event_id, attribute, warning):
+        if (event_id, attribute) not in self._warned_quotes:
+            self._warned_quotes.add((event_id, attribute))
+            warning_logger.add_warning(warning)
 
     def _fan_out(self, point, p_case):
         """How many messages point publishes for a case now: 1, its fan_out, or one per entry of its list."""

@@ -63,7 +63,9 @@ def test_a_cancel_or_modify_type_without_its_own_publish_entry(bpmn, key, name):
     ({"list": "products"}, r": 'quantity' over a list needs 'as', the attribute name under which each line carries "
                            r"its entry$"),
     ({"list": "products", "as": "index"}, r": 'quantity' as can't be index, which is reserved: object_id is the "
-                                          r"requesting object's id and index the line's number$"),
+                                          r"requesting object's id, and index isn't available on quotes$"),
+    ({"list": "products", "as": "object_id"}, r": 'quantity' as can't be object_id, which is reserved: object_id is "
+                                              r"the requesting object's id, and index isn't available on quotes$"),
     ({"items": 2}, r"\.quantity: unknown key 'items'; allowed: as, list, object_attribute$"),
 ])
 def test_a_bad_quantity(bpmn, quantity, message):
@@ -84,6 +86,12 @@ def test_a_bad_quantity(bpmn, quantity, message):
 ])
 def test_a_bad_within(bpmn, within, message):
     _rejected(bpmn, r"\.quote" + message, **{**QUOTE, "within": within})
+
+
+def test_a_quote_entry_listing_index(bpmn):
+    messages = section(**QUOTE)
+    messages["publish"][0]["attributes"] = ["object_id", "index"]
+    _rejected(bpmn, r": a quote's lines can't carry index: modify matches lines by their attributes$", messages)
 
 
 @pytest.mark.parametrize("key, value", [("fan_out", 2), ("fan_in", 3)])

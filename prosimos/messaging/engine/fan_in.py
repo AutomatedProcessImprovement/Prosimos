@@ -81,7 +81,7 @@ class FanIn:
         attributes.update((name, self._over_parts(point, name, function, source, initial, pile.parts))
                           for name, function, source, initial in point.computed)
         self.outbox.append((point.type, attributes, tuple((member, time) for member, time, _ in pile.parts),
-                            pile.element_id, point))
+                            pile.element_id, point, None))
 
     def _given_min(self, point, p_case, values):
         """(the min this part gives, whether it is valid): None without one; an invalid one counts as 1, with one

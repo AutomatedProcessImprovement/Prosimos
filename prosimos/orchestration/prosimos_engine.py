@@ -13,8 +13,8 @@ from prosimos.messaging.parser.common import unknown_keys
 from prosimos.orchestration.catalogue.model import QuantityFrom
 from prosimos.orchestration.catalogue.picks import Brought, Pick, Received
 from prosimos.orchestration.config import ProcessSpec
-from prosimos.orchestration.protocol import (CaseObject, ClaimRecord, EngineReport, Message, PublishRecord,
-                                           SimulationEngine, Slots, StalledCase, Verdict)
+from prosimos.orchestration.protocol import (CaseObject, ClaimRecord, EngineReport, Line, Message, PublishRecord, Quote,
+                                           QuoteKind, SimulationEngine, Slots, StalledCase, Verdict)
 from prosimos.orchestration.random_generators import engine_random_states, generators
 from prosimos.simulation_engine import SimBPMEnv
 from prosimos.simulation_setup import SimDiffSetup
@@ -43,6 +43,15 @@ def load_process(bpmn_path, json_path, arrivals, start_datetime, picks=()) -> Si
         translated = Path(folder) / Path(json_path).name
         translated.write_text(json.dumps(settings))
         return SimDiffSetup(bpmn_path, str(translated), False, arrivals, start_datetime, picks, "arrivals")
+
+
+def _quote(asked):
+    """The Quote a message carries, from what the messaging engine says it asks; None for an ordinary message."""
+    if asked is None:
+        return None
+    return Quote(QuoteKind(asked["kind"]), asked["quote_type"], asked["request"],
+                 [Line(dict(attributes)) for attributes in asked.get("lines", [])], asked.get("limit"),
+                 asked.get("accepted"), asked.get("declined"))
 
 
 class ProsimosEngine(SimulationEngine):
@@ -110,8 +119,8 @@ class ProsimosEngine(SimulationEngine):
             # hand the buffered log rows over now, so nobody outside the engine reaches into it at the end
             self._env.log_writer.force_write()
             released = []
-            for message_type, attributes, publishers, element_id, point in self._env.outbox:
-                message = Message(message_type, attributes)
+            for message_type, attributes, publishers, element_id, point, asked in self._env.outbox:
+                message = Message(message_type, attributes, quote=_quote(asked))
                 # the orchestrator stamps the id on this same object, so it can be read at the end; a fan-in
                 # message has one publish record per member, at its own time
                 self._published.extend((message, p_case, element_id, point, when) for p_case, when in publishers)

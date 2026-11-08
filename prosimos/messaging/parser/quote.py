@@ -16,6 +16,8 @@ def read_quote(entry, where, declared):
         if key in entry:
             fail(f"{where}: quote and {key} can't be combined on one entry: the quote's lines say how many items "
                  f"it asks for, and its replies come from the orchestrator")
+    if isinstance(entry.get("attributes"), list) and "index" in entry["attributes"]:
+        fail(f"{where}: a quote's lines can't carry index: modify matches lines by their attributes")
     quote, in_quote = entry["quote"], f"{where}.quote"
     if not isinstance(quote, dict):
         fail(f"{where}: 'quote' must be an object with quantity, accepted, declined, and cancel, got {quote!r}")

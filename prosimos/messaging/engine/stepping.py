@@ -86,7 +86,7 @@ class Stepping:
                     continue
                 for index in range(1, self._fan_out(point, p_case) + 1):
                     self.outbox.append((point.type, self._message_attributes(point, p_case, index), ((p_case, due),),
-                                        element_id, point))
+                                        element_id, point, self._quote_of(point, p_case)))
 
     def _end_terminated(self, p_case):
         """Ends a case a terminate end event ended: its tokens and races go; parked_events() then drops its waits."""

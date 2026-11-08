@@ -6,9 +6,10 @@ from datetime import timedelta
 from prosimos.exceptions import InvalidSimScenarioException
 
 PERIODS = ("weeks", "days", "hours")  # of a deadline, and of a catalogue change
-# what each multiplicity counts, its least number, and whose object_id the reserved name means
-MULTIPLICITIES = {"fan_out": ("message", 0, "publishing"),
-                  "quantity": ("line", 1, "requesting")}
+# what each multiplicity counts, its least number, and why object_id and index are reserved for its as
+MULTIPLICITIES = {
+    "fan_out": ("message", 0, "object_id is the publishing object's id and index the message's number"),
+    "quantity": ("line", 1, "object_id is the requesting object's id, and index isn't available on quotes")}
 
 
 def is_number(value):
@@ -66,7 +67,7 @@ def read_multiplicity(entry, where, declared, key):
 
 
 def _multiplicity_over_list(multiplicity, where, declared, key):
-    each, _, whose = MULTIPLICITIES[key]
+    each, _, reserved = MULTIPLICITIES[key]
     if not set(multiplicity) <= {"list", "as"}:
         fail(f"{where}: '{key}' over a list has only 'list' and 'as', got "
              f"{', '.join(map(repr, sorted(multiplicity)))}")
@@ -78,8 +79,7 @@ def _multiplicity_over_list(multiplicity, where, declared, key):
     if not isinstance(multiplicity["as"], str) or not multiplicity["as"].strip():
         fail(f"{where}: '{key}' as must be a non-empty string")
     if multiplicity["as"] in ("object_id", "index"):
-        fail(f"{where}: '{key}' as can't be {multiplicity['as']}, which is reserved: object_id is the {whose} "
-              f"object's id and index the {each}'s number")
+        fail(f"{where}: '{key}' as can't be {multiplicity['as']}, which is reserved: {reserved}")
     return multiplicity["list"], multiplicity["as"]
 
 
