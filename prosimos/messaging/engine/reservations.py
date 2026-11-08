@@ -15,6 +15,25 @@ class Reservations:
         for parked_event in self.parked_events():
             self._take_open_line(parked_event, now)
 
+    def release_lines(self, message_id, line_ids, now):
+        """Closes the lines line_ids the quote or modify message message_id reserved here, at now: an item holding
+        one returns to the shelf as ordinary stock and takes the next open line it matches. A share whose last open
+        lines these were moves on."""
+        released = [line for line in self._open_lines if line["quote"] == message_id and line["line"] in line_ids]
+        for line in released:
+            self._open_lines.remove(line)
+        returned = []
+        for key, (line, _) in list(self._set_aside.items()):
+            if line["quote"] == message_id and line["line"] in line_ids:
+                del self._set_aside[key]
+                released.append(line)
+                returned.append(self._parked_events[key])
+        for share in dict.fromkeys(line["share"] for line in released):
+            if any(held["share"] == share for held, _ in self._set_aside.values()):
+                self._move_if_complete(share, now)
+        for parked_event in returned:
+            self._take_open_line(parked_event, now)
+
     def has_moved(self, message_id):
         """Whether the share holding the lines the quote or modify message message_id reserved here has moved
         on."""

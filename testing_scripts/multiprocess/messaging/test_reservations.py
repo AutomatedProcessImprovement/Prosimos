@@ -264,3 +264,60 @@ def test_a_later_quote_of_the_same_order_isnt_seen_as_moved(tmp_path):
 
     assert held(engine) == {"item-1": ("m5", "m5.1")}
     assert not engine.moved(again, START + HOUR + 30 * MINUTE)
+
+
+# release
+
+def test_a_released_item_serves_the_next_quote(tmp_path):
+    # item-0 holds order-7's iPhone; order-8's lines wait, as no other item is on the shelf
+    engine = warehouse(tmp_path)
+    until(engine, START + 30 * MINUTE)
+    first = quote("m1", "iPhone", "MacBook")
+    engine.reserve(first, ["m1.1", "m1.2"], START + 30 * MINUTE)
+    engine.reserve(quote("m2", "iPhone", "MacBook", request="order-8"), ["m2.1", "m2.2"], START + 30 * MINUTE)
+
+    engine.release(first, ["m1.1", "m1.2"], START + 40 * MINUTE)
+
+    assert held(engine) == {"item-0": ("m2", "m2.1")}
+    assert [line["line"] for line in engine._env._open_lines] == ["m2.2"]
+
+
+def test_releasing_some_lines_keeps_the_others(tmp_path):
+    engine = warehouse(tmp_path)
+    until(engine, START + 5 * MINUTE)
+    asked = quote("m1", "iPhone", "iPhone", "MacBook")
+    engine.reserve(asked, ["m1.1", "m1.2", "m1.3"], START + 5 * MINUTE)
+    until(engine, START + HOUR + 30 * MINUTE)
+    assert held(engine) == {"item-0": ("m1", "m1.1"), "item-1": ("m1", "m1.2")}
+
+    engine.release(asked, ["m1.2"], START + HOUR + 30 * MINUTE)
+
+    assert held(engine) == {"item-0": ("m1", "m1.1")}
+    assert [line["line"] for line in engine._env._open_lines] == ["m1.3"]
+
+
+def test_a_released_item_is_ordinary_stock_again(tmp_path):
+    engine = warehouse(tmp_path)
+    until(engine, START + 30 * MINUTE)
+    asked = quote("m1", "iPhone", "MacBook")
+    engine.reserve(asked, ["m1.1", "m1.2"], START + 30 * MINUTE)
+    assert ordered(engine, START + 30 * MINUTE) == ("pending", [])
+
+    engine.release(asked, ["m1.1", "m1.2"], START + 40 * MINUTE)
+
+    assert ordered(engine, START + 40 * MINUTE) == ("claimed", ["item-0"])
+
+
+def test_releasing_a_shares_last_open_line_lets_its_items_move_on(tmp_path):
+    # the modification dropped the MacBook nobody had: the iPhone's item leaves at once
+    engine = warehouse(tmp_path)
+    until(engine, START + 30 * MINUTE)
+    asked = quote("m1", "iPhone", "MacBook")
+    engine.reserve(asked, ["m1.1", "m1.2"], START + 30 * MINUTE)
+
+    engine.release(asked, ["m1.2"], START + 40 * MINUTE)
+
+    assert held(engine) == {} and engine._env._open_lines == []
+    assert engine.moved(asked, START + 40 * MINUTE)
+    until(engine, START + timedelta(days=1))
+    assert shipped(engine)["item-0"] == START + 40 * MINUTE

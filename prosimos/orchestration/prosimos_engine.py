@@ -149,7 +149,8 @@ class ProsimosEngine(SimulationEngine):
                                  now)
 
     def release(self, message: Message, line_ids: List[str], now: datetime) -> None:
-        pass
+        with self._own_globals():
+            self._env.release_lines(message.id, line_ids, now)
 
     def finish(self) -> EngineReport:
         with self._own_globals():
