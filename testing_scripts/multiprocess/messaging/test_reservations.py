@@ -20,7 +20,8 @@ FLOW = [("startEvent", "Start", False), ("task", "Make_Item", False), ("intermed
 
 
 def warehouse(tmp_path, product="iPhone", items=3, source=None):
-    """The warehouse's engine; with source, its shelf takes only the quotes of that requester."""
+    """The warehouse's engine, whose shelf also takes ordinary ItemOrdered messages for its product; with source, it
+    takes only the quotes of that requester."""
     elements = []
     for index, (kind, element_id, message) in enumerate(FLOW):
         arrows = (f"<bpmn:incoming>Flow_{index}</bpmn:incoming>" if index else "") + \
@@ -45,7 +46,9 @@ def warehouse(tmp_path, product="iPhone", items=3, source=None):
         "object_attributes": [{"name": "product", "type": "discrete", "values": [{"key": product, "value": 1}]}],
         "messages": {"consume": [{"event_id": "Shelf", "type": "ItemQuote", "condition": [
             [{"attribute": "product", "comparison": "=", "object_attribute": "product"}]
-            + ([{"attribute": "source", "comparison": "=", "value": source}] if source else [])]}]}}))
+            + ([{"attribute": "source", "comparison": "=", "value": source}] if source else [])]},
+            {"event_id": "Shelf", "type": "ItemOrdered", "condition": [
+                [{"attribute": "product", "comparison": "=", "object_attribute": "product"}]]}]}}))
     spec = ProcessSpec("Warehouse", str(tmp_path / "warehouse.bpmn"), str(tmp_path / "warehouse.json"), items, "item")
     return ProsimosEngine(spec, START, seed=1)
 
@@ -135,3 +138,35 @@ def test_a_line_is_matched_with_its_requester_as_source(tmp_path):
 
     assert held(engine) == {"item-0": ("m2", "m2.1")}
     assert [line["line"] for line in engine._env._open_lines] == ["m1.1"]
+
+
+# reserved items stay away from ordinary claims
+
+def ordered(engine, now):
+    """Offers an ordinary order for an iPhone at now; the verdict, and the item that claimed it, if any."""
+    verdict = engine.deliver(Message("ItemOrdered", {"product": "iPhone"}, "m9", "Shop", now), now)
+    return verdict.value, [engine._env.object_id(p_case) for p_case, _, _ in engine._env.claimed_by]
+
+
+def test_an_item_holding_a_line_is_never_claimed_by_an_ordinary_message(tmp_path):
+    engine = warehouse(tmp_path)
+    until(engine, START + 30 * MINUTE)
+    engine.reserve(quote("m1", "iPhone"), ["m1.1"], START + 30 * MINUTE)
+
+    # item-0 holds the line; the next items can still take the order, so it waits
+    assert ordered(engine, START + 30 * MINUTE) == ("pending", [])
+
+
+def test_an_arriving_item_takes_an_open_line_before_a_pending_ordinary_message(tmp_path):
+    engine = warehouse(tmp_path)
+    until(engine, START + 5 * MINUTE)
+    engine.reserve(quote("m1", "iPhone"), ["m1.1"], START + 5 * MINUTE)
+    assert ordered(engine, START + 5 * MINUTE) == ("pending", [])
+
+    # item-0 reaches the shelf at 09:10 and takes the line within its step, before the order is offered again
+    until(engine, START + 11 * MINUTE)
+    assert held(engine) == {"item-0": ("m1", "m1.1")}
+    assert ordered(engine, START + 11 * MINUTE) == ("pending", [])
+    # item-1 finds no open line, so the order takes it
+    until(engine, START + HOUR + 11 * MINUTE)
+    assert ordered(engine, START + HOUR + 11 * MINUTE) == ("claimed", ["item-1"])

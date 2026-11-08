@@ -19,6 +19,8 @@ class Receiving:
         # the entry's capacity (min, max): how many cases waiting there claim it, oldest first; fewer than min, none
         claiming, takers, fewest, capacity = None, [], 1, 1
         for parked_event in self.parked_events():
+            if (parked_event.p_case, parked_event.task_id) in self._set_aside:
+                continue  # it holds a quote's line
             if claiming is None:
                 claiming = next((point for point in self._consume_points[parked_event.task_id] if point.type == message_type
                                  and self._accepts(point, values, parked_event.p_case)), None)
