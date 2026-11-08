@@ -89,7 +89,8 @@ class Estimating:
     def _forecast(self, p_case, element_id, ready, events, now, waits, onward=False):
         """target -> (chance, average ready time) of the case p_case ready at element_id at ready; a target is a
         catch event in events or the first parallel join a way meets (onward: other than element_id). None if a way
-        has anything but tasks, throw events, exclusive and parallel gateways, and end events. waits caches waits."""
+        has anything but tasks, throw and timed events, exclusive and parallel gateways, and end events. 'waits' caches
+        waits."""
         graph = self.sim_setup.bpmn_graph
         reached = {}
         ways = [(element_id, ready, 1.0, 0, onward)]  # passing: the way goes on from it, even from a join
@@ -104,9 +105,15 @@ class Estimating:
                 continue
             if info.type is BPMN.END_EVENT:
                 continue
-            if info.type not in (BPMN.TASK, BPMN.INTERMEDIATE_THROW_EVENT, BPMN.EXCLUSIVE_GATEWAY,
-                                 BPMN.PARALLEL_GATEWAY):
+            if info.type not in (BPMN.TASK, BPMN.INTERMEDIATE_THROW_EVENT, BPMN.INTERMEDIATE_EVENT,
+                                 BPMN.EXCLUSIVE_GATEWAY, BPMN.PARALLEL_GATEWAY):
                 return None
+            if info.type is BPMN.INTERMEDIATE_EVENT:
+                # a timer or other timed event lasts its drawn duration, in clock time; one waiting for a message
+                # isn't forecast
+                if element_id in self._consume_points or element_id not in graph.event_distribution:
+                    return None
+                ready += timedelta(seconds=_mean(graph.event_distribution[element_id]))
             if info.type is BPMN.TASK:
                 if element_id not in waits:
                     waits[element_id] = self._average_wait(element_id, now)
