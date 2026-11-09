@@ -74,11 +74,9 @@ def test_a_branch_on_the_way_is_weighted_by_its_probability(tmp_path):
     assert _slots(_warehouse(tmp_path, model="check_then_shelve")) == [made(index) + 12 * MINUTE for index in range(5)]
 
 
-def test_a_loop_back_is_followed_until_its_chance_is_negligible(tmp_path):
-    # a fixed item is checked again: on average 0.25 fixes, 15 minutes; the ways cut off shift it by microseconds
-    [slot] = _slots(_warehouse(tmp_path, items=1, model="check_again"))
-
-    assert abs(slot - (made(0) + 15 * MINUTE)) < timedelta(milliseconds=1)
+def test_a_loop_back_adds_its_expected_number_of_rounds(tmp_path):
+    # a fixed item is checked again: on average 0.25 fixes, 15 minutes
+    assert _slots(_warehouse(tmp_path, items=1, model="check_again")) == [made(0) + 15 * MINUTE]
 
 
 def test_a_split_the_items_data_decides_is_exact(tmp_path):

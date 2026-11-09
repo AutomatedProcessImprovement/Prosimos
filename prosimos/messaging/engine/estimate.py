@@ -116,12 +116,12 @@ class Estimating:
         'waits' caches waits."""
         graph = self.sim_setup.bpmn_graph
         reached = {}
-        ways = [(element_id, ready, 1.0, 0, onward)]  # passing: the way goes on from it, even from a join
+        # path: the elements the way has passed; passing: the way goes on from element_id, even from a join
+        ways = [(element_id, ready, 1.0, (), onward)]
         while ways:
-            element_id, ready, chance, steps, passing = ways.pop()
-            # a loop back is followed until its chance is negligible; one the case's data decides never ends: it is cut
-            if chance < _NEGLIGIBLE or steps > _MOST_STEPS:
-                continue
+            element_id, ready, chance, path, passing = ways.pop()
+            if element_id in path:
+                return None  # a loop back other than from an exclusive split along a plain way
             info = graph.element_info[element_id]
             if element_id in events or (_is_join(info) and not passing):
                 reached.setdefault(element_id, []).append((chance, ready))
@@ -132,37 +132,31 @@ class Estimating:
                                  BPMN.EXCLUSIVE_GATEWAY, BPMN.PARALLEL_GATEWAY, BPMN.INCLUSIVE_GATEWAY,
                                  BPMN.EVENT_BASED_GATEWAY):
                 return None
-            if info.type is BPMN.INTERMEDIATE_EVENT:
-                # a wait for a message takes the average so far; a timer or other timed event, its drawn duration
-                if element_id in self._consume_points:
-                    ready += timedelta(seconds=self._average_caught(element_id))
-                elif element_id in graph.event_distribution:
-                    ready += timedelta(seconds=_mean(graph.event_distribution[element_id]))
-                else:
-                    return None
-            if info.type is BPMN.TASK:
-                if element_id not in waits:
-                    waits[element_id] = self._average_wait(element_id, now)
-                ready = forecast_end(ready, self._staff_calendars(element_id),
-                                     waits[element_id] + self._average_duration(element_id))
+            ready = self._pass(element_id, ready, 1, now, waits)
+            if ready is None:
+                return None
+            path += (element_id,)
             if len(info.outgoing_flows) == 1:
-                ways.append((graph.flow_arcs[info.outgoing_flows[0]][1], ready, chance, steps + 1, False))
+                ways.append((graph.flow_arcs[info.outgoing_flows[0]][1], ready, chance, path, False))
             elif info.type is BPMN.EVENT_BASED_GATEWAY:
                 branches = self._race_ways(p_case, info.id, ready, events, now, waits)
                 if branches is None:
                     return None
-                ways += [(element, branch_ready, chance * share, steps + 1, False)
+                ways += [(element, branch_ready, chance * share, path, False)
                          for element, branch_ready, share in branches]
             elif info.type is BPMN.EXCLUSIVE_GATEWAY:
-                ways += [(graph.flow_arcs[flow][1], ready, chance * share, steps + 1, False)
-                         for flow, share in self._branches(info, p_case)]
+                branches = self._exclusive_ways(p_case, info, ready, path, events, now, waits)
+                if branches is None:
+                    return None
+                ways += [(element, branch_ready, chance * share, path, False)
+                         for element, branch_ready, share in branches]
             elif info.type is BPMN.PARALLEL_GATEWAY:  # a split: on from its join when the longest branch gets there
                 joined = _joined([self._forecast(p_case, graph.flow_arcs[flow][1], ready, events, now, waits)
                                   for flow in info.outgoing_flows], events)
                 if joined is None:
                     return None
                 join, ready = joined
-                ways.append((join, ready, chance, steps + 1, True))
+                ways.append((join, ready, chance, path, True))
             else:  # an inclusive split: each combination of branches on from the join when its longest gets there
                 combinations = self._combinations(info)
                 forecasts = [self._forecast(p_case, graph.flow_arcs[flow][1], ready, events, now, waits)
@@ -171,9 +165,64 @@ class Estimating:
                 if combinations is None or None in branches or len({join for join, _ in branches}) != 1:
                     return None
                 join = branches[0][0]
-                ways += [(join, max(branches[index][1] for index in chosen), chance * share, steps + 1, True)
+                ways += [(join, max(branches[index][1] for index in chosen), chance * share, path, True)
                          for chosen, share in combinations]
         return {target: _average(ways) for target, ways in reached.items()}
+
+    def _pass(self, element_id, ready, times, now, waits):
+        """When the case ready at ready has passed element_id times over (a fraction for an expected count): a task
+        takes its average wait and duration in working time, a catch event its average wait for a message, a timer
+        or other timed event its drawn duration; None for an event without a duration."""
+        graph = self.sim_setup.bpmn_graph
+        info = graph.element_info[element_id]
+        if info.type is BPMN.TASK:
+            if element_id not in waits:
+                waits[element_id] = self._average_wait(element_id, now)
+            return forecast_end(ready, self._staff_calendars(element_id),
+                                times * (waits[element_id] + self._average_duration(element_id)))
+        if info.type is not BPMN.INTERMEDIATE_EVENT:
+            return ready
+        if element_id in self._consume_points:
+            return ready + timedelta(seconds=times * self._average_caught(element_id))
+        if element_id in graph.event_distribution:
+            return ready + timedelta(seconds=times * _mean(graph.event_distribution[element_id]))
+        return None
+
+    def _exclusive_ways(self, p_case, info, ready, path, events, now, waits):
+        """(element, ready time, chance) of each branch of the exclusive split info out of it, the case having passed
+        path and got there at ready. A branch whose plain way leads back to an element on path loops: the way out
+        is taken after the expected number of loop backs, each repeating the loop's elements, within the model's
+        loop limit (Prosimos stops a case at a split it has passed that many times). None if it can't be followed."""
+        graph = self.sim_setup.bpmn_graph
+        out, back = [], []  # (element, chance) and (the way back, its loop's elements, chance)
+        for flow, share in self._branches(info, p_case):
+            element_id, way_back = graph.flow_arcs[flow][1], []
+            # a plain way: elements with one way on, other than catch events in events and race branches
+            while (element_id not in path and element_id not in events and element_id not in self._race_gateway_of
+                   and len(graph.element_info[element_id].outgoing_flows) == 1 and element_id not in way_back):
+                way_back.append(element_id)
+                element_id = graph.flow_arcs[graph.element_info[element_id].outgoing_flows[0]][1]
+            if element_id in path:
+                back.append((way_back, path[path.index(element_id):], share))
+            else:
+                out.append((graph.flow_arcs[flow][1], share))
+        if not back:
+            return [(element_id, ready, share) for element_id, share in out]
+        looping = sum(share for _, _, share in back)
+        passes = graph.gateway_execution_limit - graph.simulation_execution_stats.get_element_executions(
+            p_case, info.id)  # including this one
+        if looping >= _WHOLE or passes < 1:
+            return []
+        leaving = 1 - looping ** passes
+        # loop backs before the way out within the passes left: a geometric count cut at passes - 1
+        loops = looping * (1 - passes * looping ** (passes - 1) + (passes - 1) * looping ** passes) / (
+            (1 - looping) * leaving)
+        for way_back, loop, share in back:
+            for element_id in way_back + list(loop):
+                ready = self._pass(element_id, ready, loops * share / looping, now, waits)
+                if ready is None:
+                    return None
+        return [(element_id, ready, share / (1 - looping) * leaving) for element_id, share in out]
 
     def _race_ways(self, p_case, gateway_id, ready, events, now, waits, race=None):
         """(element, ready time, chance) where each branch of the race at gateway_id goes on after it wins, the case
@@ -304,9 +353,7 @@ class Estimating:
         return point is not None and self._accepts(point, values, p_case)
 
 
-_NEGLIGIBLE = 1e-9
-_MOST_STEPS = 1000
-# an expected count summed from chances, less the negligible ones, may fall a little short of a whole number
+# an expected count summed from chances may fall a little short of a whole number
 _WHOLE = 1 - 1e-6
 
 

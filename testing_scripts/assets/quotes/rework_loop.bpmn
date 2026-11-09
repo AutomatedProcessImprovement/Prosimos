@@ -1,0 +1,23 @@
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"><bpmn:process id="Warehouse">
+<bpmn:startEvent id="Start"><bpmn:outgoing>F1</bpmn:outgoing></bpmn:startEvent>
+<bpmn:task id="Make"><bpmn:incoming>F1</bpmn:incoming><bpmn:outgoing>F2</bpmn:outgoing></bpmn:task>
+<bpmn:exclusiveGateway id="Merge"><bpmn:incoming>F2</bpmn:incoming><bpmn:incoming>F7</bpmn:incoming>
+  <bpmn:outgoing>F3</bpmn:outgoing></bpmn:exclusiveGateway>
+<bpmn:task id="Inspect"><bpmn:incoming>F3</bpmn:incoming><bpmn:outgoing>F4</bpmn:outgoing></bpmn:task>
+<bpmn:exclusiveGateway id="Check"><bpmn:incoming>F4</bpmn:incoming><bpmn:outgoing>Good</bpmn:outgoing>
+  <bpmn:outgoing>Bad</bpmn:outgoing></bpmn:exclusiveGateway>
+<bpmn:task id="Rework"><bpmn:incoming>Bad</bpmn:incoming><bpmn:outgoing>F7</bpmn:outgoing></bpmn:task>
+<bpmn:task id="Pack"><bpmn:incoming>Good</bpmn:incoming><bpmn:outgoing>F5</bpmn:outgoing></bpmn:task>
+<bpmn:intermediateCatchEvent id="Shelf"><bpmn:incoming>F5</bpmn:incoming><bpmn:outgoing>F6</bpmn:outgoing>
+  <bpmn:messageEventDefinition/></bpmn:intermediateCatchEvent>
+<bpmn:endEvent id="End"><bpmn:incoming>F6</bpmn:incoming></bpmn:endEvent>
+<bpmn:sequenceFlow id="F1" sourceRef="Start" targetRef="Make"/>
+<bpmn:sequenceFlow id="F2" sourceRef="Make" targetRef="Merge"/>
+<bpmn:sequenceFlow id="F3" sourceRef="Merge" targetRef="Inspect"/>
+<bpmn:sequenceFlow id="F4" sourceRef="Inspect" targetRef="Check"/>
+<bpmn:sequenceFlow id="Good" sourceRef="Check" targetRef="Pack"/>
+<bpmn:sequenceFlow id="Bad" sourceRef="Check" targetRef="Rework"/>
+<bpmn:sequenceFlow id="F7" sourceRef="Rework" targetRef="Merge"/>
+<bpmn:sequenceFlow id="F5" sourceRef="Pack" targetRef="Shelf"/>
+<bpmn:sequenceFlow id="F6" sourceRef="Shelf" targetRef="End"/>
+</bpmn:process></bpmn:definitions>
