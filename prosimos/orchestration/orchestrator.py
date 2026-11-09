@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from prosimos.orchestration.config import check_no_orchestrator, checked_consumer_groups, checked_load_balancing
 from prosimos.orchestration.load_balancing import offer_order
-from prosimos.orchestration.quotes import QuoteBook
+from prosimos.orchestration.quotes import OUTCOMES, QuoteBook
 from prosimos.orchestration.output import plain
 from prosimos.orchestration.protocol import (ORCHESTRATOR, CaseElement, CaseObject, EngineReport, Message,
                                            MessageRecord, QuoteKind, SimulationEngine, StalledCase, Verdict)
@@ -34,6 +34,7 @@ class RunReport:
     objects: List[Tuple[str, CaseObject]] = field(default_factory=list)
     # process -> the element id of each row of its log, in order, from finish(); for the OCEL output only
     logged_elements: Dict[str, List[str]] = field(default_factory=dict)
+    quotes: Dict[str, Dict[str, int]] = field(default_factory=dict)  # quote type -> how often each of OUTCOMES
 
     @property
     def discarded_counts(self) -> Dict[Tuple[str, str], int]:
@@ -68,6 +69,9 @@ class RunReport:
                                  "publishers": [plain(publisher) for publisher in record.publishers],
                                  "claimers": [plain(claimer) for claimer in record.claimers]}
                                 for record in self.message_records],
+            # only with quotes, so a run without keeps its report as it was
+            **({"quotes": [{"type": quote_type, **counts} for quote_type, counts in self.quotes.items()]}
+               if self.quotes else {}),
         }
 
 
@@ -218,6 +222,8 @@ def orchestrate(
         generators.give_back()
 
     report.unclaimed = [(pooled.group, pooled.message) for pooled in pool]
+    report.quotes = {quote_type: {outcome: counts[outcome] for outcome in OUTCOMES}
+                     for quote_type, counts in quote_book.outcomes.items()}
     # the engines' records are only joined here, once the run is over: nothing during the run uses them
     publishers, claimers = defaultdict(list), defaultdict(list)
     for name in names:

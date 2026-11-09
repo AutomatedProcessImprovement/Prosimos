@@ -1,7 +1,8 @@
 """
 Canceling a quote (docs/orchestrator.md): every line is released at its member, with the message that reserved it,
-unless some line has already moved on: then it is too late and nothing is released. A cancel of a declined, locked,
-or unknown quote does nothing, and a cancel gets no reply.
+unless some line has already moved on: then it is too late and nothing is released. A cancel of a declined or
+unknown quote does nothing, nor of a locked one, which it marks complete once every line has moved on; a cancel gets
+no reply.
 """
 from datetime import datetime, timedelta
 
@@ -79,9 +80,10 @@ def test_too_late_once_one_member_has_moved_nothing_is_released():
                        (START + 2 * HOUR, _cancel)], moved=lambda message, now: True)
 
     assert engines["Tartu"].released == [] and engines["Tallinn"].released == []
-    # Tartu's iPhone hasn't moved, Tallinn's iPad has; the second cancel finds the quote locked and asks nobody
-    assert _ids(engines["Tartu"].moved_checks) == [("m1", START + HOUR)]
-    assert _ids(engines["Tallinn"].moved_checks) == [("m1", START + HOUR)]
+    # Tartu's iPhone hasn't moved, Tallinn's iPad has; the second cancel finds the quote locked and asks again
+    # whether everything has moved on since
+    assert _ids(engines["Tartu"].moved_checks) == [("m1", START + HOUR), ("m1", START + 2 * HOUR)]
+    assert _ids(engines["Tallinn"].moved_checks) == [("m1", START + HOUR), ("m1", START + 2 * HOUR)]
 
 
 def test_a_cancel_of_a_quote_without_lines_removes_it_with_nothing_to_release():

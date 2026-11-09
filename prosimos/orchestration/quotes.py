@@ -1,4 +1,5 @@
 """Quotes: the orchestrator asks the members of the group that supplies a quote's lines (docs/orchestrator.md)."""
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -19,6 +20,11 @@ def ask_members(message: Message, members: List[str], engine: Callable[[str], Si
                 now: datetime) -> Dict[str, Slots]:
     """Each member's slots for the stamped quote message, asked at now; engine(name) gives a member's engine."""
     return {member: engine(member).estimate(message, now) for member in members}
+
+
+# what became of the quote, modify, and cancel messages of a quote type, in the report's quotes section
+OUTCOMES = ("accepted", "declined", "canceled", "cancel_too_late", "modified_accepted", "modified_declined",
+            "declined_as_second")
 
 
 class QuoteState(Enum):
@@ -59,6 +65,7 @@ class QuoteBook:
         # the members a cancel or modify released lines at, since the orchestrator last took them: its pooled copies
         # are offered again, as a freed item may take one
         self.released_at: List[str] = []
+        self.outcomes: Dict[str, Counter] = defaultdict(Counter)  # quote type -> how often each of OUTCOMES
 
     def answer(self, message: Message, members: List[str], engine: Callable[[str], SimulationEngine],
                now: datetime, warn: Callable[[str], None]) -> Message:
@@ -69,12 +76,22 @@ class QuoteBook:
         quote, key = _replied(message), _key(message)
         if key in self.quotes and self._still_open(self.quotes[key], engine, now):
             warn(f"{quote.request} already has an open {quote.quote_type}; use modify")
+            self.outcomes[quote.quote_type]["declined_as_second"] += 1
             return _declined(quote, None)
         limit = None if quote.limit is None else message.time + quote.limit
-        return self._quote(message, quote.lines, members, engine, now, limit, warn)
+        reply = self._quote(message, quote.lines, members, engine, now, limit, warn)
+        self.outcomes[quote.quote_type]["accepted" if reply.type == quote.accepted else "declined"] += 1
+        return reply
 
     def modify(self, message: Message, members: List[str], engine: Callable[[str], SimulationEngine],
                now: datetime, warn: Callable[[str], None]) -> Message:
+        """Changes the requester's open quote to the modify's lines (see _modify), and counts the reply."""
+        reply = self._modify(message, members, engine, now, warn)
+        quote = message.quote
+        self.outcomes[quote.quote_type]["modified_" + ("accepted" if reply.type == quote.accepted else "declined")] += 1
+        return reply
+
+    def _modify(self, message, members, engine, now, warn):
         """Changes the requester's open quote to the modify's lines: lines in both lists, matched by their
         attributes, stay where they are, and the added ones are quoted; within the original limit date, the dropped
         lines are released, the added ones reserved, and the reply is accepted, else nothing changes and it is
@@ -111,19 +128,22 @@ class QuoteBook:
     def cancel(self, message: Message, engine: Callable[[str], SimulationEngine], now: datetime):
         """Releases every line of the requester's open quote at its member, unless some share has moved on: then
         nothing is released, and the quote is complete if every member's share has, else locked, too late. One
-        without lines simply leaves the book. A declined, locked, complete, or unknown quote is left as it is; a
-        cancel gets no reply."""
-        key = _key(message)
+        without lines simply leaves the book. A locked quote becomes complete once every share has moved on; a
+        declined, complete, or unknown one is left as it is. A cancel gets no reply."""
+        key, outcomes = _key(message), self.outcomes[message.quote.quote_type]
         tracked = self.quotes.get(key)
+        if tracked is not None and tracked.state in (QuoteState.OPEN, QuoteState.LOCKED):
+            tracked.state = _moved_state(tracked, engine, now)  # a share that has moved on stays moved on
         if tracked is None or tracked.state is not QuoteState.OPEN:
-            return
-        tracked.state = _moved_state(tracked, engine, now)
-        if tracked.state is not QuoteState.OPEN:
+            # after a full delivery the cancel isn't too late: there is nothing left to cancel
+            if tracked is not None and tracked.state is QuoteState.LOCKED:
+                outcomes["cancel_too_late"] += 1
             return
         for member, reserving, line_ids in _held(tracked, tracked.lines):
             engine(member).release(reserving, line_ids, now)
             self.released_at.append(member)
         del self.quotes[key]
+        outcomes["canceled"] += 1
 
     def _quote(self, message, lines, members, engine, now, limit, warn):
         """A fresh quote of lines against limit: tracked open with its reserved lines and accepted, or declined.
