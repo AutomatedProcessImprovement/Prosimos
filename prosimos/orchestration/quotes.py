@@ -116,8 +116,8 @@ class QuoteBook:
         plan = plan_lines(added, ask_members(message, members, engine, now)) if added else Plan()
         if plan is None:
             return _declined(quote, None)
-        ready_by = max([tracked.lines[line_id].ready for line_id in kept] + [time for _, time in plan.lines.values()],
-                       default=message.time)
+        ready_by = _ready_by([*(tracked.lines[line_id].ready for line_id in kept),
+                              *(time for _, time in plan.lines.values())], message)
         if tracked.limit is not None and ready_by > tracked.limit:
             return _declined(quote, ready_by)
         dropped = [line_id for line_id in tracked.lines if line_id not in kept]
@@ -160,12 +160,13 @@ class QuoteBook:
             self.quotes[_key(message)] = TrackedQuote(QuoteState.OPEN, limit)
             return _accepted(quote, self.quotes[_key(message)], message.time)
         plan = plan_lines(lines, ask_members(message, members, engine, now))
-        if plan is None or limit is not None and plan.ready_by > limit:
+        ready_by = None if plan is None else _ready_by([time for _, time in plan.lines.values()], message)
+        if plan is None or limit is not None and ready_by > limit:
             self.quotes[_key(message)] = TrackedQuote(QuoteState.DECLINED, limit)
-            return _declined(quote, plan.ready_by if plan else None)
+            return _declined(quote, ready_by)
         tracked = self.quotes[_key(message)] = TrackedQuote(QuoteState.OPEN, limit)
         _reserve(tracked, message, lines, plan, members, engine, now)
-        return _accepted(quote, tracked, plan.ready_by)
+        return _accepted(quote, tracked, ready_by)
 
     @staticmethod
     def _still_open(tracked, engine, now):
@@ -221,6 +222,12 @@ def _reserve(tracked, message, lines, plan, members, engine, now):
             engine(member).reserve(message, line_ids, now)
             tracked.lines.update((line_id, HeldLine(line_of[line_id], member, message, plan.lines[line_id][1]))
                                  for line_id in line_ids)
+
+
+def _ready_by(times, message):
+    """When the lines ready at times can all be ready, as a reply to message says: never before the message's own
+    time, as an item waiting since earlier is ready only now."""
+    return max([*times, message.time])
 
 
 def _accepted(quote, tracked, ready_by):
