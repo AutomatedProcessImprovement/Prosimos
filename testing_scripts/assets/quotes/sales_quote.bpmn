@@ -1,0 +1,29 @@
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"><bpmn:process id="Sales">
+<bpmn:startEvent id="Start"><bpmn:outgoing>F1</bpmn:outgoing></bpmn:startEvent>
+<bpmn:task id="Place_Order"><bpmn:incoming>F1</bpmn:incoming><bpmn:outgoing>F2</bpmn:outgoing></bpmn:task>
+<bpmn:intermediateThrowEvent id="Throw_Quote"><bpmn:incoming>F2</bpmn:incoming><bpmn:outgoing>F3</bpmn:outgoing>
+  <bpmn:messageEventDefinition/></bpmn:intermediateThrowEvent>
+<bpmn:intermediateCatchEvent id="Catch_Reply"><bpmn:incoming>F3</bpmn:incoming><bpmn:outgoing>F4</bpmn:outgoing>
+  <bpmn:messageEventDefinition/></bpmn:intermediateCatchEvent>
+<bpmn:eventBasedGateway id="Race"><bpmn:incoming>F4</bpmn:incoming><bpmn:outgoing>F5</bpmn:outgoing>
+  <bpmn:outgoing>F6</bpmn:outgoing></bpmn:eventBasedGateway>
+<bpmn:intermediateCatchEvent id="Catch_Shipped"><bpmn:incoming>F5</bpmn:incoming><bpmn:outgoing>F7</bpmn:outgoing>
+  <bpmn:messageEventDefinition/></bpmn:intermediateCatchEvent>
+<bpmn:intermediateCatchEvent id="Give_Up"><bpmn:incoming>F6</bpmn:incoming><bpmn:outgoing>F8</bpmn:outgoing>
+  <bpmn:timerEventDefinition/></bpmn:intermediateCatchEvent>
+<bpmn:task id="Receive"><bpmn:incoming>F7</bpmn:incoming><bpmn:outgoing>F9</bpmn:outgoing></bpmn:task>
+<bpmn:intermediateThrowEvent id="Throw_Cancel"><bpmn:incoming>F9</bpmn:incoming><bpmn:outgoing>F10</bpmn:outgoing>
+  <bpmn:messageEventDefinition/></bpmn:intermediateThrowEvent>
+<bpmn:endEvent id="End_Shipped"><bpmn:incoming>F10</bpmn:incoming></bpmn:endEvent>
+<bpmn:endEvent id="End_Gave_Up"><bpmn:incoming>F8</bpmn:incoming></bpmn:endEvent>
+<bpmn:sequenceFlow id="F1" sourceRef="Start" targetRef="Place_Order"/>
+<bpmn:sequenceFlow id="F2" sourceRef="Place_Order" targetRef="Throw_Quote"/>
+<bpmn:sequenceFlow id="F3" sourceRef="Throw_Quote" targetRef="Catch_Reply"/>
+<bpmn:sequenceFlow id="F4" sourceRef="Catch_Reply" targetRef="Race"/>
+<bpmn:sequenceFlow id="F5" sourceRef="Race" targetRef="Catch_Shipped"/>
+<bpmn:sequenceFlow id="F6" sourceRef="Race" targetRef="Give_Up"/>
+<bpmn:sequenceFlow id="F7" sourceRef="Catch_Shipped" targetRef="Receive"/>
+<bpmn:sequenceFlow id="F8" sourceRef="Give_Up" targetRef="End_Gave_Up"/>
+<bpmn:sequenceFlow id="F9" sourceRef="Receive" targetRef="Throw_Cancel"/>
+<bpmn:sequenceFlow id="F10" sourceRef="Throw_Cancel" targetRef="End_Shipped"/>
+</bpmn:process></bpmn:definitions>

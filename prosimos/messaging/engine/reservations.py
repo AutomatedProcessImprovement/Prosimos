@@ -64,3 +64,4 @@ class Reservations:
                 del self._set_aside[key]
                 self._claim(self._parked_events[key], point, line["values"], now)
                 self._moved_quotes[line["quote"]] = now
+                self.line_claims.append((line["quote"], *key, point, now))

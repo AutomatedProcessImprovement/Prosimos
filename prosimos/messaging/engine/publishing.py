@@ -30,14 +30,15 @@ class Publishing:
         elif self._quote_kinds.get(point.type, (None, None))[0] == "cancel":
             self._open_quotes.get(p_case, {}).pop(self._quote_kinds[point.type][1].type, None)
 
-    def _cancel_open_quotes(self, p_case, due):
+    def _cancel_open_quotes(self, p_case, due, ended_at):
         """Publishes the cancel of each quote the ended case left open, at due, as if the model had thrown it at the
-        cancel's own event."""
+        cancel's own event; its record names ended_at, the end event where the case ended, which its links attach
+        to (the case never passed the cancel's event)."""
         for quoted in self._open_quotes.pop(p_case, {}).values():
             cancel = next(point for point in self._publish_points.get(self._cancel_events[quoted.quote.cancel], [])
                           if point.type == quoted.quote.cancel)
             self.outbox.append((cancel.type, self._message_attributes(cancel, p_case, 1), ((p_case, due),),
-                                cancel.event_id, cancel, self._quote_of(cancel, p_case)))
+                                ended_at or cancel.event_id, cancel, self._quote_of(cancel, p_case)))
 
     def _quote_lines(self, quoted, p_case, event_id):
         """The lines of the quote entry quoted, read from the case now, as a case passing event_id asks them: the

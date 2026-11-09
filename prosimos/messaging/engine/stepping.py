@@ -76,9 +76,11 @@ class Stepping:
             if isinstance(element_id, Pile):  # its deadline
                 self._deadline_passed(element_id)
                 continue
+            if element_id in self._watched_ends:  # also a terminate end event, whose own pass is skipped below
+                self._ended_at[p_case] = element_id
             if element_id is None:
                 self._end_terminated(p_case)
-                self._cancel_open_quotes(p_case, due)
+                self._cancel_open_quotes(p_case, due, self._ended_at.get(p_case))
             if self.sim_setup.bpmn_graph.terminated_by(p_case, due):
                 continue
             for point in self._publish_points.get(element_id, []):
@@ -91,7 +93,7 @@ class Stepping:
                 self._track_quote(point, p_case)
             if element_id in self._watched_ends and not any(self.all_process_states[p_case].tokens.values()) \
                     and not any(held[1] == p_case for held in self._held):
-                self._cancel_open_quotes(p_case, due)  # the case ended now
+                self._cancel_open_quotes(p_case, due, element_id)  # the case ended now
 
     def _end_terminated(self, p_case):
         """Ends a case a terminate end event ended: its tokens and races go; parked_events() then drops its waits."""

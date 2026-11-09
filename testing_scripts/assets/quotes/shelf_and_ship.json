@@ -1,0 +1,89 @@
+{
+  "resource_profiles": [
+    {
+      "id": "Shipper",
+      "name": "Shipper",
+      "resource_list": [
+        {
+          "id": "Shipper",
+          "name": "Shipper",
+          "cost_per_hour": 1,
+          "amount": 5,
+          "calendar": "Always",
+          "assigned_tasks": [
+            "Ship"
+          ]
+        }
+      ]
+    }
+  ],
+  "task_resource_distribution": [
+    {
+      "task_id": "Ship",
+      "resources": [
+        {
+          "resource_id": "Shipper",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 600
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "resource_calendars": [
+    {
+      "id": "Always",
+      "name": "Always",
+      "time_periods": [
+        {
+          "from": "MONDAY",
+          "to": "SUNDAY",
+          "beginTime": "00:00:00",
+          "endTime": "23:59:59"
+        }
+      ]
+    }
+  ],
+  "arrival_time_calendar": [
+    {
+      "from": "MONDAY",
+      "to": "SUNDAY",
+      "beginTime": "00:00:00",
+      "endTime": "23:59:59"
+    }
+  ],
+  "gateway_branching_probabilities": [],
+  "arrival_time_distribution": {
+    "distribution_name": "fix",
+    "distribution_params": [
+      {
+        "value": 14400
+      }
+    ]
+  },
+  "messages": {
+    "consume": [
+      {
+        "event_id": "Shelf",
+        "type": "ItemQuote",
+        "qualifier": "reserved for",
+        "copy": {
+          "order_id": "object_id"
+        }
+      }
+    ],
+    "publish": [
+      {
+        "event_id": "Throw_Shipped",
+        "type": "Shipped",
+        "attributes": [
+          "order_id"
+        ],
+        "qualifier": "ships"
+      }
+    ]
+  }
+}

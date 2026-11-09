@@ -235,6 +235,9 @@ def orchestrate(
         for record in engine_report.claimed:
             claimers[record.message_id].append(CaseElement(name, record.object_id, record.element_id, record.qualifier,
                                                            record.task_rows, record.o2o, record.carry))
+    for message in report.published:  # the replies to quotes
+        if message.source == ORCHESTRATOR:
+            publishers[message.id].append(CaseElement(ORCHESTRATOR, "", ""))
     report.message_records = [MessageRecord(message.id, message.type, publishers[message.id], claimers[message.id])
                               for message in report.published]
     return report

@@ -163,6 +163,7 @@ class ProsimosEngine(SimulationEngine):
             created, only_started = self._env.case_creation_times(), self._env.only_started_values()
             objects = [CaseObject(self._env.object_id(p_case), created[p_case], history, only_started[p_case])
                        for p_case, history in sorted(self._env.case_attribute_history().items())]
+            self._claimed.extend(self._env.line_claims)  # an item that took a line claimed its quote or modify
             published, claimed = self._attached_records()
             logged_elements = [element_id for _, element_id, _, _ in self._env.logged_rows]
         return EngineReport(stalled, list(self._warnings), published, claimed, objects, logged_elements)

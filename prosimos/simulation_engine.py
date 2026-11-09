@@ -116,6 +116,8 @@ class SimBPMEnv(EngineMessaging):
         self._open_lines = []  # the reserved lines no item has taken yet, oldest first
         self._set_aside = dict()  # (case id, event id) of a waiting item -> (the line it took, the consume entry)
         self._moved_quotes = dict()  # the id of each quote or modify message whose lines moved on here -> when
+        self.line_claims = []  # (quote or modify message id, case id, event id, consume entry, when) per line taken
+        self._ended_at = dict()  # case id -> the end event it last passed, where its open quotes' cancels attach
         self._piles = dict()  # (fan-in entry, its same values) -> the Pile of the parts handed in so far
         self._warned_fan_in_sizes = set()
         self._warned_fan_in_numbers = set()
