@@ -1,7 +1,7 @@
 """Quotes: the orchestrator asks the members of the group that supplies a quote's lines (docs/orchestrator.md)."""
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
 from typing import Callable, Dict, List, Optional, Tuple
 
@@ -49,11 +49,13 @@ class HeldLine:
 
 @dataclass
 class TrackedQuote:
-    """A quote the orchestrator tracks: its state, its limit date (None: no limit), and its held lines by line id."""
+    """A quote the orchestrator tracks: its state, its limit date (None: no limit), its held lines by line id, and
+    the ready_by of its last accepted reply, its promise."""
 
     state: QuoteState
     limit: Optional[datetime] = None
     lines: Dict[str, HeldLine] = field(default_factory=dict)
+    ready_by: Optional[datetime] = None
 
 
 class QuoteBook:
@@ -66,6 +68,8 @@ class QuoteBook:
         # are offered again, as a freed item may take one
         self.released_at: List[str] = []
         self.outcomes: Dict[str, Counter] = defaultdict(Counter)  # quote type -> how often each of OUTCOMES
+        # (book key, quote) of each quote a fresh quote of the same requester and type replaced: its promise stands
+        self.replaced: List[Tuple[Tuple[str, str, str], TrackedQuote]] = []
 
     def answer(self, message: Message, members: List[str], engine: Callable[[str], SimulationEngine],
                now: datetime, warn: Callable[[str], None]) -> Message:
@@ -149,6 +153,8 @@ class QuoteBook:
         """A fresh quote of lines against limit: tracked open with its reserved lines and accepted, or declined.
         Without lines, it is accepted at once, with a warning."""
         quote = message.quote
+        if _key(message) in self.quotes:
+            self.replaced.append((_key(message), self.quotes[_key(message)]))
         if not lines:
             warn(f"{message.type} {message.id} from {message.source} has no lines")
             self.quotes[_key(message)] = TrackedQuote(QuoteState.OPEN, limit)
@@ -218,6 +224,7 @@ def _reserve(tracked, message, lines, plan, members, engine, now):
 
 
 def _accepted(quote, tracked, ready_by):
+    tracked.ready_by = ready_by
     # deliveries: the members holding lines, each delivering its share at once
     return Message(quote.accepted, {"request": quote.request, "ready_by": ready_by,
                                     "deliveries": len({held.member for held in tracked.lines.values()})})
@@ -235,6 +242,26 @@ def _held(tracked, line_ids):
         line = tracked.lines[line_id]
         held.setdefault((line.member, id(line.reserving)), (line.member, line.reserving, []))[2].append(line_id)
     return list(held.values())
+
+
+def broken_promises(book: QuoteBook, moved: Dict[Tuple[str, str], datetime], end: Optional[datetime]):
+    """(quote type -> how late each member's share of its quotes, also those later ones replaced, moved on after the
+    quote's ready_by, quote type -> how long past it each share not moved on by end, the end of the run, is). moved:
+    (member, the id of a message that reserved lines there) -> when the share holding them moved on."""
+    late, overdue = defaultdict(list), defaultdict(list)
+    for (_, _, quote_type), tracked in [*book.replaced, *book.quotes.items()]:
+        if tracked.ready_by is None:
+            continue
+        shares = {}  # member -> when its share moved on: its lines from the quote and from modifies move together
+        held = _held(tracked, tracked.lines)
+        for member, reserving, _ in held:
+            if (member, reserving.id) in moved:
+                shares[member] = moved[(member, reserving.id)]
+        late[quote_type].extend(at - tracked.ready_by for at in shares.values() if at > tracked.ready_by)
+        if end is not None and tracked.ready_by < end:  # one promised after the end may still be kept
+            overdue[quote_type].extend(end - tracked.ready_by for member in {member for member, _, _ in held}
+                                       if member not in shares)
+    return dict(late), dict(overdue)
 
 
 def plan_lines(lines: List[Line], slots_of: Dict[str, Slots]) -> Optional[Plan]:

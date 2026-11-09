@@ -1,0 +1,15 @@
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"><bpmn:process id="Warehouse">
+<bpmn:startEvent id="Start"><bpmn:outgoing>F1</bpmn:outgoing></bpmn:startEvent>
+<bpmn:task id="Make"><bpmn:incoming>F1</bpmn:incoming><bpmn:outgoing>F2</bpmn:outgoing></bpmn:task>
+<bpmn:intermediateCatchEvent id="Shelf"><bpmn:incoming>F2</bpmn:incoming><bpmn:outgoing>F3</bpmn:outgoing>
+  <bpmn:messageEventDefinition/></bpmn:intermediateCatchEvent>
+<bpmn:task id="Ship"><bpmn:incoming>F3</bpmn:incoming><bpmn:outgoing>F4</bpmn:outgoing></bpmn:task>
+<bpmn:intermediateThrowEvent id="Throw_Shipped"><bpmn:incoming>F4</bpmn:incoming><bpmn:outgoing>F5</bpmn:outgoing>
+  <bpmn:messageEventDefinition/></bpmn:intermediateThrowEvent>
+<bpmn:endEvent id="End"><bpmn:incoming>F5</bpmn:incoming></bpmn:endEvent>
+<bpmn:sequenceFlow id="F1" sourceRef="Start" targetRef="Make"/>
+<bpmn:sequenceFlow id="F2" sourceRef="Make" targetRef="Shelf"/>
+<bpmn:sequenceFlow id="F3" sourceRef="Shelf" targetRef="Ship"/>
+<bpmn:sequenceFlow id="F4" sourceRef="Ship" targetRef="Throw_Shipped"/>
+<bpmn:sequenceFlow id="F5" sourceRef="Throw_Shipped" targetRef="End"/>
+</bpmn:process></bpmn:definitions>

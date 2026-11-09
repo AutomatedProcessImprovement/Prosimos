@@ -166,7 +166,8 @@ class ProsimosEngine(SimulationEngine):
             self._claimed.extend(self._env.line_claims)  # an item that took a line claimed its quote or modify
             published, claimed = self._attached_records()
             logged_elements = [element_id for _, element_id, _, _ in self._env.logged_rows]
-        return EngineReport(stalled, list(self._warnings), published, claimed, objects, logged_elements)
+        return EngineReport(stalled, list(self._warnings), published, claimed, objects, logged_elements,
+                            dict(self._env._moved_quotes))
 
     def _attached_records(self):
         """The publish and claim records, with the log rows their OCEL links attach to (see PublishRecord and

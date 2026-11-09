@@ -123,12 +123,12 @@ def _book_answers(*shelves):
     return book, message
 
 
-def test_an_accepted_quote_is_tracked_open_with_its_limit_date_and_each_lines_member_message_and_time():
+def test_an_accepted_quote_is_tracked_open_with_its_limit_date_each_lines_member_message_and_time_and_its_promise():
     book, message = _book_answers({"iPhone": [LATER]}, {"iPad": [LATER]})
     iphone, ipad = message.quote.lines
 
     assert book.quotes == {("Sales", "order-7", "ItemQuote"): TrackedQuote(QuoteState.OPEN, START + WITHIN, {
-        "l1": HeldLine(iphone, "Tartu", message, LATER), "l2": HeldLine(ipad, "Tallinn", message, LATER)})}
+        "l1": HeldLine(iphone, "Tartu", message, LATER), "l2": HeldLine(ipad, "Tallinn", message, LATER)}, LATER)}
 
 
 def test_a_declined_quote_is_tracked_declined_holding_nothing():

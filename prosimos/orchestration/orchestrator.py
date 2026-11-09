@@ -4,12 +4,12 @@ import itertools
 import random
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from prosimos.orchestration.config import check_no_orchestrator, checked_consumer_groups, checked_load_balancing
 from prosimos.orchestration.load_balancing import offer_order
-from prosimos.orchestration.quotes import OUTCOMES, QuoteBook
+from prosimos.orchestration.quotes import OUTCOMES, QuoteBook, broken_promises
 from prosimos.orchestration.output import plain
 from prosimos.orchestration.protocol import (ORCHESTRATOR, CaseElement, CaseObject, EngineReport, Message,
                                            MessageRecord, QuoteKind, SimulationEngine, StalledCase, Verdict)
@@ -35,6 +35,9 @@ class RunReport:
     # process -> the element id of each row of its log, in order, from finish(); for the OCEL output only
     logged_elements: Dict[str, List[str]] = field(default_factory=dict)
     quotes: Dict[str, Dict[str, int]] = field(default_factory=dict)  # quote type -> how often each of OUTCOMES
+    # quote type -> how many shares moved on after their quote's ready_by, and how late on average and at most; and
+    # how many hadn't moved on by the end of the run past their ready_by, and the longest overdue then (a lower bound)
+    broken_promises: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
     @property
     def discarded_counts(self) -> Dict[Tuple[str, str], int]:
@@ -46,6 +49,9 @@ class RunReport:
         """The whole report as plain lists and dicts, e.g. to save as JSON; messages by id, except in published."""
         def when(time):
             return time.isoformat()
+
+        def seconds(span):
+            return None if span is None else span.total_seconds()
 
         return {
             "executed": [{"time": when(time), "process": process} for time, process in self.executed],
@@ -70,7 +76,13 @@ class RunReport:
                                  "claimers": [plain(claimer) for claimer in record.claimers]}
                                 for record in self.message_records],
             # only with quotes, so a run without keeps its report as it was
-            **({"quotes": [{"type": quote_type, **counts} for quote_type, counts in self.quotes.items()]}
+            **({"quotes": [{"type": quote_type, **counts} for quote_type, counts in self.quotes.items()],
+                "broken_promises": [{"type": quote_type, "count": broken["count"],
+                                     "average_late": seconds(broken["average_late"]),
+                                     "most_late": seconds(broken["most_late"]),
+                                     "undelivered": broken["undelivered"],
+                                     "most_overdue": seconds(broken["most_overdue"])}
+                                    for quote_type, broken in self.broken_promises.items()]}
                if self.quotes else {}),
         }
 
@@ -225,7 +237,7 @@ def orchestrate(
     report.quotes = {quote_type: {outcome: counts[outcome] for outcome in OUTCOMES}
                      for quote_type, counts in quote_book.outcomes.items()}
     # the engines' records are only joined here, once the run is over: nothing during the run uses them
-    publishers, claimers = defaultdict(list), defaultdict(list)
+    publishers, claimers, moved = defaultdict(list), defaultdict(list), {}
     for name in names:
         engine_report = engines[name].finish()
         if not isinstance(engine_report, EngineReport):
@@ -234,6 +246,7 @@ def orchestrate(
         report.engine_warnings.extend((name, warning) for warning in engine_report.warnings)
         report.objects.extend((name, case_object) for case_object in engine_report.objects)
         report.logged_elements[name] = engine_report.logged_elements
+        moved.update(((name, message_id), at) for message_id, at in engine_report.moved.items())
         for record in engine_report.published:
             publishers[record.message_id].append(CaseElement(name, record.object_id, record.element_id,
                                                              record.qualifier, record.task_rows, record.o2o,
@@ -246,4 +259,15 @@ def orchestrate(
             publishers[message.id].append(CaseElement(ORCHESTRATOR, "", ""))
     report.message_records = [MessageRecord(message.id, message.type, publishers[message.id], claimers[message.id])
                               for message in report.published]
+    late, overdue = broken_promises(quote_book, moved, report.executed[-1][0] if report.executed else None)
+    report.broken_promises = {quote_type: {"count": len(late.get(quote_type, [])),
+                                           "average_late": _average(late.get(quote_type, [])),
+                                           "most_late": max(late.get(quote_type, []), default=None),
+                                           "undelivered": len(overdue.get(quote_type, [])),
+                                           "most_overdue": max(overdue.get(quote_type, []), default=None)}
+                              for quote_type in report.quotes}
     return report
+
+
+def _average(spans):
+    return sum(spans, timedelta()) / len(spans) if spans else None

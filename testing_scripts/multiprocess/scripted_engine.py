@@ -24,6 +24,7 @@ class ScriptedEngine(SimulationEngine):
         self.discarded = []  # (message, time) this engine discarded
         self._slots = {}
         self._moved = lambda message, now: False
+        self._shares_moved = lambda message: None
         self.estimated = []  # (quote message, time) every estimate() call
         self.moved_checks = []  # (quote message, time) every moved() call
         self.reserved = []  # (quote message, line ids, time) every reserve() call
@@ -81,6 +82,11 @@ class ScriptedEngine(SimulationEngine):
         nothing ever has."""
         self._moved = decide
 
+    def shares_moved(self, decide):
+        """decide(message) returns when the share the quote or modify message reserved here moved on, or None;
+        finish() reports it."""
+        self._shares_moved = decide
+
     def moved(self, message, now):
         self.moved_checks.append((message, now))
         return self._moved(message, now)
@@ -92,4 +98,6 @@ class ScriptedEngine(SimulationEngine):
         self.released.append((message, list(line_ids), now))
 
     def finish(self):
+        self.report.moved = {message.id: self._shares_moved(message) for message, _, _ in self.reserved
+                             if self._shares_moved(message) is not None}
         return self.report
