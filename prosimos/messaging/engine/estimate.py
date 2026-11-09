@@ -1,4 +1,6 @@
 """Estimates: when this engine's items could be ready for a quote's lines."""
+import itertools
+import math
 from datetime import timedelta
 
 from pix_framework.statistics.distribution import DistributionType
@@ -98,9 +100,9 @@ class Estimating:
 
     def _forecast(self, p_case, element_id, ready, events, now, waits, onward=False):
         """target -> (chance, average ready time) of the case p_case ready at element_id at ready; a target is a
-        catch event in events or the first parallel join a way meets (onward: other than element_id). None if a way
-        has anything but tasks, throw and timed events, exclusive and parallel gateways, and end events. 'waits' caches
-        waits."""
+        catch event in events or the first parallel or inclusive join a way meets (onward: other than element_id).
+        None if a way has anything but tasks, throw events, catch events outside races, gateways other than
+        event-based ones, and end events. 'waits' caches waits."""
         graph = self.sim_setup.bpmn_graph
         reached = {}
         ways = [(element_id, ready, 1.0, 0, onward)]  # passing: the way goes on from it, even from a join
@@ -116,7 +118,7 @@ class Estimating:
             if info.type is BPMN.END_EVENT:
                 continue
             if info.type not in (BPMN.TASK, BPMN.INTERMEDIATE_THROW_EVENT, BPMN.INTERMEDIATE_EVENT,
-                                 BPMN.EXCLUSIVE_GATEWAY, BPMN.PARALLEL_GATEWAY):
+                                 BPMN.EXCLUSIVE_GATEWAY, BPMN.PARALLEL_GATEWAY, BPMN.INCLUSIVE_GATEWAY):
                 return None
             if info.type is BPMN.INTERMEDIATE_EVENT:
                 # a wait for a message takes the average so far; a timer or other timed event, its drawn duration
@@ -143,9 +145,37 @@ class Estimating:
                     return None
                 join, ready = joined
                 ways.append((join, ready, chance, steps + 1, True))
-            else:
-                return None
+            else:  # an inclusive split: each combination of branches on from the join when its longest gets there
+                combinations = self._combinations(info)
+                forecasts = [self._forecast(p_case, graph.flow_arcs[flow][1], ready, events, now, waits)
+                             for flow in info.outgoing_flows]
+                branches = [_joined([forecast], events) for forecast in forecasts]
+                if combinations is None or None in branches or len({join for join, _ in branches}) != 1:
+                    return None
+                join = branches[0][0]
+                ways += [(join, max(branches[index][1] for index in chosen), chance * share, steps + 1, True)
+                         for chosen, share in combinations]
         return {target: _average(ways) for target, ways in reached.items()}
+
+    def _combinations(self, info):
+        """(indices of the outgoing flows taken, chance) of each combination the inclusive split info may take, as
+        Prosimos picks one: each flow with its own chance, and if none is taken, one drawn by the chances. None if
+        the chances don't add up to 1 (Prosimos can't draw then) or conditions decide (not forecast yet)."""
+        graph = self.sim_setup.bpmn_graph
+        conditions = graph.gateway_conditions.get(info.id)
+        choice = graph.element_probability[info.id]
+        shares = dict(zip(choice.candidates_list, choice.probability_list))
+        if (conditions is not None and conditions.candidates_list) or abs(sum(shares.values()) - 1) > 1 - _WHOLE:
+            return None
+        chances = [shares.get(flow, 0.0) for flow in info.outgoing_flows]
+        none_taken = math.prod(1 - chance for chance in chances)
+        combinations = []
+        for chosen in itertools.product((False, True), repeat=len(chances)):
+            taken = [index for index, take in enumerate(chosen) if take]
+            if taken:
+                share = math.prod(chance if take else 1 - chance for chance, take in zip(chances, chosen))
+                combinations.append((taken, share + (none_taken * chances[taken[0]] if len(taken) == 1 else 0)))
+        return combinations
 
     def _branches(self, info, p_case):
         """(flow, chance) of each branch of the exclusive split info for the case p_case, as Prosimos picks one:
@@ -207,9 +237,9 @@ _WHOLE = 1 - 1e-6
 
 
 def _is_join(info):
-    """Whether info is a parallel join. A task or throw event with several incoming flows never is one: Prosimos's
-    loader puts a hidden exclusive join before it."""
-    return info.type is BPMN.PARALLEL_GATEWAY and len(info.incoming_flows) > 1
+    """Whether info is a parallel or inclusive join. A task or throw event with several incoming flows never is one:
+    Prosimos's loader puts a hidden exclusive join before it."""
+    return info.type in (BPMN.PARALLEL_GATEWAY, BPMN.INCLUSIVE_GATEWAY) and len(info.incoming_flows) > 1
 
 
 def _joined(forecasts, events):
