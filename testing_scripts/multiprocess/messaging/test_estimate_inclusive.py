@@ -2,7 +2,8 @@
 Inclusive splits in estimates (docs/messaging.md): each branch is taken with its own chance, and if none is, Prosimos
 takes one drawn by the chances; every combination goes on from the join when its longest branch gets there,
 weighted by its chance. A split whose chances don't add up to 1 gives no slot. A branch with a condition is taken
-exactly when its data is known, by its history when the data isn't known yet, and with no history yet it is taken.
+exactly when its data is known, by its history when the data isn't known yet, and always when there's no history
+yet.
 """
 import json
 from datetime import timedelta

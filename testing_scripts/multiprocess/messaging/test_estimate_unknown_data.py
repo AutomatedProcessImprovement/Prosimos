@@ -3,6 +3,7 @@ Choices decided by data not known yet, in estimates (docs/messaging.md): a split
 doesn't have yet, set by a task still ahead, goes by the share of the items that took each branch there so far; with
 no history yet, the branch on the way to the catch event passes. Data already known stays exact.
 """
+import json
 from datetime import datetime, timedelta
 
 import pytz
@@ -74,3 +75,29 @@ def test_data_a_task_ahead_sets_again_is_not_known_yet():
                                                               START + 5 * HOUR + 25 * MINUTE]
     assert engine._env.sim_setup.bpmn_graph.all_attributes[2]["quality"] == "bad"
     assert engine._env._history("Check") == ({"Good": 2, "Bad": 1}, 3)
+
+
+def test_the_history_counts_a_pass_when_it_happens():
+    # Prosimos decides item-3's check at 12:20, when its washing starts; item-3 passes it at 12:30
+    engine = _engine()
+
+    _slots(engine, START + 3 * HOUR + 25 * MINUTE)
+    assert engine._env._history("Check") == ({"Bad": 1, "Good": 2}, 3)
+    _slots(engine, START + 3 * HOUR + 35 * MINUTE)
+    assert engine._env._history("Check") == ({"Bad": 1, "Good": 3}, 4)
+
+
+def test_an_engine_without_a_consume_entry_keeps_no_history(tmp_path):
+    # it never answers a quote; its shelf is a plain event, passed at once
+    with open(f"{ASSETS}/quality_check.json") as file:
+        settings = json.load(file)
+    del settings["messages"]
+    settings["event_distribution"] = [{"event_id": "Shelf", "distribution_name": "fix",
+                                       "distribution_params": [{"value": 0}]}]
+    (tmp_path / "warehouse.json").write_text(json.dumps(settings))
+    engine = ProsimosEngine(ProcessSpec("Warehouse", f"{ASSETS}/quality_check.bpmn", str(tmp_path / "warehouse.json"),
+                                        8, "item"), START, seed=10)
+    while engine.next_event_time() is not None and engine.next_event_time() < START + 4 * HOUR:
+        engine.step()
+
+    assert engine._env._not_yet == [] and engine._env.sim_setup.bpmn_graph.split_passes == []

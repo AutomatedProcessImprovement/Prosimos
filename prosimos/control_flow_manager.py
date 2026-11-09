@@ -178,6 +178,9 @@ class BPMNGraph:
         # event-based gateways with a branch that waits for a message: every branch is armed, and the
         # engine lets the first happen win (instead of drawing a duration per branch here)
         self.race_gateways = set()
+        # splits whose passes the engine wants to know about: each pass as (case_id, split, time, the flows taken)
+        self.recorded_splits = set()
+        self.split_passes = []
         # case id -> when a terminate end event ended it: nothing of the case happens from then on
         self.terminated = dict()
 
@@ -390,6 +393,9 @@ class BPMNGraph:
                     random.shuffle(f_arcs)
 
             self.simulation_execution_stats.update_element_execution(case_id, e_info, f_arcs)
+            if e_info.id in self.recorded_splits:
+                self.split_passes.append((case_id, e_info.id, getattr(last_enabled, "datetime", last_enabled),
+                                          [flow for flow, _ in f_arcs]))
 
             for f_arc in f_arcs:
                 self._find_next(f_arc, case_id, p_state, enabled_tasks, to_execute, last_enabled, visited_at)

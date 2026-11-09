@@ -2,6 +2,7 @@
 import itertools
 import math
 from datetime import timedelta
+from heapq import heappop, heappush
 
 from pix_framework.statistics.distribution import DistributionType
 
@@ -16,6 +17,7 @@ class Estimating:
         requester are expected at a catch event taking the quote type at now: slot k is when the expected count
         there reaches k. The open lines take the earliest expected items first; those are promised and skipped."""
         self._ensure_arrivals_generated()
+        self._catch_up(now)
         free = self._quote_candidates(quote_type, now)
         for line in self._open_lines:
             _take_one(item for item in free if self._line_matches(line["type"], line["values"], item))
@@ -335,14 +337,10 @@ class Estimating:
         return combinations
 
     def _history(self, gateway_id):
-        """(flow -> how often the cases took it, how often they passed gateway_id) so far in this run."""
-        taken, passes = {}, 0
-        for executions in self.sim_setup.bpmn_graph.simulation_execution_stats.data[gateway_id][
-                "case_executions"].values():
-            passes += executions["executions"]
-            for flow, arc in executions["arcs"].items():
-                taken[flow] = taken.get(flow, 0) + arc["executions"]
-        return taken, passes
+        """(flow -> how often the cases took it, how often they passed gateway_id) so far in this run, as of the
+        last catch-up."""
+        taken, passes = self._split_history.get(gateway_id, ({}, 0))
+        return dict(taken), passes
 
     def _unknown(self, rule, p_case, path):
         """Whether the condition rule reads data the case p_case doesn't have yet: data it lacks, or data a task on
@@ -380,31 +378,62 @@ class Estimating:
                 return [(conditions.get_default_path(), 1.0)]
         return list(shares.items())
 
+    def _task_started(self, event):
+        """Keeps the task event until it starts, to count its wait then; only in an engine with a consume entry,
+        the only kind that answers quotes."""
+        if self._consume_points:
+            heappush(self._not_yet, (event.started_datetime, next(self._not_yet_order), event.task_id,
+                                     event))
+
+    def _catch_up(self, now):
+        """Counts the task starts and split passes due by now; Prosimos works them out ahead of the clock."""
+        setup = self.sim_setup
+        for _, split, at, flows in setup.bpmn_graph.split_passes:
+            heappush(self._not_yet, (at, next(self._not_yet_order), split, flows))
+        setup.bpmn_graph.split_passes.clear()
+        while self._not_yet and self._not_yet[0][0] <= now:
+            _, _, element_id, what = heappop(self._not_yet)
+            if isinstance(what, list):  # the flows a split pass took
+                history = self._split_history.setdefault(element_id, [{}, 0])
+                for flow in what:
+                    history[0][flow] = history[0].get(flow, 0) + 1
+                history[1] += 1
+            else:  # a task's wait to start, in working time on its performer's calendar
+                calendar = setup.calendars_map[setup.resources_map[what.resource_id].calendar_id]
+                waits = self._task_waits.setdefault(element_id, [0.0, 0])
+                waits[0] += calendar.find_working_time(what.enabled_datetime, what.started_datetime)
+                waits[1] += 1
+
     def _average_wait(self, task_id, now):
         """The average working seconds from ready to started of task_id, on each performer's calendar, over the
         times it started by now; 0 while none has."""
-        setup = self.sim_setup
-        waits = [setup.calendars_map[setup.resources_map[event.resource_id].calendar_id].find_working_time(
-                     event.enabled_datetime, event.started_datetime)
-                 for trace in self.log_info.trace_list for event in trace.event_list
-                 if event.type == BPMN.TASK and event.task_id == task_id and event.started_datetime <= now]
-        return sum(waits) / len(waits) if waits else 0
+        self._catch_up(now)
+        total, count = self._task_waits.get(task_id, (0, 0))
+        return total / count if count else 0
 
     def _average_caught(self, event_id):
         """The average clock seconds items waited at the catch event event_id for a message so far; 0 while none
         has."""
-        waits = self._caught_waits.get(event_id, [])
-        return sum(waits) / len(waits) if waits else 0
+        total, count = self._caught_waits.get(event_id, (0, 0))
+        return total / count if count else 0
 
     def _average_duration(self, task_id):
         """The mean of task_id's duration distributions over the staff who may do it, in working seconds."""
-        distributions = self.sim_setup.task_resource[task_id].values()
-        return sum(_mean(distribution) for distribution in distributions) / len(distributions)
+        return self._model_average(task_id)[1]
 
     def _staff_calendars(self, task_id):
-        setup = self.sim_setup
-        return [setup.calendars_map[setup.resources_map[resource_id].calendar_id]
-                for resource_id in setup.task_resource[task_id]]
+        return self._model_average(task_id)[0]
+
+    def _model_average(self, task_id):
+        """(the calendars of the staff who may do task_id, the mean of their duration distributions), worked out
+        once."""
+        if task_id not in self._model_averages:
+            setup = self.sim_setup
+            distributions = setup.task_resource[task_id]
+            self._model_averages[task_id] = (
+                [setup.calendars_map[setup.resources_map[resource_id].calendar_id] for resource_id in distributions],
+                sum(_mean(distribution) for distribution in distributions.values()) / len(distributions))
+        return self._model_averages[task_id]
 
     def _line_matches(self, quote_type, values, item):
         """Whether the item's catch event's consume entry for quote_type takes a line with values."""

@@ -125,7 +125,13 @@ class SimBPMEnv(EngineMessaging):
         for point in sim_setup.messaging.consume:
             self._consume_points.setdefault(point.event_id, []).append(point)
         self._parked_events = dict()  # (case id, event id) -> the parked EnabledEvent
-        self._caught_waits = dict()  # event id -> the clock seconds each case outside a race waited there
+        # what the estimate goes by (docs/messaging.md, "Quotes"), so far: each counted once its time has come
+        self._caught_waits = dict()  # catch event id -> [total clock seconds, count] of the waits outside races
+        self._task_waits = dict()  # task id -> [total working seconds, count] of the waits to start
+        self._split_history = dict()  # split id -> [flow -> times taken, passes]
+        self._not_yet = []  # heap of (when, order, task id or split id, working seconds or flows taken) still ahead
+        self._not_yet_order = itertools.count()
+        self._model_averages = dict()  # task id -> (its staff's calendars, its average duration)
         self.claimed_by = []  # (case id, event id, consume entry) that took the message deliver() last claimed
         self._case_attribute_names = ({attribute.name for attribute in sim_setup.case_attributes.attributes}
                                       | {target for point in sim_setup.messaging.consume for target, _ in point.copy}
@@ -155,6 +161,9 @@ class SimBPMEnv(EngineMessaging):
                 if any(branch in self._consume_points for branch in branches):
                     self._race_branches[gateway_id] = branches
         graph.race_gateways = set(self._race_branches)
+        if self._consume_points:  # only an engine with a consume entry answers quotes
+            graph.recorded_splits = {split for split, conditions in sim_setup.gateway_conditions.items()
+                                     if conditions.candidates_list}
         self._race_gateway_of = {branch: gateway_id for gateway_id, branches in self._race_branches.items()
                                  for branch in branches}
         self._races = dict()  # (case id, gateway id) -> the Race running for that case
@@ -326,6 +335,7 @@ class SimBPMEnv(EngineMessaging):
         )
 
         self.log_info.add_event_info(c_event.p_case, full_evt, self.sim_setup.resources_map[r_id].cost_per_hour)
+        self._task_started(full_evt)
 
         if self.sim_setup.multitask_info is None:
             r_next_available = full_evt.completed_at
@@ -662,6 +672,7 @@ class SimBPMEnv(EngineMessaging):
 
     def _update_logs_and_resource_availability(self, full_evt: TaskEvent, r_id):
         self.log_info.add_event_info(full_evt.p_case, full_evt, self.sim_setup.resources_map[r_id].cost_per_hour)
+        self._task_started(full_evt)
 
         r_next_available = full_evt.completed_at
 
@@ -697,8 +708,9 @@ class SimBPMEnv(EngineMessaging):
                 ended_at = c_event.armed_event.enabled_at + c_event.duration_sec
                 ended_datetime = c_event.armed_event.enabled_datetime + timedelta(seconds=c_event.duration_sec)
             if c_event.task_id in self._consume_points and c_event.race is None:
-                self._caught_waits.setdefault(c_event.task_id, []).append(
-                    (ended_datetime - reached.enabled_datetime).total_seconds())
+                waits = self._caught_waits.setdefault(c_event.task_id, [0.0, 0])
+                waits[0] += (ended_datetime - reached.enabled_datetime).total_seconds()
+                waits[1] += 1
             full_evt = TaskEvent.create_event_entity(reached, ended_at, ended_datetime)
             self.log_info.add_event_info(c_event.p_case, full_evt, 0)
             if self.sim_setup.is_event_added_to_log:
