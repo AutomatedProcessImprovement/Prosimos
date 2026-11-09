@@ -1,0 +1,129 @@
+{
+  "resource_profiles": [
+    {
+      "id": "Workers",
+      "name": "Workers",
+      "resource_list": [
+        {
+          "id": "Worker",
+          "name": "Worker",
+          "cost_per_hour": 1,
+          "amount": 5,
+          "calendar": "Always",
+          "assigned_tasks": [
+            "Make",
+            "Pack",
+            "Scrap"
+          ]
+        }
+      ]
+    }
+  ],
+  "arrival_time_distribution": {
+    "distribution_name": "fix",
+    "distribution_params": [
+      {
+        "value": 3600
+      }
+    ]
+  },
+  "arrival_time_calendar": [
+    {
+      "from": "MONDAY",
+      "to": "SUNDAY",
+      "beginTime": "00:00:00",
+      "endTime": "23:59:59"
+    }
+  ],
+  "gateway_branching_probabilities": [],
+  "task_resource_distribution": [
+    {
+      "task_id": "Make",
+      "resources": [
+        {
+          "resource_id": "Worker",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 600
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Pack",
+      "resources": [
+        {
+          "resource_id": "Worker",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 1800
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Scrap",
+      "resources": [
+        {
+          "resource_id": "Worker",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 600
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "resource_calendars": [
+    {
+      "id": "Always",
+      "name": "Always",
+      "time_periods": [
+        {
+          "from": "MONDAY",
+          "to": "SUNDAY",
+          "beginTime": "00:00:00",
+          "endTime": "23:59:59"
+        }
+      ]
+    }
+  ],
+  "event_distribution": [
+    {
+      "event_id": "Timeout",
+      "distribution_name": "fix",
+      "distribution_params": [
+        {
+          "value": 7200
+        }
+      ]
+    }
+  ],
+  "messages": {
+    "consume": [
+      {
+        "event_id": "Approve",
+        "type": "Approved",
+        "condition": [
+          [
+            {
+              "attribute": "item",
+              "comparison": "=",
+              "object_attribute": "object_id"
+            }
+          ]
+        ]
+      },
+      {
+        "event_id": "Shelf",
+        "type": "ItemQuote"
+      }
+    ]
+  }
+}

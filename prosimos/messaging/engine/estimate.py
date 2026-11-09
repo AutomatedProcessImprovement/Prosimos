@@ -33,23 +33,31 @@ class Estimating:
                    for parked_event in self.parked_events() if parked_event.task_id in events
                    and (parked_event.p_case, parked_event.task_id) not in self._set_aside]
         queued = []
-        ahead = {}  # case id -> (element id, ready time, whether the case is past it) of each of its branches
+        # case id -> (element id, ready time, how) of each of its branches: at the element, past it, or in its race
+        ahead = {}
         for parked_event in self.parked_events():
-            if parked_event.task_id not in events:  # it goes on after its average wait there, or now if overdue
+            if parked_event.task_id not in events and parked_event.task_id not in self._race_gateway_of:
+                # it goes on after its average wait there, or now if overdue
                 ready = parked_event.enabled_datetime + timedelta(seconds=self._average_caught(parked_event.task_id))
-                ahead.setdefault(parked_event.p_case, []).append((parked_event.task_id, max(ready, now), True))
+                ahead.setdefault(parked_event.p_case, []).append((parked_event.task_id, max(ready, now), "past"))
         for event in self.events_queue.enabled_events.entry_finder:
-            if event.task_id not in events:  # a case resumed by a message is past its catch event
-                ahead.setdefault(event.p_case, []).append((event.task_id, event.enabled_datetime,
-                                                           event.parked_event is not None))
-            elif event.parked_event is None:
-                queued.append([event.enabled_datetime, event.p_case, event.task_id, 1.0])
+            if event.task_id in events:
+                if event.parked_event is None:
+                    queued.append([event.enabled_datetime, event.p_case, event.task_id, 1.0])
+            elif event.parked_event is not None:  # a case resumed by a message is past its catch event
+                ahead.setdefault(event.p_case, []).append((event.task_id, event.enabled_datetime, "past"))
+            elif event.task_id not in self._race_gateway_of:
+                ahead.setdefault(event.p_case, []).append((event.task_id, event.enabled_datetime, "at"))
+            elif event.armed_event is None:  # a branch of a race not started yet: the case is at its gateway
+                start = (self._race_gateway_of[event.task_id], event.enabled_datetime, "at")
+                if start not in ahead.setdefault(event.p_case, []):
+                    ahead[event.p_case].append(start)
+        for (p_case, gateway_id), race in self._races.items():
+            ahead.setdefault(p_case, []).append((gateway_id, race.started, "race"))
         waits = {}
         for p_case, starts in ahead.items():
-            if not any(element_id in self._race_gateway_of for element_id, _, _ in starts):  # races aren't forecast
-                reached = self._case_forecast(p_case, starts, events, now, waits)
-                queued += [[ready, p_case, catch_event, chance]
-                           for catch_event, (chance, ready) in (reached or {}).items()]
+            reached = self._case_forecast(p_case, starts, events, now, waits)
+            queued += [[ready, p_case, catch_event, chance] for catch_event, (chance, ready) in (reached or {}).items()]
         return sorted(waiting + queued, key=lambda item: item[:3])
 
     def _case_forecast(self, p_case, starts, events, now, waits):
@@ -58,12 +66,15 @@ class Estimating:
         there, the innermost join first, which then is one branch of the next."""
         graph = self.sim_setup.bpmn_graph
         forecasts = []
-        for element_id, ready, past in starts:
+        for element_id, ready, how in starts:
             outgoing = graph.element_info[element_id].outgoing_flows
-            if past and len(outgoing) != 1:
+            if how == "race":
+                forecasts.append(self._race_forecast(p_case, element_id, ready, events, now, waits))
+            elif how == "past" and len(outgoing) != 1:
                 return None
-            forecasts.append(self._forecast(p_case, graph.flow_arcs[outgoing[0]][1] if past else element_id, ready,
-                                            events, now, waits))
+            else:
+                at = graph.flow_arcs[outgoing[0]][1] if how == "past" else element_id
+                forecasts.append(self._forecast(p_case, at, ready, events, now, waits))
         if None in forecasts:
             return None
         if all(target in events for forecast in forecasts for target in forecast):
@@ -101,8 +112,8 @@ class Estimating:
     def _forecast(self, p_case, element_id, ready, events, now, waits, onward=False):
         """target -> (chance, average ready time) of the case p_case ready at element_id at ready; a target is a
         catch event in events or the first parallel or inclusive join a way meets (onward: other than element_id).
-        None if a way has anything but tasks, throw events, catch events outside races, gateways other than
-        event-based ones, and end events. 'waits' caches waits."""
+        None if a way has anything but tasks, throw events, catch events outside races, gateways, and end events.
+        'waits' caches waits."""
         graph = self.sim_setup.bpmn_graph
         reached = {}
         ways = [(element_id, ready, 1.0, 0, onward)]  # passing: the way goes on from it, even from a join
@@ -118,7 +129,8 @@ class Estimating:
             if info.type is BPMN.END_EVENT:
                 continue
             if info.type not in (BPMN.TASK, BPMN.INTERMEDIATE_THROW_EVENT, BPMN.INTERMEDIATE_EVENT,
-                                 BPMN.EXCLUSIVE_GATEWAY, BPMN.PARALLEL_GATEWAY, BPMN.INCLUSIVE_GATEWAY):
+                                 BPMN.EXCLUSIVE_GATEWAY, BPMN.PARALLEL_GATEWAY, BPMN.INCLUSIVE_GATEWAY,
+                                 BPMN.EVENT_BASED_GATEWAY):
                 return None
             if info.type is BPMN.INTERMEDIATE_EVENT:
                 # a wait for a message takes the average so far; a timer or other timed event, its drawn duration
@@ -135,6 +147,12 @@ class Estimating:
                                      waits[element_id] + self._average_duration(element_id))
             if len(info.outgoing_flows) == 1:
                 ways.append((graph.flow_arcs[info.outgoing_flows[0]][1], ready, chance, steps + 1, False))
+            elif info.type is BPMN.EVENT_BASED_GATEWAY:
+                branches = self._race_ways(p_case, info.id, ready, events, now, waits)
+                if branches is None:
+                    return None
+                ways += [(element, branch_ready, chance * share, steps + 1, False)
+                         for element, branch_ready, share in branches]
             elif info.type is BPMN.EXCLUSIVE_GATEWAY:
                 ways += [(graph.flow_arcs[flow][1], ready, chance * share, steps + 1, False)
                          for flow, share in self._branches(info, p_case)]
@@ -155,6 +173,62 @@ class Estimating:
                 join = branches[0][0]
                 ways += [(join, max(branches[index][1] for index in chosen), chance * share, steps + 1, True)
                          for chosen, share in combinations]
+        return {target: _average(ways) for target, ways in reached.items()}
+
+    def _race_ways(self, p_case, gateway_id, ready, events, now, waits, race=None):
+        """(element, ready time, chance) where each branch of the race at gateway_id goes on after it wins, the case
+        having reached it at ready: from the history of its winners, each branch that has won with its share of the
+        wins, after their average wait; with no history, the first branch on a way to a catch event in events wins
+        at once. For race, the case's race still running at now: only past wins that took longer than it has waited
+        count, a timer's at its known time; with none, a message branch wins now. None if it can't be followed."""
+        graph = self.sim_setup.bpmn_graph
+        if gateway_id not in self._race_branches:
+            return None
+        onward = {}  # branch -> where the case goes on after it: the branch itself if it is in events
+        for branch in self._race_branches[gateway_id]:
+            outgoing = graph.element_info[branch].outgoing_flows
+            if branch not in events and len(outgoing) != 1:
+                return None
+            onward[branch] = branch if branch in events else graph.flow_arcs[outgoing[0]][1]
+        due = {} if race is None else {  # the race's armed timers -> when they fire
+            event.task_id: event.armed_event.enabled_datetime + timedelta(seconds=event.duration_sec)
+            for event in self.events_queue.enabled_events.entry_finder if event.race is race and event.armed_event}
+        waited = (now - ready).total_seconds()
+        counted = []  # (element, ready time, wins counted)
+        for branch, element_id in onward.items():
+            won = [seconds for winner, seconds in self._race_wins.get(gateway_id, []) if winner == branch]
+            if branch in due:
+                if won:
+                    counted.append((element_id, due[branch], len(won)))
+                continue
+            if race is not None:
+                won = [seconds for seconds in won if seconds > waited]
+            if won:
+                counted.append((element_id, ready + timedelta(seconds=sum(won) / len(won)), len(won)))
+        total = sum(wins for _, _, wins in counted)
+        if total:
+            return [(element_id, at, wins / total) for element_id, at, wins in counted]
+        for branch, element_id in onward.items():
+            if race is not None and branch not in self._consume_points:
+                continue
+            if branch in events or any(target in events for target in
+                                       self._forecast(p_case, element_id, ready, events, now, waits) or {}):
+                return [(element_id, ready if race is None else now, 1.0)]
+        return []
+
+    def _race_forecast(self, p_case, gateway_id, started, events, now, waits):
+        """target -> (chance, average ready time) of the case p_case in its race at gateway_id since started, as
+        _forecast gives; None if not forecast."""
+        ways = self._race_ways(p_case, gateway_id, started, events, now, waits, self._races[(p_case, gateway_id)])
+        if ways is None:
+            return None
+        reached = {}
+        for element_id, ready, share in ways:
+            forecast = self._forecast(p_case, element_id, ready, events, now, waits)
+            if forecast is None:
+                return None
+            for target, (chance, at) in forecast.items():
+                reached.setdefault(target, []).append((chance * share, at))
         return {target: _average(ways) for target, ways in reached.items()}
 
     def _combinations(self, info):

@@ -8,9 +8,10 @@ from prosimos.warning_logger import warning_logger
 class Race:
     """The branches of one event-based gateway, armed for one case: the first to happen wins."""
 
-    def __init__(self, p_case, gateway_id):
+    def __init__(self, p_case, gateway_id, started):
         self.p_case = p_case
         self.gateway_id = gateway_id
+        self.started = started  # when the case reached the gateway
         self.won = False
         self.wins_at_once = None  # the message branch with nothing to collect that wins at once, if any
 
@@ -49,14 +50,15 @@ class Races:
                 c_event.race.won = True
                 self._races.pop((c_event.race.p_case, c_event.race.gateway_id), None)
                 return True
-            self._win_race(c_event.race, c_event.task_id, c_event.p_state)
+            self._win_race(c_event.race, c_event.task_id, c_event.p_state,
+                           c_event.armed_event.enabled_datetime + timedelta(seconds=c_event.duration_sec))
             return False  # it completes now; execute_event logs it from when it was armed
         incoming = self.sim_setup.bpmn_graph.element_info[c_event.task_id].incoming_flows
         if not any(c_event.p_state.has_token(flow) for flow in incoming):
             return True  # another branch already won at this instant, e.g. one with nothing to collect
         key = (c_event.p_case, self._race_gateway_of[c_event.task_id])
         if key not in self._races:
-            self._races[key] = Race(*key)
+            self._races[key] = Race(*key, c_event.enabled_datetime)
             self._races[key].wins_at_once = self._branch_with_nothing_to_collect(*key)
         c_event.race = self._races[key]
         if c_event.race.wins_at_once not in (None, c_event.task_id):
@@ -85,10 +87,12 @@ class Races:
                 f"({', '.join(sorted(branches))}); {branches[0]}, whose 'consume' entry comes first, wins")
         return branches[0]
 
-    def _win_race(self, race, winner, p_state):
-        """Cancels every branch of race but winner: their tokens are taken off, and a queued timer is skipped later."""
+    def _win_race(self, race, winner, p_state, when):
+        """Cancels every branch of race but winner, which wins at when: their tokens are taken off, and a queued timer
+        is skipped later."""
         race.won = True
         del self._races[(race.p_case, race.gateway_id)]
+        self._race_wins.setdefault(race.gateway_id, []).append((winner, (when - race.started).total_seconds()))
         graph = self.sim_setup.bpmn_graph
         for branch in self._race_branches[race.gateway_id]:
             if branch == winner:

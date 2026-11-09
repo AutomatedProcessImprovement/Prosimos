@@ -1,0 +1,25 @@
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"><bpmn:process id="Warehouse">
+<bpmn:startEvent id="Start"><bpmn:outgoing>F1</bpmn:outgoing></bpmn:startEvent>
+<bpmn:task id="Make"><bpmn:incoming>F1</bpmn:incoming><bpmn:outgoing>F2</bpmn:outgoing></bpmn:task>
+<bpmn:eventBasedGateway id="Race"><bpmn:incoming>F2</bpmn:incoming><bpmn:outgoing>F3</bpmn:outgoing>
+  <bpmn:outgoing>F4</bpmn:outgoing></bpmn:eventBasedGateway>
+<bpmn:intermediateCatchEvent id="Approve"><bpmn:incoming>F3</bpmn:incoming><bpmn:outgoing>F5</bpmn:outgoing>
+  <bpmn:messageEventDefinition/></bpmn:intermediateCatchEvent>
+<bpmn:intermediateCatchEvent id="Timeout"><bpmn:incoming>F4</bpmn:incoming><bpmn:outgoing>F6</bpmn:outgoing>
+  <bpmn:timerEventDefinition/></bpmn:intermediateCatchEvent>
+<bpmn:task id="Pack"><bpmn:incoming>F5</bpmn:incoming><bpmn:outgoing>F7</bpmn:outgoing></bpmn:task>
+<bpmn:intermediateCatchEvent id="Shelf"><bpmn:incoming>F7</bpmn:incoming><bpmn:outgoing>F8</bpmn:outgoing>
+  <bpmn:messageEventDefinition/></bpmn:intermediateCatchEvent>
+<bpmn:endEvent id="End"><bpmn:incoming>F8</bpmn:incoming></bpmn:endEvent>
+<bpmn:task id="Scrap"><bpmn:incoming>F6</bpmn:incoming><bpmn:outgoing>F9</bpmn:outgoing></bpmn:task>
+<bpmn:endEvent id="Scrapped"><bpmn:incoming>F9</bpmn:incoming></bpmn:endEvent>
+<bpmn:sequenceFlow id="F1" sourceRef="Start" targetRef="Make"/>
+<bpmn:sequenceFlow id="F2" sourceRef="Make" targetRef="Race"/>
+<bpmn:sequenceFlow id="F4" sourceRef="Race" targetRef="Timeout"/>
+<bpmn:sequenceFlow id="F3" sourceRef="Race" targetRef="Approve"/>
+<bpmn:sequenceFlow id="F5" sourceRef="Approve" targetRef="Pack"/>
+<bpmn:sequenceFlow id="F6" sourceRef="Timeout" targetRef="Scrap"/>
+<bpmn:sequenceFlow id="F7" sourceRef="Pack" targetRef="Shelf"/>
+<bpmn:sequenceFlow id="F8" sourceRef="Shelf" targetRef="End"/>
+<bpmn:sequenceFlow id="F9" sourceRef="Scrap" targetRef="Scrapped"/>
+</bpmn:process></bpmn:definitions>

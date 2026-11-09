@@ -158,6 +158,7 @@ class SimBPMEnv(EngineMessaging):
         self._race_gateway_of = {branch: gateway_id for gateway_id, branches in self._race_branches.items()
                                  for branch in branches}
         self._races = dict()  # (case id, gateway id) -> the Race running for that case
+        self._race_wins = dict()  # race gateway id -> (winning branch, seconds from the race's start) of each win
         # a message matching several branches of one race goes to the branch whose entry comes first
         self._consume_order = {id(point): index for index, point in enumerate(sim_setup.messaging.consume)}
         self._warned_overlapping_races = set()
@@ -267,7 +268,7 @@ class SimBPMEnv(EngineMessaging):
                     return
                 c_event.complete_at_once = True  # nothing to collect: the case passes straight on
                 if c_event.race is not None:
-                    self._win_race(c_event.race, c_event.task_id, c_event.p_state)
+                    self._win_race(c_event.race, c_event.task_id, c_event.p_state, c_event.enabled_datetime)
             if event_element_info.type == BPMN.TASK:
                 # execute not batched task
                 completed_at, completed_datetime = self.execute_task(c_event)

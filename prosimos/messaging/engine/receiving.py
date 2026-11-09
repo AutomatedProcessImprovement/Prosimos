@@ -91,7 +91,7 @@ class Receiving:
         """Resumes a waiting case at now; in a race, its branch wins. With keep_open the case has its min but not
         its max, and keeps taking the messages offered at now (see _close_collections)."""
         if parked_event.race is not None:
-            self._win_race(parked_event.race, parked_event.task_id, parked_event.p_state)
+            self._win_race(parked_event.race, parked_event.task_id, parked_event.p_state, now)
         key = (parked_event.p_case, parked_event.task_id)
         if keep_open:
             self._closing[key] = now
