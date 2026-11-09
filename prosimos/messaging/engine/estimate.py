@@ -25,8 +25,8 @@ class Estimating:
 
     def _quote_candidates(self, quote_type, now):
         """[time, case id, event id, chance] of each item not holding a line that may reach a catch event taking
-        quote_type: waiting there, queued to reach it, or forecast from where its branches are queued, in time
-        order."""
+        quote_type: waiting there, queued to reach it, or forecast from where its branches are queued or wait for a
+        batch, in time order."""
         events = {point.event_id for points in self._consume_points.values() for point in points
                   if point.type == quote_type and not point.starts_case}
         waiting = [[parked_event.enabled_datetime, parked_event.p_case, parked_event.task_id, 1.0]
@@ -55,6 +55,14 @@ class Estimating:
         for (p_case, gateway_id), race in self._races.items():
             ahead.setdefault(p_case, []).append((gateway_id, race.started, "race"))
         waits = {}
+        for task_id, batch in self.sim_setup.bpmn_graph.batch_waiting_processes.items():
+            for p_case, ready in batch.items():  # waiting for its batch: done after the average wait, or now
+                calendars = self._staff_calendars(task_id)
+                if task_id not in waits:
+                    waits[task_id] = self._average_wait(task_id, now)
+                started = max(forecast_end(ready.datetime, calendars, waits[task_id]), now)
+                ahead.setdefault(p_case, []).append(
+                    (task_id, forecast_end(started, calendars, self._average_duration(task_id)), "past"))
         for p_case, starts in ahead.items():
             reached = self._case_forecast(p_case, starts, events, now, waits)
             queued += [[ready, p_case, catch_event, chance] for catch_event, (chance, ready) in (reached or {}).items()]
