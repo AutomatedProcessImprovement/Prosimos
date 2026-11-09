@@ -28,7 +28,7 @@ def _cancel(request):
 
 def _report(script, tartu_moved=lambda message, now: False):
     """The run of Sales publishing what script gives, (time, message maker), against Tartu with the iPhone and
-    Tallinn with the iPad, whose shares of order-8, order-9, and order-10 have moved on once it is asked; tartu_moved
+    Tallinn with the iPad, whose portions of order-8, order-9, and order-10 have moved on once it is asked; tartu_moved
     says whether Tartu's has."""
     sales = ScriptedEngine("Sales")
     for reply in ("QuoteAccepted", "QuoteDeclined"):
@@ -54,7 +54,7 @@ def test_each_outcome_is_counted_per_quote_type():
         (START + 4 * HOUR, lambda: _cancel("order-7")),  # canceled
         (START + 5 * HOUR, lambda: _asked(QuoteKind.QUOTE, "order-7", "MacBook")),  # declined
         (START + 6 * HOUR, lambda: _asked(QuoteKind.QUOTE, "order-8", "iPhone", "iPad")),  # accepted
-        (START + 7 * HOUR, lambda: _cancel("order-8")),  # too late: Tallinn's share has moved on, Tartu's not
+        (START + 7 * HOUR, lambda: _cancel("order-8")),  # too late: Tallinn's portion has moved on, Tartu's not
         (START + 8 * HOUR, lambda: _asked(QuoteKind.QUOTE, "order-9", "iPad")),  # accepted
         (START + 9 * HOUR, lambda: _cancel("order-9"))])  # not counted: the quote was delivered in full
 
@@ -65,8 +65,8 @@ def test_each_outcome_is_counted_per_quote_type():
 
 
 def test_a_cancel_of_a_quote_locked_and_then_delivered_in_full_is_not_too_late():
-    # the modification is too late, as Tallinn's share has moved on, and locks the quote; then Tartu delivers the rest,
-    # and the case ends, canceling its quote
+    # the modification is too late, as Tallinn's portion has moved on, and locks the quote; then Tartu delivers the
+    # rest, and the case ends, canceling its quote
     report = _report([(START, lambda: _asked(QuoteKind.QUOTE, "order-10", "iPhone", "iPad")),
                       (START + HOUR, lambda: _asked(QuoteKind.MODIFY, "order-10", "iPhone")),
                       (START + 3 * HOUR, lambda: _cancel("order-10"))],

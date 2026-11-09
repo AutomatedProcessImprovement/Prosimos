@@ -136,7 +136,7 @@ class EngineReport:
     claimed: List[ClaimRecord] = field(default_factory=list)
     objects: List[CaseObject] = field(default_factory=list)  # every case it created
     logged_elements: List[str] = field(default_factory=list)  # the element id of each row of its log, in order
-    # the id of each quote or modify message that reserved lines here -> when the share holding them moved on
+    # the id of each quote or modify message that reserved lines here -> when the portion holding them moved on
     moved: Dict[str, datetime] = field(default_factory=dict)
 
 

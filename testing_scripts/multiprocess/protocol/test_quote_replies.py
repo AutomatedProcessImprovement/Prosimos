@@ -47,7 +47,7 @@ def test_accepted_with_its_ready_by_and_the_number_of_members_delivering():
                             "Tallinn": {"iPad": [START + DAY]}})
 
     assert _replies(report, engines) == [("QuoteAccepted", "orchestrator", START, {
-        "request": "order-7", "ready_by": START + DAY, "deliveries": 2})]
+        "request": "order-7", "ready_by": START + DAY, "portions": 2})]
 
 
 def test_the_lines_are_reserved_at_each_member_before_the_reply():
@@ -84,7 +84,7 @@ def test_without_a_limit_any_plan_is_accepted():
     report, engines = _run({"Tartu": {"iPhone": [START + 300 * DAY]}}, within=None, products=("iPhone",))
 
     assert _replies(report, engines) == [("QuoteAccepted", "orchestrator", START, {
-        "request": "order-7", "ready_by": START + 300 * DAY, "deliveries": 1})]
+        "request": "order-7", "ready_by": START + 300 * DAY, "portions": 1})]
 
 
 @pytest.mark.parametrize("within", [timedelta(days=3), None])
@@ -93,7 +93,7 @@ def test_a_quote_without_lines_is_accepted_at_once_with_a_warning(within):
     report, engines = _run({"Tartu": {"iPhone": [START]}}, within=within, products=())
 
     assert _replies(report, engines) == [("QuoteAccepted", "orchestrator", START,
-                                          {"request": "order-7", "ready_by": START, "deliveries": 0})]
+                                          {"request": "order-7", "ready_by": START, "portions": 0})]
     assert engines["Tartu"].estimated == [] and engines["Tartu"].reserved == []
     assert report.warnings == ["ItemQuote m1 from Sales has no lines"]
 

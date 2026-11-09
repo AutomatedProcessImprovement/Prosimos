@@ -178,7 +178,7 @@ def test_an_arriving_item_takes_an_open_line_before_a_pending_ordinary_message(t
     assert ordered(engine, START + HOUR + 11 * MINUTE) == ("claimed", ["item-1"])
 
 
-# a member's share moves on together
+# a member's portion moves on together
 
 def shipped(engine):
     """Item -> when its Ship task was enabled."""
@@ -200,7 +200,7 @@ def test_the_items_of_a_quote_wait_for_its_last_line_and_leave_together(tmp_path
     assert [values[p_case]["order_id"] for p_case in range(3)] == ["order-7"] * 3
 
 
-def test_moved_is_reported_from_the_moment_the_share_moves_on(tmp_path):
+def test_moved_is_reported_from_the_moment_the_portion_moves_on(tmp_path):
     engine = warehouse(tmp_path)
     until(engine, START + 5 * MINUTE)
     asked = quote("m1", "iPhone", "iPhone")
@@ -238,7 +238,7 @@ def test_only_the_quotes_own_items_move_on(tmp_path):
     assert shipped(engine) == {"item-1": START + HOUR + 10 * MINUTE}
 
 
-def test_after_a_modify_the_shares_lines_of_both_messages_leave_together_at_the_last_one(tmp_path):
+def test_after_a_modify_the_portions_lines_of_both_messages_leave_together_at_the_last_one(tmp_path):
     # m1 asks two iPhones; at 09:30 its modify m3 adds a third at the same warehouse
     engine = warehouse(tmp_path)
     until(engine, START + 5 * MINUTE)
@@ -248,7 +248,7 @@ def test_after_a_modify_the_shares_lines_of_both_messages_leave_together_at_the_
     modified = quote("m3", "iPhone", "iPhone", "iPhone", kind=QuoteKind.MODIFY)
     engine.reserve(modified, ["m3.3"], START + 30 * MINUTE)
 
-    # at 10:10 m1's own lines are both taken, but the share still waits for m3's line
+    # at 10:10 m1's own lines are both taken, but the portion still waits for m3's line
     until(engine, START + HOUR + 11 * MINUTE)
     assert held(engine) == {"item-0": ("m1", "m1.1"), "item-1": ("m1", "m1.2")}
     assert not engine.moved(asked, START + HOUR + 11 * MINUTE)
@@ -312,7 +312,7 @@ def test_a_released_item_is_ordinary_stock_again(tmp_path):
     assert ordered(engine, START + 40 * MINUTE) == ("claimed", ["item-0"])
 
 
-def test_releasing_a_shares_last_open_line_lets_its_items_move_on(tmp_path):
+def test_releasing_a_portions_last_open_line_lets_its_items_move_on(tmp_path):
     # the modification dropped the MacBook nobody had: the iPhone's item leaves at once
     engine = warehouse(tmp_path)
     until(engine, START + 30 * MINUTE)

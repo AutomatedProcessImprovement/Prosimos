@@ -26,7 +26,7 @@ def _quote(request="order-7", *products):
 
 def _run(asks, shelf=lambda line, now: [now], requesters=("Sales",), moved=None):
     """Each requester asks the quotes asks gives, (time, object id), and takes the replies; Tartu answers with shelf,
-    and with moved whether a quote's share has moved on. The replies and the warnings."""
+    and with moved whether a quote's portion has moved on. The replies and the warnings."""
     engines = {}
     for name in requesters:
         engines[name] = ScriptedEngine(name)
@@ -50,13 +50,13 @@ def test_a_second_quote_while_one_is_open_is_declined_at_once_with_a_warning():
 
     assert replies == [(START, "QuoteAccepted", "order-7"), (LATER, "QuoteDeclined", "order-7")]
     assert warnings == ["order-7 already has an open ItemQuote; use modify"]
-    # only whether the first quote's share has moved: the members aren't asked for slots again
+    # only whether the first quote's portion has moved: the members aren't asked for slots again
     assert [(message.id, now) for message, now in engines["Tartu"].moved_checks] == [("m1", LATER)]
     assert [message.id for message, _ in engines["Tartu"].estimated] == ["m1"]
     assert [message.id for message, _, _ in engines["Tartu"].reserved] == ["m1"]
 
 
-def test_a_second_quote_after_the_firsts_share_moved_is_answered_and_replaces_it():
+def test_a_second_quote_after_the_firsts_portion_moved_is_answered_and_replaces_it():
     # the first order's iPhone left Tartu at 09:30; order-7 loops and quotes again at 10:00, then once more at 11:00
     replies, warnings, engines = _run([(START, "order-7"), (LATER, "order-7"), (LATER + timedelta(hours=1), "order-7")],
                                       moved=lambda message, now: message.id == "m1" and now >= START + HALF_HOUR)

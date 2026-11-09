@@ -114,8 +114,8 @@ def test_a_cancel_of_an_unknown_quote_does_nothing():
     assert all(engine.released == [] and engine.moved_checks == [] for engine in engines.values())
 
 
-def _book_with_shares(tartu_moved, tallinn_moved):
-    """A book whose quote holds the iPhone at Tartu and the iPad at Tallinn, each of whose shares has moved on or
+def _book_with_portions(tartu_moved, tallinn_moved):
+    """A book whose quote holds the iPhone at Tartu and the iPad at Tallinn, each of whose portions has moved on or
     not, and its cancel at 10:00; the book, the engines, and the cancel."""
     engines = {name: ScriptedEngine(name) for name in ("Tartu", "Tallinn")}
     for name, product, moved in (("Tartu", "iPhone", tartu_moved), ("Tallinn", "iPad", tallinn_moved)):
@@ -134,10 +134,10 @@ def _book_with_shares(tartu_moved, tallinn_moved):
 
 @pytest.mark.parametrize("tartu_moved, tallinn_moved, state", [
     (True, True, QuoteState.COMPLETE),  # delivered in full: the cancel does nothing, and isn't too late
-    (True, False, QuoteState.LOCKED),  # one share shipped: too late
+    (True, False, QuoteState.LOCKED),  # one portion shipped: too late
     (False, True, QuoteState.LOCKED)])
-def test_a_cancel_after_a_share_moved_releases_nothing(tartu_moved, tallinn_moved, state):
-    book, engines, canceled = _book_with_shares(tartu_moved, tallinn_moved)
+def test_a_cancel_after_a_portion_moved_releases_nothing(tartu_moved, tallinn_moved, state):
+    book, engines, canceled = _book_with_portions(tartu_moved, tallinn_moved)
 
     book.cancel(canceled, engines.get, START + HOUR)
 
@@ -148,7 +148,7 @@ def test_a_cancel_after_a_share_moved_releases_nothing(tartu_moved, tallinn_move
 
 
 def test_a_modify_after_full_delivery_is_declined_and_the_quote_stays_complete():
-    book, engines, canceled = _book_with_shares(True, True)
+    book, engines, canceled = _book_with_portions(True, True)
     book.cancel(canceled, engines.get, START + HOUR)
     changed = modify_message("iPhone")
     changed.id, changed.source, changed.time = "m3", "Sales", START + 2 * HOUR
@@ -161,8 +161,8 @@ def test_a_modify_after_full_delivery_is_declined_and_the_quote_stays_complete()
 
 @pytest.mark.parametrize("tartu_moved, tallinn_moved, state", [
     (True, True, QuoteState.COMPLETE), (False, True, QuoteState.LOCKED)])
-def test_a_modify_right_after_a_share_moved_is_declined_and_marks_the_quote(tartu_moved, tallinn_moved, state):
-    book, engines, _ = _book_with_shares(tartu_moved, tallinn_moved)
+def test_a_modify_right_after_a_portion_moved_is_declined_and_marks_the_quote(tartu_moved, tallinn_moved, state):
+    book, engines, _ = _book_with_portions(tartu_moved, tallinn_moved)
     changed = modify_message("iPhone")
     changed.id, changed.source, changed.time = "m3", "Sales", START + HOUR
 

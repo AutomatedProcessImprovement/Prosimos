@@ -1,5 +1,5 @@
 """
-Broken promises (docs/orchestrator.md, "Output"): a member's share of a quote that moves on after the ready_by of
+Broken promises (docs/orchestrator.md, "Output"): a member's portion of a quote that moves on after the ready_by of
 its accepted reply breaks the promise; the report counts them per quote type, with how late on average and at most.
 """
 import json
@@ -25,7 +25,7 @@ ASSETS = "testing_scripts/assets/quotes"
     (2, START + 90 * MINUTE, {"count": 1, "average_late": 30 * MINUTE, "most_late": 30 * MINUTE, "undelivered": 0,
                               "most_overdue": None})],
     ids=["kept", "broken"])
-def test_a_share_moving_on_after_the_promise_breaks_it(tmp_path, items, ready_by, broken):
+def test_a_portion_moving_on_after_the_promise_breaks_it(tmp_path, items, ready_by, broken):
     with open(f"{ASSETS}/sales_quote.json") as file:
         settings = json.load(file)
     settings["messages"]["publish"][0]["quote"]["quantity"] = items

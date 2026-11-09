@@ -37,7 +37,7 @@ def modify(*products, within=timedelta(days=3)):
 
 def _run(script, shelves=SHELVES, moved=None):
     """Sales publishes what script gives, (time, message maker), and takes the replies; each warehouse answers a
-    line from shelves, and Tartu with moved whether a share has moved on. The engines, the replies, and the
+    line from shelves, and Tartu with moved whether a portion has moved on. The engines, the replies, and the
     warnings."""
     sales = ScriptedEngine("Sales")
     for reply in ("QuoteAccepted", "QuoteDeclined"):
@@ -65,7 +65,7 @@ def test_an_added_line_is_quoted_and_reserved_and_the_kept_lines_stay_where_they
     # m1 asks l1 (iPhone) and l2 (iPad); m3 asks l3, l4, and l5 (MacBook) at 10:00
     engines, replies, _ = _run([(START, quote("iPhone", "iPad")), (LATER, modify("iPhone", "iPad", "MacBook"))])
 
-    assert replies[1] == (LATER, "QuoteAccepted", {"ready_by": START + 5 * HOUR, "deliveries": 2})
+    assert replies[1] == (LATER, "QuoteAccepted", {"ready_by": START + 5 * HOUR, "portions": 2})
     assert _ids(engines["Tartu"].reserved) == [("m1", ["l1"], START), ("m3", ["l5"], LATER)]
     assert _ids(engines["Tallinn"].reserved) == [("m1", ["l2"], START)]
     assert engines["Tartu"].released == [] and engines["Tallinn"].released == []
@@ -74,7 +74,7 @@ def test_an_added_line_is_quoted_and_reserved_and_the_kept_lines_stay_where_they
 def test_a_dropped_line_is_released_with_the_message_that_reserved_it():
     engines, replies, _ = _run([(START, quote("iPhone", "iPad")), (LATER, modify("iPhone"))])
 
-    assert replies[1] == (LATER, "QuoteAccepted", {"ready_by": START + HOUR, "deliveries": 1})
+    assert replies[1] == (LATER, "QuoteAccepted", {"ready_by": START + HOUR, "portions": 1})
     assert _ids(engines["Tallinn"].released) == [("m1", ["l2"], LATER)]
     # nothing added, so nobody was asked for slots again
     assert [message.id for message, _ in engines["Tartu"].estimated] == ["m1"]
@@ -83,7 +83,7 @@ def test_a_dropped_line_is_released_with_the_message_that_reserved_it():
 def test_of_identical_lines_the_first_ones_are_kept():
     engines, replies, _ = _run([(START, quote("iPad", "iPad")), (LATER, modify("iPad"))])
 
-    assert replies[1] == (LATER, "QuoteAccepted", {"ready_by": START + 2 * HOUR, "deliveries": 1})
+    assert replies[1] == (LATER, "QuoteAccepted", {"ready_by": START + 2 * HOUR, "portions": 1})
     assert _ids(engines["Tallinn"].released) == [("m1", ["l2"], LATER)]
 
 
@@ -113,7 +113,7 @@ def test_after_a_decline_a_fresh_quote_of_the_new_list_against_the_original_limi
     engines, replies, _ = _run([(START, quote("MacBook")), (LATER, modify("iPad"))], shelves)
 
     assert replies == [(START, "QuoteDeclined", {"earliest": START + 5 * DAY}),
-                       (LATER, "QuoteAccepted", {"ready_by": START + 2 * HOUR, "deliveries": 1})]
+                       (LATER, "QuoteAccepted", {"ready_by": START + 2 * HOUR, "portions": 1})]
     assert _ids(engines["Tallinn"].reserved) == [("m3", ["l2"], LATER)]
 
 
@@ -133,7 +133,7 @@ def test_after_a_decline_a_modify_without_lines_is_accepted_at_once_with_a_warni
                                        (LATER, modify(within=within))])
 
     assert replies == [(START, "QuoteDeclined", {"earliest": None}),
-                       (LATER, "QuoteAccepted", {"ready_by": LATER, "deliveries": 0})]
+                       (LATER, "QuoteAccepted", {"ready_by": LATER, "portions": 0})]
     assert warnings == ["QuoteModified m3 from Sales has no lines"]
     assert [message.id for message, _ in engines["Tartu"].estimated] == ["m1"]
 

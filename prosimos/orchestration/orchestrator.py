@@ -35,7 +35,7 @@ class RunReport:
     # process -> the element id of each row of its log, in order, from finish(); for the OCEL output only
     logged_elements: Dict[str, List[str]] = field(default_factory=dict)
     quotes: Dict[str, Dict[str, int]] = field(default_factory=dict)  # quote type -> how often each of OUTCOMES
-    # quote type -> how many shares moved on after their quote's ready_by, and how late on average and at most; and
+    # quote type -> how many portions moved on after their quote's ready_by, and how late on average and at most; and
     # how many hadn't moved on by the end of the run past their ready_by, and the longest overdue then (a lower bound)
     broken_promises: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 

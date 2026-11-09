@@ -32,8 +32,8 @@ class QuoteState(Enum):
 
     OPEN = "open"
     DECLINED = "declined"
-    LOCKED = "locked"  # some member's share has moved on: it can no longer be modified or canceled
-    COMPLETE = "complete"  # every member's share has moved on: the quote was delivered in full
+    LOCKED = "locked"  # some member's portion has moved on: it can no longer be modified or canceled
+    COMPLETE = "complete"  # every member's portion has moved on: the quote was delivered in full
 
 
 @dataclass
@@ -130,14 +130,14 @@ class QuoteBook:
         return _accepted(quote, tracked, ready_by)
 
     def cancel(self, message: Message, engine: Callable[[str], SimulationEngine], now: datetime):
-        """Releases every line of the requester's open quote at its member, unless some share has moved on: then
-        nothing is released, and the quote is complete if every member's share has, else locked, too late. One
-        without lines simply leaves the book. A locked quote becomes complete once every share has moved on; a
+        """Releases every line of the requester's open quote at its member, unless some portion has moved on: then
+        nothing is released, and the quote is complete if every member's portion has, else locked, too late. One
+        without lines simply leaves the book. A locked quote becomes complete once every portion has moved on; a
         declined, complete, or unknown one is left as it is. A cancel gets no reply."""
         key, outcomes = _key(message), self.outcomes[message.quote.quote_type]
         tracked = self.quotes.get(key)
         if tracked is not None and tracked.state in (QuoteState.OPEN, QuoteState.LOCKED):
-            tracked.state = _moved_state(tracked, engine, now)  # a share that has moved on stays moved on
+            tracked.state = _moved_state(tracked, engine, now)  # a portion that has moved on stays moved on
         if tracked is None or tracked.state is not QuoteState.OPEN:
             # after a full delivery the cancel isn't too late: there is nothing left to cancel
             if tracked is not None and tracked.state is QuoteState.LOCKED:
@@ -176,7 +176,7 @@ class QuoteBook:
 
 
 def _moved_state(tracked, engine, now):
-    """What the open quote is now, by whether its members' shares have moved on, asking every member holding lines
+    """What the open quote is now, by whether its members' portions have moved on, asking every member holding lines
     with the messages that reserved them: complete if all have, locked if some have, else still open."""
     moved = [engine(member).moved(reserving, now) for member, reserving, _ in _held(tracked, tracked.lines)]
     if moved and all(moved):
@@ -225,9 +225,9 @@ def _reserve(tracked, message, lines, plan, members, engine, now):
 
 def _accepted(quote, tracked, ready_by):
     tracked.ready_by = ready_by
-    # deliveries: the members holding lines, each delivering its share at once
+    # portions: the members holding lines, each delivering its portion at once
     return Message(quote.accepted, {"request": quote.request, "ready_by": ready_by,
-                                    "deliveries": len({held.member for held in tracked.lines.values()})})
+                                    "portions": len({held.member for held in tracked.lines.values()})})
 
 
 def _declined(quote, earliest):
@@ -245,22 +245,22 @@ def _held(tracked, line_ids):
 
 
 def broken_promises(book: QuoteBook, moved: Dict[Tuple[str, str], datetime], end: Optional[datetime]):
-    """(quote type -> how late each member's share of its quotes, also those later ones replaced, moved on after the
-    quote's ready_by, quote type -> how long past it each share not moved on by end, the end of the run, is). moved:
-    (member, the id of a message that reserved lines there) -> when the share holding them moved on."""
+    """(quote type -> how late each member's portion of its quotes, also those later ones replaced, moved on after the
+    quote's ready_by, quote type -> how long past it each portion not moved on by end, the end of the run, is). moved:
+    (member, the id of a message that reserved lines there) -> when the portion holding them moved on."""
     late, overdue = defaultdict(list), defaultdict(list)
     for (_, _, quote_type), tracked in [*book.replaced, *book.quotes.items()]:
         if tracked.ready_by is None:
             continue
-        shares = {}  # member -> when its share moved on: its lines from the quote and from modifies move together
+        portions = {}  # member -> when its portion moved on: its lines from the quote and from modifies move together
         held = _held(tracked, tracked.lines)
         for member, reserving, _ in held:
             if (member, reserving.id) in moved:
-                shares[member] = moved[(member, reserving.id)]
-        late[quote_type].extend(at - tracked.ready_by for at in shares.values() if at > tracked.ready_by)
+                portions[member] = moved[(member, reserving.id)]
+        late[quote_type].extend(at - tracked.ready_by for at in portions.values() if at > tracked.ready_by)
         if end is not None and tracked.ready_by < end:  # one promised after the end may still be kept
             overdue[quote_type].extend(end - tracked.ready_by for member in {member for member, _, _ in held}
-                                       if member not in shares)
+                                       if member not in portions)
     return dict(late), dict(overdue)
 
 
