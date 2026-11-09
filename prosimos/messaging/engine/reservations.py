@@ -55,13 +55,14 @@ class Reservations:
                 return
 
     def _move_if_complete(self, portion, now):
-        """Once no line of the quote's portion is open here, each of its items claims its line at now, and they move
-        on together; every message that reserved one of them has moved from then on."""
+        """Once no line of the quote's portion is open here, each of its items claims its line at now, with
+        portion_size, how many items the portion holds here, and they move on together; every message that reserved
+        one of them has moved from then on."""
         if any(line["portion"] == portion for line in self._open_lines):
             return
-        for key, (line, point) in list(self._set_aside.items()):
-            if line["portion"] == portion:
-                del self._set_aside[key]
-                self._claim(self._parked_events[key], point, line["values"], now)
-                self._moved_quotes[line["quote"]] = now
-                self.line_claims.append((line["quote"], *key, point, now))
+        taking = [(key, line, point) for key, (line, point) in self._set_aside.items() if line["portion"] == portion]
+        for key, line, point in taking:
+            del self._set_aside[key]
+            self._claim(self._parked_events[key], point, dict(line["values"], portion_size=len(taking)), now)
+            self._moved_quotes[line["quote"]] = now
+            self.line_claims.append((line["quote"], *key, point, now))

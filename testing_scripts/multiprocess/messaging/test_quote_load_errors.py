@@ -190,3 +190,14 @@ def test_another_process_may_take_the_types_without_a_condition(named):
     messages = {"consume": [_reply("Catch_Accepted", "QuoteAccepted")]}
 
     assert parse_messages(messages, named, DECLARED).consume[0].condition is None
+
+
+@pytest.mark.parametrize("where", ["attributes", "as"])
+def test_portion_size_is_reserved(bpmn, where):
+    messages = section(**{**QUOTE, "quantity": {"list": "products", "as": "portion_size"}} if where == "as" else QUOTE)
+    if where == "attributes":
+        messages["publish"][0]["attributes"] = ["object_id", "portion_size"]
+    with pytest.raises(InvalidSimScenarioException, match=WHERE + r": a quote's lines can't carry portion_size, which "
+                       r"is reserved: an item claims its line with the number of items in its supplier's portion under "
+                       r"that name$"):
+        parse_messages(messages, bpmn, DECLARED | {"portion_size"})

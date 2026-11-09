@@ -5,6 +5,7 @@ from prosimos.messaging.model import QuoteSettings
 from prosimos.messaging.parser.common import PERIODS, check_keys, fail, read_multiplicity, read_period
 
 QUOTE_KEYS = {"quantity", "within", "accepted", "declined", "cancel", "modify"}
+PORTION_SIZE = "portion_size"
 NEEDED = ("quantity", "accepted", "declined", "cancel")
 TYPES = ("accepted", "declined", "cancel", "modify")
 
@@ -21,6 +22,11 @@ def read_quote(entry, where, declared):
     quote, in_quote = entry["quote"], f"{where}.quote"
     if not isinstance(quote, dict):
         fail(f"{where}: 'quote' must be an object with quantity, accepted, declined, and cancel, got {quote!r}")
+    quantity = quote.get("quantity")
+    if (isinstance(entry.get("attributes"), list) and PORTION_SIZE in entry["attributes"]) or (
+            isinstance(quantity, dict) and quantity.get("as") == PORTION_SIZE):
+        fail(f"{where}: a quote's lines can't carry {PORTION_SIZE}, which is reserved: an item claims its line with "
+             f"the number of items in its supplier's portion under that name")
     check_keys(in_quote, quote, QUOTE_KEYS)
     missing = [key for key in NEEDED if key not in quote]
     if missing:
