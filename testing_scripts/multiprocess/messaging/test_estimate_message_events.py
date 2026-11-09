@@ -27,37 +27,18 @@ LINE = ('<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MOD
         + "".join(f'<bpmn:sequenceFlow id="F{index + 1}" sourceRef="{FLOW[index][1]}" '
                   f'targetRef="{FLOW[index + 1][1]}"/>' for index in range(len(FLOW) - 1))
         + "</bpmn:process></bpmn:definitions>")
-# the same, with the item polished (10 minutes) while it waits for approval
-SPLIT = """<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"><bpmn:process id="Warehouse">
-<bpmn:startEvent id="Start"><bpmn:outgoing>F1</bpmn:outgoing></bpmn:startEvent>
-<bpmn:task id="Make"><bpmn:incoming>F1</bpmn:incoming><bpmn:outgoing>F2</bpmn:outgoing></bpmn:task>
-<bpmn:parallelGateway id="Split"><bpmn:incoming>F2</bpmn:incoming><bpmn:outgoing>F3</bpmn:outgoing>
-  <bpmn:outgoing>F4</bpmn:outgoing></bpmn:parallelGateway>
-<bpmn:intermediateCatchEvent id="Approve"><bpmn:incoming>F3</bpmn:incoming><bpmn:outgoing>F5</bpmn:outgoing>
-  <bpmn:messageEventDefinition/></bpmn:intermediateCatchEvent>
-<bpmn:task id="Polish"><bpmn:incoming>F4</bpmn:incoming><bpmn:outgoing>F6</bpmn:outgoing></bpmn:task>
-<bpmn:parallelGateway id="Join"><bpmn:incoming>F5</bpmn:incoming><bpmn:incoming>F6</bpmn:incoming>
-  <bpmn:outgoing>F7</bpmn:outgoing></bpmn:parallelGateway>
-<bpmn:task id="Pack"><bpmn:incoming>F7</bpmn:incoming><bpmn:outgoing>F8</bpmn:outgoing></bpmn:task>
-<bpmn:intermediateCatchEvent id="Shelf"><bpmn:incoming>F8</bpmn:incoming><bpmn:outgoing>F9</bpmn:outgoing>
-  <bpmn:messageEventDefinition/></bpmn:intermediateCatchEvent>
-<bpmn:endEvent id="End"><bpmn:incoming>F9</bpmn:incoming></bpmn:endEvent>
-<bpmn:sequenceFlow id="F1" sourceRef="Start" targetRef="Make"/>
-<bpmn:sequenceFlow id="F2" sourceRef="Make" targetRef="Split"/>
-<bpmn:sequenceFlow id="F3" sourceRef="Split" targetRef="Approve"/>
-<bpmn:sequenceFlow id="F4" sourceRef="Split" targetRef="Polish"/>
-<bpmn:sequenceFlow id="F5" sourceRef="Approve" targetRef="Join"/>
-<bpmn:sequenceFlow id="F6" sourceRef="Polish" targetRef="Join"/>
-<bpmn:sequenceFlow id="F7" sourceRef="Join" targetRef="Pack"/>
-<bpmn:sequenceFlow id="F8" sourceRef="Pack" targetRef="Shelf"/>
-<bpmn:sequenceFlow id="F9" sourceRef="Shelf" targetRef="End"/>
-</bpmn:process></bpmn:definitions>"""
+ASSETS = "testing_scripts/assets/quotes"
 
 
 def _warehouse(tmp_path, split=False):
-    """The warehouse's engine, for four items; enough staff that no task waits. split polishes the item meanwhile."""
-    (tmp_path / "warehouse.bpmn").write_text(SPLIT if split else LINE)
-    tasks = [("Make", 600), ("Pack", 1800), ("Polish", 600)]
+    """The warehouse's engine, for four items; enough staff that no task waits. split polishes the item (10 minutes)
+    while it waits for approval (approval_with_polish)."""
+    if split:
+        spec = ProcessSpec("Warehouse", f"{ASSETS}/approval_with_polish.bpmn", f"{ASSETS}/approval_with_polish.json",
+                           4, "item")
+        return ProsimosEngine(spec, START, seed=1)
+    (tmp_path / "warehouse.bpmn").write_text(LINE)
+    tasks = [("Make", 600), ("Pack", 1800)]
     (tmp_path / "warehouse.json").write_text(json.dumps({
         "resource_profiles": [{"id": "Workers", "name": "Workers", "resource_list": [
             {"id": "Worker", "name": "Worker", "cost_per_hour": 1, "amount": 5, "calendar": "Always",

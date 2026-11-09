@@ -14,63 +14,27 @@ from prosimos.orchestration.protocol import Line, Message, Quote, QuoteKind
 
 START = pytz.utc.localize(datetime(2024, 1, 1, 9))
 MINUTE, HOUR = timedelta(minutes=1), timedelta(hours=1)
-ALWAYS = [{"from": "MONDAY", "to": "SUNDAY", "beginTime": "00:00:00", "endTime": "23:59:59"}]
+ASSETS = "testing_scripts/assets/quotes"
 # the warehouse makes an item every hour from 09:00 (10 minutes) and checks it: 80% go to the shelf, 20% are fixed
-# (1 hour) and then scrapped, shelved, or checked again
-MODEL = """<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"><bpmn:process id="Warehouse">
-<bpmn:startEvent id="Start"><bpmn:outgoing>F1</bpmn:outgoing></bpmn:startEvent>
-<bpmn:task id="Make_Item"><bpmn:incoming>F1</bpmn:incoming><bpmn:outgoing>F2</bpmn:outgoing></bpmn:task>
-<bpmn:exclusiveGateway id="Check"><bpmn:incoming>F2</bpmn:incoming>CHECK_IN<bpmn:outgoing>Good</bpmn:outgoing>
-  <bpmn:outgoing>Bad</bpmn:outgoing></bpmn:exclusiveGateway>
-<bpmn:task id="Fix"><bpmn:incoming>Bad</bpmn:incoming><bpmn:outgoing>Fixed</bpmn:outgoing></bpmn:task>
-<bpmn:exclusiveGateway id="Merge"><bpmn:incoming>Good</bpmn:incoming>MERGE_IN<bpmn:outgoing>F5</bpmn:outgoing>
-  </bpmn:exclusiveGateway>
-<bpmn:intermediateCatchEvent id="Shelf"><bpmn:incoming>F5</bpmn:incoming><bpmn:outgoing>F6</bpmn:outgoing>
-  <bpmn:messageEventDefinition/></bpmn:intermediateCatchEvent>
-<bpmn:endEvent id="End"><bpmn:incoming>F6</bpmn:incoming></bpmn:endEvent>
-<bpmn:sequenceFlow id="F1" sourceRef="Start" targetRef="Make_Item"/>
-<bpmn:sequenceFlow id="F2" sourceRef="Make_Item" targetRef="Check"/>
-<bpmn:sequenceFlow id="Good" sourceRef="Check" targetRef="Merge"/>
-<bpmn:sequenceFlow id="Bad" sourceRef="Check" targetRef="Fix"/>
-FIXED
-<bpmn:sequenceFlow id="F5" sourceRef="Merge" targetRef="Shelf"/>
-<bpmn:sequenceFlow id="F6" sourceRef="Shelf" targetRef="End"/>
-</bpmn:process></bpmn:definitions>"""
+# (1 hour) and then scrapped (check_then_scrap), shelved (check_then_shelve), or checked again (check_again)
 
 
-def _warehouse(tmp_path, items=5, fixed="Scrapped", graded=False):
-    """The warehouse's engine; Fix sends the item on to fixed: Scrapped, Merge (the shelf), or Check. graded draws
-    each item's grade, A or B, and shelves the A ones only."""
-    fixed_in = "<bpmn:incoming>Fixed</bpmn:incoming>"
-    model = MODEL.replace("FIXED", f'<bpmn:sequenceFlow id="Fixed" sourceRef="Fix" targetRef="{fixed}"/>' + (
-        f'<bpmn:endEvent id="Scrapped">{fixed_in}</bpmn:endEvent>' if fixed == "Scrapped" else ""))
-    model = model.replace("MERGE_IN", fixed_in if fixed == "Merge" else "").replace(
-        "CHECK_IN", fixed_in if fixed == "Check" else "")
-    (tmp_path / "warehouse.bpmn").write_text(model)
-    probabilities = [{"path_id": "Good", "value": 0.8}, {"path_id": "Bad", "value": 0.2}]
+def _warehouse(tmp_path, items=5, model="check_then_scrap", graded=False):
+    """The warehouse's engine, from the model asset and the shared check settings. graded draws each item's grade,
+    A or B, and shelves the A ones only."""
+    json_path = f"{ASSETS}/check.json"
     if graded:
-        for probability, grade in zip(probabilities, "AB"):
+        with open(json_path) as file:
+            settings = json.load(file)
+        for probability, grade in zip(settings["gateway_branching_probabilities"][0]["probabilities"], "AB"):
             probability["condition_id"] = grade
-    tasks = [("Make_Item", 600), ("Fix", 3600)]
-    settings = {
-        "resource_profiles": [{"id": "Workers", "name": "Workers", "resource_list": [
-            {"id": "Worker", "name": "Worker", "cost_per_hour": 1, "amount": 5, "calendar": "Always",
-             "assigned_tasks": [task for task, _ in tasks]}]}],
-        "arrival_time_distribution": {"distribution_name": "fix", "distribution_params": [{"value": 3600}]},
-        "arrival_time_calendar": ALWAYS,
-        "gateway_branching_probabilities": [{"gateway_id": "Check", "probabilities": probabilities}],
-        "task_resource_distribution": [{"task_id": task, "resources": [
-            {"resource_id": "Worker", "distribution_name": "fix", "distribution_params": [{"value": seconds}]}]}
-            for task, seconds in tasks],
-        "resource_calendars": [{"id": "Always", "name": "Always", "time_periods": ALWAYS}],
-        "messages": {"consume": [{"event_id": "Shelf", "type": "ItemQuote"}]}}
-    if graded:
         settings["object_attributes"] = [{"name": "grade", "type": "discrete", "values": [
             {"key": "A", "value": 0.5}, {"key": "B", "value": 0.5}]}]
         settings["branch_rules"] = [
             {"id": grade, "rules": [[{"attribute": "grade", "comparison": "=", "value": grade}]]} for grade in "AB"]
-    (tmp_path / "warehouse.json").write_text(json.dumps(settings))
-    spec = ProcessSpec("Warehouse", str(tmp_path / "warehouse.bpmn"), str(tmp_path / "warehouse.json"), items, "item")
+        json_path = tmp_path / "warehouse.json"
+        json_path.write_text(json.dumps(settings))
+    spec = ProcessSpec("Warehouse", f"{ASSETS}/{model}.bpmn", str(json_path), items, "item")
     return ProsimosEngine(spec, START, seed=1)
 
 
@@ -107,12 +71,12 @@ def test_open_lines_take_the_earliest_expected_items_first(tmp_path):
 
 def test_a_branch_on_the_way_is_weighted_by_its_probability(tmp_path):
     # every item reaches the shelf; 20% after an hour of fixing: 12 minutes later on average
-    assert _slots(_warehouse(tmp_path, fixed="Merge")) == [made(index) + 12 * MINUTE for index in range(5)]
+    assert _slots(_warehouse(tmp_path, model="check_then_shelve")) == [made(index) + 12 * MINUTE for index in range(5)]
 
 
 def test_a_loop_back_is_followed_until_its_chance_is_negligible(tmp_path):
     # a fixed item is checked again: on average 0.25 fixes, 15 minutes; the ways cut off shift it by microseconds
-    [slot] = _slots(_warehouse(tmp_path, items=1, fixed="Check"))
+    [slot] = _slots(_warehouse(tmp_path, items=1, model="check_again"))
 
     assert abs(slot - (made(0) + 15 * MINUTE)) < timedelta(milliseconds=1)
 
