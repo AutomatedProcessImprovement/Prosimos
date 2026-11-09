@@ -81,24 +81,24 @@ class TaskEvent:
 
     @classmethod
     def create_event_entity(cls, c_event: EnabledEvent, ended_at, ended_datetime):
-        cls.p_case = c_event.p_case  # ID of the current trace, i.e., index of the trace in log_info list
-        cls.task_id = c_event.task_id  # Name of the task related to the current event
-        cls.type = BPMN.INTERMEDIATE_EVENT
-        cls.enabled_at = c_event.enabled_at
-        cls.enabled_datetime = c_event.enabled_datetime
-        cls.started_at = c_event.enabled_at
-        cls.started_datetime = c_event.enabled_datetime
-        cls.completed_at = ended_at
-        cls.completed_datetime = ended_datetime
-        cls.idle_time = 0.0
-        cls.waiting_time = 0.0
-        cls.idle_cycle_time = 0.0
-        cls.idle_processing_time = 0.0
-        cls.cycle_time = 0.0
-        cls.processing_time = 0.0
-        cls.batch_id = c_event.batch_info_exec.batch_id if c_event.batch_info_exec is not None else None
+        # a new event each time: the trace keeps it
+        event = cls(c_event.p_case, c_event.task_id, None,
+                    batch_id=c_event.batch_info_exec.batch_id if c_event.batch_info_exec is not None else None)
+        event.type = BPMN.INTERMEDIATE_EVENT
+        event.enabled_at = c_event.enabled_at
+        event.enabled_datetime = c_event.enabled_datetime
+        event.started_at = c_event.enabled_at
+        event.started_datetime = c_event.enabled_datetime
+        event.completed_at = ended_at
+        event.completed_datetime = ended_datetime
+        event.idle_time = 0.0
+        event.waiting_time = 0.0
+        event.idle_cycle_time = 0.0
+        event.idle_processing_time = 0.0
+        event.cycle_time = 0.0
+        event.processing_time = 0.0
 
-        return cls
+        return event
 
     def update_enabling_times(self, enabled_at):
         # what's the use case ?

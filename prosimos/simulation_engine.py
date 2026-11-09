@@ -445,7 +445,7 @@ class SimBPMEnv(EngineMessaging):
 
         resource_name = (
             self.sim_setup.resources_map[full_event.resource_id].resource_name
-            if (hasattr(full_event, "resource_id"))
+            if getattr(full_event, "resource_id", None) is not None
             else "No assigned resource"
         )
 

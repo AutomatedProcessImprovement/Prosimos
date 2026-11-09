@@ -2,9 +2,12 @@
 Catch events (docs/engine-internals.md, "Implicit merges"): a catch event Prosimos runs as a drawn delay fires once
 per arriving token, each token waiting its own duration, without waiting for its other arrows.
 """
+from datetime import timedelta
+
 import pytest
 
-from prosimos.control_flow_manager import CustomDatetimeAndSeconds
+from prosimos.control_flow_manager import BPMN, CustomDatetimeAndSeconds
+from prosimos.simulation_engine import run_simulation
 from prosimos.simulation_setup import SimDiffSetup
 from testing_scripts.multiprocess.bpmn.test_end_events import START, _log, _model
 
@@ -85,3 +88,20 @@ def test_a_conditional_or_signal_catch_event_runs_as_its_drawn_delay_without_a_w
 
     assert steps["0"] == [("Ship", "01 11:00", "01 12:00")]  # after the 2 h wait
     assert "undefined event type" not in capsys.readouterr().out
+
+
+def test_each_intermediate_event_in_a_trace_keeps_its_own_times(tmp_path):
+    # once all of them were the same object, holding the last event's times
+    bpmn, json_path = _model(
+        tmp_path, {"Start": "startEvent", "Wait_1": "intermediateCatchEvent:timer", "Task": "task",
+                   "Wait_2": "intermediateCatchEvent:timer", "End": "endEvent"},
+        [("start", "Start", "Wait_1"), ("waited_1", "Wait_1", "Task"), ("done", "Task", "Wait_2"),
+         ("waited_2", "Wait_2", "End")], events={"Wait_1": 1, "Wait_2": 2})
+
+    _, log_info = run_simulation(bpmn, json_path, 1, starting_at=START.isoformat())
+
+    # Wait_1 from 09:00 to 10:00, Task until 11:00, Wait_2 until 13:00
+    hour = timedelta(hours=1)
+    assert [(event.task_id, event.started_datetime, event.completed_datetime)
+            for event in log_info.trace_list[0].event_list if event.type is BPMN.INTERMEDIATE_EVENT] == [
+        ("Wait_1", START, START + hour), ("Wait_2", START + 2 * hour, START + 4 * hour)]
