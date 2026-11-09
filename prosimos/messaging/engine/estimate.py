@@ -30,28 +30,38 @@ class Estimating:
         waiting = [[parked_event.enabled_datetime, parked_event.p_case, parked_event.task_id, 1.0]
                    for parked_event in self.parked_events() if parked_event.task_id in events
                    and (parked_event.p_case, parked_event.task_id) not in self._set_aside]
-        # a case waiting for a message elsewhere may be held up there in a branch: it isn't forecast
-        held_up = {parked_event.p_case for parked_event in self.parked_events() if parked_event.task_id not in events}
-        queued, ahead = [], {}
+        queued = []
+        ahead = {}  # case id -> (element id, ready time, whether the case is past it) of each of its branches
+        for parked_event in self.parked_events():
+            if parked_event.task_id not in events:  # it goes on after its average wait there, or now if overdue
+                ready = parked_event.enabled_datetime + timedelta(seconds=self._average_caught(parked_event.task_id))
+                ahead.setdefault(parked_event.p_case, []).append((parked_event.task_id, max(ready, now), True))
         for event in self.events_queue.enabled_events.entry_finder:
-            if event.task_id not in events:
-                ahead.setdefault(event.p_case, []).append(event)
+            if event.task_id not in events:  # a case resumed by a message is past its catch event
+                ahead.setdefault(event.p_case, []).append((event.task_id, event.enabled_datetime,
+                                                           event.parked_event is not None))
             elif event.parked_event is None:
                 queued.append([event.enabled_datetime, event.p_case, event.task_id, 1.0])
         waits = {}
-        for p_case, case_events in ahead.items():
-            if p_case not in held_up:
-                reached = self._case_forecast(p_case, case_events, events, now, waits)
+        for p_case, starts in ahead.items():
+            if not any(element_id in self._race_gateway_of for element_id, _, _ in starts):  # races aren't forecast
+                reached = self._case_forecast(p_case, starts, events, now, waits)
                 queued += [[ready, p_case, catch_event, chance]
                            for catch_event, (chance, ready) in (reached or {}).items()]
         return sorted(waiting + queued, key=lambda item: item[:3])
 
-    def _case_forecast(self, p_case, case_events, events, now, waits):
-        """catch event in events -> (chance, average ready time) of the case p_case from its queued case_events;
-        None if not forecast. The branches of a split go on together from their join when the latest gets there,
-        the innermost join first, which then is one branch of the next."""
-        forecasts = [self._forecast(p_case, event.task_id, event.enabled_datetime, events, now, waits)
-                     for event in case_events]
+    def _case_forecast(self, p_case, starts, events, now, waits):
+        """catch event in events -> (chance, average ready time) of the case p_case from where its branches are,
+        starts; None if not forecast. The branches of a split go on together from their join when the latest gets
+        there, the innermost join first, which then is one branch of the next."""
+        graph = self.sim_setup.bpmn_graph
+        forecasts = []
+        for element_id, ready, past in starts:
+            outgoing = graph.element_info[element_id].outgoing_flows
+            if past and len(outgoing) != 1:
+                return None
+            forecasts.append(self._forecast(p_case, graph.flow_arcs[outgoing[0]][1] if past else element_id, ready,
+                                            events, now, waits))
         if None in forecasts:
             return None
         if all(target in events for forecast in forecasts for target in forecast):
@@ -109,11 +119,13 @@ class Estimating:
                                  BPMN.EXCLUSIVE_GATEWAY, BPMN.PARALLEL_GATEWAY):
                 return None
             if info.type is BPMN.INTERMEDIATE_EVENT:
-                # a timer or other timed event lasts its drawn duration, in clock time; one waiting for a message
-                # isn't forecast
-                if element_id in self._consume_points or element_id not in graph.event_distribution:
+                # a wait for a message takes the average so far; a timer or other timed event, its drawn duration
+                if element_id in self._consume_points:
+                    ready += timedelta(seconds=self._average_caught(element_id))
+                elif element_id in graph.event_distribution:
+                    ready += timedelta(seconds=_mean(graph.event_distribution[element_id]))
+                else:
                     return None
-                ready += timedelta(seconds=_mean(graph.event_distribution[element_id]))
             if info.type is BPMN.TASK:
                 if element_id not in waits:
                     waits[element_id] = self._average_wait(element_id, now)
@@ -163,6 +175,12 @@ class Estimating:
                      event.enabled_datetime, event.started_datetime)
                  for trace in self.log_info.trace_list for event in trace.event_list
                  if event.type == BPMN.TASK and event.task_id == task_id and event.started_datetime <= now]
+        return sum(waits) / len(waits) if waits else 0
+
+    def _average_caught(self, event_id):
+        """The average clock seconds items waited at the catch event event_id for a message so far; 0 while none
+        has."""
+        waits = self._caught_waits.get(event_id, [])
         return sum(waits) / len(waits) if waits else 0
 
     def _average_duration(self, task_id):
