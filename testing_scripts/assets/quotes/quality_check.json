@@ -1,0 +1,198 @@
+{
+  "resource_profiles": [
+    {
+      "id": "Workers",
+      "name": "Workers",
+      "resource_list": [
+        {
+          "id": "Worker",
+          "name": "Worker",
+          "cost_per_hour": 1,
+          "amount": 5,
+          "calendar": "Always",
+          "assigned_tasks": [
+            "Make",
+            "Inspect",
+            "Wash",
+            "Pack",
+            "Scrap"
+          ]
+        }
+      ]
+    }
+  ],
+  "arrival_time_distribution": {
+    "distribution_name": "fix",
+    "distribution_params": [
+      {
+        "value": 3600
+      }
+    ]
+  },
+  "arrival_time_calendar": [
+    {
+      "from": "MONDAY",
+      "to": "SUNDAY",
+      "beginTime": "00:00:00",
+      "endTime": "23:59:59"
+    }
+  ],
+  "gateway_branching_probabilities": [
+    {
+      "gateway_id": "Check",
+      "probabilities": [
+        {
+          "path_id": "Good",
+          "value": 0.5,
+          "condition_id": "good"
+        },
+        {
+          "path_id": "Bad",
+          "value": 0.5,
+          "condition_id": "bad"
+        }
+      ]
+    }
+  ],
+  "branch_rules": [
+    {
+      "id": "good",
+      "rules": [
+        [
+          {
+            "attribute": "quality",
+            "comparison": "=",
+            "value": "good"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "bad",
+      "rules": [
+        [
+          {
+            "attribute": "quality",
+            "comparison": "=",
+            "value": "bad"
+          }
+        ]
+      ]
+    }
+  ],
+  "event_attributes": [
+    {
+      "event_id": "Inspect",
+      "attributes": [
+        {
+          "name": "quality",
+          "type": "discrete",
+          "values": [
+            {
+              "key": "good",
+              "value": 0.75
+            },
+            {
+              "key": "bad",
+              "value": 0.25
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "task_resource_distribution": [
+    {
+      "task_id": "Make",
+      "resources": [
+        {
+          "resource_id": "Worker",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 600
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Inspect",
+      "resources": [
+        {
+          "resource_id": "Worker",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 600
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Wash",
+      "resources": [
+        {
+          "resource_id": "Worker",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 600
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Pack",
+      "resources": [
+        {
+          "resource_id": "Worker",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 1800
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Scrap",
+      "resources": [
+        {
+          "resource_id": "Worker",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 600
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "resource_calendars": [
+    {
+      "id": "Always",
+      "name": "Always",
+      "time_periods": [
+        {
+          "from": "MONDAY",
+          "to": "SUNDAY",
+          "beginTime": "00:00:00",
+          "endTime": "23:59:59"
+        }
+      ]
+    }
+  ],
+  "messages": {
+    "consume": [
+      {
+        "event_id": "Shelf",
+        "type": "ItemQuote"
+      }
+    ]
+  }
+}

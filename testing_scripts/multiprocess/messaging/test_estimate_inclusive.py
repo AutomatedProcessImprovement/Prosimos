@@ -1,8 +1,10 @@
 """
 Inclusive splits in estimates (docs/messaging.md): each branch is taken with its own chance, and if none is, Prosimos
 takes one drawn by the chances; every combination goes on from the join when its longest branch gets there,
-weighted by its chance. A split whose chances don't add up to 1 gives no slot.
+weighted by its chance. A split whose chances don't add up to 1 gives no slot. A branch with a condition is taken
+exactly when its data is known, by its history when the data isn't known yet, and with no history yet it is taken.
 """
+import json
 from datetime import timedelta
 
 import pytest
@@ -70,3 +72,47 @@ def test_an_item_inside_the_split_goes_on_when_its_latest_branch_gets_there(tmp_
     assert [(event.task_id, event.enabled_datetime) for event in env.events_queue.enabled_events.entry_finder] == [
         ("Test", START + 70 * MINUTE)]
     assert env.sim_setup.bpmn_graph.last_datetime["Join"][0].datetime == START + 2 * HOUR
+
+
+# an item is inspected (10 minutes), which sets its quality, good or bad, and washed (10 minutes); then a good one
+# is polished (1 hour) and a bad one labeled (20 minutes) for the shelf. One item arrives a day; with seed 4, items
+# 0, 1, and 2 are bad, good, and bad
+GRADED = ({"Start": "startEvent", "Inspect": "task", "Wash": "task", "Split": "inclusiveGateway", "Polish": "task",
+           "Label": "task", "Join": "inclusiveGateway", "Shelf": "intermediateCatchEvent:message",
+           "End": "endEvent"},
+          [("start", "Start", "Inspect"), ("inspected", "Inspect", "Wash"), ("washed", "Wash", "Split"),
+           ("to_polish", "Split", "Polish"), ("to_label", "Split", "Label"), ("polished", "Polish", "Join"),
+           ("labeled", "Label", "Join"), ("joined", "Join", "Shelf"), ("shelved", "Shelf", "End")])
+DAY = timedelta(days=1)
+
+
+def _graded(tmp_path):
+    bpmn, json_path = _model(tmp_path, *GRADED, hours={"Inspect": 1 / 6, "Wash": 1 / 6, "Label": 1 / 3},
+                             probabilities={"Split": [("to_polish", 0.5), ("to_label", 0.5)]},
+                             messages={"consume": [{"event_id": "Shelf", "type": "ItemQuote"}]})
+    settings = json.loads(json_path.read_text())
+    for probability in settings["gateway_branching_probabilities"][0]["probabilities"]:
+        probability["condition_id"] = "good" if probability["path_id"] == "to_polish" else "bad"
+    settings["branch_rules"] = [{"id": quality, "rules": [[{"attribute": "quality", "comparison": "=",
+                                                             "value": quality}]]} for quality in ("good", "bad")]
+    settings["event_attributes"] = [{"event_id": "Inspect", "attributes": [{"name": "quality", "type": "discrete",
+                                                                            "values": [{"key": "good", "value": 0.5},
+                                                                                       {"key": "bad", "value": 0.5}]}]}]
+    json_path.write_text(json.dumps(settings))
+    return ProsimosEngine(ProcessSpec("Warehouse", str(bpmn), str(json_path), 4, "item"), START, seed=4)
+
+
+def test_branches_with_conditions_on_data_not_known_yet_and_no_history_are_taken(tmp_path):
+    # both branches: polished by 10:20
+    assert _slots(_graded(tmp_path)) == [START + index * DAY + 80 * MINUTE for index in range(4)]
+
+
+def test_branches_with_conditions_go_by_known_data_or_their_history(tmp_path):
+    # on day 3 at 09:05 item-2 is inspected, bad: labeled by 09:40. Item-3's quality isn't known: each branch is taken
+    # with chance 1/2 as so far, both 25%, polishing alone 25% + 12.5% (half of the 25% that take neither), labeling
+    # alone 37.5%: the join on average 45 minutes after washing, at 10:05
+    engine = _graded(tmp_path)
+
+    assert _slots(engine, START + 2 * DAY + 5 * MINUTE)[2:] == [START + 2 * DAY + 40 * MINUTE,
+                                                                 START + 3 * DAY + 65 * MINUTE]
+    assert engine._env._history("Split") == ({"to_label": 1, "to_polish": 1}, 2)

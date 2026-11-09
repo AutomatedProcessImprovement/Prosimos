@@ -166,7 +166,7 @@ class Estimating:
                 join, ready = joined
                 ways.append((join, ready, chance, path, True))
             else:  # an inclusive split: each combination of branches on from the join when its longest gets there
-                combinations = self._combinations(info)
+                combinations = self._combinations(info, p_case, path)
                 forecasts = [self._forecast(p_case, graph.flow_arcs[flow][1], ready, events, now, waits)
                              for flow in info.outgoing_flows]
                 branches = [_joined([forecast], events) for forecast in forecasts]
@@ -202,8 +202,8 @@ class Estimating:
         is taken after the expected number of loop backs, each repeating the loop's elements, within the model's
         loop limit (Prosimos stops a case at a split it has passed that many times). None if it can't be followed."""
         graph = self.sim_setup.bpmn_graph
-        out, back = [], []  # (element, chance) and (the way back, its loop's elements, chance)
-        for flow, share in self._branches(info, p_case):
+        ways_back = {}  # flow -> (the way back, its loop's elements) of each branch that loops
+        for flow in info.outgoing_flows:
             element_id, way_back = graph.flow_arcs[flow][1], []
             # a plain way: elements with one way on, other than catch events in events and race branches
             while (element_id not in path and element_id not in events and element_id not in self._race_gateway_of
@@ -211,9 +211,18 @@ class Estimating:
                 way_back.append(element_id)
                 element_id = graph.flow_arcs[graph.element_info[element_id].outgoing_flows[0]][1]
             if element_id in path:
-                back.append((way_back, path[path.index(element_id):], share))
-            else:
-                out.append((graph.flow_arcs[flow][1], share))
+                ways_back[flow] = (way_back, path[path.index(element_id):])
+        branches = self._branches(info, p_case, path)
+        if branches is None:  # decided by data not known yet, with no history: the way out to events passes
+            for flow in info.outgoing_flows:
+                element_id = graph.flow_arcs[flow][1]
+                if flow not in ways_back and (element_id in events or any(
+                        target in events for target in self._forecast(p_case, element_id, ready, events, now, waits)
+                        or {})):
+                    return [(element_id, ready, 1.0)]
+            return []
+        out = [(graph.flow_arcs[flow][1], share) for flow, share in branches if flow not in ways_back]
+        back = [(*ways_back[flow], share) for flow, share in branches if flow in ways_back]
         if not back:
             return [(element_id, ready, share) for element_id, share in out]
         looping = sum(share for _, _, share in back)
@@ -288,34 +297,77 @@ class Estimating:
                 reached.setdefault(target, []).append((chance * share, at))
         return {target: _average(ways) for target, ways in reached.items()}
 
-    def _combinations(self, info):
-        """(indices of the outgoing flows taken, chance) of each combination the inclusive split info may take, as
-        Prosimos picks one: each flow with its own chance, and if none is taken, one drawn by the chances. None if
-        the chances don't add up to 1 (Prosimos can't draw then) or conditions decide (not forecast yet)."""
+    def _combinations(self, info, p_case, path):
+        """(indices of the outgoing flows taken, chance) of each combination the inclusive split info may take for
+        the case p_case, having passed path, as Prosimos picks one: each flow with its own chance, a flow with a
+        condition taken if the case's data passes it (by the flow's history if the data isn't known yet; taken with
+        no history); if none is taken, the default flow, or one drawn by the chances. None if that draw is needed
+        and the chances don't add up to 1 (Prosimos can't draw then)."""
         graph = self.sim_setup.bpmn_graph
         conditions = graph.gateway_conditions.get(info.id)
         choice = graph.element_probability[info.id]
         shares = dict(zip(choice.candidates_list, choice.probability_list))
-        if (conditions is not None and conditions.candidates_list) or abs(sum(shares.values()) - 1) > 1 - _WHOLE:
-            return None
         chances = [shares.get(flow, 0.0) for flow in info.outgoing_flows]
+        if conditions is not None and conditions.candidates_list:
+            attributes = graph.get_all_attributes(p_case)
+            taken, passes = self._history(info.id)
+            for flow, rule in zip(conditions.candidates_list, conditions.rules_list):
+                if not rule:
+                    continue
+                if self._unknown(rule, p_case, path):
+                    chance = taken.get(flow, 0) / passes if passes else 1.0
+                else:
+                    chance = 1.0 if rule.is_true(attributes) else 0.0
+                chances[info.outgoing_flows.index(flow)] = chance
         none_taken = math.prod(1 - chance for chance in chances)
+        default = conditions.get_default_path() if conditions is not None else None
+        if none_taken > 1 - _WHOLE and default is None and abs(sum(shares.values()) - 1) > 1 - _WHOLE:
+            return None
+        drawn = [1.0 if flow == default else 0.0 for flow in info.outgoing_flows] if default else \
+            [shares.get(flow, 0.0) for flow in info.outgoing_flows]
         combinations = []
         for chosen in itertools.product((False, True), repeat=len(chances)):
             taken = [index for index, take in enumerate(chosen) if take]
-            if taken:
-                share = math.prod(chance if take else 1 - chance for chance, take in zip(chances, chosen))
-                combinations.append((taken, share + (none_taken * chances[taken[0]] if len(taken) == 1 else 0)))
+            share = math.prod(chance if take else 1 - chance for chance, take in zip(chances, chosen))
+            share += none_taken * drawn[taken[0]] if len(taken) == 1 else 0
+            if taken and share > 0:
+                combinations.append((taken, share))
         return combinations
 
-    def _branches(self, info, p_case):
-        """(flow, chance) of each branch of the exclusive split info for the case p_case, as Prosimos picks one:
-        the branches the case's data passes, or the default branch, or the probabilities."""
+    def _history(self, gateway_id):
+        """(flow -> how often the cases took it, how often they passed gateway_id) so far in this run."""
+        taken, passes = {}, 0
+        for executions in self.sim_setup.bpmn_graph.simulation_execution_stats.data[gateway_id][
+                "case_executions"].values():
+            passes += executions["executions"]
+            for flow, arc in executions["arcs"].items():
+                taken[flow] = taken.get(flow, 0) + arc["executions"]
+        return taken, passes
+
+    def _unknown(self, rule, p_case, path):
+        """Whether the condition rule reads data the case p_case doesn't have yet: data it lacks, or data a task on
+        path, still ahead of it, sets."""
+        attributes = self.sim_setup.all_attributes
+        set_ahead = {name for element_id in path
+                     for source in (attributes.event_attributes, attributes.global_event_attributes)
+                     for name in source.attributes.get(element_id, {})}
+        known = self.sim_setup.bpmn_graph.get_all_attributes(p_case)
+        return any(single.attribute not in known or single.attribute in set_ahead
+                   for and_rule in rule.or_rule.or_rules for single in and_rule.and_rules)
+
+    def _branches(self, info, p_case, path):
+        """(flow, chance) of each branch of the exclusive split info for the case p_case, having passed path, as
+        Prosimos picks one: the branches the case's data passes, or the default branch, or the probabilities. Data
+        not known yet: the share of the cases that took each branch so far; None with no history yet."""
         graph = self.sim_setup.bpmn_graph
         choice = graph.element_probability[info.id]
         shares = dict(zip(choice.candidates_list, choice.probability_list))
         conditions = graph.gateway_conditions.get(info.id)
         if conditions is not None and conditions.candidates_list:
+            if any(rule and self._unknown(rule, p_case, path) for rule in conditions.rules_list):
+                taken, passes = self._history(info.id)
+                return [(flow, taken[flow] / passes) for flow in info.outgoing_flows if taken.get(flow)] if passes \
+                    else None
             attributes = graph.get_all_attributes(p_case)
             passed = [flow for flow, rule in zip(conditions.candidates_list, conditions.rules_list)
                       if not rule or rule.is_true(attributes)]
