@@ -2,6 +2,7 @@
 Catch events (docs/engine-internals.md, "Implicit merges"): a catch event Prosimos runs as a drawn delay fires once
 per arriving token, each token waiting its own duration, without waiting for its other arrows.
 """
+import json
 from datetime import timedelta
 
 import pytest
@@ -105,3 +106,21 @@ def test_each_intermediate_event_in_a_trace_keeps_its_own_times(tmp_path):
     assert [(event.task_id, event.started_datetime, event.completed_datetime)
             for event in log_info.trace_list[0].event_list if event.type is BPMN.INTERMEDIATE_EVENT] == [
         ("Wait_1", START, START + hour), ("Wait_2", START + 2 * hour, START + 4 * hour)]
+
+
+def test_a_fuzzy_model_with_a_timer_works_out_its_resources_availability(tmp_path):
+    # the timer has no resource: it was read as one, and the run crashed
+    bpmn, json_path = _model(
+        tmp_path, {"Start": "startEvent", "Task": "task", "Wait": "intermediateCatchEvent:timer", "End": "endEvent"},
+        [("start", "Start", "Task"), ("done", "Task", "Wait"), ("waited", "Wait", "End")], events={"Wait": 1})
+    settings = json.loads(json_path.read_text())
+    settings["model_type"] = "FUZZY"
+    settings["granule_size"] = {"time_unit": "minutes", "value": 60}
+    for calendar in settings["resource_calendars"]:
+        calendar["time_periods"] = [dict(period, probability=1.0) for period in calendar["time_periods"]]
+        calendar["workload_ratio"] = calendar["time_periods"]
+    json_path.write_text(json.dumps(settings))
+
+    _, _, utilization, _, _ = run_simulation(bpmn, json_path, 2, starting_at=START.isoformat())[0]
+
+    assert list(utilization) == ["R_Task"]

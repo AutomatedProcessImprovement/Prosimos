@@ -269,9 +269,11 @@ def compute_resorce_availability(bpm_env):
 def compute_fuzzy_availability(bpm_env):
     trace_list = bpm_env.log_info.trace_list
     r_working_intervals = dict()
-    # Grouping the timeintervals each resource was working on the allocated tasks
+    # Grouping the timeintervals each resource was working on the allocated tasks (events have no resource)
     for trace in trace_list:
         for ev in trace.event_list:
+            if ev.type != BPMN.TASK:
+                continue
             if ev.resource_id not in r_working_intervals:
                 r_working_intervals[ev.resource_id] = []
             for interval in ev.worked_intervals:
