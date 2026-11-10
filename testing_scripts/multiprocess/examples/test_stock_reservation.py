@@ -3,6 +3,7 @@ The Stock Reservation example (docs/stock-reservation.md): Sales quotes the prod
 warehouses, which make items and ship each order's portion as one Shipment. The stories of the base run, seed 1.
 """
 import csv
+import json
 from datetime import datetime, timedelta
 
 import pytest
@@ -20,12 +21,23 @@ def at(day, clock):
 
 
 @pytest.fixture(scope="module")
-def run(tmp_path_factory):
-    """The report of the base run, and its log rows."""
-    path = tmp_path_factory.mktemp("stock_reservation") / "log.csv"
-    report = run_multiprocess_simulation(SimulationConfig.from_json(CONFIG), path)
-    with open(path) as file:
+def folder(tmp_path_factory):
+    return tmp_path_factory.mktemp("stock_reservation")
+
+
+@pytest.fixture(scope="module")
+def run(folder):
+    """The report of the base run, and its log rows; its OCEL file is written to the folder."""
+    report = run_multiprocess_simulation(SimulationConfig.from_json(CONFIG), folder / "log.csv",
+                                         ocel_out_path=folder / "ocel.json")
+    with open(folder / "log.csv") as file:
         return report, list(csv.DictReader(file))
+
+
+@pytest.fixture(scope="module")
+def ocel(run, folder):
+    with open(folder / "ocel.json") as file:
+        return json.load(file)
 
 
 def _asked(report, order):
@@ -131,6 +143,38 @@ def test_an_accepted_change_keeps_the_ipad_in_place_and_ships_it_with_the_added_
     assert _taken(report, [quote]) == [("TartuWarehouse", "item-5", at(3, "08:00"))]
     assert _taken(report, [modify]) == [("TartuWarehouse", "item-23", at(3, "08:00"))]
     assert _shipments(report, "order-6") == [(at(3, "08:15"), "TartuWarehouse", ["item-5", "item-23"])]
+
+
+def test_a_change_writes_its_own_event_linked_to_the_items_that_take_the_lines_it_added(ocel):
+    # order-6's change asks the iPad and an added MacBook; the iPad's line is the first quote's, so the change's event
+    # links only the MacBook that takes the added line (Tartu's item-23; the OCEL file numbers both warehouses' items
+    # together), which is reserved for order-6 when it reaches the shelf. order-9's change, declined, links nothing
+    def events(activity, own):
+        return [event for event in ocel["events"]
+                if event["type"] == activity and event["relationships"][0]["objectId"] == own]
+
+    def links(event):
+        return [(link["objectId"], link["qualifier"]) for link in event["relationships"][1:]]
+
+    [change] = events("Change asked", "order-6")
+    assert change["time"] == "2024-01-01T15:22:02.524453Z"
+    [(item, qualifier)] = links(change)
+    assert qualifier == "requests"
+    [shelf] = events("On the shelf", item)
+    assert (shelf["time"], links(shelf)) == ("2024-01-03T08:00:00.000000Z",
+                                             [("order-6", "reserved for"), ("MacBook", "product")])
+    [declined] = events("Change asked", "order-9")
+    assert links(declined) == []
+
+
+def test_an_order_contains_the_items_delivered_for_its_quote_and_its_change(ocel):
+    # order-6's iPad took its quote's line and the MacBook its change's (o2o "contains" on both entries)
+    product = {event["relationships"][0]["objectId"]: event["relationships"][1]["objectId"]
+               for event in ocel["events"] if event["type"] == "Make item"}
+    [order] = [obj for obj in ocel["objects"] if obj["id"] == "order-6"]
+
+    assert sorted((product[link["objectId"]], link["qualifier"]) for link in order["relationships"]) == [
+        ("MacBook", "contains"), ("iPad", "contains")]
 
 
 def test_a_change_after_the_portion_moved_on_is_declined_and_the_ipad_still_ships(run):

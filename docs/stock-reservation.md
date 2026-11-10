@@ -117,15 +117,20 @@ The run report counts the quotes' outcomes (`quotes`) and the broken promises (`
 messages and the stalled cases ([orchestrator.md](orchestrator.md), "Output").
 
 The object types are `order` (Sales), `item` (both warehouses: one numbering in the OCEL file, so Tartu's and
-Tallinn's items get ids of their own) and `product`, from Shop's catalogue. Four message ends have a qualifier, so
+Tallinn's items get ids of their own) and `product`, from Shop's catalogue. Five message ends have a qualifier, so
 they write events of their own ([orchestrator.md](orchestrator.md), "One event linked to many objects"):
 
-| Event              | Linked to                                                                                    |
-|--------------------|----------------------------------------------------------------------------------------------|
-| Quote asked        | its order and the items that took its lines (`requests`)                                     |
-| On the shelf       | its item, its product, and the order whose line it took (`reserved for`)                     |
-| Shipment sent      | its item, its product, and its order (`shipped in`), one per item                            |
-| Shipments received | its order and the items of the Shipments it took then (`received shipment`), one per moment |
+| Event              | Linked to                                                                                               |
+|--------------------|---------------------------------------------------------------------------------------------------------|
+| Quote asked        | its order and the items that took its lines (`requests`)                                                |
+| Change asked       | its order and the items that took the lines it added (`requests`); one that is declined, its order only |
+| On the shelf       | its item, its product, and the order whose line it took (`reserved for`)                                |
+| Shipment sent      | its item, its product, and its order (`shipped in`), one per item                                       |
+| Shipments received | its order and the items of the Shipments it took then (`received shipment`), one per moment             |
 
 Each Shipment received is an event of its own, so an order that gives up after some of its Shipments still shows the
-ones it got, without a task for them.
+ones it got, without a task for them. The replies and the cancel have no qualifier, so they write no events.
+
+Objects are linked to each other too: each order **contains** the items that took its lines, from its quote or from a
+change (`"o2o": "contains"` on both entries), so an order that gives up after some of its Shipments contains only the
+items it got.

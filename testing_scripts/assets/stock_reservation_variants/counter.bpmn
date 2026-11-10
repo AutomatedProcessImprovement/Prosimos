@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Counter" targetNamespace="http://bpmn.io/schema/bpmn">
+  <!-- walk-in customers of the Stock Reservation example's variants: ordinary orders, without a quote -->
+  <bpmn:process id="Counter" isExecutable="false">
+    <bpmn:startEvent id="Start" name="Customer arrives">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:task id="Browse" name="Browse">
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:intermediateThrowEvent id="Throw_Ask" name="Item asked">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_3</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="Throw_Ask_definition" />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:intermediateCatchEvent id="Catch_Item" name="Item received">
+      <bpmn:incoming>Flow_3</bpmn:incoming>
+      <bpmn:outgoing>Flow_4</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="Catch_Item_definition" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:endEvent id="End" name="Customer served">
+      <bpmn:incoming>Flow_4</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Browse" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Browse" targetRef="Throw_Ask" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Throw_Ask" targetRef="Catch_Item" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Catch_Item" targetRef="End" />
+  </bpmn:process>
+</bpmn:definitions>

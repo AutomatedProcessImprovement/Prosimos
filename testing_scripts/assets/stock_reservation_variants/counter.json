@@ -1,0 +1,107 @@
+{
+  "resource_profiles": [
+    {
+      "id": "Shoppers",
+      "name": "Shoppers",
+      "resource_list": [
+        {
+          "id": "Shopper",
+          "name": "Shopper",
+          "cost_per_hour": 1,
+          "amount": 10,
+          "calendar": "Always",
+          "assigned_tasks": [
+            "Browse"
+          ]
+        }
+      ]
+    }
+  ],
+  "arrival_time_distribution": {
+    "distribution_name": "fix",
+    "distribution_params": [
+      {
+        "value": 3600
+      }
+    ]
+  },
+  "arrival_time_calendar": [
+    {
+      "from": "MONDAY",
+      "to": "SUNDAY",
+      "beginTime": "00:00:00",
+      "endTime": "23:59:59"
+    }
+  ],
+  "gateway_branching_probabilities": [],
+  "task_resource_distribution": [
+    {
+      "task_id": "Browse",
+      "resources": [
+        {
+          "resource_id": "Shopper",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 5400
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "resource_calendars": [
+    {
+      "id": "Always",
+      "name": "Always",
+      "time_periods": [
+        {
+          "from": "MONDAY",
+          "to": "SUNDAY",
+          "beginTime": "00:00:00",
+          "endTime": "23:59:59"
+        }
+      ]
+    }
+  ],
+  "object_attributes": [
+    {
+      "name": "portion_size",
+      "type": "discrete",
+      "values": [
+        {
+          "key": 1,
+          "value": 1.0
+        }
+      ]
+    }
+  ],
+  "messages": {
+    "publish": [
+      {
+        "event_id": "Throw_Ask",
+        "type": "ItemAsked",
+        "attributes": [
+          "object_id",
+          "product",
+          "portion_size"
+        ]
+      }
+    ],
+    "consume": [
+      {
+        "event_id": "Catch_Item",
+        "type": "Shipment",
+        "condition": [
+          [
+            {
+              "attribute": "order_id",
+              "comparison": "=",
+              "object_attribute": "object_id"
+            }
+          ]
+        ]
+      }
+    ]
+  }
+}

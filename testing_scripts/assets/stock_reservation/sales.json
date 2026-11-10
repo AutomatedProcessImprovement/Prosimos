@@ -207,6 +207,7 @@
           "object_id"
         ],
         "qualifier": "requests",
+        "o2o": "contains",
         "quote": {
           "quantity": {
             "list": "products",
@@ -228,7 +229,9 @@
         "type": "QuoteModified",
         "attributes": [
           "object_id"
-        ]
+        ],
+        "qualifier": "requests",
+        "o2o": "contains"
       },
       {
         "event_id": "Throw_Cancel",
