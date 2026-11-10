@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1220" height="640" viewBox="0 0 1220 640" font-family="Helvetica, Arial, sans-serif">
+<defs>
+<marker id="seq" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#222"/></marker>
+<marker id="msgend" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#fff" stroke="#555"/></marker>
+<marker id="msgstart" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7"><circle cx="5" cy="5" r="4" fill="#fff" stroke="#555"/></marker>
+</defs>
+<rect width="1220" height="640" fill="#fff"/>
+<rect x="20" y="20" width="1180" height="170" fill="#fff" stroke="#333" stroke-width="1.5"/>
+<line x1="50" y1="20" x2="50" y2="190" stroke="#333" stroke-width="1.5"/>
+<text x="32.5" y="105.0" font-size="12" font-weight="bold" text-anchor="middle" transform="rotate(-90 32.5 105.0)">Sales</text>
+<text x="45.5" y="105.0" font-size="12" font-weight="bold" text-anchor="middle" transform="rotate(-90 45.5 105.0)">(order)</text>
+<rect x="20" y="200" width="1180" height="120" fill="#fff" stroke="#333" stroke-width="1.5"/>
+<line x1="50" y1="200" x2="50" y2="320" stroke="#333" stroke-width="1.5"/>
+<text x="32.5" y="260.0" font-size="12" font-weight="bold" text-anchor="middle" transform="rotate(-90 32.5 260.0)">Billing</text>
+<text x="45.5" y="260.0" font-size="12" font-weight="bold" text-anchor="middle" transform="rotate(-90 45.5 260.0)">(invoice)</text>
+<rect x="20" y="330" width="1180" height="140" fill="#fff" stroke="#333" stroke-width="1.5"/>
+<line x1="50" y1="330" x2="50" y2="470" stroke="#333" stroke-width="1.5"/>
+<text x="32.5" y="400.0" font-size="12" font-weight="bold" text-anchor="middle" transform="rotate(-90 32.5 400.0)">TartuWarehouse</text>
+<text x="45.5" y="400.0" font-size="12" font-weight="bold" text-anchor="middle" transform="rotate(-90 45.5 400.0)">(shipment)</text>
+<rect x="20" y="480" width="1180" height="140" fill="#fff" stroke="#333" stroke-width="1.5"/>
+<line x1="50" y1="480" x2="50" y2="620" stroke="#333" stroke-width="1.5"/>
+<text x="32.5" y="550.0" font-size="12" font-weight="bold" text-anchor="middle" transform="rotate(-90 32.5 550.0)">TallinnWarehouse</text>
+<text x="45.5" y="550.0" font-size="12" font-weight="bold" text-anchor="middle" transform="rotate(-90 45.5 550.0)">(shipment)</text>
+<circle cx="100" cy="105" r="18" fill="#fff" stroke="#222" stroke-width="1.5"/>
+<text x="100" y="137" font-size="11" text-anchor="middle">Order</text>
+<text x="100" y="150" font-size="11" text-anchor="middle">received</text>
+<polyline points="118,105 150,105" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
+<rect x="150" y="80" width="104" height="50" rx="9" fill="#fdfdf3" stroke="#222" stroke-width="1.5"/>
+<text x="202.0" y="109" font-size="12" text-anchor="middle">Place order</text>
+<polyline points="254,105 282,105" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
+<circle cx="300" cy="105" r="18" fill="#fff" stroke="#222" stroke-width="1.5"/>
+<circle cx="300" cy="105" r="14" fill="#fff" stroke="#222" stroke-width="1.5"/>
+<rect x="292" y="99.5" width="16" height="11" fill="#222" stroke="#222" stroke-width="1.2"/>
+<polyline points="292,99.5 300,106 308,99.5" fill="none" stroke="#fff" stroke-width="1.2"/>
+<text x="300" y="77" font-size="11" text-anchor="middle">Order placed</text>
+<polyline points="318,105 934,105" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
+<circle cx="952" cy="105" r="18" fill="#fff" stroke="#222" stroke-width="1.5"/>
+<circle cx="952" cy="105" r="14" fill="#fff" stroke="#222" stroke-width="1.5"/>
+<rect x="944" y="99.5" width="16" height="11" fill="#fff" stroke="#222" stroke-width="1.2"/>
+<polyline points="944,99.5 952,106 960,99.5" fill="none" stroke="#222" stroke-width="1.2"/>
+<text x="952" y="77" font-size="11" text-anchor="middle">Shipment received</text>
+<polyline points="970,105 1000,105" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
+<rect x="1000" y="80" width="104" height="50" rx="9" fill="#fdfdf3" stroke="#222" stroke-width="1.5"/>
+<text x="1052.0" y="109" font-size="12" text-anchor="middle">Close order</text>
+<polyline points="1104,105 1132,105" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
+<circle cx="1150" cy="105" r="18" fill="#fff" stroke="#222" stroke-width="3.5"/>
+<text x="1150" y="137" font-size="11" text-anchor="middle">Order</text>
+<text x="1150" y="150" font-size="11" text-anchor="middle">closed</text>
+<circle cx="300" cy="260" r="18" fill="#fff" stroke="#222" stroke-width="1.5"/>
+<rect x="292" y="254.5" width="16" height="11" fill="#fff" stroke="#222" stroke-width="1.2"/>
+<polyline points="292,254.5 300,261 308,254.5" fill="none" stroke="#222" stroke-width="1.2"/>
+<text x="300" y="292" font-size="11" text-anchor="middle">Order placed</text>
+<polyline points="318,260 350,260" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
+<rect x="350" y="235" width="104" height="50" rx="9" fill="#fdfdf3" stroke="#222" stroke-width="1.5"/>
+<text x="402.0" y="264" font-size="12" text-anchor="middle">Create invoice</text>
+<polyline points="454,260 482,260" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
+<circle cx="500" cy="260" r="18" fill="#fff" stroke="#222" stroke-width="3.5"/>
+<text x="500" y="292" font-size="11" text-anchor="middle">Invoiced</text>
+<circle cx="760" cy="400" r="18" fill="#fff" stroke="#222" stroke-width="1.5"/>
+<rect x="752" y="394.5" width="16" height="11" fill="#fff" stroke="#222" stroke-width="1.2"/>
+<polyline points="752,394.5 760,401 768,394.5" fill="none" stroke="#222" stroke-width="1.2"/>
+<text x="760" y="432" font-size="11" text-anchor="middle">Order placed</text>
+<polyline points="778,400 810,400" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
+<rect x="810" y="375" width="104" height="50" rx="9" fill="#fdfdf3" stroke="#222" stroke-width="1.5"/>
+<text x="862.0" y="404" font-size="12" text-anchor="middle">Pack order</text>
+<polyline points="914,400 926,400" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
+<circle cx="944" cy="400" r="18" fill="#fff" stroke="#222" stroke-width="3.5"/>
+<rect x="936" y="394.5" width="16" height="11" fill="#222" stroke="#222" stroke-width="1.2"/>
+<polyline points="936,394.5 944,401 952,394.5" fill="none" stroke="#fff" stroke-width="1.2"/>
+<text x="944" y="432" font-size="11" text-anchor="middle">Shipped</text>
+<circle cx="640" cy="550" r="18" fill="#fff" stroke="#222" stroke-width="1.5"/>
+<rect x="632" y="544.5" width="16" height="11" fill="#fff" stroke="#222" stroke-width="1.2"/>
+<polyline points="632,544.5 640,551 648,544.5" fill="none" stroke="#222" stroke-width="1.2"/>
+<text x="640" y="582" font-size="11" text-anchor="middle">Order placed</text>
+<polyline points="658,550 690,550" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
+<rect x="690" y="525" width="104" height="50" rx="9" fill="#fdfdf3" stroke="#222" stroke-width="1.5"/>
+<text x="742.0" y="554" font-size="12" text-anchor="middle">Pack order</text>
+<polyline points="794,550 1032,550" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
+<circle cx="1050" cy="550" r="18" fill="#fff" stroke="#222" stroke-width="3.5"/>
+<rect x="1042" y="544.5" width="16" height="11" fill="#222" stroke="#222" stroke-width="1.2"/>
+<polyline points="1042,544.5 1050,551 1058,544.5" fill="none" stroke="#fff" stroke-width="1.2"/>
+<text x="1050" y="582" font-size="11" text-anchor="middle">Shipped</text>
+<polyline points="300,123 300,242" fill="none" stroke="#555" stroke-width="1.3" stroke-dasharray="6,4" marker-start="url(#msgstart)" marker-end="url(#msgend)"/>
+<text x="306" y="222" font-size="11" font-style="italic" fill="#555" text-anchor="start">OrderPlaced (own copy)</text>
+<polyline points="300,165 640,165 640,532" fill="none" stroke="#555" stroke-width="1.3" stroke-dasharray="6,4" marker-end="url(#msgend)"/>
+<polyline points="640,165 760,165 760,382" fill="none" stroke="#555" stroke-width="1.3" stroke-dasharray="6,4" marker-end="url(#msgend)"/>
+<text x="330" y="150" font-size="11" font-style="italic" fill="#555" text-anchor="start">OrderPlaced: one copy to group Warehouses</text>
+<text x="766" y="352" font-size="11" font-style="italic" fill="#555" text-anchor="start">city Tartu or Tapa</text>
+<text x="646" y="502" font-size="11" font-style="italic" fill="#555" text-anchor="start">city Tallinn or Tapa</text>
+<polyline points="944,382 944,121.1245154965971" fill="none" stroke="#555" stroke-width="1.3" stroke-dasharray="6,4" marker-start="url(#msgstart)" marker-end="url(#msgend)"/>
+<text x="950" y="300" font-size="11" font-style="italic" fill="#555" text-anchor="start">Shipment</text>
+<polyline points="1050,532 1050,160 960,160 960,121.1245154965971" fill="none" stroke="#555" stroke-width="1.3" stroke-dasharray="6,4" marker-start="url(#msgstart)" marker-end="url(#msgend)"/>
+<text x="1056" y="300" font-size="11" font-style="italic" fill="#555" text-anchor="start">Shipment</text>
+</svg>

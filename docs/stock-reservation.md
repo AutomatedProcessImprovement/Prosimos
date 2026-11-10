@@ -11,6 +11,8 @@ The other examples are the [Order Routing example](order-routing.md), with order
 
 ## The processes
 
+![Process models of the Stock Reservation example](stock-reservation-processes.svg)
+
 ```
 Sales (order)        arrivals: about one every 2 h, around the clock, 20 orders
                      object attributes: items (1, 2 or 3), patience (1 to 5 days), products (picked from the

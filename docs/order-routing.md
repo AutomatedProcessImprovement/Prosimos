@@ -12,6 +12,8 @@ A larger example, with orders, items and packages, is the [Order Management exam
 
 ## The scenario
 
+![Process models of the Order Routing example](order-routing-processes.svg)
+
 ### Processes and messages
 
 | Process              | Its cases  | Publishes                                      | Consumes                                                          |
