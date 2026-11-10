@@ -15,6 +15,27 @@ from prosimos.orchestration.catalogue.model import (CataloguePool, Computed, Gro
 from prosimos.simulation_properties_parser import parse_simulation_model
 
 
+def _access_problems(where, organization):
+    """What is wrong with an organization's catalogue_access: each entry names one of its catalogues and a non-empty
+    list of its processes."""
+    problems = []
+    process_names = {spec.name for spec in organization.processes}
+    for name, processes_allowed in organization.catalogue_access.items():
+        if name not in organization.catalogues:
+            problems.append(f"{where} names unknown catalogue {name!r}")
+        elif not isinstance(processes_allowed, list) or not all(isinstance(process, str)
+                                                                 for process in processes_allowed):
+            problems.append(f"{where}.{name} must be a list of process names, got {processes_allowed!r}")
+        elif not processes_allowed:
+            problems.append(f"{where}.{name} is empty; leave catalogue {name!r} out to open it to every process")
+        else:
+            unknown = [process for process in processes_allowed if process not in process_names]
+            if unknown:
+                problems.append(f"{where}.{name} names {unknown}, which are no processes of organization "
+                                f"{organization.name}")
+    return problems
+
+
 def checked_catalogue(organizations):
     """Raises one ValueError listing every problem of the organizations' catalogues, references and changes."""
     # (where it is in the configuration, process)
@@ -75,6 +96,14 @@ def checked_catalogue(organizations):
     for name in catalogue:
         if name in object_types:
             problems.append(f"catalogue {name!r} is the object type of process {object_types[name]}")
+    for number, organization in enumerate(organizations):
+        problems.extend(_access_problems(f"organizations[{number}].catalogue_access", organization))
+    # (organization, catalogue name) -> the processes that may name it
+    allowed = {(organization.name, name): processes_allowed for organization in organizations
+               for name, processes_allowed in organization.catalogue_access.items()
+               if isinstance(processes_allowed, list)}
+    organization_of = {spec.name: organization.name for organization in organizations
+                       for spec in organization.processes}
     specs = {spec.name: spec for spec in processes}
     tasks_of = {}
     for where, reference in references:
@@ -84,6 +113,11 @@ def checked_catalogue(organizations):
                             f"{', '.join(owners[reference.catalogue])}; a reference names a catalogue of its own "
                             f"organization"
                             if reference.catalogue in owners else f"{where} names unknown catalogue {reference.catalogue!r}")
+            continue
+        permitted = allowed.get((organization_of[reference.process], reference.catalogue))
+        if permitted and reference.process not in permitted:
+            problems.append(f"{where}: {reference.process} can't use catalogue {reference.catalogue!r}: "
+                            f"{organization_of[reference.process]} allows only {', '.join(permitted)}")
             continue
         if reference.pick is None and reference.object_attribute in _consumed_into(reference.process, specs,
                                                                                    "aggregate"):

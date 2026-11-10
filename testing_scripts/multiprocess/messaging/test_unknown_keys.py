@@ -56,7 +56,7 @@ def test_an_organization_entry(tmp_path):
         data["organizations"][0]["proceses"] = data["organizations"][0].pop("processes")
 
     _config_rejected(tmp_path, r"simulation.json: organizations\[0\]: unknown key 'proceses'; allowed: "
-                               r"catalogue_changes, catalogues, name, processes$", misspelled)
+                               r"catalogue_access, catalogue_changes, catalogues, name, processes$", misspelled)
 
 
 def test_a_process_entry(tmp_path):

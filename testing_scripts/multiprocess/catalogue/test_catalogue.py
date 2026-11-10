@@ -504,6 +504,68 @@ def test_a_link_events_name_that_is_no_task_or_message_event_of_the_process_is_r
         SimulationConfig.from_json(path)
 
 
+# catalogue_access: which processes of the organization may use a catalogue
+
+def _with_access(tmp_path, access, packaging_links_customers=False):
+    """The Order Management configuration with Shop's catalogue_access; Sales picks customers and products, and the
+    Warehouse brings its product's weight and price ('with' only). packaging_links_customers gives Packaging a
+    reference that only links its customer."""
+    path = config_with(tmp_path)
+    data = json.loads(path.read_text())
+    data["organizations"][0]["catalogue_access"] = access
+    if packaging_links_customers:
+        packaging = next(spec for spec in data["organizations"][0]["processes"] if spec["name"] == "Packaging")
+        packaging["references"] = [{"object_attribute": "customer", "catalogue": "customer"}]
+    path.write_text(json.dumps(data))
+    return path
+
+
+@pytest.mark.parametrize("access, packaging_links_customers", [
+    ({"customer": ["Sales"]}, False), ({"customer": ["Sales", "Packaging"]}, True),
+    ({"product": ["Sales", "Warehouse"]}, False)], ids=["pick", "links only", "with only"])
+def test_a_process_listed_in_catalogue_access_may_use_the_catalogue(tmp_path, access, packaging_links_customers):
+    config = SimulationConfig.from_json(_with_access(tmp_path, access, packaging_links_customers))
+
+    assert config.organizations[0].catalogue_access == access
+
+
+@pytest.mark.parametrize("access, packaging_links_customers, refused", [
+    ({"customer": ["Warehouse"]}, False, r"processes\[0\].references\[0\]: Sales can't use catalogue 'customer': "
+                                         r"Shop allows only Warehouse"),
+    ({"customer": ["Sales"]}, True, r"processes\[2\].references\[0\]: Packaging can't use catalogue 'customer': Shop "
+                                    r"allows only Sales"),
+    ({"product": ["Sales"]}, False, r"processes\[1\].references\[0\]: Warehouse can't use catalogue 'product': "
+                                    r"Shop allows only Sales")], ids=["pick", "links only", "with only"])
+def test_a_process_not_listed_in_catalogue_access_may_not_use_the_catalogue(tmp_path, access,
+                                                                            packaging_links_customers, refused):
+    with pytest.raises(ValueError, match=refused):
+        SimulationConfig.from_json(_with_access(tmp_path, access, packaging_links_customers))
+
+
+def test_a_catalogue_not_listed_in_catalogue_access_stays_open_to_every_process(tmp_path):
+    # only customers are restricted; Sales and the Warehouse both use the products
+    SimulationConfig.from_json(_with_access(tmp_path, {"customer": ["Sales"]}))
+
+
+@pytest.mark.parametrize("access, error", [
+    ({"clients": ["Sales"]}, r"organizations\[0\].catalogue_access names unknown catalogue 'clients'"),
+    ({"customer": ["Sales", "Billing"]}, r"organizations\[0\].catalogue_access.customer names \['Billing'\], which are "
+                                         r"no processes of organization Shop"),
+    ({"customer": []}, r"organizations\[0\].catalogue_access.customer is empty; leave catalogue 'customer' out to "
+                       r"open it to every process"),
+    ({"customer": "Sales"}, r"organizations\[0\].catalogue_access.customer must be a list of process names, got "
+                            r"'Sales'")], ids=["unknown catalogue", "unknown process", "empty list", "not a list"])
+def test_a_wrong_catalogue_access_is_rejected(tmp_path, access, error):
+    with pytest.raises(ValueError, match=error):
+        SimulationConfig.from_json(_with_access(tmp_path, access))
+
+
+def test_catalogue_access_that_isnt_an_object_is_rejected(tmp_path):
+    with pytest.raises(ValueError, match=r"organizations\[0\]: 'catalogue_access' must be an object, catalogue name -> "
+                                         r"process names, got \['customer'\]"):
+        SimulationConfig.from_json(_with_access(tmp_path, ["customer"]))
+
+
 def test_catalogue_ids_that_look_like_object_ids_are_rejected(tmp_path):
     # objects of the processes are named <object type>-<number>, e.g. order-1
     path = config_with(tmp_path, catalogues={"customer": [{"id": "order-1"}, {"id": "item-12"}, {"id": "order-x"},

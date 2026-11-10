@@ -47,7 +47,7 @@ class ProcessSpec:
 
 CONFIG_KEYS = {"organizations", "start_time", "seed", "consumer_groups", "load_balancing"}
 POLICIES = ("preferred", "weighted")  # a group without one is offered in random order
-ORGANIZATION_KEYS = {"name", "catalogues", "catalogue_changes", "processes"}
+ORGANIZATION_KEYS = {"name", "catalogues", "catalogue_access", "catalogue_changes", "processes"}
 PROCESS_KEYS = {"name", "bpmn_path", "json_path", "arrivals", "object_type", "qualifier", "qualifier_by_activity",
                 "ocel_attributes", "references"}
 REFERENCE_KEYS = {"object_attribute", "catalogue", "o2o", "reverse", "link_events", "pick", "quantity", "with",
@@ -174,6 +174,8 @@ class Organization:
     catalogues: Dict[str, Union[List[CatalogueObject], CataloguePool, GrowingCatalogue]] = field(default_factory=dict)
     # how its catalogues' attributes change over the run, in order (see Timetable)
     catalogue_changes: Tuple[CatalogueChange, ...] = ()
+    # catalogue name -> the only processes whose references may name it; a catalogue not listed is open to all
+    catalogue_access: Dict[str, List[str]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -261,7 +263,11 @@ class SimulationConfig:
                           for name, entries in organization.get("catalogues", {}).items()}
             changes = tuple(_catalogue_change(path, f"{in_organization}.catalogue_changes[{index}]", change)
                             for index, change in enumerate(organization.get("catalogue_changes", [])))
-            organizations.append(Organization(organization["name"], processes, catalogues, changes))
+            access = organization.get("catalogue_access", {})
+            if not isinstance(access, dict):
+                raise ValueError(f"{path}: {in_organization}: 'catalogue_access' must be an object, catalogue name -> "
+                                 f"process names, got {access!r}")
+            organizations.append(Organization(organization["name"], processes, catalogues, changes, access))
 
         start = _utc_if_naive(parse_datetime(data["start_time"], True))
 

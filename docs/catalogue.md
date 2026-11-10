@@ -14,7 +14,9 @@ processes:
   organization's catalogues (or a list of such ids), which OCEL links to write for it, and, with `pick`, chooses
   that value when a case is created; with `with`, the case also starts with attributes of the object it picked;
 - the organization's **catalogue_changes**, optional, change its catalogues' attributes on the clock, e.g. prices
-  that rise every 60 days (see "Changes").
+  that rise every 60 days (see "Changes");
+- the organization's **catalogue_access**, optional, says which of its processes may use a catalogue (see
+  "Access").
 
 A first example, with two customers and Sales choosing one for every order:
 
@@ -379,6 +381,26 @@ Sales in its organization, can look up the weight and price of the product an `I
 The engine gets its organization's catalogue values once, when it is built: its own company's data, given at
 setup. The orchestrator sees nothing of them during the run.
 
+## Access
+
+Every process of an organization may use each of its catalogues, unless `catalogue_access`, next to the
+catalogues, restricts one to the processes it names; a catalogue not listed stays open to every process of the
+organization. It is a key of the organization, not of the catalogue, since a catalogue in list form has no room
+for a key of its own:
+
+```json
+{"name": "Shop",
+ "catalogues": {"customer": [...], "product": [...]},
+ "catalogue_access": {"customer": ["Sales", "Billing"]},
+ "processes": [...]}
+```
+
+Using a catalogue means having a reference that names it, whatever the reference does: pick from it, bring values
+with `with`, or only write links. With the access above, a reference of the Warehouse to `customer` is a load
+error (`Warehouse can't use catalogue 'customer': Shop allows only Sales, Billing`), while every process may still
+use `product`. Access is about references only: a customer id that reaches the Warehouse in a message is an
+ordinary value there, which it may copy and send on, but without a reference it links nothing.
+
 ## Changes
 
 Catalogue values can change during the run: prices rise, a product goes on sale. An organization's
@@ -633,6 +655,7 @@ instead, replace the list with `"customer": {"attributes": [...]}` and the pick 
 | `organizations[0].catalogues.customer[0]: 'id' must be a non-empty string`                                                         | a list object without an `id`, or an empty one        |
 | `organizations[0].processes[0].references[0] is missing ['object_attribute']`                                                      | a reference without `object_attribute` or `catalogue` |
 | `organizations[0].catalogue_changes[0] is missing ['attribute']`                                                                   | a change without `catalogue` or `attribute`           |
+| `organizations[0]: 'catalogue_access' must be an object, catalogue name -> process names, got ['customer']`                        | `catalogue_access` that isn't an object               |
 | `organizations[0].catalogue_changes[0] needs exactly one of every (repeated) and at (once), got neither`                           | a change with neither or both                         |
 | `organizations[0].catalogue_changes[0] needs exactly one of multiply, add and set, got multiply, add`                              | a change with none of them, or more than one          |
 | `organizations[0].catalogue_changes[0]: multiply must be a number, got '1.03'`                                                     | `multiply` or `add` given something else              |
@@ -663,6 +686,11 @@ The messages, by the key they are about:
 | growing catalogue            | `growing catalogue 'customer' has more than one reference that creates its objects ("new" or new_share): organizations[0].processes[0].references[0], organizations[0].processes[2].references[0]; one creates them, the others learn their ids from messages` |
 | `catalogue`                  | `organizations[0].processes[0].references[0] names unknown catalogue 'clients'`                                                                                                                                                                                |
 | `catalogue`                  | `organizations[1].processes[0].references[0] names catalogue 'product' of organization Shop; a reference names a catalogue of its own organization`                                                                                                            |
+| `catalogue_access`           | `organizations[0].processes[1].references[0]: Warehouse can't use catalogue 'customer': Shop allows only Sales, Billing`                                                                                                                                       |
+| `catalogue_access`           | `organizations[0].catalogue_access names unknown catalogue 'clients'`                                                                                                                                                                                          |
+| `catalogue_access`           | `organizations[0].catalogue_access.customer must be a list of process names, got 'Sales'`                                                                                                                                                                      |
+| `catalogue_access`           | `organizations[0].catalogue_access.customer is empty; leave catalogue 'customer' out to open it to every process`                                                                                                                                              |
+| `catalogue_access`           | `organizations[0].catalogue_access.customer names ['Billing'], which are no processes of organization Shop`                                                                                                                                                    |
 | catalogue name               | `catalogue 'customer' is declared by more than one organization: Shop, Partner`                                                                                                                                                                                |
 | `link_events`                | `organizations[0].processes[0].references[0] link_events names ['confrim order'], which are no tasks or message events of process Sales`                                                                                                                       |
 | `link_events`                | `organizations[0].processes[0].references[0] link_events names place order, which writes no event: its entry has no qualifier`                                                                                                                                 |
