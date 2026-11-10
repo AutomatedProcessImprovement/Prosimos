@@ -145,6 +145,7 @@ class SimBPMEnv(EngineMessaging):
         self._case_created = dict()  # case id -> (when it was created, its case attribute values then)
         self._only_started = dict()
         self._copied_later = []  # (case id, attribute, value, when copied)
+        self._reached = set()  # (case id, event id) of each catch event with a consume entry a case has reached
         self._warned_missing_copies = set()
         self._warned_missing_appends = set()
         self._aggregated_values = dict()  # (case id, case attribute) -> the message values aggregated so far
@@ -276,6 +277,7 @@ class SimBPMEnv(EngineMessaging):
                     and self._race_step(c_event)):
                 return
             if c_event.task_id in self._consume_points and c_event.parked_event is None:
+                self._start_fresh(c_event.p_case, c_event.task_id, c_event.enabled_datetime)
                 needed = self._needed(c_event.p_case, c_event.task_id)
                 most = self._most(c_event.p_case, c_event.task_id, needed)
                 if most > 0:

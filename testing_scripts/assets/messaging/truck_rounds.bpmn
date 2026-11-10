@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Trucks" targetNamespace="http://bpmn.io/schema/bpmn">
+  <!-- a truck loads the packages waiting, delivers them, and comes back for more after a full load -->
+  <bpmn:process id="Trucks" isExecutable="false">
+    <bpmn:startEvent id="Start" name="Truck ready">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="Merge" name="">
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:incoming>Again</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:intermediateCatchEvent id="Catch_Packages" name="Packages loaded">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_3</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="Catch_Packages_definition" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:task id="Deliver" name="Deliver">
+      <bpmn:incoming>Flow_3</bpmn:incoming>
+      <bpmn:outgoing>Flow_4</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:exclusiveGateway id="More" name="More rounds?">
+      <bpmn:incoming>Flow_4</bpmn:incoming>
+      <bpmn:outgoing>Again</bpmn:outgoing>
+      <bpmn:outgoing>Done</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="End" name="Truck done">
+      <bpmn:incoming>Done</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Merge" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Merge" targetRef="Catch_Packages" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Catch_Packages" targetRef="Deliver" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Deliver" targetRef="More" />
+    <bpmn:sequenceFlow id="Again" sourceRef="More" targetRef="Merge" />
+    <bpmn:sequenceFlow id="Done" sourceRef="More" targetRef="End" />
+  </bpmn:process>
+</bpmn:definitions>

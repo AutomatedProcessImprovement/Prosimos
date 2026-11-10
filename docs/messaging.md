@@ -164,6 +164,17 @@ With items weighing 1.2, 0.8 and 2.1, the package weighs 1.2 after the first cla
 - An aggregated attribute can't also be in the entry's `copy` or `append`, in another entry's `copy` or
   `append`, or in the process's `object_attributes`.
 
+**Starting fresh on a loop back.** A case that reaches a catch event it already reached before, back through a
+loop, starts the `append` lists and `aggregate` values of that event's entries over: `[]`, or the aggregate's
+`initial` (0 for a sum or count without one, no value for a min or max), as at the first wait, and a `with` over a
+restarted list follows it ([catalogue.md](catalogue.md)). A truck that loads packages, delivers them, and comes back
+for more takes P1, P2 and P3 (30 kg) in round 1, and in round 2 `package_ids = ["P4", "P5"]` and `load = 12`, not
+the five and 42. Values other entries, `copy`, or `with` wrote otherwise stay as they are. The OCEL output writes
+each restarted value as cleared at the moment the case gets back to the event, so the file doesn't show the last
+round's values while it waits; the new round's first message writes the new value
+([orchestrator.md](orchestrator.md), "Output"). There is no setting: a running total across rounds would need an
+attribute of its own.
+
 **capacity** (optional, on a catch event's entry) says how many waiting cases one message resumes, as a
 min and a max, the mirror of `collect`: while fewer than min cases are waiting, the message waits; with min
 waiting, it resumes them and any others waiting, up to max, oldest first. It never waits to fill up to max.

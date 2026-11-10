@@ -1,0 +1,126 @@
+{
+  "resource_profiles": [
+    {
+      "id": "Drivers",
+      "name": "Drivers",
+      "resource_list": [
+        {
+          "id": "Driver",
+          "name": "Driver",
+          "cost_per_hour": 1,
+          "amount": 1,
+          "calendar": "Always",
+          "assigned_tasks": [
+            "Deliver"
+          ]
+        }
+      ]
+    }
+  ],
+  "arrival_time_distribution": {
+    "distribution_name": "fix",
+    "distribution_params": [
+      {
+        "value": 3600
+      }
+    ]
+  },
+  "arrival_time_calendar": [
+    {
+      "from": "MONDAY",
+      "to": "SUNDAY",
+      "beginTime": "00:00:00",
+      "endTime": "23:59:59"
+    }
+  ],
+  "gateway_branching_probabilities": [
+    {
+      "gateway_id": "More",
+      "probabilities": [
+        {
+          "path_id": "Again",
+          "value": 0.5,
+          "condition_id": "full"
+        },
+        {
+          "path_id": "Done",
+          "value": 0.5,
+          "condition_id": "not_full"
+        }
+      ]
+    }
+  ],
+  "branch_rules": [
+    {
+      "id": "full",
+      "rules": [
+        [
+          {
+            "attribute": "load",
+            "comparison": ">=",
+            "value": 20
+          }
+        ]
+      ]
+    },
+    {
+      "id": "not_full",
+      "rules": [
+        [
+          {
+            "attribute": "load",
+            "comparison": "<",
+            "value": 20
+          }
+        ]
+      ]
+    }
+  ],
+  "task_resource_distribution": [
+    {
+      "task_id": "Deliver",
+      "resources": [
+        {
+          "resource_id": "Driver",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 3600
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "resource_calendars": [
+    {
+      "id": "Always",
+      "name": "Always",
+      "time_periods": [
+        {
+          "from": "MONDAY",
+          "to": "SUNDAY",
+          "beginTime": "00:00:00",
+          "endTime": "23:59:59"
+        }
+      ]
+    }
+  ],
+  "messages": {
+    "consume": [
+      {
+        "event_id": "Catch_Packages",
+        "type": "Package",
+        "collect": "all",
+        "append": {
+          "package_ids": "object_id"
+        },
+        "aggregate": {
+          "load": {
+            "sum": "weight"
+          }
+        }
+      }
+    ]
+  }
+}

@@ -154,7 +154,9 @@ written as an OCEL 2.0 JSON file, the format of the OCEL 2.0 sample logs, readab
   left out until a message writes it: a package created before its first item has no weight until it takes one. A
   value that goes back to no value, e.g. a message copying `None` into it, is written as `"value": null` at that
   moment, a clearing, so the file doesn't keep showing the old value; an attribute that never had a value written,
-  or is already cleared, writes nothing (`pm4py.read_ocel2_json` reads the clearing as a change to no value). Only
+  or is already cleared, writes nothing (`pm4py.read_ocel2_json` reads the clearing as a change to no value). An
+  appended or aggregated value that starts fresh on a loop back is cleared the same way, at the moment the case gets
+  back to its catch event ([messaging.md](messaging.md), "Starting fresh on a loop back"). Only
   the OCEL output does this; the CSV log and the run report are unchanged. `ocel_attributes` may name only
   attributes the objects have: drawn in `object_attributes`, picked or brought (`with`) by a reference, or copied,
   appended or aggregated from messages; any other name is a load error (`Invalid ocel_attributes:

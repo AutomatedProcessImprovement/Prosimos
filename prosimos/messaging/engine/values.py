@@ -61,6 +61,26 @@ class Values:
                       in self._aggregated.items() if initial is not None or function in ("sum", "count"))
         return values
 
+    def _start_fresh(self, p_case, event_id, when):
+        """A case reaching a catch event it reached before, back through a loop, starts its entries' appended and
+        aggregated values over, and the 'with' values over those lists follow; the output writes each as cleared at
+        when, as a starting value no message wrote."""
+        if (p_case, event_id) not in self._reached:
+            self._reached.add((p_case, event_id))
+            return
+        case_values = self.sim_setup.bpmn_graph.all_attributes[p_case]
+        appended = {target for point in self._consume_points[event_id] for target, _ in point.append}
+        aggregated = {target for point in self._consume_points[event_id] for target, *_ in point.aggregate}
+        starting = self._starting_values()
+        for target in appended | aggregated:
+            case_values[target] = starting.get(target)
+            self._aggregated_values.pop((p_case, target), None)
+        following = {name for name, source, *_ in self._received if source in appended}
+        for name in following:
+            case_values[name] = None
+        self._apply_received(case_values, when, appended)
+        self._copied_later.extend((p_case, name, None, when) for name in sorted(appended | aggregated | following))
+
     def _apply_aggregate(self, point, values, p_case, case_values):
         """Adds the message's values to the case's aggregates; returns the attributes it wrote."""
         written = []
