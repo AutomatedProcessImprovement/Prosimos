@@ -449,6 +449,18 @@ The section is checked when the model is loaded. An invalid section stops loadin
   on an entry with a `qualifier`.
 - A start event's condition (a `consume` entry on a start event) uses only fixed values and `source`,
   not `object_attribute`: there is no case yet to compare with.
+- `quote` (see "Quotes") has no unknown key, in itself or its `within`; it needs `quantity`, `accepted`,
+  `declined`, and `cancel`, each type a non-empty string, and the entry's own type and the quote's four types are
+  all different. Its cancel and modify types each have a publish entry of their own in the process.
+- `quantity` takes the forms of `fan_out`, a fixed number of at least 1 (a quote of zero lines makes no sense),
+  and its `as` isn't `object_id` or `index`; `within` is a period as for a `deadline`, or one unit, weeks, days, or
+  hours, with an `object_attribute` that is a declared object, global, or event attribute.
+- A `quote` isn't on an entry with `fan_out` or `fan_in`, and its lines carry neither `index` (a modify matches
+  lines by their attributes) nor `portion_size`, which is reserved for the item's claim, in `attributes` or as
+  `as`.
+- A `consume` entry for a quote's accepted or declined type, in the requesting process, has a condition on
+  `request` in every alternative, else it would take the replies to other objects' quotes:
+  `messages.consume[0]: QuoteAccepted at 'Quote accepted' has no condition on request: it would take the replies to other objects' quotes`.
 - `condition` is a non-empty list of non-empty lists of terms.
 - A term has `attribute`, a known `comparison`, and exactly one of `value` and `object_attribute`;
   `in` takes a fixed `value` `[low, high]`.
@@ -729,6 +741,146 @@ Item (Picking):  start ItemOrdered (copy order_id, index) -> Pick -> (throw Item
 - An `ItemReady` sent after the order was canceled finds no waiting order and is discarded once the
   order has finished, with the usual "discarded by every recipient" warning; that is expected.
 
+## Quotes
+
+A publish entry with a `quote` asks the members of one group whether they could deliver a list of items in time,
+instead of publishing a message for someone to claim. The orchestrator asks them, books the items, and replies
+([orchestrator.md](orchestrator.md), "Quotes"); this section is about the models: the requester that asks, and the
+members that answer and hold the items. The [Stock Reservation example](stock-reservation.md) uses all of it.
+
+**The requester.** In the Stock Reservation example, Sales quotes the products of each order, within the
+order's own patience, and may later change or cancel the quote:
+
+```json
+"publish": [
+  {"event_id": "Throw_Quote", "type": "ItemQuote", "attributes": ["object_id"],
+   "qualifier": "requests", "o2o": "contains",
+   "quote": {"quantity": {"list": "products", "as": "product"},
+             "within": {"days": {"object_attribute": "patience"}},
+             "accepted": "QuoteAccepted", "declined": "QuoteDeclined",
+             "cancel": "QuoteCanceled", "modify": "QuoteModified"}},
+  {"event_id": "Throw_Modify", "type": "QuoteModified", "attributes": ["object_id"],
+   "qualifier": "requests", "o2o": "contains"},
+  {"event_id": "Throw_Cancel", "type": "QuoteCanceled", "attributes": ["object_id"]}
+],
+"consume": [
+  {"event_id": "Catch_Accepted", "type": "QuoteAccepted",
+   "condition": [[{"attribute": "request", "comparison": "=", "object_attribute": "object_id"}]],
+   "copy": {"portions": "portions"}},
+  {"event_id": "Catch_Declined", "type": "QuoteDeclined",
+   "condition": [[{"attribute": "request", "comparison": "=", "object_attribute": "object_id"}]]}
+]
+```
+
+| Key        | Required | Meaning                                                                                                                                                                                                                                       |
+|------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `quantity` | yes      | the lines, read from the case when it passes the event, as for `fan_out`: a whole number of at least 1 of identical lines, `{"object_attribute": ...}`, or `{"list": ..., "as": ...}`, one line per entry of the list, carrying it under `as` |
+| `within`   | no       | the limit: `{"weeks" \| "days" \| "hours": n}`, or the unit with a case attribute for n, `{"days": {"object_attribute": "patience"}}`; without it, there is no limit (a backorder)                                                            |
+| `accepted` | yes      | the type of the reply when the quote is accepted                                                                                                                                                                                              |
+| `declined` | yes      | the type of the reply when it is declined                                                                                                                                                                                                     |
+| `cancel`   | yes      | the type of the message that cancels it                                                                                                                                                                                                       |
+| `modify`   | no       | the type of the message that changes its list                                                                                                                                                                                                 |
+
+- **Lines.** A quote is a shopping list: each line carries the entry's `attributes`, read when the case passes the
+  event, and over a list its entry under `as`; with Sales's products `["iPhone", "iPad", "iPad"]`, three lines
+  `{object_id: order-7, product: iPhone}`, `{..., product: iPad}` twice. All or nothing over the lines: the quote
+  is ready when its slowest line is. A missing list gives the quote no lines, and a count that isn't a whole number
+  of at least 0 gives it one line, each with one warning per event and attribute.
+- **The limit** is fixed once, when the quote is made: its time plus `within`. A `within` attribute that isn't a
+  number above 0 gives the quote no limit, with one warning per event and attribute.
+- **Modify and cancel** each have a publish entry of their own, at their own throw events, without a `quote`: a
+  case passing one publishes a message of that type, which the orchestrator handles for the case's quote. A modify
+  carries the lines read again from the quote entry's `quantity` now, e.g. after a task added an item to
+  `products`.
+- **The replies** are messages from the orchestrator: the accepted type with `request` (the requester's
+  `object_id`), `ready_by`, and `portions`, how many members hold lines; the declined type with `request` and
+  `earliest` (`None` when some line can't be served at all). A modify gets the same replies. The requester catches
+  them like any message, usually in a race, with a condition on `request`; `copy` can keep `portions`, e.g. to
+  collect that many shipments.
+- **The automatic cancel.** A case that ends with an open quote, at an end event or by a terminate end event,
+  publishes the quote's cancel in that same step, as if the model had thrown it; after delivery, it changes
+  nothing. Its record names the element where the case ended
+  ([orchestrator.md](orchestrator.md), "Message records").
+
+**The members.** A member answers a quote type at the catch event that has a `consume` entry for it: the shelf,
+where its items wait. The Stock Reservation warehouses make items on a schedule, and an item waits on the shelf
+until a line takes it:
+
+```json
+"consume": [
+  {"event_id": "Shelf", "type": "ItemQuote",
+   "condition": [[{"attribute": "product", "comparison": "=", "object_attribute": "product"}]],
+   "copy": {"order_id": "object_id", "portion_size": "portion_size"},
+   "qualifier": "reserved for"}
+]
+```
+
+- **Matching.** A line is matched by the member's own condition for the quote type, like a message of that
+  type: the line's attributes, and `source`, the requester.
+- **First come, first served.** The lines booked at a member open in a queue, in the order they were booked. An
+  item already waiting at the catch event takes a line at once; an item that arrives takes the oldest open line
+  its entry accepts, before any ordinary message. A taken line is set aside on its item, which stays on the shelf
+  and is never offered to an ordinary message.
+- **One portion per member.** A member's lines of one quote are its portion. Its items wait until the last line of
+  the portion is taken; then each claims its line at that moment, like a message of the quote type with the
+  line's values, so `copy` applies, and they move on together. From then on the quote is locked
+  ([orchestrator.md](orchestrator.md), "Quotes"). The lines a modify adds at the member join the same portion.
+- **`portion_size`.** An item claims its line with one more value, `portion_size`, the number of items in its
+  portion, which `copy` can keep, so that a `fan_in` sends one message per portion:
+
+  ```
+  warehouse.json:  "consume": [{"event_id": "Shelf", ..., "copy": {"order_id": "object_id", "portion_size": "portion_size"}}]
+                   "publish": [{"event_id": "Throw_Shipment", "type": "Shipment",
+                                "fan_in": {"object_attribute": "portion_size"}, "same": ["order_id"], ...}]
+  sales.json:      "consume": [{"event_id": "Catch_Shipments", "type": "Shipment", ...,
+                                "collect": {"object_attribute": "portions"}}]
+  ```
+
+  With an order's iPhone and one iPad held by Tartu and the other iPad by Tallinn, Sales gets `portions` 2;
+  Tartu's two items claim with `portion_size` 2 and send one Shipment, Tallinn's item with 1; Sales collects 2.
+- **Releasing** a line closes it; an item holding one goes back on the shelf as ordinary stock, and takes the next
+  open line it matches, or an ordinary message waiting.
+- Only a catch event answers: a `consume` entry for the quote type on a start event doesn't.
+
+**The estimate.** A member answers `estimate()` per line: when each of its matching items not promised yet would
+reach the catch event, earliest first. Each open line takes the earliest of the items expected, which are then
+promised and skipped. Prosimos plans every case's arrival, and draws its attributes, when the run starts, so the
+member knows the items it will make and what they are.
+
+- **Exact** where Prosimos already knows the time: an item waiting at the catch event, one whose running task
+  ends there, and one whose planned start goes straight there.
+- **Tasks ahead:** each in turn takes the average wait for staff so far in the run, from ready to started, in
+  working time, then its average duration, both counted in working time on the earliest calendar among the staff
+  who may do it, skipping nights and weekends. With a wait of 20 minutes and a 1-hour Polish on Monday to Friday,
+  9:00 to 17:00, an item ready on Tuesday at 14:00 is done at 15:20, and one ready on Friday at 16:50 on Monday at
+  10:10. A wait is 0 until one is measured. A batched task's measured wait includes its wait for the batch.
+- **Exclusive splits:** each item gets its chance to reach the catch event and its average time there, branches
+  weighted by their probabilities, and slot k is when the expected count there reaches k: with 20% scrap, five
+  items count 0.8 each. A split the item's data decides is exact; if the data isn't known yet (e.g. a score a task
+  ahead sets), the branch's share of the cases that took it so far in the run, and with no history yet the way to
+  the catch event passes.
+- **Choices decided ahead of the clock.** Prosimos picks a split's branch by its probabilities when the task
+  before it starts; a split the item reaches after now, at the end of a task still running, still counts by its
+  chances. A choice by data stays as above.
+- **Inclusive splits:** each branch with its own chance, the combinations weighted, each taking its longest
+  branch; if no branch is taken, Prosimos takes one drawn by the chances. With 70% and 30%: the first only 63.7%,
+  the second only 15.3%, both 21%. Chances that don't add up to 1 give no slot.
+- **Parallel splits:** the item reaches the join when its longest branch would, and goes on from there; an item
+  already inside the split takes its latest branch.
+- **Timers** add their delay, and events with a drawn duration their average, in clock time: 2 hours at night is
+  still 2 hours.
+- **Message catch events** on the way add the average time items waited there so far in the run, in clock time;
+  0 until measured. The other process is a black box, so history is all there is.
+- **Races:** the chance of the branch toward the catch event is its share of the wins so far, and its time the
+  winners' average wait; with no history yet, it wins at once.
+- **Loops:** a loop back with chance q repeats its elements 1 / (1 - q) times on average, within the model's
+  loop limit.
+- **History** counts what has happened by now: a wait when it ends, a split's pass when the case gets there, not
+  when Prosimos works it out ahead of the clock.
+
+A way the estimate can't follow, e.g. a loop back that isn't a plain way back from an exclusive split, gives the
+item no slot.
+
 ## Limitations
 
 - **Races:**
@@ -748,6 +900,13 @@ Item (Picking):  start ItemOrdered (copy order_id, index) -> Pick -> (throw Item
   `"copy": {"item_index": "index"}`, and publish that.
 - **`object_attribute` names** in conditions aren't checked against the declared attributes; a term
   naming an attribute the case doesn't have is simply false.
+- **Quotes:**
+  - lines that overlap, e.g. an iPad and an iPad in silver at one member, may count one item for both, so a quote
+    can be accepted that only one of them can get;
+  - the waits for staff and the chances learned from history are averages over the run so far, so a promise can
+    be broken; the report says how often ([orchestrator.md](orchestrator.md), "Run report");
+  - items that a message would start later, e.g. after a supplier's delivery, aren't counted: only planned cases
+    and cases already running are.
 - **Capacity is per `consume` entry.** One message resumes extra cases only at the entry that resumed
   the first case, so a truck accepted at two different catch events doesn't load cases from both. To
   let one truck serve several kinds of waiting cases, use one catch event whose condition accepts all

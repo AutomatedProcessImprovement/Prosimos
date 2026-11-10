@@ -89,12 +89,12 @@ Extra engines (see "Configuration") can only be passed from Python.
 | `consumer_groups` | optional; group name → processes in it. Without it, every process is its own group (see "Message routing")                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `load_balancing`  | optional; group name → its policy, the order its members are offered a message: `{"weighted": {member: weight}}` or `{"preferred": [members]}`. A group without one is offered in random order (see "Message routing")                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
-File paths are relative to the configuration file's folder. A configuration is rejected if organization
-or process names repeat, a process is in no group or in more than one, a group names a process that doesn't
-exist, or the catalogues and references break one of the rules listed in [catalogue.md](catalogue.md). In
-`load_balancing`, each entry names a consumer group with more than one member and has exactly one policy; a
-weighted policy gives every member, and only members, a weight that is a number of at least 0, not all 0, and a
-preferred one lists each member exactly once.
+File paths are relative to the configuration file's folder. A configuration is rejected if organization or process
+names repeat, a process is named `orchestrator` (see "Quotes"), a process is in no group or in more than one, a
+group names a process that doesn't exist, or the catalogues and references break one of the rules listed in
+[catalogue.md](catalogue.md). In `load_balancing`, each entry names a consumer group with more than one member and
+has exactly one policy; a weighted policy gives every member, and only members, a weight that is a number of at
+least 0, not all 0, and a preferred one lists each member exactly once.
 It is also rejected for a key it doesn't know, at the top level (a top-level `processes`, for example: processes
 belong to an organization), in an organization entry, a process entry, a catalogue (a listed object, a pool or a
 growing catalogue), a reference or its `pick`, since a misspelled key would otherwise be ignored and change the
@@ -236,19 +236,21 @@ link its order. The link of every event to its own case's object is always writt
 `RunReport.to_dict()` gives it as plain lists and dicts with times as ISO strings, which is what
 `--report_out_path` saves:
 
-| Field              | Content                                                                                                            |
-|--------------------|--------------------------------------------------------------------------------------------------------------------|
-| `executed`         | (time, process) for every step                                                                                     |
-| `published`        | every message, as stamped by the orchestrator                                                                      |
-| `copies`           | (message id, group) for every copy put in the pool                                                                 |
-| `claims`           | (message id, process, time) for every claim                                                                        |
-| `discards`         | (message id, process, time) for every discard                                                                      |
-| `unclaimed`        | (group, message) for the copies still in the pool at the end                                                       |
-| `warnings`         | the orchestrator's warnings: a message nobody but its publisher subscribes to; a message every recipient discarded |
-| `stalled`          | (process, `StalledCase`) for every case still waiting for a message at the end                                     |
-| `engine_warnings`  | (process, warning) for the warnings raised inside each engine                                                      |
-| `discarded_counts` | discards per (message type, process)                                                                               |
-| `message_records`  | per message, in publishing order: who published it and who took it (see below)                                     |
+| Field              | Content                                                                                                                                                                                                                  |
+|--------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `executed`         | (time, process) for every step                                                                                                                                                                                           |
+| `published`        | every message, as stamped by the orchestrator                                                                                                                                                                            |
+| `copies`           | (message id, group) for every copy put in the pool                                                                                                                                                                       |
+| `claims`           | (message id, process, time) for every claim                                                                                                                                                                              |
+| `discards`         | (message id, process, time) for every discard                                                                                                                                                                            |
+| `unclaimed`        | (group, message) for the copies still in the pool at the end                                                                                                                                                             |
+| `warnings`         | the orchestrator's warnings: a message nobody but its publisher subscribes to; a message every recipient discarded                                                                                                       |
+| `stalled`          | (process, `StalledCase`) for every case still waiting for a message at the end                                                                                                                                           |
+| `engine_warnings`  | (process, warning) for the warnings raised inside each engine                                                                                                                                                            |
+| `discarded_counts` | discards per (message type, process)                                                                                                                                                                                     |
+| `message_records`  | per message, in publishing order: who published it and who took it (see below)                                                                                                                                           |
+| `quotes`           | per quote type, how often each outcome came: `accepted`, `declined`, `canceled`, `cancel_too_late`, `modified_accepted`, `modified_declined`, `declined_as_second`                                                       |
+| `broken_promises`  | per quote type: `count` of the portions that moved on after their quote's `ready_by`, `average_late`, `most_late`; `undelivered`, the portions past their `ready_by` not moved on by the end, `most_overdue` (see below) |
 
 A `StalledCase` has `object_id` (e.g. `order-1`), `event_id` (the catch event it waits at, or the
 event-based gateway for a case waiting in a race, reported once with the types of all its message
@@ -256,6 +258,16 @@ branches), `message_types` (the types it waits for: any one of them resumes it),
 `collected` of `needed` (how many messages it had collected there of the ones it needed; more than one
 with `collect`, see [messaging.md](messaging.md)). The "discarded by every recipient" warning appears even when the discard
 is expected, for example a shipment for an order that was canceled.
+
+**Quotes in the report.** `quotes` and `broken_promises` are only in the report of a run with quotes, so a run
+without keeps its report. Each counts per quote type: a quote counts as `accepted` or `declined`, a modify as
+`modified_accepted` or `modified_declined`, a quote declined at once because one of the same type is open as
+`declined_as_second`, and a cancel as `canceled` or, once some portion has moved on, `cancel_too_late`.
+A promise is kept or broken per member's portion: a portion that moves on after the `ready_by` of its quote's
+last accepted reply is late, by that much; a quote a later one replaced keeps its promise. A portion of an open or
+locked quote still not moved on when the run ends, past its `ready_by`, is undelivered; `most_overdue` is how long
+past it the run ended, a lower bound. A portion promised after the end of the run, or of a canceled quote, isn't
+counted. The engines say when each portion moved on in `finish()`; durations are seconds in `to_dict()`.
 
 **Message records.** Each engine keeps its own records of which of its cases and elements published
 and took each message, and hands them over in `finish()`, at the end of the run; the orchestrator joins
@@ -271,6 +283,11 @@ when its case reached the element, else `None`; its entry's `o2o` object link an
   waiting case and that catch event; with `capacity`, every case the message resumed; with `collect`,
   the collecting case, once for each message it claimed. A message that was discarded or never claimed
   has no claimers.
+- **quotes**: a reply's publisher is the orchestrator (`process` `orchestrator`, with no object or element) and
+  its claimer the case that caught it; a quote's or modify's claimers are the items that took its lines, at the
+  moment their portion moved on, so the OCEL links each item to the order as for an ordinary message. A case that
+  ends with an open quote publishes its cancel where it ended, at the end event (or the terminate end event, or
+  the timer's branch it was on), not at the cancel's own throw event, which it never passed.
 
 An engine that keeps no records, such as a scripted test engine, leaves `publishers` empty for its
 messages and appears in no `claimers`.
@@ -329,6 +346,75 @@ that discarded the copy, one by one, the first claim wins, a PENDING answer pass
 - **Order of steps.** The engine with the earliest next event steps first; ties are broken by
   process name. Engines are built in name order. Together with the seed, this makes runs repeatable.
 
+## Quotes
+
+A process can ask a quote instead of throwing a message and hoping someone claims it: "can you deliver an iPhone
+and two iPads within 3 days?" The quote goes to the members of the one group that subscribes to its type; each
+answers when it could have each line ready, and the orchestrator either books the items and replies accepted,
+with the promised date, or books nothing and replies declined. Engines stay black boxes: the requester sees only
+the reply and its date, and a member never sees the limit. How a model asks a quote, and how a Prosimos engine
+answers and holds its items, is in [messaging.md](messaging.md), "Quotes"; the
+[Stock Reservation example](stock-reservation.md) runs it end to end.
+
+**One step.** A message from `step()` that carries a quote (`message.quote`) is stamped as usual, and its lines
+get ids of their own (`l1`, `l2`, ...), but it isn't put in the pool. In the same step, the orchestrator:
+
+1. asks each member of the group that subscribes to the quote type, other than the requester, for its slots:
+   `estimate()` answers, per line, when its first, second, ... matching item not promised yet would be ready;
+2. plans the lines by the slot rule: each line takes the earliest unused slot across the members, and identical
+   lines share one slot list, so they take its first, second, ... slot; a line with no slot makes the plan
+   impossible. The plan's `ready_by` is when its latest line would be ready, and never before the quote's own time;
+3. compares it with the limit, the quote's time plus its `within`, a date fixed once, when the quote is made;
+   without `within` there is no limit (a backorder);
+4. within the limit, books each line at its member (`reserve()`) and publishes the accepted reply; otherwise
+   books nothing and publishes the declined one.
+
+Asking, comparing, and booking happen at one moment, so no answer is stale. `load_balancing` plays no part: it
+orders the offers of ordinary messages only.
+
+| Reply                          | Attributes                                                                                  |
+|--------------------------------|---------------------------------------------------------------------------------------------|
+| accepted, e.g. `QuoteAccepted` | `request`, the requester's `object_id`; `ready_by`; `portions`, how many members hold lines |
+| declined, e.g. `QuoteDeclined` | `request`; `earliest`, when every line could be ready, or `None` when some line has no slot |
+
+Replies are ordinary messages, published by the orchestrator: their source is `orchestrator`, and they are routed
+like any message, in the same step; the requester catches them with a condition on `request`. A process named
+`orchestrator` is therefore a load error (`A process can't be named orchestrator: the replies to quotes come from
+the orchestrator under that name`). A quote without lines is accepted at once, ready by its own time, with
+`portions` 0 and a warning (`ItemQuote m1 from Sales has no lines`).
+
+**The book.** The orchestrator keeps each quote by its requesting process, the requester's object, and the quote
+type: its state, its limit date, and which member holds each line, booked by which message. It never learns that
+a quote was delivered; it asks the members holding lines whether their portion has moved on (`moved()`, with the
+message that reserved the lines there) when a second quote, a modify, or a cancel comes. Some portion moved on,
+and the quote is locked; every portion, and it is complete.
+
+- **A second quote** of the same type from a case whose quote is open, nothing of it moved on, is declined at
+  once, with a warning (`order-7 already has an open ItemQuote; use modify`). After a decline, or once something
+  of the first has moved on, as for an order that loops and quotes again, the second is answered as usual and
+  replaces the first.
+- **A modify** (a message of the quote's modify type, with its new list) is declined once some portion has moved
+  on. Otherwise the lines in both lists, matched by their attributes, stay where they are, at the same member and
+  in the same place of its queue; the added lines get slots by the slot rule; and `ready_by` is the latest of the
+  kept and added lines, checked against the original limit date. Within it, the dropped lines are released, the
+  added ones reserved, and the reply is accepted, with the new `ready_by` and `portions`; otherwise nothing
+  changes and it is declined, with `earliest`. After a declined quote, a modify is a fresh quote of its list
+  against the original limit date; without a quote before it, it is declined, with a warning (`order-7 has no
+  ItemQuote to modify`).
+- **A cancel** (a message of the cancel type) releases every line at its member (`release()`), unless some
+  portion has moved on: then it is too late, and nothing is released. A cancel of a declined, complete, or
+  unknown quote does nothing. A cancel gets no reply. A case that ends with an open quote cancels it
+  automatically ([messaging.md](messaging.md), "Quotes").
+
+So a quote is locked at its first shipment: once the first member's portion moves on, it can be neither canceled
+nor modified, and the rest still ships. After a release, the orchestrator offers the group's pooled messages
+again, so a freed item can take an ordinary message already waiting.
+
+**One group.** A quote type must reach exactly one group, whose members answer its quotes. Only the requester's
+settings say which types are quote types, so the orchestrator checks the first quote of each type: one whose type
+more than one group subscribes to stops the run (`ItemQuote m1 from Sales asks a quote of type ItemQuote, which
+the groups ['Warehouses', 'Outlets'] subscribe to: a quote type must reach exactly one group`).
+
 ## Engine interface
 
 Everything the orchestrator may ask of an engine; nothing else crosses that boundary. It follows the
@@ -356,8 +442,7 @@ another through `deliver()`. Engines never call the orchestrator.
 The first four are the messaging calls; `estimate()`, `moved()`, `reserve()`, and `release()` are the quote
 calls, for a process that asks the members of a group whether they could deliver. Like `deliver()`, they take
 the stamped message, with its id and source, and the quote it asks is `message.quote`. `finish()` is a lifecycle
-call that publishes and delivers nothing. A Prosimos engine answers every quote with no slots and nothing moved
-for now, and books and frees nothing.
+call that publishes and delivers nothing.
 
 **`subscriptions()`**: the message types this process consumes. For a Prosimos engine, the types
 under `consume` in its model ([messaging.md](messaging.md)).
@@ -387,13 +472,25 @@ announces that step like any other.
 It is the same per-message acknowledgement that message brokers such as RabbitMQ use (ack, reject,
 requeue).
 
+**`estimate(message, now)`**: per line id of `message.quote`, the times this member's matching items not yet
+promised would be ready, earliest first (its `Slots`); a line it can't serve gets no times. It changes nothing.
+How a Prosimos engine estimates is in [messaging.md](messaging.md), "Quotes".
+
+**`moved(message, now)`**: whether some line that `message`, a quote or modify, reserved at this member has
+already moved on by `now`; it changes nothing. A Prosimos engine's portion moves on all at once.
+
+**`reserve(message, line_ids, now)`** books those lines of the quote at this member, for its requester;
+**`release(message, line_ids, now)`** frees lines it booked. A Prosimos engine opens booked lines in a queue that
+its items take in order, and returns a freed line's item to the shelf ([messaging.md](messaging.md), "Quotes").
+
 **`finish()`**: called once on every engine after the loop stops, i.e. when no engine has a next
 event. It returns an `EngineReport` with the engine's stalled cases, the warnings it raised during the
-run (including while it was built), its message records (`published` and `claimed`, each a list of
-(message id, object id, element id, qualifier, task rows, o2o)), its cases as objects, and the element id of
-each row of its log (`logged_elements`). The orchestrator adds the stalled cases and warnings to the run
-report, tagged with the process name, joins the records into `message_records`, and uses the objects
-and rows for the OCEL output.
+run (including while it was built), its message records (`published` and `claimed`, each a list of `MessageSide`:
+the message id, object id, element id, and the end's `qualifier`, `activity`, `at`, `enabled`, `o2o`, and `carry`),
+its cases as objects, the element id of each row of its log (`logged_elements`), and when each quote's portion
+held here moved on (`moved`, by the id of the message that reserved it). The orchestrator adds the stalled cases
+and warnings to the run report, tagged with the process name, joins the records into `message_records`, uses the
+objects and rows for the OCEL output, and the moves for the broken promises.
 
 A Prosimos engine learns each message's id without any change to the interface: the orchestrator
 stamps the id on the very `Message` objects `step()` returned, and `deliver()` receives the stamped
@@ -408,8 +505,7 @@ of its methods, and two engines' warnings never mix. Prosimos's end-of-run usage
 
 - **Outside the interface.** Building an engine (from a BPMN file, a JSON file, a number of cases and
   the start time) and handing it a log writer happen outside the nine methods.
-- **OCEL links across parallel branches.** A message's objects are linked to every task a parallel or
-  inclusive gateway lets through next to its event, even when each branch handles only some of the
-  objects (see "Gateways between the event and its tasks"). Routing each object to the branch task that
-  handles its object type is future work.
+- **Quotes:** a quote is locked at its first shipment, so a modify or cancel after it is too late even for
+  the portions that haven't moved yet; a quote type reaches one group only; a requester has one open quote per
+  quote type. The estimate's approximations are in [messaging.md](messaging.md), "Limitations".
 - **Catalogue.** See [catalogue.md](catalogue.md) for its limitations.
