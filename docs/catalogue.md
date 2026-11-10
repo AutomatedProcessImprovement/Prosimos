@@ -175,7 +175,7 @@ A value that isn't an id of the catalogue gets no link, and a warning (see "Erro
   attribute had when the event completed, with the attribute's name as qualifier. With
   `"link_events": ["place order", "confirm order"]`, place order and confirm order link `customer`, pay
   order doesn't. `"Confirm_Order"`, the task's id, works as well as its name. A message event, by name or
-  id, links on the event it writes, e.g. `"items ordered"`; it writes one only when its entry has a `qualifier`
+  id, links on the event it writes, e.g. `"place order"`; it writes one only when its entry has a `qualifier`
   ([orchestrator.md](orchestrator.md), "One event linked to many objects"), so naming one without is a load error.
   Without the key, every event of the case is linked, its message events too; with `[]`, none.
 - **`tag_along`**: every event of another case, of any process, that links the case's object, through its
@@ -592,10 +592,10 @@ of the run.
    "relationships": [{"objectId": "order-0", "qualifier": "order"},
                      {"objectId": "item-0", "qualifier": "item"}, ...,
                      {"objectId": "c9", "qualifier": "customer"}]}
-  {"id": "e6", "type": "confirm order", "time": "2023-04-03T09:08:41.126852Z",
+  {"id": "e7", "type": "confirm order", "time": "2023-04-03T09:08:41.126852Z",
    "relationships": [{"objectId": "order-0", "qualifier": "order"}, ...,
                      {"objectId": "c9", "qualifier": "customer"}]}
-  {"id": "e99", "type": "pay order", "time": "2023-04-05T09:04:17.505695Z",
+  {"id": "e106", "type": "pay order", "time": "2023-04-05T09:04:17.505695Z",
    "relationships": [{"objectId": "order-0", "qualifier": "order"}, ...]}
   ```
 
@@ -614,7 +614,7 @@ of the run.
    "attributes": [{"name": "weight", "value": 0.483, "time": "2023-04-03T06:00:00.000000Z"},
                   {"name": "price", "value": 79.99, "time": "2023-04-03T06:00:00.000000Z"}],
    "relationships": [{"objectId": "Kindle", "qualifier": "is a"}]}
-  {"id": "e5", "type": "pick item", "time": "2023-04-03T09:08:32.152135Z",
+  {"id": "e6", "type": "pick item", "time": "2023-04-03T09:08:32.152135Z",
    "relationships": [{"objectId": "item-0", "qualifier": "item"},
                      {"objectId": "Kindle", "qualifier": "product"}]}
   ```
@@ -665,7 +665,7 @@ The messages, by the key they are about:
 | `catalogue`                  | `organizations[1].processes[0].references[0] names catalogue 'product' of organization Shop; a reference names a catalogue of its own organization`                                                                                                            |
 | catalogue name               | `catalogue 'customer' is declared by more than one organization: Shop, Partner`                                                                                                                                                                                |
 | `link_events`                | `organizations[0].processes[0].references[0] link_events names ['confrim order'], which are no tasks or message events of process Sales`                                                                                                                       |
-| `link_events`                | `organizations[0].processes[0].references[0] link_events names items ordered, which writes no event: its entry has no qualifier`                                                                                                                               |
+| `link_events`                | `organizations[0].processes[0].references[0] link_events names place order, which writes no event: its entry has no qualifier`                                                                                                                                 |
 | `pick`                       | `organizations[0].processes[0].references[0] pick must be "uniform", {"weights": {id: weight, ...}}, "new" or {"new_share": share}`                                                                                                                            |
 | `pick`                       | `organizations[0].processes[0].references[0] picks customer, which process Sales also draws in its object_attributes`                                                                                                                                          |
 | `pick`                       | `organizations[0].processes[1].references[0] picks customer, which process Warehouse also copies from a message (consume entries at ['Start_Item'])`                                                                                                           |

@@ -206,10 +206,10 @@ and that event links the objects of the cases at the other end of every message 
 message may link from both ends, one, or neither:
 
 - **Publishing** (throw or end event): one event for the messages a case sends at once. In Order Management,
-  items ordered sends ItemOrdered ×3, so it writes one event, linked to the 3 items the messages started. With
+  place order sends ItemOrdered ×3, so it writes one event, linked to the 3 items the messages started. With
   `fan_in`, each member writes its own event for its part: each item's Order picked is linked to the package its
   OrderPicked started.
-- **Claiming** (start or catch event): one event per moment the case takes messages. Items picked collecting
+- **Claiming** (start or catch event): one event per moment the case takes messages. Items received collecting
   ItemPicked ×6 writes one event if the 6 come at once, or one per arrival, each linked to the items whose messages
   it took then, all enabled when the package began waiting. A message taken on a race branch that later lost the
   race is still written. With `capacity`, each resumed case writes its own event.
@@ -227,7 +227,7 @@ Three settings shape the links:
 | `carry` (publish or consume entry)     | `true`: every later event of the same case, after the message's event, also links the objects that message linked, e.g. create package, send package and package delivered link the package's items; a list of activities (names or ids of tasks or message events, as in `link_events`): only those later events. Needs a `qualifier` on the entry; off by default |
 | `qualifier` (publish or consume entry) | qualifier of the links this end of the message makes, in the JSON file ([messaging.md](messaging.md)); without one, this end makes no links                                                                                                                                                                                                                         |
 
-So with a `"qualifier": "item"` on the ItemOrdered publish entry, each items ordered event's link to its item is
+So with a `"qualifier": "item"` on the ItemOrdered publish entry, each place order event's link to its item is
 qualified `item`; the Warehouse's consume entry has none, so the item's message start writes no event and doesn't
 link its order. The link of every event to its own case's object is always written.
 

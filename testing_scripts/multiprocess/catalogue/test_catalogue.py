@@ -88,27 +88,6 @@ def test_place_and_confirm_order_link_their_customer_and_pay_order_does_not(orde
     assert linked == {"place order": 100, "confirm order": 100}
 
 
-def test_a_message_event_named_in_link_events_links_its_customer_in_the_ocel_file(tmp_path):
-    # items ordered, Sales's throw event, joins place order and confirm order
-    config = order_management_config(5)
-    [shop] = config.organizations
-    sales = next(spec for spec in shop.processes if spec.name == "Sales")
-    references = tuple(dataclasses.replace(reference, link_events=(*reference.link_events, "items ordered"))
-                       if reference.object_attribute == "customer" else reference for reference in sales.references)
-    config = dataclasses.replace(config, organizations=[dataclasses.replace(shop, processes=[
-        dataclasses.replace(spec, references=references) if spec is sales else spec for spec in shop.processes])])
-
-    report = run_multiprocess_simulation(config, None, ocel_out_path=tmp_path / "log.json")
-
-    with open(tmp_path / "log.json") as file:
-        ordered = [event for event in json.load(file)["events"] if event["type"] == "items ordered"]
-    customer_of = _customers_of_orders(report)
-    assert len(ordered) == 5
-    for event in ordered:
-        order = event["relationships"][0]["objectId"]
-        assert {"objectId": customer_of[order], "qualifier": "customer"} in event["relationships"]
-
-
 def test_pm4py_reads_the_customers(order_management):
     pm4py = pytest.importorskip("pm4py")
     _, _, path = order_management
@@ -166,15 +145,15 @@ def test_link_events_may_name_a_task_by_its_id():
 
 
 def _items_ordered(qualifier):
-    """P's settings get an entry for its throw event items ordered, with the qualifier or none; and that event of
+    """P's settings get an entry for its throw event place order, with the qualifier or none; and that event of
     case 0 at 09:15, after the customer changed from c1 to c2 at 09:12."""
     entry = {"event_id": "Throw_ItemOrdered", "type": "ItemOrdered", **({"qualifier": qualifier} if qualifier else {})}
     Path(SETTINGS).write_text(json.dumps({"messages": {"publish": [entry]}}))
     at = START + timedelta(minutes=15)
-    return [MessageEvent("P", "p-0", "Throw_ItemOrdered", "items ordered", at, at)]
+    return [MessageEvent("P", "p-0", "Throw_ItemOrdered", "place order", at, at)]
 
 
-@pytest.mark.parametrize("link_events", [None, ("items ordered",), ("Throw_ItemOrdered",)])
+@pytest.mark.parametrize("link_events", [None, ("place order",), ("Throw_ItemOrdered",)])
 def test_link_events_may_name_a_message_event_and_it_links_the_value_at_its_time(link_events):
     objects = [("P", CaseObject("p-0", START, [("customer", "c1", START),
                                                ("customer", "c2", START + timedelta(minutes=12))]))]
@@ -186,15 +165,15 @@ def test_link_events_may_name_a_message_event_and_it_links_the_value_at_its_time
     assert (("P", 1) in event_links) == (link_events is None)
 
 
-def test_link_events_naming_a_task_leaves_the_message_events_out():
-    _, _, event_links, _ = _links([Reference("customer", "customer", link_events=("place order",))], ONE_CASE,
+def test_link_events_naming_only_a_task_leaves_the_message_events_out():
+    _, _, event_links, _ = _links([Reference("customer", "customer", link_events=("confirm order",))], ONE_CASE,
                                   TWO_ROWS, message_events=_items_ordered("item"))
 
-    assert event_links == {("P", 0): [("c1", "customer")]}
+    assert event_links == {("P", 1): [("c1", "customer")]}
 
 
 def test_a_reference_links_only_its_own_processs_message_events():
-    # P and Q share a model, and each case has a customer: Q's items ordered comes first, but only P has a reference
+    # P and Q share a model, and each case has a customer: Q's place order comes first, but only P has a reference
     [ordered] = _items_ordered("item")
     config = SimulationConfig(one_organization(
         [ProcessSpec("P", SALES, SETTINGS, 1, references=(Reference("customer", "customer"),)),
@@ -211,9 +190,9 @@ def test_a_reference_links_only_its_own_processs_message_events():
 
 def test_link_events_naming_a_message_event_without_a_qualifier_is_rejected():
     # it writes no event, so the link would never appear
-    with pytest.raises(ValueError, match=r"processes\[0\].references\[0\] link_events names items ordered, which "
+    with pytest.raises(ValueError, match=r"processes\[0\].references\[0\] link_events names place order, which "
                                          r"writes no event: its entry has no qualifier"):
-        _links([Reference("customer", "customer", link_events=("items ordered",))], ONE_CASE, TWO_ROWS,
+        _links([Reference("customer", "customer", link_events=("place order",))], ONE_CASE, TWO_ROWS,
                message_events=_items_ordered(None))
 
 

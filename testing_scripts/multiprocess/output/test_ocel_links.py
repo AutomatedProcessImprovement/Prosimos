@@ -72,23 +72,23 @@ def _without_products(event):
     return [link for link in event["relationships"] if link["qualifier"] != "product"]
 
 
-def test_every_items_ordered_links_exactly_its_orders_items_and_place_order_none(order_management):
-    # Sales's ItemOrdered entry has a qualifier: its throw event writes one event for the messages it sends at once
+def test_every_place_order_links_exactly_its_orders_items(order_management):
+    # Sales's ItemOrdered entry has a qualifier: its throw event, place order, writes one event for the messages it
+    # sends at once
     report, ocel, _ = order_management
     items_of_order = items_of_orders(report)
 
-    events = _events(ocel, "items ordered")
+    events = _events(ocel, "place order")
     assert len(events) == 100
     for event in events:
         order, qualifier = _owner(event)
         assert qualifier == "order"
         assert _linked(event, "item") == items_of_order[order]
     assert sum(len(items) for items in items_of_order.values()) > 300  # with this seed, orders have items
-    assert all(_linked(event, "item") == set() for event in _events(ocel, "place order"))
 
 
 def test_every_create_package_is_linked_to_exactly_the_items_its_package_collected(order_management):
-    # by carry from its items picked, one event per item it collected
+    # by carry from its items received, one event per item it collected
     _, ocel, items_of_package = order_management
 
     events = _events(ocel, "create package")

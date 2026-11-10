@@ -79,12 +79,12 @@ def test_object_and_event_types_are_listed_with_their_attributes(order_managemen
         "product": [{"name": "price", "type": "float"}, {"name": "weight", "type": "float"}],
     }
     times = [{"name": "start_time", "type": "time"}, {"name": "enable_time", "type": "time"}]
-    tasks = {"place order", "confirm order", "payment reminder", "pay order", "item out of stock", "reorder item",
-             "pick item", "create package", "send package", "failed delivery", "package delivered"}
-    # the message ends with a qualifier: Sales's items ordered and Packaging's items picked, performed by nobody
+    tasks = {"confirm order", "payment reminder", "pay order", "item out of stock", "reorder item", "pick item",
+             "create package", "send package", "failed delivery", "package delivered"}
+    # the message ends with a qualifier: Sales's place order and Packaging's items received, performed by nobody
     assert {t["name"]: t["attributes"] for t in ocel["eventTypes"]} == {
         **{task: [{"name": "resource", "type": "string"}, *times] for task in tasks},
-        "items ordered": times, "items picked": times}
+        "place order": times, "items received": times}
 
 
 def test_pm4py_reads_the_file(order_management):
@@ -133,9 +133,8 @@ def test_an_event_is_enabled_before_it_starts_and_starts_before_it_completes(ord
 def test_an_instant_task_has_all_three_times_equal(order_management):
     _, _, ocel, _ = order_management
 
-    # placing an order and recording a delivery take no time, and System is there around the clock
-    instant = [event for event in ocel["events"]
-               if event["type"] in ("place order", "failed delivery", "package delivered")]
+    # recording a delivery takes no time, and System is there around the clock
+    instant = [event for event in ocel["events"] if event["type"] in ("failed delivery", "package delivered")]
     assert instant and all(len(set(_times(event))) == 1 for event in instant)
 
 

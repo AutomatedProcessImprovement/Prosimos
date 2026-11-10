@@ -15,16 +15,6 @@
             "Payment_Reminder",
             "Pay_Order"
           ]
-        },
-        {
-          "id": "System",
-          "name": "System",
-          "cost_per_hour": 1,
-          "amount": 1,
-          "calendar": "Around the clock",
-          "assigned_tasks": [
-            "Place_Order"
-          ]
         }
       ]
     }
@@ -67,20 +57,6 @@
     }
   ],
   "task_resource_distribution": [
-    {
-      "task_id": "Place_Order",
-      "resources": [
-        {
-          "resource_id": "System",
-          "distribution_name": "fix",
-          "distribution_params": [
-            {
-              "value": 0
-            }
-          ]
-        }
-      ]
-    },
     {
       "task_id": "Confirm_Order",
       "resources": [
@@ -143,18 +119,6 @@
           "to": "FRIDAY",
           "beginTime": "09:00:00",
           "endTime": "17:00:00"
-        }
-      ]
-    },
-    {
-      "id": "Around the clock",
-      "name": "Around the clock",
-      "time_periods": [
-        {
-          "from": "MONDAY",
-          "to": "SUNDAY",
-          "beginTime": "00:00:00",
-          "endTime": "23:59:59"
         }
       ]
     }

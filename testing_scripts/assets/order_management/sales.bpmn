@@ -5,8 +5,7 @@
        get a reminder after 20 days and the same choice again -->
   <bpmn:process id="Sales" isExecutable="false">
     <bpmn:startEvent id="Start" name="order received"><bpmn:outgoing>Flow_1</bpmn:outgoing></bpmn:startEvent>
-    <bpmn:task id="Place_Order" name="place order"><bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing></bpmn:task>
-    <bpmn:intermediateThrowEvent id="Throw_ItemOrdered" name="items ordered"><bpmn:incoming>Flow_2</bpmn:incoming><bpmn:outgoing>Flow_3</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:intermediateThrowEvent>
+    <bpmn:intermediateThrowEvent id="Throw_ItemOrdered" name="place order"><bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_3</bpmn:outgoing><bpmn:messageEventDefinition /></bpmn:intermediateThrowEvent>
     <bpmn:task id="Confirm_Order" name="confirm order"><bpmn:incoming>Flow_3</bpmn:incoming><bpmn:outgoing>Flow_4</bpmn:outgoing></bpmn:task>
     <bpmn:exclusiveGateway id="Await_Payment"><bpmn:incoming>Flow_4</bpmn:incoming><bpmn:incoming>Flow_12</bpmn:incoming><bpmn:outgoing>Flow_6</bpmn:outgoing></bpmn:exclusiveGateway>
     <bpmn:exclusiveGateway id="Pays" name="pays?"><bpmn:incoming>Flow_6</bpmn:incoming><bpmn:outgoing>Flow_Pay</bpmn:outgoing><bpmn:outgoing>Flow_Remind</bpmn:outgoing></bpmn:exclusiveGateway>
@@ -15,8 +14,7 @@
     <bpmn:intermediateCatchEvent id="Customer_Pays" name="customer pays"><bpmn:incoming>Flow_Pay</bpmn:incoming><bpmn:outgoing>Flow_Paid</bpmn:outgoing><bpmn:timerEventDefinition /></bpmn:intermediateCatchEvent>
     <bpmn:task id="Pay_Order" name="pay order"><bpmn:incoming>Flow_Paid</bpmn:incoming><bpmn:outgoing>Flow_10</bpmn:outgoing></bpmn:task>
     <bpmn:endEvent id="End" name="order paid"><bpmn:incoming>Flow_10</bpmn:incoming></bpmn:endEvent>
-    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Place_Order" />
-    <bpmn:sequenceFlow id="Flow_2" sourceRef="Place_Order" targetRef="Throw_ItemOrdered" />
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Throw_ItemOrdered" />
     <bpmn:sequenceFlow id="Flow_3" sourceRef="Throw_ItemOrdered" targetRef="Confirm_Order" />
     <bpmn:sequenceFlow id="Flow_4" sourceRef="Confirm_Order" targetRef="Await_Payment" />
     <bpmn:sequenceFlow id="Flow_6" sourceRef="Await_Payment" targetRef="Pays" />

@@ -18,7 +18,7 @@ clock.
 Sales (order)        arrivals: around the clock, about one every 4.8 h, 2,000 orders
                      object attributes: customer (picked from c1..c15), items (1..16), products (picked
                      uniformly from the 20, one per item), price (5.00 + their prices when it is placed)
-                     place order -> (throw ItemOrdered x products: object_id, index, customer, product)
+                     throw place order: ItemOrdered x products (object_id, index, customer, product)
                      -> confirm order (sales clerk)
                      -> XOR: 80% timer: customer pays (about 3 days) -> pay order (sales clerk) -> end
                            | 20% timer 20 days -> payment reminder (sales clerk) -> back to the XOR
@@ -28,8 +28,9 @@ Warehouse (item)     start ItemOrdered (copy order_id, item_index from index, cu
                      -> pick item (warehouse worker)
                      -> message end ItemPicked{order_id, item_index, customer, object_id, weight}
 Packaging (package)  arrivals: weekdays 9:00-17:00, about one packing round every 2 h, 1,450 rounds
-                     -> catch ItemPicked: the oldest waiting one and every other of its customer (collect "all",
-                        same customer); copy customer, append object_id to item_ids, weight = sum of their weights
+                     -> catch items received: ItemPicked, the oldest waiting one and every other of its customer
+                        (collect "all", same customer); copy customer, append object_id to item_ids, weight = sum
+                        of their weights
                      -> create package (packer) -> send package (courier, the trip)
                      -> XOR: 80% package delivered -> end | 20% failed delivery -> send package again
                         -> XOR: 70% package delivered -> end | 30% failed delivery again
@@ -65,11 +66,11 @@ flowchart LR
 
 ## Messages
 
-| Process       | Publishes                                                                                                           | Consumes                                                                                                                                                                   |
-|---------------|---------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Sales**     | `ItemOrdered{object_id, index, customer, product}`, `fan_out` over the list `products`, each carrying its `product` | nothing                                                                                                                                                                    |
-| **Warehouse** | `ItemPicked{order_id, item_index, customer, object_id, weight}`, at its message end event                           | `ItemOrdered` at its start event; copies `order_id` from `object_id`, `item_index` from `index`, `customer` from `customer`, `product` from `product`                      |
-| **Packaging** | nothing                                                                                                             | `ItemPicked` at "items picked": `"collect": "all"` with `"same": ["customer"]`, copying `customer`, appending `object_id` to `item_ids` and summing `weight` into `weight` |
+| Process       | Publishes                                                                                                           | Consumes                                                                                                                                                                     |
+|---------------|---------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Sales**     | `ItemOrdered{object_id, index, customer, product}`, `fan_out` over the list `products`, each carrying its `product` | nothing                                                                                                                                                                      |
+| **Warehouse** | `ItemPicked{order_id, item_index, customer, object_id, weight}`, at its message end event                           | `ItemOrdered` at its start event; copies `order_id` from `object_id`, `item_index` from `index`, `customer` from `customer`, `product` from `product`                        |
+| **Packaging** | nothing                                                                                                             | `ItemPicked` at "items received": `"collect": "all"` with `"same": ["customer"]`, copying `customer`, appending `object_id` to `item_ids` and summing `weight` into `weight` |
 
 ## Objects and activities
 
@@ -80,13 +81,14 @@ flowchart LR
 | object type **package**        | Packaging        | one case per packing round                | arrivals in the packer's hours; `collect` `"all"` with `same` customer; `weight` the sum of its items'                                                                    |
 | object type **customer**       | all              | attribute `customer`                      | 15 in the catalogue; picked for the order, copied to items and packages; what a package's items share                                                                     |
 | object type **product**        | Sales, Warehouse | attributes `products` and `product`       | 20 in the catalogue; picked by the order, one per item, uniformly; the item gets its weight and price from it; its price rises 3% every 60 days                           |
-| activity **place order**       | Sales            | task `Place_Order`                        | recorded by `System` when the order arrives; `ItemOrdered` is published right after it                                                                                    |
+| activity **place order**       | Sales            | throw event `Throw_ItemOrdered`           | when the order arrives: publishes `ItemOrdered`, one per item; an event of the OCEL file, not a task of the CSV log                                                       |
 | activity **confirm order**     | Sales            | task `Confirm_Order`                      | the sales clerk                                                                                                                                                           |
 | activity **payment reminder**  | Sales            | task `Payment_Reminder`                   | the 20% branch of an XOR, after a 20-day timer, then back to the XOR                                                                                                      |
 | activity **pay order**         | Sales            | task `Pay_Order`                          | the 80% branch of that XOR, after the timer `Customer_Pays`: the clerk records the payment                                                                                |
 | activity **item out of stock** | Warehouse        | task `Item_Out_Of_Stock`                  | the 20% branch of an XOR                                                                                                                                                  |
 | activity **reorder item**      | Warehouse        | task `Reorder_Item`                       | after item out of stock, then the timer `Item_Restocked`: the supplier's delay                                                                                            |
 | activity **pick item**         | Warehouse        | task `Pick_Item`                          | a warehouse worker; `ItemPicked` is published at the message end event after it                                                                                           |
+| activity **items received**    | Packaging        | catch event `Catch_Items`                 | the packing round takes its items' `ItemPicked`; an event of the OCEL file, not a task of the CSV log                                                                     |
 | activity **create package**    | Packaging        | task `Create_Package`                     | the packer, after the packing round has taken its items                                                                                                                   |
 | activity **send package**      | Packaging        | tasks `Send_Package` and `Resend_Package` | a courier's trip: the first one, and one after each failed delivery                                                                                                       |
 | activity **failed delivery**   | Packaging        | task `Failed_Delivery`                    | recorded by `System`: the 20% branch after the first trip, then the 30% branch after each later one                                                                       |
@@ -106,7 +108,6 @@ calendar, and uniform in their ranges; waiting comes from the queues, the calend
 
 | Task                               | Work time | Who              |
 |------------------------------------|-----------|------------------|
-| place order                        | none      | `System`         |
 | confirm order                      | 5-15 min  | sales clerk      |
 | payment reminder                   | 2-5 min   | sales clerk      |
 | pay order (recording the payment)  | 2-5 min   | sales clerk      |
@@ -118,8 +119,8 @@ calendar, and uniform in their ranges; waiting comes from the queues, the calend
 | failed delivery, package delivered | none      | `System`         |
 
 The instant tasks are recorded by a `System` resource on a calendar of its own, around the clock, so they happen
-when they are due: an order is placed when it arrives, and a delivery is recorded when the trip ends. `System`
-isn't staff: it does nothing that takes time.
+when they are due: a delivery is recorded when the trip ends. `System` isn't staff: it does nothing that takes
+time. Placing an order is not a task: it is the throw event place order, at the order's arrival.
 
 The timers run on the clock:
 
@@ -147,23 +148,22 @@ poetry run prosimos start-orchestration --config testing_scripts/assets/order_ma
 The configuration names the object types in the singular, one kind of thing each: `order` (Sales), `item`
 (Warehouse) and `package` (Packaging), and the catalogue adds `customer` and `product`; objects are named
 `<object type>-<number>`, e.g. `order-7`. A message end whose entry has a qualifier writes an event of its own per
-message, linked to the objects on the other end ([orchestrator.md](orchestrator.md), "One event linked to many
-objects"). Only one end of the messages between the items and the others does: `ItemOrdered` at the order's
-throw event items ordered, `ItemPicked` at the package's catch event items picked; the Warehouse's entries have
-no qualifier, so the item's events link neither its order nor its package. With `"tag_along": true` on the
-product reference, every event that links an item also links its product (`product`); customers don't tag
-along, so pay order links no customer:
+case, element and moment it sends or takes messages, linked to the objects on the other end
+([orchestrator.md](orchestrator.md), "One event linked to many objects"). Only one end of the messages between
+the items and the others does: `ItemOrdered` at the order's throw event place order, `ItemPicked` at the package's
+catch event items received; the Warehouse's entries have no qualifier, so the item's events link neither its order
+nor its package. With `"tag_along": true` on the product reference, every event that links an item also links
+its product (`product`); customers don't tag along, so pay order links no customer:
 
-| Event                                            | Linked to                                                                                                              |
-|--------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|
-| place order                                      | its order (`order`) and its customer (`customer`)                                                                      |
-| items ordered, one per order                     | its order and the items its ItemOrdered messages started (`item`), with their products                                 |
-| confirm order                                    | its order, its customer and, carried, its items and their products                                                     |
-| payment reminder, pay order                      | its order and, carried, its items and their products                                                                   |
-| every event of an item                           | its item (`item`) and its product (`product`), from the Warehouse's product reference; not its order or its package    |
-| items picked, one per moment it took items       | its package (`package`) and the items whose ItemPicked it took then (`item`), with their products                      |
-| create package                                   | its package (`creates`) and, carried, the items it collected and their products                                        |
-| send package, failed delivery, package delivered | its package (`shipped package`) and, carried, its items and their products                                             |
+| Event                                            | Linked to                                                                                                                   |
+|--------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------|
+| place order, one per order                       | its order (`order`), its customer (`customer`) and the items its ItemOrdered messages started (`item`), with their products |
+| confirm order                                    | its order, its customer and, carried, its items and their products                                                          |
+| payment reminder, pay order                      | its order and, carried, its items and their products                                                                        |
+| every event of an item                           | its item (`item`) and its product (`product`), from the Warehouse's product reference; not its order or its package         |
+| items received, one per moment it took items     | its package (`package`) and the items whose ItemPicked it took then (`item`), with their products                           |
+| create package                                   | its package (`creates`) and, carried, the items it collected and their products                                             |
+| send package, failed delivery, package delivered | its package (`shipped package`) and, carried, its items and their products                                                  |
 
 Objects are linked to each other too: each order **comprises** its items (`"o2o": "comprises"` on Sales's
 ItemOrdered entry), each package **contains** its items (`"o2o": "contains"` on Packaging's ItemPicked entry),

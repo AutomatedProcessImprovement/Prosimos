@@ -28,9 +28,9 @@ REMINDER_GAP = timedelta(days=20)
 STAFF = {"Sales clerk": 1, "Warehouse worker": 2, "Packer": 1, "Courier": 3}
 OPENS, CLOSES = time(9), time(17)
 # each task's work time, in minutes
-WORK = {"place order": (0, 0), "confirm order": (5, 15), "payment reminder": (2, 5), "pay order": (2, 5),
-        "item out of stock": (1, 3), "reorder item": (5, 10), "pick item": (3, 10), "create package": (10, 20),
-        "send package": (60, 240), "failed delivery": (0, 0), "package delivered": (0, 0)}
+WORK = {"confirm order": (5, 15), "payment reminder": (2, 5), "pay order": (2, 5), "item out of stock": (1, 3),
+        "reorder item": (5, 10), "pick item": (3, 10), "create package": (10, 20), "send package": (60, 240),
+        "failed delivery": (0, 0), "package delivered": (0, 0)}
 
 
 def order_management_config(orders=ORDERS, rounds=ROUNDS):
@@ -269,7 +269,7 @@ def test_each_item_s_product_is_one_of_its_order_s_products_as_often_as_the_list
                for order, (products, _) in _order_products(log).items())
 
 
-def test_each_product_object_appears_once_linked_from_items_ordered_and_pick_item(run):
+def test_each_product_object_appears_once_linked_from_place_order_and_pick_item(run):
     _, log, ocel_path = run
 
     with open(ocel_path) as file:
@@ -284,8 +284,8 @@ def test_each_product_object_appears_once_linked_from_items_ordered_and_pick_ite
                                             if object_type[link["objectId"]] == "product")
     product_of_item = {f"item-{case}": row["product"]
                        for case, row in _rows(log, "Warehouse").groupby("case_id").first().iterrows()}
-    # an order's items ordered events, one per item, link its items, and so their products
-    assert all(linked[("items ordered", order)] == set(products)
+    # an order's place order event links its items, and so their products
+    assert all(linked[("place order", order)] == set(products)
                for order, (products, _) in _order_products(log).items())
     assert all(linked[("pick item", item)] == {product} for item, product in product_of_item.items())
 
@@ -366,7 +366,7 @@ def test_seven_people_work_monday_to_friday_9_to_17_and_system_records_the_insta
                         {"from": "MONDAY", "to": "FRIDAY", "beginTime": "09:00:00", "endTime": "17:00:00"}]
 
     assert staff == STAFF
-    assert system_tasks == {"Place_Order", "Failed_Delivery", "Package_Delivered"}
+    assert system_tasks == {"Failed_Delivery", "Package_Delivered"}
 
 
 def test_no_staff_task_starts_or_ends_outside_the_staff_s_hours(run):
@@ -378,7 +378,7 @@ def test_no_staff_task_starts_or_ends_outside_the_staff_s_hours(run):
     # the instant tasks happen when they are due, at any hour
     instant = log[log["resource"] == "System"]
     assert (instant["start_time"] == instant["end_time"]).all() and set(instant["activity"]) == {
-        "place order", "failed delivery", "package delivered"}
+        "failed delivery", "package delivered"}
 
 
 def test_every_task_s_work_time_is_within_its_range(run):

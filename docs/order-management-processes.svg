@@ -11,16 +11,14 @@
 <circle cx="100" cy="180" r="18" fill="#fff" stroke="#222" stroke-width="1.5"/>
 <text x="100" y="212" font-size="11" text-anchor="middle">order</text>
 <text x="100" y="225" font-size="11" text-anchor="middle">received</text>
-<polyline points="118,180 148,180" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
-<rect x="148" y="155" width="104" height="50" rx="9" fill="#fdfdf3" stroke="#222" stroke-width="1.5"/>
-<text x="200.0" y="184" font-size="12" text-anchor="middle">place order</text>
-<polyline points="252,180 282,180" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
+<polyline points="118,180 282,180" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
 <circle cx="300" cy="180" r="18" fill="#fff" stroke="#222" stroke-width="1.5"/>
 <circle cx="300" cy="180" r="14" fill="#fff" stroke="#222" stroke-width="1.5"/>
 <rect x="292" y="174.5" width="16" height="11" fill="#222" stroke="#222" stroke-width="1.2"/>
 <polyline points="292,174.5 300,181 308,174.5" fill="none" stroke="#fff" stroke-width="1.2"/>
 <text x="300" y="143" font-size="11" text-anchor="middle">ItemOrdered</text>
 <text x="300" y="156" font-size="11" text-anchor="middle">× items</text>
+<text x="292" y="210" font-size="11" text-anchor="end">place order</text>
 <polyline points="318,180 348,180" fill="none" stroke="#222" stroke-width="1.5" marker-end="url(#seq)"/>
 <rect x="348" y="155" width="104" height="50" rx="9" fill="#fdfdf3" stroke="#222" stroke-width="1.5"/>
 <text x="400.0" y="184" font-size="12" text-anchor="middle">confirm order</text>
