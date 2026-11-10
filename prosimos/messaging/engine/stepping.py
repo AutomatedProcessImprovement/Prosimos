@@ -35,6 +35,7 @@ class Stepping:
         self._close_collections()
         self._ensure_arrivals_generated()
         self._hold_passed_elements()
+        self._drop_lost_timers()
         next_event = self.events_queue.peek()
         times = [next_event.enabled_datetime] if next_event is not None else []
         if self._held:
@@ -58,6 +59,14 @@ class Stepping:
         executed = next(self._event_generator, None)
         self._hold_passed_elements()
         return executed
+
+    def _drop_lost_timers(self):
+        """Takes the timers of races another branch already won off the head of the queue: when due, they would do
+        nothing, and announcing them would keep the run going until then."""
+        next_event = self.events_queue.peek()
+        while next_event is not None and next_event.armed_event is not None and next_event.race.won:
+            self.events_queue.pop_next_event()
+            next_event = self.events_queue.peek()
 
     def _hold_passed_elements(self):
         passed = self.sim_setup.bpmn_graph.passed_watched_elements

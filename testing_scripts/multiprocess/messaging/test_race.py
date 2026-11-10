@@ -86,11 +86,22 @@ def test_a_shipment_before_the_deadline_closes_the_order_and_the_timer_never_fir
     assert log.times("Close order") == {0: START.replace(hour=11)}
     assert log.times("Cancel order") == {}
     assert report.stalled == []
-    # the canceled timer still came off the queue at its time, but was skipped: Sales stepped then and
-    # nothing happened
+    # the canceled timer is dropped from the queue: Sales never steps at its time
     deadline = _reached_gateway(log, 0) + DEADLINE + AFTER_TIES
-    assert (deadline, "Sales") in report.executed
+    assert (deadline, "Sales") not in report.executed
     assert all(_time(row[2]) < deadline for row in log.rows)
+
+
+def test_a_race_won_by_its_message_ends_the_run_at_the_cases_last_event_not_at_the_timer():
+    # Close order, at 11:00, is the case's last event; the lost timer, due at 15:13, announces nothing
+    sales, log = _sales()
+    warehouse = ScriptedEngine("Warehouse")
+    warehouse.publish_at(START.replace(hour=11), "Shipment", order_id="Sales-0")
+
+    report = orchestrate({"Sales": sales, "Warehouse": warehouse}, None, 1)
+
+    assert report.executed[-1] == (START.replace(hour=11), "Sales")
+    assert sales.next_event_time() is None
 
 
 def test_no_shipment_before_the_deadline_cancels_the_order_and_a_later_shipment_is_discarded():

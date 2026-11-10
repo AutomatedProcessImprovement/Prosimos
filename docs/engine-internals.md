@@ -157,7 +157,9 @@ the gateway. The branches of one case share a `Race` (`SimBPMEnv._races`, keyed 
 - The first branch to happen wins (`_win_race`): a timer that comes off the queue with its race not yet
   won, or a message branch when its case is resumed (`_resume`). The other branches' tokens are
   taken off the flows into them, the other parked branches' waiting records are dropped, and a
-  canceled timer is skipped when it comes off the queue (its race is already won).
+  canceled timer is skipped when it comes off the queue (its race is already won). Before `next_event_time()`
+  reports the next event, it takes canceled timers off the head of the queue (`_drop_lost_timers`), so the run
+  doesn't go on to a time when nothing would happen.
 - When a delivered message is accepted by a case waiting in a race, `deliver` looks at all the parked
   branches of that race that accept it (`_first_listed_branch`): the one whose `consume` entry comes
   first in the JSON takes it (`_consume_order`, the entries' positions), with one warning per gateway
