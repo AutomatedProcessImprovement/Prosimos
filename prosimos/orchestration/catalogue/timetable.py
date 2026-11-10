@@ -1,18 +1,25 @@
 """The timetable of catalogue changes (docs/catalogue.md, "Changes")."""
+import hashlib
+import random
 from bisect import bisect_right
 from collections import defaultdict
 from datetime import datetime
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 
-from prosimos.orchestration.catalogue.model import CatalogueChange
+from prosimos.orchestration.catalogue.model import Between, CatalogueChange
 
 
 class Timetable:
     """An organization's catalogue values over the run, worked out from its catalogue_changes: a change is valid
-    from its moment on, and changes at the same moment apply in the listed order."""
+    from its moment on, and changes at the same moment apply in the listed order. An amount drawn from a range is
+    fixed by the seed, the change, the object, and the moment, so the timetable is the same whenever it is read, and
+    it draws from no other generator; without a seed, it differs from run to run."""
 
-    def __init__(self, changes: Tuple[CatalogueChange, ...], start: datetime):
+    def __init__(self, changes: Tuple[CatalogueChange, ...], start: datetime, seed: Optional[int] = None):
         self._start = start
+        if seed is None and any(isinstance(change.value, Between) for change in changes):
+            seed = random.getrandbits(64)
+        self._seed = seed
         # (catalogue, attribute) -> [(its place in the list, change)]
         self._changes = defaultdict(list)
         for index, change in enumerate(changes):
@@ -30,8 +37,8 @@ class Timetable:
         moments, values, read_up_to = series
         if read_up_to is None or when > read_up_to:
             current = values[-1] if values else value
-            for moment, _, change in sorted(self._moments(changes, read_up_to, when), key=lambda found: found[:2]):
-                current = change.applied(current)
+            for moment, index, change in sorted(self._moments(changes, read_up_to, when), key=lambda found: found[:2]):
+                current = change.applied(current, self._amount(index, change, object_id, moment))
                 moments.append(moment)
                 values.append(current)
             series[2] = when
@@ -42,6 +49,14 @@ class Timetable:
         """The moments in ('after', 'until'] at which the attribute of one catalogue object changes, each once."""
         changes = self._changes_of(catalogue, attribute, object_id)
         return sorted({moment for moment, _, _ in self._moments(changes, after, until)})
+
+    def _amount(self, index, change, object_id, moment):
+        """The change's amount for one object at one moment: its own, or drawn from its range."""
+        if not isinstance(change.value, Between):
+            return change.value
+        key = f"{self._seed}/catalogue_changes[{index}]/{object_id}/{moment.isoformat()}"
+        draw = random.Random(int.from_bytes(hashlib.sha256(key.encode("utf-8")).digest()[:8], "big"))
+        return draw.uniform(change.value.low, change.value.high)
 
     def _changes_of(self, catalogue, attribute, object_id):
         """(place in the list, change) of every change of the attribute of one catalogue object."""

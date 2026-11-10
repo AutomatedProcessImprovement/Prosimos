@@ -53,6 +53,14 @@ class QuantityFrom:
 
 
 @dataclass(frozen=True)
+class Between:
+    """A change's amount drawn uniformly from [low, high], for each object at each moment of the change."""
+
+    low: float
+    high: float
+
+
+@dataclass(frozen=True)
 class CatalogueChange:
     """A change of a catalogue attribute on the clock, from catalogue_changes (docs/catalogue.md, "Changes");
     objects None changes every object of the catalogue."""
@@ -60,20 +68,20 @@ class CatalogueChange:
     catalogue: str
     attribute: str
     operation: str
-    value: Any
+    value: Any  # a fixed amount, or Between
     every: Optional[timedelta] = None
     at: Optional[datetime] = None
     round: Optional[int] = None
     objects: Optional[Tuple[str, ...]] = None
 
-    def applied(self, value):
-        """The attribute's value after this change, value before it."""
+    def applied(self, value, amount):
+        """The attribute's value after this change by amount, its own or drawn from its range, value before it."""
         if self.operation == "multiply":
-            value = value * self.value
+            value = value * amount
         elif self.operation == "add":
-            value = value + self.value
+            value = value + amount
         else:
-            value = self.value
+            value = amount
         return value if self.round is None else round(value, self.round)
 
 

@@ -11,8 +11,8 @@ import pytz
 from prosimos.messaging.model import AGGREGATE_FUNCTIONS
 from prosimos.messaging.parser.common import PERIODS, is_number, is_whole_number, unknown_keys
 from prosimos.orchestration.catalogue.checks import brought_names, checked_catalogue
-from prosimos.orchestration.catalogue.model import (CatalogueChange, CatalogueObject, CataloguePool, Computed,
-                                                    GrowingCatalogue, NewShare, QuantityFrom, Reference)
+from prosimos.orchestration.catalogue.model import (Between, CatalogueChange, CatalogueObject, CataloguePool,
+                                                    Computed, GrowingCatalogue, NewShare, QuantityFrom, Reference)
 from prosimos.orchestration.protocol import ORCHESTRATOR
 from prosimos.simulation_properties_parser import parse_datetime
 
@@ -330,13 +330,22 @@ def _catalogue_change(path, where, entry):
                          f"{', '.join(operations) or 'none'}")
     [operation] = operations
     value = entry[operation]
-    if operation != "set" and not is_number(value):
+    if isinstance(value, dict):
+        _check_keys(path, f"{where}.{operation}", value, {"between"})
+        bounds = value.get("between")
+        if not (isinstance(bounds, list) and len(bounds) == 2 and all(is_number(bound) for bound in bounds)):
+            raise ValueError(f"{path}: {where}: {operation} between must be two numbers, [low, high], got {bounds!r}")
+        if bounds[0] > bounds[1]:
+            raise ValueError(f"{path}: {where}: {operation} between has its low, {bounds[0]}, above its high, "
+                             f"{bounds[1]}")
+        value = Between(*bounds)
+    elif operation != "set" and not is_number(value):
         raise ValueError(f"{path}: {where}: {operation} must be a number, got {value!r}")
     rounding = entry.get("round")
     if "round" in entry and not is_whole_number(rounding, minimum=0):
         raise ValueError(f"{path}: {where}: round must be a whole number of at least 0 (decimal places), got "
                          f"{rounding!r}")
-    if "round" in entry and not is_number(value):
+    if "round" in entry and not (is_number(value) or isinstance(value, Between)):
         raise ValueError(f"{path}: {where}: round needs a number to round, and set gives {value!r}")
     objects = entry.get("objects")
     if "objects" in entry and not (isinstance(objects, list) and objects

@@ -423,9 +423,9 @@ products from 1 December 2024 on.
 | `attribute` | yes                             | `"price"`                     | the attribute it changes, which every object it changes has (on a pool or a growing catalogue: one of its `attributes`) |
 | `every`     | one of `every`, `at`            | `{"days": 60}`                | repeated, counted from the start of the run: `{"weeks" \| "days" \| "hours": n}`, n a number above 0                    |
 | `at`        |                                 | `"2024-12-01T00:00:00+00:00"` | once, at that time; a time without a time zone is taken as UTC                                                          |
-| `multiply`  | one of `multiply`, `add`, `set` | `1.03`                        | multiplies the value by a number; the attribute must be a number                                                        |
-| `add`       |                                 | `100`                         | adds a number to the value; the attribute must be a number                                                              |
-| `set`       |                                 | `"business"`                  | replaces the value, with any value                                                                                      |
+| `multiply`  | one of `multiply`, `add`, `set` | `1.03`                        | multiplies the value by a number, or by an amount drawn from `{"between": [low, high]}`; the attribute must be a number |
+| `add`       |                                 | `100`                         | adds a number to the value, or an amount drawn from a range; the attribute must be a number                             |
+| `set`       |                                 | `"business"`                  | replaces the value, with any value, or an amount drawn from a range                                                     |
 | `round`     | no                              | `2`                           | the decimal places the value is rounded to after the change; without it, values aren't rounded                          |
 | `objects`   | no                              | `["Kindle"]`                  | the ids of the objects it changes; without it, every object of the catalogue                                            |
 
@@ -436,6 +436,20 @@ time: no engine and not the orchestrator acts on it. Whoever reads a value reads
 - Changes at the same moment apply in the order they are listed: `add 10` then `multiply 2` makes 100 into 220,
   the other way round into 210.
 - `round` rounds after every change, so the next one starts from the rounded value: 699 → 719.97 → 741.57.
+
+**An amount from a range.** The amount of `multiply`, `add` or `set` may be `{"between": [low, high]}` instead of
+a number: each object draws its own amount, uniformly in that range, at each change, and `round` rounds after the
+draw:
+
+```json
+{"catalogue": "product", "attribute": "price", "every": {"days": 60},
+ "multiply": {"between": [1.03, 1.07]}, "round": 2}
+```
+
+On day 60 the Kindle's price may rise by 3.1% and the iPad's by 6.5%, on day 120 by 5.8% and 4.0%. The draws are
+part of the timetable: they are fixed by the run's seed, the change, the object and the moment, so the same seed
+gives the same prices, in whatever order they are read, and adding a range draws from no other generator, so the
+rest of the run doesn't change. Without a seed, they differ from run to run.
 
 **Who reads the value when:**
 
@@ -659,6 +673,9 @@ instead, replace the list with `"customer": {"attributes": [...]}` and the pick 
 | `organizations[0].catalogue_changes[0] needs exactly one of every (repeated) and at (once), got neither`                           | a change with neither or both                         |
 | `organizations[0].catalogue_changes[0] needs exactly one of multiply, add and set, got multiply, add`                              | a change with none of them, or more than one          |
 | `organizations[0].catalogue_changes[0]: multiply must be a number, got '1.03'`                                                     | `multiply` or `add` given something else              |
+| `organizations[0].catalogue_changes[0]: multiply between must be two numbers, [low, high], got [1.03]`                             | a range that isn't two numbers                        |
+| `organizations[0].catalogue_changes[0]: multiply between has its low, 1.07, above its high, 1.03`                                  | a range whose low is above its high                   |
+| `organizations[0].catalogue_changes[0].multiply: unknown key 'betwen'; allowed: between`                                           | another key in a range                                |
 | `organizations[0].catalogue_changes[0].every must be {"weeks" \| "days" \| "hours": n}, n a number above 0, got {'days': 0}`       | another period                                        |
 | `organizations[0].catalogue_changes[0]: at must be a date and time, e.g. "2024-12-01T00:00:00+00:00", got 'the first of December'` | a time that can't be read                             |
 | `organizations[0].catalogue_changes[0]: round must be a whole number of at least 0 (decimal places), got 1.5`                      | another `round`                                       |

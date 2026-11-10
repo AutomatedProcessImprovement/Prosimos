@@ -28,7 +28,7 @@ def run_multiprocess_simulation(config: SimulationConfig, log_out_path: Optional
     # without a seed, every generator is seeded from the global ones, so the order is fixed: all catalogues, then
     # all picks, then the engines in name order, whatever the order of the configuration
     drawn = {organization.name: drawn_catalogues(organization, config.seed) for organization in config.organizations}
-    timetables = {organization.name: Timetable(organization.catalogue_changes, config.start_datetime)
+    timetables = {organization.name: Timetable(organization.catalogue_changes, config.start_datetime, config.seed)
                   for organization in config.organizations}
     picks = {spec.name: picks_of(spec, config.seed, drawn[organization.name], timetables[organization.name])
              for organization in config.organizations for spec in organization.processes}

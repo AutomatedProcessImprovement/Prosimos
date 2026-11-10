@@ -11,7 +11,8 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from prosimos.orchestration.catalogue.model import CatalogueChange, CatalogueObject, GrowingCatalogue, Reference
+from prosimos.orchestration.catalogue.model import (Between, CatalogueChange, CatalogueObject, GrowingCatalogue,
+                                                    Reference)
 from prosimos.orchestration.catalogue.timetable import Timetable
 from prosimos.orchestration.config import Organization, ProcessSpec, SimulationConfig
 from prosimos.orchestration.simulation import run_multiprocess_simulation
@@ -93,6 +94,41 @@ def test_a_change_with_objects_leaves_the_other_objects_and_attributes_as_they_a
             timetable.value("product", "weight", "Kindle", 0.5, START + DAY)] == [80, 100, 0.5]
 
 
+# an amount drawn from a range
+
+RISE = CatalogueChange("product", "price", "multiply", Between(1.03, 1.07), every=timedelta(days=60))
+
+
+def _prices(timetable, days=(60, 120)):
+    """product -> its price on each of days, all products costing 100 before any change."""
+    return {product: [timetable.value("product", "price", product, 100, START + day * DAY) for day in days]
+            for product in ("Kindle", "iPad")}
+
+
+def test_each_object_draws_its_own_amount_within_the_range_at_each_change():
+    prices = _prices(Timetable((RISE,), START, seed=1))
+
+    rises = {product: [day_60 / 100, day_120 / day_60] for product, (day_60, day_120) in prices.items()}
+    assert all(1.03 <= rise <= 1.07 for product_rises in rises.values() for rise in product_rises)
+    assert len({rise for product_rises in rises.values() for rise in product_rises}) == 4
+
+
+def test_the_same_seed_gives_the_same_amounts_in_any_order_of_reading():
+    forwards, backwards = Timetable((RISE,), START, seed=1), Timetable((RISE,), START, seed=1)
+
+    assert _prices(forwards) == {product: list(reversed(prices))
+                                 for product, prices in _prices(backwards, days=(120, 60)).items()}
+    assert _prices(Timetable((RISE,), START, seed=2)) != _prices(forwards)
+
+
+def test_round_rounds_a_drawn_amount_after_the_draw():
+    rounded = _prices(Timetable((dataclasses.replace(RISE, round=2),), START, seed=1), days=(60,))
+    exact = _prices(Timetable((RISE,), START, seed=1), days=(60,))
+
+    assert rounded == {product: [round(price, 2)] for product, [price] in exact.items()}
+    assert rounded != exact
+
+
 # the readers in a run
 
 def _with_changes(config, *changes):
@@ -135,6 +171,19 @@ def test_a_value_already_given_to_a_case_doesnt_change(price_rise):
     assert all([name for name, _, _ in case.attributes].count("price") == 1
                for process, case in report.objects if process == "Sales")
     assert log[log["process"] == "Sales"].groupby("case_id")["price"].nunique().max() == 1
+
+
+def test_a_drawn_change_gives_the_same_prices_with_the_same_seed_and_changes_no_other_draw(tmp_path, price_rise):
+    _, unchanged, _, _ = price_rise
+    config = sales_picking(tmp_path, {**PRODUCTS, "quantity": {"object_attribute": "items"},
+                                      "with": {"price": {"sum": "price"}}})
+    drawn = dataclasses.replace(RISE, every=3 * DAY)
+
+    _, first, _ = run(_with_changes(config, drawn), tmp_path, "first")
+    _, second, _ = run(_with_changes(config, drawn), tmp_path, "second")
+
+    assert first["price"].equals(second["price"]) and not first["price"].equals(unchanged["price"])
+    assert first.drop(columns="price").equals(unchanged.drop(columns="price"))
 
 
 def test_the_rest_of_the_run_is_as_without_the_changes(tmp_path, price_rise):
@@ -270,6 +319,17 @@ def _rejected(tmp_path, change, message, partner=None, catalogues=None, referenc
         SimulationConfig.from_json(path)
 
 
+def test_an_amount_between_two_numbers_is_read_as_a_range(tmp_path):
+    path = config_with(tmp_path)
+    data = json.loads(path.read_text())
+    data["organizations"][0]["catalogue_changes"] = [{**CHANGE, "multiply": {"between": [1.03, 1.07]}, "round": 2}]
+    path.write_text(json.dumps(data))
+
+    [change] = SimulationConfig.from_json(path).organizations[0].catalogue_changes
+
+    assert (change.operation, change.value, change.round) == ("multiply", Between(1.03, 1.07), 2)
+
+
 @pytest.mark.parametrize("change, message", [
     ({key: value for key, value in CHANGE.items() if key != "attribute"}, r"is missing \['attribute'\]"),
     ({**CHANGE, "catalogue": ""}, r"'catalogue' must be a non-empty string, got ''"),
@@ -291,6 +351,11 @@ def _rejected(tmp_path, change, message, partner=None, catalogues=None, referenc
     ({**{key: value for key, value in CHANGE.items() if key != "multiply"}, "set": "cheap", "round": 2},
      r"round needs a number to round, and set gives 'cheap'"),
     ({**CHANGE, "objects": []}, r"objects must be a non-empty list of object ids, got \[\]"),
+    ({**CHANGE, "multiply": {"between": [1.03]}}, r"multiply between must be two numbers, \[low, high\], got \[1.03\]"),
+    ({**CHANGE, "multiply": {"between": [1, "2"]}},
+     r"multiply between must be two numbers, \[low, high\], got \[1, '2'\]"),
+    ({**CHANGE, "multiply": {"between": [1.07, 1.03]}}, r"multiply between has its low, 1.07, above its high, 1.03"),
+    ({**CHANGE, "multiply": {"betwen": [1.03, 1.07]}}, r"\.multiply: unknown key 'betwen'; allowed: between"),
 ])
 def test_a_malformed_change_is_rejected(tmp_path, change, message):
     _rejected(tmp_path, change, rf"{WHERE}(: | )?{message}")
