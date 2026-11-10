@@ -1,11 +1,13 @@
 """
 Expected counts over exclusive gateways (docs/messaging.md): each item not yet at the catch event gets its chance to
 reach it and its average time to get there, branches weighted by their probability; slot k is when the expected
-count there reaches k. A split the item's data decides is exact.
+count there reaches k. A split the item's data decides is exact. A split by probabilities that an item passes after now,
+at the end of a task still running, counts as not passed yet, though Prosimos drew its branch when the task started.
 """
 import json
 from datetime import datetime, timedelta
 
+import pytest
 import pytz
 
 from prosimos.orchestration.config import ProcessSpec
@@ -85,3 +87,42 @@ def test_a_split_the_items_data_decides_is_exact(tmp_path):
     assert set(grades) == {"A", "B"}
 
     assert _slots(engine) == [made(index) for index, grade in enumerate(grades) if grade == "A"]
+
+
+def _making(tmp_path, seed, until, now=None):
+    """The warehouse of three items, 10% of them fixed and scrapped, run with the seed up to until, and its slots at
+    now (until by default): Make_Item of item-0 runs from 09:00 to 09:10, and Prosimos drew its check at 09:00."""
+    with open(f"{ASSETS}/check.json") as file:
+        settings = json.load(file)
+    settings["gateway_branching_probabilities"][0]["probabilities"] = [{"path_id": "Good", "value": 0.9},
+                                                                       {"path_id": "Bad", "value": 0.1}]
+    (tmp_path / "check.json").write_text(json.dumps(settings))
+    engine = ProsimosEngine(ProcessSpec("Warehouse", f"{ASSETS}/check_then_scrap.bpmn", str(tmp_path / "check.json"),
+                                        3, "item"), START, seed=seed)
+    while engine.next_event_time() <= until:
+        engine.step()
+    queued = {event.task_id for event in engine._env.events_queue.enabled_events.entry_finder if event.p_case == 0}
+    return queued, engine.estimate(_quote("m9", "order-9"), now or until)["m9.1"]
+
+
+@pytest.mark.parametrize("seed, heading_for", [(1, "Shelf"), (19, "Fix")])
+def test_an_item_being_made_counts_its_chance_until_its_check(tmp_path, seed, heading_for):
+    # at 09:05 item-0 is queued for its drawn branch, but counts 0.9 like the others: 1.8 with item-1, 2.7 with item-2
+    queued, slots = _making(tmp_path, seed, START + 5 * MINUTE)
+
+    assert queued == {heading_for}
+    assert slots == [made(1), made(2)]
+
+
+@pytest.mark.parametrize("seed, slots", [(1, [made(0), made(2)]), (19, [made(2)])])
+def test_after_its_check_an_item_counts_exactly(tmp_path, seed, slots):
+    # at 09:30 item-0 is on the shelf, 1 (1.9 with item-1, 2.8 with item-2), or being fixed for scrap, 0
+    assert _making(tmp_path, seed, START + 30 * MINUTE)[1] == slots
+
+
+def test_a_check_due_now_counts_as_made(tmp_path):
+    # asked at 09:10, the moment of item-0's check, before the engine's step at 09:10: item-0 is on its way to the
+    # shelf, so it counts 1
+    queued, slots = _making(tmp_path, 1, START + 5 * MINUTE, now=made(0))
+
+    assert queued == {"Shelf"} and slots == [made(0), made(2)]

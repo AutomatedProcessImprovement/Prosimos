@@ -37,12 +37,18 @@ class Estimating:
         queued = []
         # case id -> (element id, ready time, how) of each of its branches: at the element, past it, or in its race
         ahead = {}
+        undecided = self._undecided_passes()
+        for (p_case, at), split in undecided.items():
+            ahead.setdefault(p_case, []).append((split, at, "at"))
         for parked_event in self.parked_events():
             if parked_event.task_id not in events and parked_event.task_id not in self._race_gateway_of:
                 # it goes on after its average wait there, or now if overdue
                 ready = parked_event.enabled_datetime + timedelta(seconds=self._average_caught(parked_event.task_id))
                 ahead.setdefault(parked_event.p_case, []).append((parked_event.task_id, max(ready, now), "past"))
         for event in self.events_queue.enabled_events.entry_finder:
+            split = undecided.get((event.p_case, event.enabled_datetime))
+            if split is not None and event.task_id in self._behind(split):
+                continue  # queued by a choice not made yet: the case is forecast from the split
             if event.task_id in events:
                 if event.parked_event is None:
                     queued.append([event.enabled_datetime, event.p_case, event.task_id, 1.0])
@@ -69,6 +75,30 @@ class Estimating:
             reached = self._case_forecast(p_case, starts, events, now, waits)
             queued += [[ready, p_case, catch_event, chance] for catch_event, (chance, ready) in (reached or {}).items()]
         return sorted(waiting + queued, key=lambda item: item[:3])
+
+    def _undecided_passes(self):
+        """(case id, when) -> the chance split a case passes then, after now, when a running task ends: the first of
+        the case's splits passed at that moment. Prosimos picked its branch when the task started."""
+        undecided = {}
+        for p_case, split, at, _ in self._chance_passes:
+            undecided.setdefault((p_case, at), split)
+        return undecided
+
+    def _behind(self, split):
+        """The elements other than gateways that the split's branches reach through gateways only."""
+        graph = self.sim_setup.bpmn_graph
+        reached, flows, seen = set(), list(graph.element_info[split].outgoing_flows), set()
+        while flows:
+            element_id = graph.flow_arcs[flows.pop()][1]
+            if element_id in seen:
+                continue
+            seen.add(element_id)
+            info = graph.element_info[element_id]
+            if info.type in (BPMN.EXCLUSIVE_GATEWAY, BPMN.INCLUSIVE_GATEWAY, BPMN.PARALLEL_GATEWAY):
+                flows += info.outgoing_flows
+            else:
+                reached.add(element_id)
+        return reached
 
     def _case_forecast(self, p_case, starts, events, now, waits):
         """catch event in events -> (chance, average ready time) of the case p_case from where its branches are,
@@ -228,8 +258,10 @@ class Estimating:
         if not back:
             return [(element_id, ready, share) for element_id, share in out]
         looping = sum(share for _, _, share in back)
+        # including this one; Prosimos already counted the passes it decided ahead of now, which aren't made yet
+        decided = sum(1 for case, split, _, _ in self._chance_passes if case == p_case and split == info.id)
         passes = graph.gateway_execution_limit - graph.simulation_execution_stats.get_element_executions(
-            p_case, info.id)  # including this one
+            p_case, info.id) + decided
         if looping >= _WHOLE or passes < 1:
             return []
         leaving = 1 - looping ** passes
@@ -388,9 +420,13 @@ class Estimating:
     def _catch_up(self, now):
         """Counts the task starts and split passes due by now; Prosimos works them out ahead of the clock."""
         setup = self.sim_setup
-        for _, split, at, flows in setup.bpmn_graph.split_passes:
-            heappush(self._not_yet, (at, next(self._not_yet_order), split, flows))
+        for p_case, split, at, flows in setup.bpmn_graph.split_passes:
+            if split in self._chance_splits:
+                self._chance_passes.append((p_case, split, at, flows))
+            else:
+                heappush(self._not_yet, (at, next(self._not_yet_order), split, flows))
         setup.bpmn_graph.split_passes.clear()
+        self._chance_passes = [chance_pass for chance_pass in self._chance_passes if chance_pass[2] > now]
         while self._not_yet and self._not_yet[0][0] <= now:
             _, _, element_id, what = heappop(self._not_yet)
             if isinstance(what, list):  # the flows a split pass took

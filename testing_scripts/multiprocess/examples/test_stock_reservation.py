@@ -64,7 +64,7 @@ def _activities(rows, process, case):
 def test_the_run_quotes_twenty_orders_with_every_outcome(run):
     report, _ = run
 
-    assert report.quotes == {"ItemQuote": {"accepted": 15, "declined": 5, "canceled": 0, "cancel_too_late": 1,
+    assert report.quotes == {"ItemQuote": {"accepted": 16, "declined": 4, "canceled": 0, "cancel_too_late": 1,
                                            "modified_accepted": 1, "modified_declined": 1, "declined_as_second": 0}}
     assert report.engine_warnings == [] and report.warnings == []
 
@@ -109,9 +109,8 @@ def test_quotes_no_item_is_left_for_are_declined_without_an_earliest(run):
     report, rows = run
     declined = _declined(report)
 
-    assert sorted(declined, key=lambda order: int(order[6:])) == ["order-8", "order-13", "order-14", "order-17",
-                                                                  "order-18"]
-    for order in ("order-13", "order-14", "order-17", "order-18"):
+    assert sorted(declined, key=lambda order: int(order[6:])) == ["order-8", "order-13", "order-14", "order-18"]
+    for order in ("order-13", "order-14", "order-18"):
         [(asked, _)] = _asked(report, order).values()
         assert declined[order] == (asked, "QuoteDeclined", None, None)
         assert ("Tell the customer", asked + timedelta(minutes=5)) in _activities(rows, "Sales", order[6:])

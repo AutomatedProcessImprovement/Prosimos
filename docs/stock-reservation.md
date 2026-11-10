@@ -69,11 +69,12 @@ flowchart LR
 When Sales asks a quote, the orchestrator asks both warehouses when each could have each line ready: an item of
 the line's product, on the shelf now, being made, or still to be made, not promised yet. Prosimos plans every
 case's arrival, and draws its attributes, when the run starts, so a warehouse knows each item it will make and its
-product from then on. Each line takes the soonest such item across both warehouses, so an order's lines may be
-split over both. If every line can be ready within the order's patience, the quote is accepted: each line is
-reserved at its warehouse, and the reply carries `ready_by`, when the last line will be ready, and `portions`, how
-many warehouses have a part of the order. Otherwise it is declined, with `earliest`, when every line could be ready,
-or without one when some line has no item left to promise.
+product from then on. An item that may still be scrapped counts by its chance, 90%, until it is inspected, though
+Prosimos draws the outcome when Make item starts. Each line takes the soonest such item across both warehouses, so
+an order's lines may be split over both. If every line can be ready within the order's patience, the quote is
+accepted: each line is reserved at its warehouse, and the reply carries `ready_by`, when the last line will be ready,
+and `portions`, how many warehouses have a part of the order. Otherwise it is declined, with `earliest`, when every
+line could be ready, or without one when some line has no item left to promise.
 
 A warehouse holds the items it promised: an item that reaches the shelf takes the oldest open line of its product,
 and waits until every line of its order's portion there is taken. Then the portion's items move on together, each
@@ -89,20 +90,20 @@ to free.
 
 ## The base run
 
-With seed 1, 15 of the 20 orders are accepted and 5 declined; of the two changes, one is accepted and one declined.
+With seed 1, 16 of the 20 orders are accepted and 4 declined; of the two changes, one is accepted and one declined.
 The run already tells these stories, which the test checks with their times:
 
 | Story                             | Order    | What happens                                                                                                                                                                                            |
 |-----------------------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | a quote split over two warehouses | order-0  | asks two MacBooks and an iPad at 09:10; accepted at once, ready by 19:00, in 2 portions: Tartu ships the iPad at 10:15, Tallinn both MacBooks in one Shipment at 13:15; Sales closes the order at 13:20 |
 | declined with an earliest         | order-8  | patient for 1 day, asks two MacBooks and an iPad at 01:36 on day 2; they could be ready at 14:00 the next day, past its limit: declined, and the customer is told                                       |
-| declined without an earliest      | order-13 | and orders 14, 17, and 18: every item of one of their products that the warehouses will make is promised already                                                                                        |
+| declined without an earliest      | order-13 | and orders 14 and 18: every item of one of their products that the warehouses will make is promised already                                                                                             |
 | a change accepted                 | order-6  | asks an iPad at 15:17, ready just after midnight; adds a MacBook, accepted for 12:00 on day 3; the iPad, on the shelf from 20:00, keeps its line and ships with the MacBook at 08:15 on day 3           |
 | a change declined                 | order-9  | its iPad is on the shelf when it asks, so it moves on at once; the MacBook it adds 5 minutes later is declined, since the quote is locked, and the iPad ships                                           |
 | an order that gives up, too late  | order-10 | accepted for a MacBook and an iPad, ready by 13:00 on day 3, split: Tartu's iPad moves on at once; Tallinn's MacBook is scrapped, and Tallinn makes no other; after 7 days the order cancels, too late  |
 
 order-10's Tallinn portion is the run's one broken promise: undelivered, overdue by 5 days and 15 hours when the run
-ends with the order's give-up. 13 items, made after the last order, are still on the shelves then.
+ends with the order's give-up. 10 items, made after the last order, are still on the shelves then.
 
 ## Running it
 

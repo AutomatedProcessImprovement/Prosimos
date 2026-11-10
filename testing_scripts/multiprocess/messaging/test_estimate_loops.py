@@ -1,10 +1,12 @@
 """
 Loops in estimates (docs/messaging.md): a loop back with chance q repeats its elements 1 / (1 - q) times on average;
 within the model's loop limit, which stops a case at a split it has passed that many times, the item leaves the loop
-with chance 1 - q to the power of the passes left, after fewer rounds on average.
+with chance 1 - q to the power of the passes left, after fewer rounds on average. A pass Prosimos decided ahead of
+the clock is still left.
 """
 from datetime import datetime, timedelta
 
+import pytest
 import pytz
 
 from prosimos.orchestration.config import ProcessSpec
@@ -44,3 +46,22 @@ def test_the_loop_limit_cuts_the_rounds_and_the_chance_of_leaving():
     # minutes and reworked for 20, packed by 1:40 after its arrival. The expected count reaches 1 with item-1,
     # 2 with item-2, and 3 with item-3
     assert _near(_slots("rework_loop_limited", 4), [START + index * HOUR + 100 * MINUTE for index in (1, 2, 3)])
+
+
+@pytest.mark.parametrize("seed, heading_for", [(1, "Rework"), (4, "Pack")])
+def test_an_item_whose_last_pass_prosimos_decided_ahead_still_gets_it(seed, heading_for):
+    # loop limit 2: item-0's first check, at 09:40, sent it to rework, and at 10:50 it is in its second inspection.
+    # Prosimos drew the second check, the last allowed, when that inspection started, and counted it; the forecast
+    # still gives the item that check: it leaves with chance 0.5, packed by 11:40
+    spec = ProcessSpec("Warehouse", f"{ASSETS}/rework_loop.bpmn", f"{ASSETS}/rework_loop_limited.json", 1, "item")
+    engine = ProsimosEngine(spec, START, seed=seed)
+    now = START + 110 * MINUTE
+    while engine.next_event_time() <= now:
+        engine.step()
+    env = engine._env
+
+    assert {(event.task_id, event.enabled_datetime) for event in env.events_queue.enabled_events.entry_finder} == {
+        (heading_for, START + 130 * MINUTE)}
+    assert env.sim_setup.bpmn_graph.simulation_execution_stats.get_element_executions(0, "Check") == 2
+    env._catch_up(now)
+    assert env._quote_candidates("ItemQuote", now) == [[START + 160 * MINUTE, 0, "Shelf", 0.5]]

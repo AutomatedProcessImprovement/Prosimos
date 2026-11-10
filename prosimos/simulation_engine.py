@@ -133,6 +133,9 @@ class SimBPMEnv(EngineMessaging):
         self._split_history = dict()  # split id -> [flow -> times taken, passes]
         self._not_yet = []  # heap of (when, order, task id or split id, working seconds or flows taken) still ahead
         self._not_yet_order = itertools.count()
+        # (case id, split id, when, the flows taken) of each chance split pass Prosimos worked out ahead of the clock
+        self._chance_passes = []
+        self._chance_splits = set()  # splits chosen by their probabilities, in an engine that answers quotes
         self._model_averages = dict()  # task id -> (its staff's calendars, its average duration)
         # (case id, event id, consume entry, since when it waited) that took the message deliver() last claimed
         self.claimed_by = []
@@ -167,6 +170,11 @@ class SimBPMEnv(EngineMessaging):
         if self._consume_points:  # only an engine with a consume entry answers quotes
             graph.recorded_splits = {split for split, conditions in sim_setup.gateway_conditions.items()
                                      if conditions.candidates_list}
+            # a pass of one still ahead of now is no choice made yet
+            self._chance_splits = {element_id for element_id, info in graph.element_info.items()
+                                   if info.type in (BPMN.EXCLUSIVE_GATEWAY, BPMN.INCLUSIVE_GATEWAY)
+                                   and len(info.outgoing_flows) > 1 and element_id not in graph.recorded_splits}
+            graph.recorded_splits |= self._chance_splits
         self._race_gateway_of = {branch: gateway_id for gateway_id, branches in self._race_branches.items()
                                  for branch in branches}
         self._races = dict()  # (case id, gateway id) -> the Race running for that case
