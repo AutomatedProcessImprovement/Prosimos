@@ -83,15 +83,17 @@ class StalledCase:
 
 @dataclass(frozen=True)
 class PublishRecord:
-    """An engine's record that one of its cases published a message at an element. task_rows: the rows of its log
-    the message's OCEL links attach to, the last task before the element (through a parallel or inclusive join,
-    one per branch)."""
+    """An engine's record that one of its cases published a message at an element. With a qualifier, the element
+    writes an OCEL event of its own for it, activity at time at, enabled when the case reached it; else these are
+    None."""
 
     message_id: str
     object_id: str
     element_id: str
     qualifier: str = ""
-    task_rows: Tuple[int, ...] = ()
+    activity: Optional[str] = None
+    at: Optional[datetime] = None
+    enabled: Optional[datetime] = None
     o2o: Optional[str] = None  # qualifier of the OCEL link from its case's object to the other end's, if any
     # the later events of its case that also link the other end's object: True for all, or the activities named
     carry: Union[bool, Tuple[str, ...]] = False
@@ -99,15 +101,17 @@ class PublishRecord:
 
 @dataclass(frozen=True)
 class ClaimRecord:
-    """An engine's record that one of its cases took a message at an element. task_rows: the rows of its log the
-    message's OCEL links attach to, the next task after it (after a parallel or inclusive split, the first run of
-    every task on the branches taken)."""
+    """An engine's record that one of its cases took a message at an element. With a qualifier, the element writes
+    an OCEL event of its own for it, activity at time at, enabled when the case reached it (a catch event: when it
+    began waiting there); else these are None."""
 
     message_id: str
     object_id: str
     element_id: str
     qualifier: str = ""
-    task_rows: Tuple[int, ...] = ()
+    activity: Optional[str] = None
+    at: Optional[datetime] = None
+    enabled: Optional[datetime] = None
     o2o: Optional[str] = None  # qualifier of the OCEL link from its case's object to the other end's, if any
     # the later events of its case that also link the other end's object: True for all, or the activities named
     carry: Union[bool, Tuple[str, ...]] = False
@@ -142,13 +146,15 @@ class EngineReport:
 
 @dataclass(frozen=True)
 class CaseElement:
-    """One element of one case of one process; for a message, also how its OCEL links attach, as in its record."""
+    """One element of one case of one process; for a message, also its OCEL event and links, as in its record."""
 
     process: str
     object_id: str
     element_id: str
     qualifier: str = ""
-    task_rows: Tuple[int, ...] = ()
+    activity: Optional[str] = None
+    at: Optional[datetime] = None
+    enabled: Optional[datetime] = None
     o2o: Optional[str] = None  # qualifier of the OCEL link from its case's object to the other end's, if any
     # the later events of its case that also link the other end's object: True for all, or the activities named
     carry: Union[bool, Tuple[str, ...]] = False

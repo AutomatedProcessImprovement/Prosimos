@@ -8,7 +8,7 @@ import json
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import pytz
 
@@ -25,6 +25,21 @@ class OcelProcess:
     attributes: Tuple[str, ...] = ()  # the attributes written to its objects; the others are left out
 
 
+@dataclass
+class MessageEvent:
+    """The OCEL event of a message end with a qualifier: its case's object (process, object id), its element and
+    activity, when it sent or took its messages and when the case reached it, and its links to the other ends'
+    objects, ((process, object id), qualifier, carry)."""
+
+    process: str
+    object_id: str
+    element_id: str
+    activity: str
+    at: datetime
+    enabled: datetime
+    links: List[Tuple[Tuple[str, str], str, Union[bool, Tuple[str, ...]]]] = field(default_factory=list)
+
+
 def object_ids(processes, objects):
     """(process, object id in its engine) -> its id in the output, numbered per object type in order of creation;
     at the same moment by the order of processes, then by case number."""
@@ -38,15 +53,18 @@ def object_ids(processes, objects):
             for number, (*_, process, object_id) in enumerate(sorted(found))}
 
 
-def write_ocel(path, processes, objects, rows, logged_elements=None, message_links=None, object_links=None,
+def write_ocel(path, processes, objects, rows, logged_elements=None, message_events=None, object_links=None,
                static_objects=None, reference_links=None, tag_along=None):
-    """Writes the OCEL file. processes: process -> OcelProcess, or its object type, in the configuration's order;
-    objects, rows and logged_elements as the run report and the merged log hold them; the links and the catalogue
-    objects (static_objects) as output.py builds them. With tag_along, an event linking a case's object also links
-    the catalogue objects that object named when the event completed."""
+    """Writes the OCEL file: an event per row, and one per MessageEvent. processes: process -> OcelProcess, or its
+    object type, in the configuration's order; objects, rows and logged_elements as the run report and the merged
+    log hold them; the message events, the links and the catalogue objects (static_objects) as output.py builds
+    them. With tag_along, an event linking a case's object also links the catalogue objects that object named when
+    the event completed."""
     processes = {name: _settings(processes, name) for name in processes}
-    logged_elements, message_links = logged_elements or {}, message_links or {}
-    referred = _referred(processes, rows, message_links)
+    logged_elements = logged_elements or {}
+    message_events = [event for event in message_events or []
+                      if event.process in processes and processes[event.process].object_type is not None]
+    referred = _referred(processes, rows, message_events)
     objects = [(process, case_object) for process, case_object in objects
                if (process, case_object.object_id) in referred]
     ids = object_ids(processes, objects)
@@ -76,7 +94,11 @@ def write_ocel(path, processes, objects, rows, logged_elements=None, message_lin
                              "relationships": [{"objectId": target, "qualifier": qualifier}
                                                for target, qualifier in named_links.get(object_id, [])]})
 
-    # every row becomes an event, linked to its own case's object and to the objects its messages linked
+    # every row becomes an event, linked to its own case's object and its catalogue references; a message event to
+    # its own case's object and the objects at the other end of its message
+    def own_qualifier(settings, element_id):
+        return settings.qualifier_by_activity.get(element_id, settings.qualifier or settings.object_type)
+
     logged, rows_so_far = [], {}
     for process, row in rows:
         number = rows_so_far[process] = rows_so_far.get(process, -1) + 1  # the row's place in its process's log
@@ -84,20 +106,28 @@ def write_ocel(path, processes, objects, rows, logged_elements=None, message_lin
         if settings is None or settings.object_type is None:
             continue
         element_id = logged_elements[process][number] if process in logged_elements else None
-        own_qualifier = settings.qualifier_by_activity.get(element_id, settings.qualifier or settings.object_type)
-        links = message_links.get((process, number), [])
-        logged.append({"time": _as_datetime(row["end_time"]), "process": process, "number": number, "row": row,
-                       "own": (ids[(process, f"{settings.object_type}-{row['case_id']}")], own_qualifier),
-                       "links": [(ids[end], qualifier) for end, qualifier, _ in links],
-                       "carries": [(ids[end], qualifier, carry) for end, qualifier, carry in links if carry],
-                       "activities": {row["activity"], element_id},
-                       "carried": [],
+        case = (process, f"{settings.object_type}-{row['case_id']}")
+        logged.append({"time": _as_datetime(row["end_time"]), "order": (0, number), "process": process, "case": case,
+                       "activity": row["activity"], "resource": row["resource"],
+                       "start": _as_datetime(row["start_time"]), "enabled": _as_datetime(row["enable_time"]),
+                       "own": (ids[case], own_qualifier(settings, element_id)), "links": [], "carries": [],
+                       "activities": {row["activity"], element_id}, "carried": [],
                        "references": list(reference_links.get((process, number), []))})
+    for place, event in enumerate(message_events):
+        case = (event.process, event.object_id)
+        logged.append({"time": event.at, "order": (1, place), "process": event.process, "case": case,
+                       "activity": event.activity,
+                       "resource": None, "start": event.at, "enabled": event.enabled,
+                       "own": (ids[case], own_qualifier(processes[event.process], event.element_id)),
+                       "links": [(ids[end], qualifier) for end, qualifier, _ in event.links],
+                       "carries": [(ids[end], qualifier, carry) for end, qualifier, carry in event.links if carry],
+                       "activities": {event.activity, event.element_id}, "carried": [], "references": []})
 
-    # a link whose message entry carries it passes on to the later events of the case: every one, or those it names
+    # a link whose message entry carries it passes on to the later events of the case: every one, or those it names;
+    # at the same time, the rows come first, in the order of their logs, then the message events
     carried_so_far = {}
-    for event in sorted(logged, key=lambda event: (event["time"], event["number"])):
-        case_links = carried_so_far.setdefault((event["process"], event["row"]["case_id"]), [])
+    for event in sorted(logged, key=lambda event: (event["time"], event["order"])):
+        case_links = carried_so_far.setdefault(event["case"], [])
         event["carried"] = [(object_id, qualifier) for object_id, qualifier, carry in case_links
                             if carry is True or event["activities"] & set(carry)]
         case_links.extend(event["carries"])
@@ -119,24 +149,26 @@ def write_ocel(path, processes, objects, rows, logged_elements=None, message_lin
             relationship = {"objectId": object_id, "qualifier": qualifier}
             if relationship not in relationships:
                 relationships.append(relationship)
+        # an extension of OCEL, whose events are atomic: when the task started and when it was enabled; a message
+        # event has no resource
+        attributes = [] if event["resource"] is None else [{"name": "resource", "value": event["resource"]}]
         events.append({
             "id": f"e{number}",
-            "type": event["row"]["activity"],
+            "type": event["activity"],
             "time": _time(event["time"]),
-            # an extension of OCEL, whose events are atomic: when the task started and when it was enabled
-            "attributes": [{"name": "resource", "value": event["row"]["resource"]},
-                           {"name": "start_time", "value": _time(_as_datetime(event["row"]["start_time"]))},
-                           {"name": "enable_time", "value": _time(_as_datetime(event["row"]["enable_time"]))}],
+            "attributes": attributes + [{"name": "start_time", "value": _time(event["start"])},
+                                        {"name": "enable_time", "value": _time(event["enabled"])}],
             "relationships": relationships,
         })
 
+    performed = {event["type"] for event in events if event["attributes"][0]["name"] == "resource"}
     ocel = {
         "objectTypes": [{"name": object_type, "attributes": [{"name": name, "type": _ocel_type(values)}
                                                              for name, values in sorted(names.items())]}
                         for object_type, names in sorted(attribute_values.items())],
-        "eventTypes": [{"name": activity, "attributes": [{"name": "resource", "type": "string"},
-                                                         {"name": "start_time", "type": "time"},
-                                                         {"name": "enable_time", "type": "time"}]}
+        "eventTypes": [{"name": activity, "attributes": [
+                           *([{"name": "resource", "type": "string"}] if activity in performed else []),
+                           {"name": "start_time", "type": "time"}, {"name": "enable_time", "type": "time"}]}
                        for activity in sorted({event["type"] for event in events})],
         "objects": ocel_objects,
         "events": events,
@@ -145,15 +177,16 @@ def write_ocel(path, processes, objects, rows, logged_elements=None, message_lin
         json.dump(ocel, ocel_file, indent=1, ensure_ascii=False)
 
 
-def _referred(processes, rows, message_links):
-    """(process, object id) of every case's object some event refers to: its own, or one its messages link."""
-    referred, rows_so_far = set(), {}
+def _referred(processes, rows, message_events):
+    """(process, object id) of every case's object some event refers to: its own, or one a message event links."""
+    referred = set()
     for process, row in rows:
-        number = rows_so_far[process] = rows_so_far.get(process, -1) + 1
         settings = processes.get(process)
         if settings is not None and settings.object_type is not None:
             referred.add((process, f"{settings.object_type}-{row['case_id']}"))
-            referred.update(end for end, *_ in message_links.get((process, number), []))
+    for event in message_events:
+        referred.add((event.process, event.object_id))
+        referred.update(end for end, *_ in event.links)
     return referred
 
 

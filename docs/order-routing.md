@@ -118,10 +118,12 @@ Each process names the type of the objects its cases are, in the singular: `orde
 number their own shipments from `shipment-0`, as the run report and the messages show them; the OCEL
 output numbers them across both, in the order they were created, so its 17 shipments are `shipment-0` to
 `shipment-16` ([orchestrator.md](orchestrator.md), "Output"). For seed 1 the file has 57 objects (20
-orders, 20 invoices, 17 shipments) and 74 events, one per task.
+orders, 20 invoices, 17 shipments) and 128 events: 74 tasks, and 54 message events, which a message end with a
+qualifier writes per case, element and moment: 37 Order placed (20 at Billing, 17 at the warehouses) and 17
+Shipment received.
 
-Each `OrderPlaced` a case starts from links it to its order: an invoice `bills` the order, and Create
-invoice links it as the `billed order`; a shipment `ships` it, and Pack order links it as the `packed
-order`. Sales's `Shipment` entry links Close order to the shipment that ships the order, as the
-`received shipment`. Sales's own `OrderPlaced` entry has no qualifier, so Place order links only its
-order.
+Each `OrderPlaced` a case starts from links it to its order: an invoice `bills` the order, and its message
+start Order placed links it as the `billed order`; a shipment `ships` it, and its Order placed links it as the
+`packed order`. Sales's `Shipment` entry has its catch event Shipment received link the shipment that ships the
+order, as the `received shipment`. The tasks link only their own case's object. Sales's own `OrderPlaced` entry
+has no qualifier, so its throw event writes no event.

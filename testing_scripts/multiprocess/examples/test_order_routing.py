@@ -107,12 +107,18 @@ def test_the_ocel_output_links_each_invoice_and_shipment_to_its_order(tmp_path):
     shipped = [order for (order, qualifier), in order_of.values() if qualifier == "ships"]
     assert sorted(billed) == sorted(f"order-{number}" for number in range(20))
     assert len(set(shipped)) == len(shipped) == 17
-    # each event links the order of its own invoice or shipment, and closing an order links the shipment that ships it
+    # the message events: an invoice's or shipment's Order placed links the order it started from, and an order's
+    # Shipment received the shipment that ships it; the tasks link only their own case's object
+    received = 0
     for event in ocel["events"]:
         links = {link["qualifier"]: link["objectId"] for link in event["relationships"]}
-        if event["type"] == "Create invoice":
+        if event["type"] == "Order placed" and "invoice" in links:
             assert order_of[links["invoice"]] == [(links["billed order"], "bills")]
-        elif event["type"] == "Pack order":
+        elif event["type"] == "Order placed":
             assert order_of[links["shipment"]] == [(links["packed order"], "ships")]
-        elif event["type"] == "Close order":
+        elif event["type"] == "Shipment received":
+            received += 1
             assert order_of[links["received shipment"]] == [(links["order"], "ships")]
+        else:
+            assert len(links) == 1
+    assert received == 17

@@ -7,7 +7,7 @@ from prosimos.orchestration.catalogue.timetable import Timetable
 from prosimos.orchestration.config import SimulationConfig
 from prosimos.orchestration.ocel_writer import OcelProcess, write_ocel
 from prosimos.orchestration.orchestrator import RunReport, orchestrate
-from prosimos.orchestration.output import MergedLog, message_links, message_object_links, reference_links, tag_along
+from prosimos.orchestration.output import MergedLog, message_events, message_object_links, reference_links, tag_along
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import SimulationEngine
 
@@ -59,7 +59,7 @@ def run_multiprocess_simulation(config: SimulationConfig, log_out_path: Optional
         for source, links in reference_object_links.items():
             object_links.setdefault(source, []).extend(links)
         write_ocel(ocel_out_path, processes, report.objects, merged_log.rows, report.logged_elements,
-                   message_links(report.message_records, processes), object_links, static_objects,
+                   message_events(report.message_records, processes), object_links, static_objects,
                    reference_event_links, tag_along(config, catalogue, report.objects))
 
     return report

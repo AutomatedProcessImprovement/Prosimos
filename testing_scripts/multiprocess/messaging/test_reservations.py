@@ -151,7 +151,7 @@ def test_a_line_is_matched_with_its_requester_as_source(tmp_path):
 def ordered(engine, now):
     """Offers an ordinary order for an iPhone at now; the verdict, and the item that claimed it, if any."""
     verdict = engine.deliver(Message("ItemOrdered", {"product": "iPhone"}, "m9", "Shop", now), now)
-    return verdict.value, [engine._env.object_id(p_case) for p_case, _, _ in engine._env.claimed_by]
+    return verdict.value, [engine._env.object_id(p_case) for p_case, *_ in engine._env.claimed_by]
 
 
 def test_an_item_holding_a_line_is_never_claimed_by_an_ordinary_message(tmp_path):

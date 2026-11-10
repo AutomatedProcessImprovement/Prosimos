@@ -1,7 +1,6 @@
 """Prosimos as an engine: a Prosimos simulation behind the engine interface (docs/orchestrator.md)."""
 import json
 import tempfile
-from collections import defaultdict
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
@@ -69,8 +68,8 @@ class ProsimosEngine(SimulationEngine):
         self._warnings: List[str] = []
         # (message, case id, element id, publish entry, when); the orchestrator stamps the message's id later
         self._published: List[Tuple[Message, int, str, PublishPoint, datetime]] = []
-        # (message id, case id, element id, consume entry, when)
-        self._claimed: List[Tuple[str, int, str, ConsumePoint, datetime]] = []
+        # (message id, case id, element id, consume entry, when, since when the case waited there)
+        self._claimed: List[Tuple[str, int, str, ConsumePoint, datetime, datetime]] = []
         self._python_state, self._numpy_state = engine_random_states(seed, spec.name)
         with self._own_globals():
             # picked attributes join the declared ones: a column of the log, and messages may carry them
@@ -132,8 +131,8 @@ class ProsimosEngine(SimulationEngine):
         with self._own_globals():
             verdict = Verdict(self._env.deliver(message.type, message.attributes, message.source, now))
             if verdict is Verdict.CLAIMED:
-                self._claimed.extend((message.id, p_case, element_id, point, now)
-                                     for p_case, element_id, point in self._env.claimed_by)
+                self._claimed.extend((message.id, p_case, element_id, point, now, enabled)
+                                     for p_case, element_id, point, enabled in self._env.claimed_by)
             return verdict
 
     def estimate(self, message: Message, now: datetime) -> Slots:
@@ -170,58 +169,20 @@ class ProsimosEngine(SimulationEngine):
                             dict(self._env._moved_quotes))
 
     def _attached_records(self):
-        """The publish and claim records, with the log rows their OCEL links attach to (see PublishRecord and
-        ClaimRecord). Without such a row, the links are dropped, with one warning per element."""
+        """The publish and claim records; an end with a qualifier, of a process with an object type, also says when
+        its OCEL event happened and when its case reached the element (see PublishRecord and ClaimRecord)."""
         attach = self._spec.object_type is not None
-        rows_of_case = defaultdict(list)
-        for row, (p_case, element_id, enabled, completed) in enumerate(self._env.logged_rows):
-            rows_of_case[p_case].append((row, element_id, enabled, completed))
-        warned = set()
+        graph = self._env.sim_setup.bpmn_graph
 
-        def task_rows(p_case, element_id, time, forward, qualifier):
-            if not attach or qualifier is None:
-                return ()
-            tasks = self._env.tasks_next_to(element_id, forward)
-            if forward:  # the first of them enabled when the case took the message, or later
-                rows = sorted((enabled, row, element) for row, element, enabled, _ in rows_of_case[p_case]
-                              if element in tasks and enabled >= time)
-                # ... but before its next round there (with collect, a case claims several messages before it moves on)
-                left = rows[0][0] if rows else None
-                until = min((when for _, case, element, _, when in self._claimed
-                             if case == p_case and element == element_id and left is not None and when > left),
-                            default=None)
-                # after a parallel or inclusive split, the first run of every task on the branches taken
-                first_of_task = {}
-                for enabled, row, element in rows:
-                    if tasks[element] and (until is None or enabled < until):
-                        first_of_task.setdefault(element, row)
-                found = sorted({*first_of_task.values(), *[row for _, row, _ in rows[:1]]})
-            else:  # the last of them completed when the case published the message, or earlier
-                # ... but after its previous publish there, so a loop doesn't bring back an earlier round
-                since = max((when for _, case, element, _, when in self._published
-                             if case == p_case and element == element_id and when < time), default=None)
-                rows = sorted((completed, row, element) for row, element, _, completed in rows_of_case[p_case]
-                              if element in tasks and completed <= time and (since is None or completed > since))
-                # through a parallel or inclusive join, the last task of every branch that came in
-                last_of_task = {element: row for _, row, element in rows if tasks[element]}
-                found = sorted({*last_of_task.values(), *[row for _, row, _ in rows[-1:]]})
-            if not found and (element_id, forward) not in warned:
-                warned.add((element_id, forward))
-                side, case = "after" if forward else "before", self._env.object_id(p_case)
-                if not tasks:
-                    reason = f"{element_id} has no task {side} it in the model"
-                elif forward:  # e.g. the case was still waiting further on when the run ended
-                    reason = f"case {case} reached no task after {element_id} before the run ended"
-                else:
-                    reason = f"case {case} passed no task before {element_id}"
-                warning_logger.add_warning(f"{reason}; the OCEL links of its messages there are dropped")
-            return tuple(found)
+        def event(element_id, point, at, enabled):
+            if not attach or not point.qualifier:
+                return None, None, None
+            return graph.element_info[element_id].name, at, enabled
 
         published = [PublishRecord(message.id, self._env.object_id(p_case), element_id, point.qualifier or "",
-                                   task_rows(p_case, element_id, when, False, point.qualifier), point.o2o,
-                                   point.carry)
+                                   *event(element_id, point, when, when), point.o2o, point.carry)
                      for message, p_case, element_id, point, when in self._published]
         claimed = [ClaimRecord(message_id, self._env.object_id(p_case), element_id, point.qualifier or "",
-                               task_rows(p_case, element_id, when, True, point.qualifier), point.o2o, point.carry)
-                   for message_id, p_case, element_id, point, when in self._claimed]
+                               *event(element_id, point, when, enabled), point.o2o, point.carry)
+                   for message_id, p_case, element_id, point, when, enabled in self._claimed]
         return published, claimed

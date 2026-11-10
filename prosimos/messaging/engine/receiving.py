@@ -11,7 +11,8 @@ class Receiving:
 
     def deliver(self, message_type, attributes, source, now):
         """Offers one message: 'claimed' (by the case waiting longest, or a new case), 'discarded' if it can
-        never match, else 'pending'. After a claim, claimed_by lists each (case, event, entry) that took it."""
+        never match, else 'pending'. After a claim, claimed_by lists each (case, event, entry, since when the case
+        waited there) that took it."""
         self._ensure_arrivals_generated()
         self._close_collections(before=now)
         self.claimed_by = []
@@ -38,7 +39,7 @@ class Receiving:
         if takers:
             for parked_event in takers:
                 self._claim(parked_event, claiming, values, now)
-            self.claimed_by = [(parked_event.p_case, parked_event.task_id, claiming)
+            self.claimed_by = [(parked_event.p_case, parked_event.task_id, claiming, parked_event.enabled_datetime)
                                for parked_event in takers]
             return "claimed"
         points = [point for points in self._consume_points.values() for point in points if point.type == message_type]
@@ -54,7 +55,7 @@ class Receiving:
                 self._apply_aggregate(starting, values, p_case, case_values)
 
             p_case = self.create_case(now, start_values, starting.event_id)
-            self.claimed_by = [(p_case, starting.event_id, starting)]
+            self.claimed_by = [(p_case, starting.event_id, starting, now)]
             return "claimed"
         if any(self._could_match(point.condition, values) and self._has_same(point, values)
                for point in points if not point.starts_case):

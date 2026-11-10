@@ -269,7 +269,7 @@ def test_each_item_s_product_is_one_of_its_order_s_products_as_often_as_the_list
                for order, (products, _) in _order_products(log).items())
 
 
-def test_each_product_object_appears_once_linked_from_place_order_and_pick_item(run):
+def test_each_product_object_appears_once_linked_from_items_ordered_and_pick_item(run):
     _, log, ocel_path = run
 
     with open(ocel_path) as file:
@@ -284,7 +284,8 @@ def test_each_product_object_appears_once_linked_from_place_order_and_pick_item(
                                             if object_type[link["objectId"]] == "product")
     product_of_item = {f"item-{case}": row["product"]
                        for case, row in _rows(log, "Warehouse").groupby("case_id").first().iterrows()}
-    assert all(linked[("place order", order)] == set(products)
+    # an order's items ordered events, one per item, link its items, and so their products
+    assert all(linked[("items ordered", order)] == set(products)
                for order, (products, _) in _order_products(log).items())
     assert all(linked[("pick item", item)] == {product} for item, product in product_of_item.items())
 

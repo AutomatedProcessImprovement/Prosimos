@@ -286,7 +286,8 @@ The attributes take the shapes of `copy` and `with` ([catalogue.md](catalogue.md
 `object_id` and `index` aren't sent by their names: the message has several publishers, and it is one
 message, not one of a numbered series. A member's own id goes into a list, as `item_ids` above. Each member is
 a publisher of the message, so `qualifier`, `o2o` and `carry` link each one, as for an ordinary message: each
-item's Pick item links the package, and the package's first task links all its items.
+item's throw event writes an event of its own for its part, linking the package, and the package's message start
+links all its items.
 
 `deadline` (optional, with `fan_in`) sends a group that isn't complete in time with the parts it has:
 `{"weeks" | "days" | "hours": n}`, as for catalogue changes ([catalogue.md](catalogue.md)). A group isn't a case,
@@ -319,13 +320,14 @@ A plain number or `object_attribute` means min = max, except that with a deadlin
 its deadline). The receiver can tell a short group from a full one by counting its parts, e.g.
 `{"parcels": {"count": "object_id"}}` in the attributes.
 
-**qualifier** (optional, on any entry) makes this end of the message write OCEL links, and qualifies them: on
-a `publish` entry, the links from the last task before the event to the cases that took the messages; on
-a `consume` entry, the links from the next task after the event to the case that published the message
-([orchestrator.md](orchestrator.md), "One event linked to many objects"). Without it, this end writes no
-links. Each process decides only about its own end: with `"qualifier": "item"` on the entry above, place order
-is linked to each new item as `item`, and the items' pick item links their order only if the items' consume
-entry has a qualifier too. In Order Management it doesn't. It must be a non-empty string.
+**qualifier** (optional, on any entry) makes this end of the message write an OCEL event of its own per case,
+element and moment, named after the event, with links it qualifies: on a `publish` entry, the links to the cases
+that took the messages; on a `consume` entry, the links to the cases that published them
+([orchestrator.md](orchestrator.md), "One event linked to many objects"). Without it, this end writes no event
+and no links. Each process decides only about its own end: with `"qualifier": "item"` on the entry above, items
+ordered writes one event, linked to each new item as `item`, and the items' message start writes an event linked
+to their order only if the items' consume entry has a qualifier too. In Order Management it doesn't. It must be a
+non-empty string.
 
 **o2o** (optional, on any entry) links the objects of the cases on the two ends of each message
 directly, as OCEL's object-to-object links, qualified by its value: on a `publish` entry, from the
@@ -338,10 +340,11 @@ took. A link is written once, however many messages give it. It must be a non-em
 **carry** (optional, on an entry with a `qualifier`) passes this end's links on to the later events of the same
 case ([orchestrator.md](orchestrator.md), "One event linked to many objects"): with `true`, every later event of
 the case also links the objects this entry's messages linked; with a list of activities (task names or ids, as
-in a reference's `link_events`), only those. Later means after the task the entry's links attach to. Without it, a
-link stays on its own event. In Order Management, Sales's `ItemOrdered` entry and Packaging's `ItemPicked` entry
-have `"carry": true`: confirm order, payment reminder and pay order link the order's items, and send package and
-its delivery events the package's items. A case with several entries carries only the links of those that say
+in a reference's `link_events`), only those. Later means after the message's own event. Without it, a link stays
+on its message event. In Order
+Management, Sales's `ItemOrdered` entry and Packaging's `ItemPicked` entry have `"carry": true`: confirm order,
+payment reminder and pay order link the order's items, and create package, send package and its delivery events
+the package's items. A case with several entries carries only the links of those that say
 so, e.g. an order's items to every later event but a shipment it received only to `["confirm delivery"]`. A
 carried link needs its role word, so `carry` without a `qualifier` on the same entry is a load error, as is an
 activity that isn't a task of the model.

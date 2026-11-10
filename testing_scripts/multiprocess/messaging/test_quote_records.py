@@ -5,7 +5,7 @@ that reserved it, so the OCEL links it with the order like a regular message; an
 case attaches where the case ended, not at the cancel's own event, which the case never passed.
 """
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 import pytz
@@ -55,14 +55,14 @@ def test_an_item_that_took_a_line_claims_the_quote_and_is_linked_with_the_order(
     first_quote = _records(report, "ItemQuote")[0]
     assert [(claimer.process, claimer.object_id, claimer.element_id) for claimer in first_quote.claimers] == [
         ("Warehouse", "item-0", "Shelf")]
-    # the order's task before the quote links the item, and the item's task after the shelf links the order
-    assert ("Place_Order", "order-0", [("item-0", "requests")]) in events
-    assert ("Ship", "item-0", [("order-0", "reserved for"), ("order-0", "ships")]) in events
+    # the quote's own event links the item, and the item's shelf links the order (these elements have no names)
+    assert ("Throw_Quote", "order-0", [("item-0", "requests")]) in events
+    assert ("Shelf", "item-0", [("order-0", "reserved for")]) in events
 
 
 @pytest.mark.parametrize("terminate", [False, True])
 def test_the_automatic_cancel_attaches_where_the_case_ended(tmp_path, terminate):
-    # order-1 ends at End_Gave_Up; the task it did last before it is Place_Order. Its cancel's own event comes after
+    # order-1 ends at End_Gave_Up, where its cancel's event is written; the cancel's own throw event comes after
     # Receive, which order-1 never did
     sales_model = SALES_MODEL
     if terminate:
@@ -77,5 +77,6 @@ def test_the_automatic_cancel_attaches_where_the_case_ended(tmp_path, terminate)
     [_, automatic] = _records(report, "QuoteCanceled")
     [publisher] = automatic.publishers
     assert (publisher.object_id, publisher.element_id, publisher.qualifier) == ("order-1", "End_Gave_Up", "cancels")
-    assert [report.logged_elements["Sales"][row] for row in publisher.task_rows] == ["Place_Order"]
+    gave_up = START + timedelta(hours=3, minutes=10, microseconds=1)  # a race timer's branch goes on 1 µs late
+    assert (publisher.activity, publisher.at, publisher.enabled) == ("End_Gave_Up", gave_up, gave_up)
     assert report.engine_warnings == []

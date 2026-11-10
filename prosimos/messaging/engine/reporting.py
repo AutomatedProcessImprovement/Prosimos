@@ -1,33 +1,8 @@
-"""What the output asks the engine: tasks next to an event, attribute history, stalled waits."""
-from prosimos.control_flow_manager import BPMN
+"""What the output asks the engine: attribute history, stalled waits."""
 
 
 class Reporting:
     """Answers what the output asks once the run is over."""
-
-    def tasks_next_to(self, element_id, forward):
-        """The tasks the token reaches first after element_id (forward) or came from before it, through gateways and
-        events: task id -> whether it may run alongside the others (a parallel or inclusive split or join between)."""
-        key = (element_id, forward)
-        if key not in self._tasks_next_to:
-            graph = self.sim_setup.bpmn_graph
-            tasks, seen, to_visit = {}, {(element_id, False)}, [(element_id, False)]
-            while to_visit:
-                current, concurrent = to_visit.pop()
-                element = graph.element_info[current]
-                if element.type in (BPMN.PARALLEL_GATEWAY, BPMN.INCLUSIVE_GATEWAY) and current != element_id:
-                    concurrent = concurrent or (element.is_split() if forward else element.is_join())
-                for flow in element.outgoing_flows if forward else element.incoming_flows:
-                    neighbour = graph.flow_arcs[flow][1 if forward else 0]
-                    if (neighbour, concurrent) in seen:
-                        continue
-                    seen.add((neighbour, concurrent))
-                    if graph.element_info[neighbour].type is BPMN.TASK:
-                        tasks[neighbour] = tasks.get(neighbour, False) or concurrent
-                    else:
-                        to_visit.append((neighbour, concurrent))
-            self._tasks_next_to[key] = tasks
-        return self._tasks_next_to[key]
 
     def case_attribute_history(self):
         """Case id -> (attribute, value, time): its values at creation, then each value a message wrote later."""

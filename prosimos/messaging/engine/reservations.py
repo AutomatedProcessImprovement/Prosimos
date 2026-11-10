@@ -63,6 +63,7 @@ class Reservations:
         taking = [(key, line, point) for key, (line, point) in self._set_aside.items() if line["portion"] == portion]
         for key, line, point in taking:
             del self._set_aside[key]
-            self._claim(self._parked_events[key], point, dict(line["values"], portion_size=len(taking)), now)
+            parked_event = self._parked_events[key]
+            self._claim(parked_event, point, dict(line["values"], portion_size=len(taking)), now)
             self._moved_quotes[line["quote"]] = now
-            self.line_claims.append((line["quote"], *key, point, now))
+            self.line_claims.append((line["quote"], *key, point, now, parked_event.enabled_datetime))

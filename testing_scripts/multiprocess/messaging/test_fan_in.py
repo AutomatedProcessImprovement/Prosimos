@@ -277,19 +277,26 @@ def test_every_member_is_a_publisher_of_the_message(linked_run):
         assert [claimer.process for claimer in record.claimers] == ["Packaging"]
 
 
-def test_each_items_pick_and_shelving_link_its_package_and_the_pack_links_all_its_items(linked_run):
+def test_each_items_part_and_shelving_link_its_package_and_the_package_start_links_all_its_items(linked_run):
+    # each member writes its own event for its part of the message; Put on shelf links the package by carry, Pick
+    # item, before the throw, doesn't
     report, ocel = linked_run
     package_of = {item: package for package, items in _packages(report).items() for item in items}
 
     def linked(event, qualifier):
         return [link["objectId"] for link in event["relationships"] if link["qualifier"] == qualifier]
 
+    parts = 0
     for event in ocel["events"]:
         own = event["relationships"][0]["objectId"]
-        if event["type"] in ("Pick item", "Put on shelf"):  # Put on shelf by carry
+        if own.startswith("item-") and event["type"] in ("Order picked", "Put on shelf"):
+            parts += event["type"] == "Order picked"
             assert linked(event, "picked for") == [package_of[own]]
-        if event["type"] == "Pack":
+        if event["type"] == "Pick item":
+            assert linked(event, "picked for") == []
+        if own.startswith("package-") and event["type"] == "Order picked":
             assert linked(event, "contains") == _packages(report)[own]
+    assert parts == len(package_of)
 
 
 def test_o2o_links_each_item_and_its_package_both_ways(linked_run):

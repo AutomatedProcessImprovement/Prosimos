@@ -1,6 +1,7 @@
 """
 OCEL 2.0 output (docs/orchestrator.md): one object per case, typed by its process's object_type, and one event per
-task, linked to its case's object.
+task, linked to its case's object; a message end with a qualifier writes an event of its own per message, with no
+resource.
 """
 import dataclasses
 import json
@@ -12,7 +13,7 @@ import pytest
 import pytz
 
 from prosimos.orchestration.config import ProcessSpec, SimulationConfig
-from prosimos.orchestration.ocel_writer import OcelProcess, object_ids, write_ocel
+from prosimos.orchestration.ocel_writer import MessageEvent, OcelProcess, object_ids, write_ocel
 from prosimos.orchestration.orchestrator import orchestrate
 from prosimos.orchestration.prosimos_engine import ProsimosEngine
 from prosimos.orchestration.protocol import CaseObject
@@ -48,16 +49,21 @@ def test_orders_items_and_packages_are_objects_one_per_case(order_management):
     assert not any(obj["id"].startswith("Customer-") for obj in ocel["objects"])  # object_type: null
 
 
+def _task_events(ocel):
+    """The events of tasks: those performed by a resource."""
+    return [event for event in ocel["events"] if event["attributes"][0]["name"] == "resource"]
+
+
 def test_there_is_one_event_per_task_linked_to_its_case(order_management):
     _, log, ocel, _ = order_management
 
     events = Counter((event["type"], event["time"], event["attributes"][0]["value"],
-                      event["relationships"][0]["objectId"]) for event in ocel["events"])
+                      event["relationships"][0]["objectId"]) for event in _task_events(ocel))
     object_type = {"Sales": "order", "Warehouse": "item", "Packaging": "package"}
     rows = Counter((row.activity, row.end_time.tz_convert("UTC").strftime("%Y-%m-%dT%H:%M:%S.%fZ"), row.resource,
                     f"{object_type[row.process]}-{row.case_id}") for row in log.itertuples())
     assert events == rows
-    assert [event["id"] for event in ocel["events"]] == [f"e{n}" for n in range(1, len(log) + 1)]
+    assert [event["id"] for event in ocel["events"]] == [f"e{n}" for n in range(1, len(ocel["events"]) + 1)]
     assert [event["time"] for event in ocel["events"]] == sorted(event["time"] for event in ocel["events"])
 
 
@@ -72,21 +78,23 @@ def test_object_and_event_types_are_listed_with_their_attributes(order_managemen
         "customer": [],
         "product": [{"name": "price", "type": "float"}, {"name": "weight", "type": "float"}],
     }
-    assert {t["name"] for t in ocel["eventTypes"]} == {
-        "place order", "confirm order", "payment reminder", "pay order", "item out of stock", "reorder item",
-        "pick item", "create package", "send package", "failed delivery", "package delivered"}
-    assert all(t["attributes"] == [{"name": "resource", "type": "string"}, {"name": "start_time", "type": "time"},
-                                   {"name": "enable_time", "type": "time"}] for t in ocel["eventTypes"])
+    times = [{"name": "start_time", "type": "time"}, {"name": "enable_time", "type": "time"}]
+    tasks = {"place order", "confirm order", "payment reminder", "pay order", "item out of stock", "reorder item",
+             "pick item", "create package", "send package", "failed delivery", "package delivered"}
+    # the message ends with a qualifier: Sales's items ordered and Packaging's items picked, performed by nobody
+    assert {t["name"]: t["attributes"] for t in ocel["eventTypes"]} == {
+        **{task: [{"name": "resource", "type": "string"}, *times] for task in tasks},
+        "items ordered": times, "items picked": times}
 
 
 def test_pm4py_reads_the_file(order_management):
     pm4py = pytest.importorskip("pm4py")  # not a dependency of Prosimos
-    _, log, _, path = order_management
+    _, log, ocel, path = order_management
 
-    ocel = pm4py.read_ocel2_json(str(path))
+    read = pm4py.read_ocel2_json(str(path))
 
-    assert len(ocel.events) == len(log)
-    assert set(ocel.objects["ocel:type"]) == {"order", "item", "package", "customer", "product"}
+    assert len(read.events) == len(ocel["events"]) > len(log)
+    assert set(read.objects["ocel:type"]) == {"order", "item", "package", "customer", "product"}
 
 
 # start_time and enable_time: an extension of OCEL, whose events have one time, the completion
@@ -107,7 +115,7 @@ def test_every_event_has_the_start_and_enable_time_of_its_log_row(order_manageme
     rows = Counter(zip(log["activity"], log["resource"], [f"{object_type[p]}-{c}" for p, c in zip(log["process"],
                        log["case_id"])], utc("end_time"), utc("start_time"), utc("enable_time")))
     events = Counter((event["type"], event["attributes"][0]["value"], event["relationships"][0]["objectId"],
-                      *_times(event)) for event in ocel["events"])
+                      *_times(event)) for event in _task_events(ocel))
     assert events == rows
 
 
@@ -231,11 +239,13 @@ def test_a_value_copied_at_a_catch_event_is_a_later_attribute_value(tmp_path):
 # objects without events
 
 def test_an_object_no_event_refers_to_is_left_out_with_its_links_but_catalogue_objects_are_written(tmp_path):
-    # p-0 has an event, which links q-1 through a message; p-1 and q-0 have no event and no message links them
+    # p-0 has a task and a message event, which links q-1; p-1 and q-0 have no event and no message links them
     objects = [("P", CaseObject(f"p-{case}", START)) for case in range(2)] + [
         ("Q", CaseObject(f"q-{case}", START.replace(minute=case))) for case in range(2)]
+    sent = START.replace(minute=5)
     write_ocel(tmp_path / "log.json", {"P": OcelProcess("p"), "Q": OcelProcess("q")}, objects,
-               [_row("P", 0, START.replace(minute=5))], None, {("P", 0): [(("Q", "q-1"), "item", False)]},
+               [_row("P", 0, sent)], None, [MessageEvent("P", "p-0", "Throw", "item sent", sent, sent,
+                                                         [(("Q", "q-1"), "item", False)])],
                {("P", "p-0"): [(("Q", "q-0"), "waits for"), (("Q", "q-1"), "ships")],
                 ("P", "p-1"): [("c1", "placed by")], "c1": [(("P", "p-0"), "places"), (("P", "p-1"), "places")]},
                [("customer", "c1", []), ("customer", "c2", [])])
@@ -245,7 +255,8 @@ def test_an_object_no_event_refers_to_is_left_out_with_its_links_but_catalogue_o
     # the objects written are numbered without gaps: Q's case 1 is q-0
     assert {obj["id"]: [(link["objectId"], link["qualifier"]) for link in obj["relationships"]]
             for obj in ocel["objects"]} == {"p-0": [("q-0", "ships")], "q-0": [], "c1": [("p-0", "places")], "c2": []}
-    assert [[link["objectId"] for link in event["relationships"]] for event in ocel["events"]] == [["p-0", "q-0"]]
+    assert [[link["objectId"] for link in event["relationships"]] for event in ocel["events"]] == [
+        ["p-0"], ["p-0", "q-0"]]
 
 
 # one value per attribute and moment

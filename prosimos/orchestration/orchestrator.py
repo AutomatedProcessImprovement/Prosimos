@@ -249,11 +249,12 @@ def orchestrate(
         moved.update(((name, message_id), at) for message_id, at in engine_report.moved.items())
         for record in engine_report.published:
             publishers[record.message_id].append(CaseElement(name, record.object_id, record.element_id,
-                                                             record.qualifier, record.task_rows, record.o2o,
-                                                             record.carry))
+                                                             record.qualifier, record.activity, record.at,
+                                                             record.enabled, record.o2o, record.carry))
         for record in engine_report.claimed:
             claimers[record.message_id].append(CaseElement(name, record.object_id, record.element_id, record.qualifier,
-                                                           record.task_rows, record.o2o, record.carry))
+                                                           record.activity, record.at, record.enabled, record.o2o,
+                                                           record.carry))
     for message in report.published:  # the replies to quotes
         if message.source == ORCHESTRATOR:
             publishers[message.id].append(CaseElement(ORCHESTRATOR, "", ""))

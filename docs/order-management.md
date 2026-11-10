@@ -146,20 +146,23 @@ poetry run prosimos start-orchestration --config testing_scripts/assets/order_ma
 
 The configuration names the object types in the singular, one kind of thing each: `order` (Sales), `item`
 (Warehouse) and `package` (Packaging), and the catalogue adds `customer` and `product`; objects are named
-`<object type>-<number>`, e.g. `order-7`. Each event is linked to the objects on the other end of its messages
-([orchestrator.md](orchestrator.md), "One event linked to many objects"). Only one end of the messages between
-the items and the others links: `ItemOrdered` from the order's place order, `ItemPicked` from the package's
-create package; the Warehouse's entries have no qualifier, so the item's events link neither its order nor its
-package. With `"tag_along": true` on the product reference, every event that links an item also links its
-product (`product`); customers don't tag along, so pay order links no customer:
+`<object type>-<number>`, e.g. `order-7`. A message end whose entry has a qualifier writes an event of its own per
+message, linked to the objects on the other end ([orchestrator.md](orchestrator.md), "One event linked to many
+objects"). Only one end of the messages between the items and the others does: `ItemOrdered` at the order's
+throw event items ordered, `ItemPicked` at the package's catch event items picked; the Warehouse's entries have
+no qualifier, so the item's events link neither its order nor its package. With `"tag_along": true` on the
+product reference, every event that links an item also links its product (`product`); customers don't tag
+along, so pay order links no customer:
 
 | Event                                            | Linked to                                                                                                              |
 |--------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|
-| place order                                      | its order (`order`), the items its ItemOrdered messages started (`item`), their products and its customer (`customer`) |
+| place order                                      | its order (`order`) and its customer (`customer`)                                                                      |
+| items ordered, one per order                     | its order and the items its ItemOrdered messages started (`item`), with their products                                 |
 | confirm order                                    | its order, its customer and, carried, its items and their products                                                     |
 | payment reminder, pay order                      | its order and, carried, its items and their products                                                                   |
 | every event of an item                           | its item (`item`) and its product (`product`), from the Warehouse's product reference; not its order or its package    |
-| create package                                   | its package (`creates`), the items it collected (`item`) and their products                                            |
+| items picked, one per moment it took items       | its package (`package`) and the items whose ItemPicked it took then (`item`), with their products                      |
+| create package                                   | its package (`creates`) and, carried, the items it collected and their products                                        |
 | send package, failed delivery, package delivered | its package (`shipped package`) and, carried, its items and their products                                             |
 
 Objects are linked to each other too: each order **comprises** its items (`"o2o": "comprises"` on Sales's

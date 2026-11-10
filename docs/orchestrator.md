@@ -161,9 +161,10 @@ written as an OCEL 2.0 JSON file, the format of the OCEL 2.0 sample logs, readab
   keys, objects have no relationships. The catalogue's objects are written too, with all their attributes (see
   [catalogue.md](catalogue.md)).
 - **Events:** one per task, i.e. per row of the merged log, with the activity as event type, the task's
-  completion as time, `resource`, `start_time` and `enable_time` as attributes, a link to its case's object, and
-  links to the objects on the other end of its messages (see below) and to the catalogue objects its references
-  name. Event ids (`e1`, `e2`, ...) follow time order.
+  completion as time, `resource`, `start_time` and `enable_time` as attributes, a link to its case's object and
+  to the catalogue objects its references name; and one per case, element and moment a message end with a
+  qualifier sent or took messages, linked to the objects on the other end (see below). Event ids (`e1`, `e2`, ...)
+  follow time order.
 - **Event times, an extension of OCEL.** OCEL events are atomic: one time each, in OCEL 2.0 and in the 2.1
   pre-release. A simulated task takes time and may wait to start, and both matter for simulation (waiting, working
   time, resource use), so every event also carries the task's `start_time` and `enable_time` from its log row,
@@ -171,14 +172,18 @@ written as an OCEL 2.0 JSON file, the format of the OCEL 2.0 sample logs, readab
   allows extra event attributes, so the file stays OCEL 2.0, and `pm4py.read_ocel2_json` reads both as times. The
   event's own `time` stays the completion. The values are the log's: Prosimos computes a task's start from seconds
   since the start of the run, so a task that starts the moment it is enabled may show an `enable_time` 1 µs after
-  its `start_time` (90 of about 22,000 tasks of the Order Management example with seed 1).
+  its `start_time` (90 of about 22,000 tasks of the Order Management example with seed 1). A message event has
+  no `resource`, as nobody performs it: its `time` and `start_time` are the moment it sent or took its messages,
+  its `enable_time` when the case reached the event (at a catch event, when the case began waiting there), and
+  only task event types declare `resource`.
 - `objectTypes` and `eventTypes` list each type with its attributes; an attribute's type is inferred
   from its values.
 - A process without an `object_type` writes no objects and no events. Extra engines write neither.
 
-A case that has no task in the log yet, e.g. an order still collecting its items when the run ends, has no
-events of its own, but it can still be linked from other events through its messages: the still-collecting
-order is linked from the tasks that published the items it took (see below), so its object is written. A case
+A case that has no task in the log yet, e.g. an order still collecting its items when the run ends, may still
+have events of its own, its message events, and be linked from other cases' message events: the
+still-collecting order is linked from the events that published the items it took (see below), so its object is
+written. A case
 that no event refers to, e.g. a packing round still waiting for its first item when the run ends, is left out,
 with the links from and to its object, as `pm4py.read_ocel2_json` would leave it out on reading; the run
 report still lists it as stalled. Catalogue objects have no events by design and are always written.
@@ -194,49 +199,24 @@ The catalogue's objects are written with the catalogue name as type. All keys, w
 Management configuration as a worked example, and every error and warning are in
 [catalogue.md](catalogue.md).
 
-**One event linked to many objects.** Messages only pass at events, which aren't in the log, so a
-message's links go to the task next to its event in the same case, on the token's path, and link the
-object of the case on the other end of the message. Each end writes its links only if its entry has a
-`qualifier` (see below), so a message may link from both ends, one, or neither:
+**One event linked to many objects.** Messages pass at events, which aren't in the log of tasks. A message end
+(a throw, catch, start or end event) whose entry has a `qualifier` (see below) writes an OCEL event of its own
+per case, element and moment it sends or takes messages, named after the event's BPMN name (its id without one),
+and that event links the objects of the cases at the other end of every message it sent or took then. So a
+message may link from both ends, one, or neither:
 
-- **Publishing** (throw or end event): the last task before it. In Order Management, place order →
-  ItemOrdered ×3, so place order is linked to the 3 items the messages started. With `fan_in`, each member
-  links from its own task: each item's Pick item is linked to the package its OrderPicked started.
-- **Claiming** (start or catch event): the next task after it. Collect ItemPicked ×6 → create package,
-  so create package is linked to the 6 items that sent them. At an event-based gateway, the claiming
-  event is the winning branch's catch event, so the links go to the next task on that branch; when the
-  timer wins, there is nothing to link. With `capacity`, each resumed case links its own next task.
+- **Publishing** (throw or end event): one event for the messages a case sends at once. In Order Management,
+  items ordered sends ItemOrdered ×3, so it writes one event, linked to the 3 items the messages started. With
+  `fan_in`, each member writes its own event for its part: each item's Order picked is linked to the package its
+  OrderPicked started.
+- **Claiming** (start or catch event): one event per moment the case takes messages. Items picked collecting
+  ItemPicked ×6 writes one event if the 6 come at once, or one per arrival, each linked to the items whose messages
+  it took then, all enabled when the package began waiting. A message taken on a race branch that later lost the
+  race is still written. With `capacity`, each resumed case writes its own event.
 
-The task is found by following the flows from the event through any other events and gateways, and if
-the case ran that task more than once, by time: the last one completed at or before the publish, or
-the first one enabled at or after the claim. Without such a task, e.g. a catch event followed only by
-the end event, or a case still waiting further on when the run ends, the links are dropped, with one
-warning per element in `engine_warnings`. An end without a qualifier, or of a process without an object type,
-looks for no tasks and warns nothing; links to a process without an object type aren't written.
-
-**Gateways between the event and its tasks.** The links go to the tasks the case actually ran next to
-the event, so a gateway on the way links what it let through in that case:
-
-| Gateway                | After a claiming event (split)                                      | Before a publishing event (join)                                       |
-|------------------------|---------------------------------------------------------------------|------------------------------------------------------------------------|
-| exclusive, event-based | the one task on the branch taken (or on the winning event's branch) | the last task before the event, on the branch that came in             |
-| parallel               | every task on its branches, also one a timer on its branch delays   | the last task of every branch, though they finished at different times |
-| inclusive              | every task on the branches taken in that case, not on every branch  | the last task of every branch taken in that case                       |
-
-After a claim, they are the first run of each task next to the event enabled at or after the claim;
-before a publish, the last run of each task next to the event completed at or before the publish. Only
-the case's runs in the same round count: after a claim, runs enabled before its next claim at that
-event once it has moved on (with `collect`, the case claims several messages there before it moves
-on); before a publish, runs completed since its previous publish there. So in a loop, a message
-doesn't link the tasks of another round, and a branch that wasn't taken in that round links nothing.
-A loop that returns to a point after the catch event makes no new claim to separate its passes, so a
-branch taken only in a later pass is still linked; likewise, a loop that ends before the throw event
-leaves no earlier publish there, so a branch taken only in an earlier pass is still linked.
-
-This is an over-approximation: every object the message links is linked to every one of those tasks.
-When the branches handle different objects, e.g. one packs the items and the other bills the order,
-each object is still linked to all the parallel tasks. Linking each object only to the branch task that
-handles its object type is future work.
+An end without a qualifier, or of a process without an object type, writes no event and no links; links to a
+process without an object type aren't written. The CSV log stays a log of tasks: message events are only in the
+OCEL file.
 
 Three settings shape the links:
 
@@ -244,12 +224,12 @@ Three settings shape the links:
 |----------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `qualifier` (process)                  | qualifier of each event's link to its own case's object; by default the object type                                                                                                                                                                                                                        |
 | `qualifier_by_activity` (process)      | task id → qualifier, overriding `qualifier` for that task's events, e.g. `{"Create_Package": "creates", "Send_Package": "shipped package"}`; a key that isn't a task of the model is rejected                                                                                                              |
-| `carry` (publish or consume entry)     | `true`: every later event of the same case also links the objects this entry's messages linked, e.g. send package and package delivered link the package's items; a list of activities (task names or ids, as in `link_events`): only those later events. Needs a `qualifier` on the entry; off by default |
+| `carry` (publish or consume entry)     | `true`: every later event of the same case, after the message's event, also links the objects that message linked, e.g. create package, send package and package delivered link the package's items; a list of activities (task names or ids, as in `link_events`): only those later events. Needs a `qualifier` on the entry; off by default |
 | `qualifier` (publish or consume entry) | qualifier of the links this end of the message makes, in the JSON file ([messaging.md](messaging.md)); without one, this end makes no links                                                                                                                                                                |
 
-So with a `"qualifier": "item"` on the ItemOrdered publish entry, place order's links to the items are
-qualified `item`; the Warehouse's consume entry has none, so the item's first task doesn't link its order. The
-link of every event to its own case's object is always written.
+So with a `"qualifier": "item"` on the ItemOrdered publish entry, each items ordered event's link to its item is
+qualified `item`; the Warehouse's consume entry has none, so the item's message start writes no event and doesn't
+link its order. The link of every event to its own case's object is always written.
 
 **Run report.** `run_multiprocess_simulation` (and `orchestrate`) return a `RunReport`;
 `RunReport.to_dict()` gives it as plain lists and dicts with times as ISO strings, which is what
@@ -280,9 +260,9 @@ is expected, for example a shipment for an order that was canceled.
 and took each message, and hands them over in `finish()`, at the end of the run; the orchestrator joins
 them on the message id only then. Nothing it decides during the run uses them, so engines stay black
 boxes. A `MessageRecord` has the message's `message_id` and `type`, its `publishers`, and its
-`claimers`, each a `CaseElement` (`process`, `object_id`, `element_id`, and for the OCEL links its
-end's `qualifier`, `task_rows`, the rows of its process's log the links go to, empty if there is
-no such task, and `o2o`, its entry's object link, if any):
+`claimers`, each a `CaseElement` (`process`, `object_id`, `element_id`, and for the OCEL output its
+end's `qualifier`; with one, its event's `activity`, `at`, the moment it sent or took the message, and `enabled`,
+when its case reached the element, else `None`; its entry's `o2o` object link and `carry`, if any):
 
 - **publishers**: the case and the throw or end event that published it; with `fan_in`, every case that
   handed in a part, in the order the parts came in, each with its own publish record;

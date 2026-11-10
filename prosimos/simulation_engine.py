@@ -107,7 +107,6 @@ class SimBPMEnv(EngineMessaging):
         # released by step()
         self.outbox = []
         self.logged_rows = []  # (case id, element id, enabled, completed) per row of the log, in order
-        self._tasks_next_to = dict()  # (element id, forward) -> the tasks next to it, see tasks_next_to()
         self._warned_missing_values = set()
         self._warned_fan_outs = set()
         self._warned_fan_out_lists = set()
@@ -116,7 +115,8 @@ class SimBPMEnv(EngineMessaging):
         self._open_lines = []  # the reserved lines no item has taken yet, oldest first
         self._set_aside = dict()  # (case id, event id) of a waiting item -> (the line it took, the consume entry)
         self._moved_quotes = dict()  # the id of each quote or modify message whose lines moved on here -> when
-        self.line_claims = []  # (quote or modify message id, case id, event id, consume entry, when) per line taken
+        # (quote or modify message id, case id, event id, consume entry, when, since when it waited) per line taken
+        self.line_claims = []
         self._ended_at = dict()  # case id -> the end event it last passed, where its open quotes' cancels attach
         self._piles = dict()  # (fan-in entry, its same values) -> the Pile of the parts handed in so far
         self._warned_fan_in_sizes = set()
@@ -134,7 +134,8 @@ class SimBPMEnv(EngineMessaging):
         self._not_yet = []  # heap of (when, order, task id or split id, working seconds or flows taken) still ahead
         self._not_yet_order = itertools.count()
         self._model_averages = dict()  # task id -> (its staff's calendars, its average duration)
-        self.claimed_by = []  # (case id, event id, consume entry) that took the message deliver() last claimed
+        # (case id, event id, consume entry, since when it waited) that took the message deliver() last claimed
+        self.claimed_by = []
         self._case_attribute_names = ({attribute.name for attribute in sim_setup.case_attributes.attributes}
                                       | {target for point in sim_setup.messaging.consume for target, _ in point.copy}
                                       | set(self._appended) | set(self._aggregated))

@@ -1,6 +1,5 @@
 """The run's output: the merged log and the links of the OCEL file (docs/orchestrator.md, "Output")."""
 import csv
-import itertools
 from collections import defaultdict
 from dataclasses import asdict
 from datetime import datetime
@@ -9,7 +8,7 @@ from typing import Any, Dict, List, Optional
 from prosimos.orchestration.catalogue.model import CatalogueObject, GrowingCatalogue
 from prosimos.orchestration.catalogue.timetable import Timetable
 from prosimos.orchestration.config import SimulationConfig
-from prosimos.orchestration.ocel_writer import OcelProcess
+from prosimos.orchestration.ocel_writer import MessageEvent, OcelProcess
 from prosimos.orchestration.protocol import CaseElement, MessageRecord
 
 
@@ -77,25 +76,30 @@ class _ProcessLogWriter:
 
 
 def plain(element: CaseElement) -> Dict[str, Any]:
-    return {**asdict(element), "task_rows": list(element.task_rows)}
+    return {**asdict(element), "at": _iso(element.at), "enabled": _iso(element.enabled)}
 
 
-def message_links(records: List[MessageRecord], processes: Dict[str, OcelProcess]):
-    """(process, row of that process) -> [((process, object id), qualifier, carry)]: the objects at the other end of
-    the messages the row's task published or took. Ends without a qualifier or a task link nothing."""
+def _iso(moment):
+    return None if moment is None else moment.isoformat()
+
+
+def message_events(records: List[MessageRecord], processes: Dict[str, OcelProcess]) -> List[MessageEvent]:
+    """The OCEL events of the ends with a qualifier, in a process with an object type: one per case, element and
+    moment, linked to the objects at the other end of every message it sent or took then, e.g. one for all the
+    messages of a fan-out, or for those a collect took at once."""
     def has_object(element):
         return element.process in processes and processes[element.process].object_type is not None
 
-    links = defaultdict(list)
+    events = {}  # (process, object id, element id, moment) -> its event, in the order of their first message
     for record in records:
-        for publisher, claimer in itertools.product(record.publishers, record.claimers):
-            for row in publisher.task_rows if has_object(claimer) else ():
-                links[(publisher.process, row)].append(((claimer.process, claimer.object_id), publisher.qualifier,
-                                                        publisher.carry))
-            for row in claimer.task_rows if has_object(publisher) else ():
-                links[(claimer.process, row)].append(((publisher.process, publisher.object_id), claimer.qualifier,
-                                                      claimer.carry))
-    return dict(links)
+        for end, others in [*((publisher, record.claimers) for publisher in record.publishers),
+                            *((claimer, record.publishers) for claimer in record.claimers)]:
+            if end.at is not None and has_object(end):
+                event = events.setdefault((end.process, end.object_id, end.element_id, end.at), MessageEvent(
+                    end.process, end.object_id, end.element_id, end.activity, end.at, end.enabled))
+                event.links.extend(((other.process, other.object_id), end.qualifier, end.carry)
+                                   for other in others if has_object(other))
+    return list(events.values())
 
 
 def message_object_links(records: List[MessageRecord], processes: Dict[str, OcelProcess]):

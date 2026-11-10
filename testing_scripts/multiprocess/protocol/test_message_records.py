@@ -2,7 +2,7 @@
 Message records (docs/orchestrator.md): each engine records which of its cases and elements published and took
 each message, and hands the records over at the end; the orchestrator joins them on the message id.
 """
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytz
 
@@ -140,9 +140,13 @@ def test_the_records_are_in_the_report_as_json():
     report = orchestrate({"Sales": sales, "Picking": picking}, None, 1)
 
     first = report.to_dict()["message_records"][0]
-    # the links attach to row 0 of each log: order-0's place order and item-0's pick item
+    # each end writes its own OCEL event: order-0's Items ordered, when it passed the throw after place order, and
+    # item-0's Item ordered, the message start, at the same moment
+    placed = (START + timedelta(minutes=10)).isoformat()
     assert first == {"message": report.published[0].id, "type": "ItemOrdered",
                      "publishers": [{"process": "Sales", "object_id": "order-0", "element_id": "Throw_Items",
-                                     "qualifier": "ItemOrdered", "task_rows": [0], "o2o": None, "carry": False}],
+                                     "qualifier": "ItemOrdered", "activity": "Items ordered", "at": placed,
+                                     "enabled": placed, "o2o": None, "carry": False}],
                      "claimers": [{"process": "Picking", "object_id": "item-0", "element_id": "Start_Item",
-                                   "qualifier": "ItemOrdered", "task_rows": [0], "o2o": None, "carry": False}]}
+                                   "qualifier": "ItemOrdered", "activity": "Item ordered", "at": placed,
+                                   "enabled": placed, "o2o": None, "carry": False}]}
