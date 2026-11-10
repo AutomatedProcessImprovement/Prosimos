@@ -1,0 +1,108 @@
+{
+  "organizations": [
+    {
+      "name": "Shop",
+      "catalogues": {
+        "product": [
+          {
+            "id": "iPhone"
+          },
+          {
+            "id": "iPad"
+          },
+          {
+            "id": "MacBook"
+          }
+        ]
+      },
+      "processes": [
+        {
+          "name": "Sales",
+          "bpmn_path": "sales.bpmn",
+          "json_path": "sales.json",
+          "arrivals": 20,
+          "object_type": "order",
+          "references": [
+            {
+              "object_attribute": "products",
+              "catalogue": "product",
+              "link_events": [],
+              "pick": {
+                "weights": {
+                  "iPhone": 2,
+                  "iPad": 2,
+                  "MacBook": 1
+                }
+              },
+              "quantity": {
+                "object_attribute": "items"
+              }
+            },
+            {
+              "object_attribute": "addition",
+              "catalogue": "product",
+              "link_events": [],
+              "pick": {
+                "weights": {
+                  "MacBook": 1
+                }
+              },
+              "quantity": 1
+            }
+          ]
+        },
+        {
+          "name": "TartuWarehouse",
+          "bpmn_path": "warehouse.bpmn",
+          "json_path": "tartu_warehouse.json",
+          "arrivals": 30,
+          "object_type": "item",
+          "references": [
+            {
+              "object_attribute": "product",
+              "catalogue": "product",
+              "pick": {
+                "weights": {
+                  "iPhone": 3,
+                  "iPad": 2,
+                  "MacBook": 1
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "TallinnWarehouse",
+          "bpmn_path": "warehouse.bpmn",
+          "json_path": "tallinn_warehouse.json",
+          "arrivals": 20,
+          "object_type": "item",
+          "references": [
+            {
+              "object_attribute": "product",
+              "catalogue": "product",
+              "pick": {
+                "weights": {
+                  "iPhone": 1,
+                  "iPad": 2,
+                  "MacBook": 2
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "seed": 1,
+  "start_time": "2024-01-01T09:00:00+00:00",
+  "consumer_groups": {
+    "Sales": [
+      "Sales"
+    ],
+    "Warehouses": [
+      "TartuWarehouse",
+      "TallinnWarehouse"
+    ]
+  }
+}

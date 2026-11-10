@@ -87,6 +87,8 @@ processes. See:
 - [docs/order-routing.md](docs/order-routing.md): the Order Routing example, with orders, invoices and
   shipments;
 - [docs/order-management.md](docs/order-management.md): an example with orders, items and packages;
+- [docs/stock-reservation.md](docs/stock-reservation.md): an example of quotes, with orders reserving items at two
+  warehouses;
 - [docs/engine-internals.md](docs/engine-internals.md): how Prosimos runs a case, for developers.
 
 

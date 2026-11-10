@@ -1,0 +1,161 @@
+{
+  "resource_profiles": [
+    {
+      "id": "Staff",
+      "name": "Staff",
+      "resource_list": [
+        {
+          "id": "Maker",
+          "name": "Maker",
+          "cost_per_hour": 1,
+          "amount": 1,
+          "calendar": "Always",
+          "assigned_tasks": [
+            "Make_Item"
+          ]
+        },
+        {
+          "id": "Picker",
+          "name": "Picker",
+          "cost_per_hour": 1,
+          "amount": 2,
+          "calendar": "Always",
+          "assigned_tasks": [
+            "Scrap_Item",
+            "Pick_Item"
+          ]
+        }
+      ]
+    }
+  ],
+  "arrival_time_distribution": {
+    "distribution_name": "fix",
+    "distribution_params": [
+      {
+        "value": 10800
+      }
+    ]
+  },
+  "arrival_time_calendar": [
+    {
+      "from": "MONDAY",
+      "to": "SUNDAY",
+      "beginTime": "00:00:00",
+      "endTime": "23:59:59"
+    }
+  ],
+  "gateway_branching_probabilities": [
+    {
+      "gateway_id": "Check",
+      "probabilities": [
+        {
+          "path_id": "Good",
+          "value": 0.9
+        },
+        {
+          "path_id": "Bad",
+          "value": 0.1
+        }
+      ]
+    }
+  ],
+  "task_resource_distribution": [
+    {
+      "task_id": "Make_Item",
+      "resources": [
+        {
+          "resource_id": "Maker",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 3600
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Scrap_Item",
+      "resources": [
+        {
+          "resource_id": "Picker",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 600
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "Pick_Item",
+      "resources": [
+        {
+          "resource_id": "Picker",
+          "distribution_name": "fix",
+          "distribution_params": [
+            {
+              "value": 900
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "resource_calendars": [
+    {
+      "id": "Always",
+      "name": "Always",
+      "time_periods": [
+        {
+          "from": "MONDAY",
+          "to": "SUNDAY",
+          "beginTime": "00:00:00",
+          "endTime": "23:59:59"
+        }
+      ]
+    }
+  ],
+  "messages": {
+    "consume": [
+      {
+        "event_id": "Shelf",
+        "type": "ItemQuote",
+        "condition": [
+          [
+            {
+              "attribute": "product",
+              "comparison": "=",
+              "object_attribute": "product"
+            }
+          ]
+        ],
+        "copy": {
+          "order_id": "object_id",
+          "portion_size": "portion_size"
+        },
+        "qualifier": "reserved for"
+      }
+    ],
+    "publish": [
+      {
+        "event_id": "Throw_Shipment",
+        "type": "Shipment",
+        "fan_in": {
+          "object_attribute": "portion_size"
+        },
+        "same": [
+          "order_id"
+        ],
+        "attributes": [
+          "order_id",
+          {
+            "item_ids": "object_id"
+          }
+        ],
+        "qualifier": "shipped in"
+      }
+    ]
+  }
+}

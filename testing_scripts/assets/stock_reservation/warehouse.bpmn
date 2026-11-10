@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Warehouse" targetNamespace="http://bpmn.io/schema/bpmn">
+  <!-- TartuWarehouse and TallinnWarehouse of the Stock Reservation example (docs/stock-reservation.md) -->
+  <bpmn:process id="Warehouse" isExecutable="false">
+    <bpmn:startEvent id="Start" name="Production started">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:task id="Make_Item" name="Make item">
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:exclusiveGateway id="Check" name="Item OK?">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Good</bpmn:outgoing>
+      <bpmn:outgoing>Bad</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:task id="Scrap_Item" name="Scrap item">
+      <bpmn:incoming>Bad</bpmn:incoming>
+      <bpmn:outgoing>Flow_3</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="End_Scrapped" name="Item scrapped">
+      <bpmn:incoming>Flow_3</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:intermediateCatchEvent id="Shelf" name="On the shelf">
+      <bpmn:incoming>Good</bpmn:incoming>
+      <bpmn:outgoing>Flow_4</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="Shelf_definition" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:task id="Pick_Item" name="Pick item">
+      <bpmn:incoming>Flow_4</bpmn:incoming>
+      <bpmn:outgoing>Flow_5</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:intermediateThrowEvent id="Throw_Shipment" name="Shipment sent">
+      <bpmn:incoming>Flow_5</bpmn:incoming>
+      <bpmn:outgoing>Flow_6</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="Throw_Shipment_definition" />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:endEvent id="End" name="Item shipped">
+      <bpmn:incoming>Flow_6</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Make_Item" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Make_Item" targetRef="Check" />
+    <bpmn:sequenceFlow id="Good" sourceRef="Check" targetRef="Shelf" />
+    <bpmn:sequenceFlow id="Bad" sourceRef="Check" targetRef="Scrap_Item" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Scrap_Item" targetRef="End_Scrapped" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Shelf" targetRef="Pick_Item" />
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="Pick_Item" targetRef="Throw_Shipment" />
+    <bpmn:sequenceFlow id="Flow_6" sourceRef="Throw_Shipment" targetRef="End" />
+  </bpmn:process>
+</bpmn:definitions>

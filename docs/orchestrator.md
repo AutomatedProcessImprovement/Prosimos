@@ -6,8 +6,9 @@ repeatedly steps the engine whose next event is earliest, passes the messages en
 processes that consume them, and writes one merged event log.
 
 How a process model publishes and waits for messages is described in [messaging.md](messaging.md).
-There are two examples: the [Order Routing example](order-routing.md), with orders, invoices and shipments, and the
-[Order Management example](order-management.md), after a real OCEL 2.0 event log.
+There are three examples: the [Order Routing example](order-routing.md), with orders, invoices and shipments, the
+[Order Management example](order-management.md), after a real OCEL 2.0 event log, and the
+[Stock Reservation example](stock-reservation.md), with quotes.
 
 ## Quick start
 

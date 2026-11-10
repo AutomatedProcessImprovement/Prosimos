@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Sales" targetNamespace="http://bpmn.io/schema/bpmn">
+  <!-- Sales of the Stock Reservation example (docs/stock-reservation.md) -->
+  <bpmn:process id="Sales" isExecutable="false">
+    <bpmn:startEvent id="Start" name="Order received">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:task id="Place_Order" name="Place order">
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:intermediateThrowEvent id="Throw_Quote" name="Quote asked">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_3</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="Throw_Quote_definition" />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:eventBasedGateway id="Reply" name="Reply">
+      <bpmn:incoming>Flow_3</bpmn:incoming>
+      <bpmn:outgoing>Flow_4</bpmn:outgoing>
+      <bpmn:outgoing>Flow_5</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+    <bpmn:intermediateCatchEvent id="Catch_Accepted" name="Quote accepted">
+      <bpmn:incoming>Flow_4</bpmn:incoming>
+      <bpmn:outgoing>Flow_8</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="Catch_Accepted_definition" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="Catch_Declined" name="Quote declined">
+      <bpmn:incoming>Flow_5</bpmn:incoming>
+      <bpmn:outgoing>Flow_6</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="Catch_Declined_definition" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:task id="Tell_Customer" name="Tell the customer">
+      <bpmn:incoming>Flow_6</bpmn:incoming>
+      <bpmn:outgoing>Flow_7</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="End_Declined" name="Order declined">
+      <bpmn:incoming>Flow_7</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:exclusiveGateway id="Change" name="Change the order?">
+      <bpmn:incoming>Flow_8</bpmn:incoming>
+      <bpmn:outgoing>Keep</bpmn:outgoing>
+      <bpmn:outgoing>Add</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:task id="Add_MacBook" name="Add a MacBook">
+      <bpmn:incoming>Add</bpmn:incoming>
+      <bpmn:outgoing>Flow_9</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:intermediateThrowEvent id="Throw_Modify" name="Change asked">
+      <bpmn:incoming>Flow_9</bpmn:incoming>
+      <bpmn:outgoing>Flow_10</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="Throw_Modify_definition" />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:eventBasedGateway id="Change_Reply" name="Change reply">
+      <bpmn:incoming>Flow_10</bpmn:incoming>
+      <bpmn:outgoing>Flow_11</bpmn:outgoing>
+      <bpmn:outgoing>Flow_12</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+    <bpmn:intermediateCatchEvent id="Catch_Change_Accepted" name="Change accepted">
+      <bpmn:incoming>Flow_11</bpmn:incoming>
+      <bpmn:outgoing>Flow_13</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="Catch_Change_Accepted_definition" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="Catch_Change_Declined" name="Change declined">
+      <bpmn:incoming>Flow_12</bpmn:incoming>
+      <bpmn:outgoing>Flow_14</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="Catch_Change_Declined_definition" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:exclusiveGateway id="Changed" name="Changed">
+      <bpmn:incoming>Keep</bpmn:incoming>
+      <bpmn:incoming>Flow_13</bpmn:incoming>
+      <bpmn:incoming>Flow_14</bpmn:incoming>
+      <bpmn:outgoing>Flow_15</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:eventBasedGateway id="Wait" name="Wait">
+      <bpmn:incoming>Flow_15</bpmn:incoming>
+      <bpmn:outgoing>Flow_16</bpmn:outgoing>
+      <bpmn:outgoing>Flow_17</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+    <bpmn:intermediateCatchEvent id="Catch_Shipments" name="Shipments received">
+      <bpmn:incoming>Flow_16</bpmn:incoming>
+      <bpmn:outgoing>Flow_18</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="Catch_Shipments_definition" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="Give_Up" name="Gave up">
+      <bpmn:incoming>Flow_17</bpmn:incoming>
+      <bpmn:outgoing>Flow_20</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="Give_Up_definition" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:task id="Close_Order" name="Close order">
+      <bpmn:incoming>Flow_18</bpmn:incoming>
+      <bpmn:outgoing>Flow_19</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="End_Delivered" name="Order delivered">
+      <bpmn:incoming>Flow_19</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:intermediateThrowEvent id="Throw_Cancel" name="Order canceled">
+      <bpmn:incoming>Flow_20</bpmn:incoming>
+      <bpmn:outgoing>Flow_21</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="Throw_Cancel_definition" />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:endEvent id="End_Gave_Up" name="Order given up">
+      <bpmn:incoming>Flow_21</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Place_Order" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Place_Order" targetRef="Throw_Quote" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Throw_Quote" targetRef="Reply" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Reply" targetRef="Catch_Accepted" />
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="Reply" targetRef="Catch_Declined" />
+    <bpmn:sequenceFlow id="Flow_6" sourceRef="Catch_Declined" targetRef="Tell_Customer" />
+    <bpmn:sequenceFlow id="Flow_7" sourceRef="Tell_Customer" targetRef="End_Declined" />
+    <bpmn:sequenceFlow id="Flow_8" sourceRef="Catch_Accepted" targetRef="Change" />
+    <bpmn:sequenceFlow id="Keep" sourceRef="Change" targetRef="Changed" />
+    <bpmn:sequenceFlow id="Add" sourceRef="Change" targetRef="Add_MacBook" />
+    <bpmn:sequenceFlow id="Flow_9" sourceRef="Add_MacBook" targetRef="Throw_Modify" />
+    <bpmn:sequenceFlow id="Flow_10" sourceRef="Throw_Modify" targetRef="Change_Reply" />
+    <bpmn:sequenceFlow id="Flow_11" sourceRef="Change_Reply" targetRef="Catch_Change_Accepted" />
+    <bpmn:sequenceFlow id="Flow_12" sourceRef="Change_Reply" targetRef="Catch_Change_Declined" />
+    <bpmn:sequenceFlow id="Flow_13" sourceRef="Catch_Change_Accepted" targetRef="Changed" />
+    <bpmn:sequenceFlow id="Flow_14" sourceRef="Catch_Change_Declined" targetRef="Changed" />
+    <bpmn:sequenceFlow id="Flow_15" sourceRef="Changed" targetRef="Wait" />
+    <bpmn:sequenceFlow id="Flow_16" sourceRef="Wait" targetRef="Catch_Shipments" />
+    <bpmn:sequenceFlow id="Flow_17" sourceRef="Wait" targetRef="Give_Up" />
+    <bpmn:sequenceFlow id="Flow_18" sourceRef="Catch_Shipments" targetRef="Close_Order" />
+    <bpmn:sequenceFlow id="Flow_19" sourceRef="Close_Order" targetRef="End_Delivered" />
+    <bpmn:sequenceFlow id="Flow_20" sourceRef="Give_Up" targetRef="Throw_Cancel" />
+    <bpmn:sequenceFlow id="Flow_21" sourceRef="Throw_Cancel" targetRef="End_Gave_Up" />
+  </bpmn:process>
+</bpmn:definitions>
