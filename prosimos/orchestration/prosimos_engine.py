@@ -12,8 +12,8 @@ from prosimos.messaging.parser.common import unknown_keys
 from prosimos.orchestration.catalogue.model import QuantityFrom
 from prosimos.orchestration.catalogue.picks import Brought, Pick, Received
 from prosimos.orchestration.config import ProcessSpec
-from prosimos.orchestration.protocol import (CaseObject, ClaimRecord, EngineReport, Line, Message, PublishRecord, Quote,
-                                           QuoteKind, SimulationEngine, Slots, StalledCase, Verdict)
+from prosimos.orchestration.protocol import (CaseObject, EngineReport, Line, Message, MessageSide, Quote, QuoteKind,
+                                           SimulationEngine, Slots, StalledCase, Verdict)
 from prosimos.orchestration.random_generators import engine_random_states, generators
 from prosimos.simulation_engine import SimBPMEnv
 from prosimos.simulation_setup import SimDiffSetup
@@ -170,7 +170,7 @@ class ProsimosEngine(SimulationEngine):
 
     def _attached_records(self):
         """The publish and claim records; an end with a qualifier, of a process with an object type, also says when
-        its OCEL event happened and when its case reached the element (see PublishRecord and ClaimRecord)."""
+        its OCEL event happened and when its case reached the element (see MessageSide)."""
         attach = self._spec.object_type is not None
         graph = self._env.sim_setup.bpmn_graph
 
@@ -179,10 +179,10 @@ class ProsimosEngine(SimulationEngine):
                 return None, None, None
             return graph.element_info[element_id].name, at, enabled
 
-        published = [PublishRecord(message.id, self._env.object_id(p_case), element_id, point.qualifier or "",
-                                   *event(element_id, point, when, when), point.o2o, point.carry)
+        published = [MessageSide(self._env.object_id(p_case), element_id, point.qualifier or "",
+                                 *event(element_id, point, when, when), point.o2o, point.carry, message_id=message.id)
                      for message, p_case, element_id, point, when in self._published]
-        claimed = [ClaimRecord(message_id, self._env.object_id(p_case), element_id, point.qualifier or "",
-                               *event(element_id, point, when, enabled), point.o2o, point.carry)
+        claimed = [MessageSide(self._env.object_id(p_case), element_id, point.qualifier or "",
+                               *event(element_id, point, when, enabled), point.o2o, point.carry, message_id=message_id)
                    for message_id, p_case, element_id, point, when, enabled in self._claimed]
         return published, claimed

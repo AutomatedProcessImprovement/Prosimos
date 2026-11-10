@@ -76,7 +76,9 @@ class _ProcessLogWriter:
 
 
 def plain(element: CaseElement) -> Dict[str, Any]:
-    return {**asdict(element), "at": _iso(element.at), "enabled": _iso(element.enabled)}
+    """The element as the report writes it: the process first, then its other fields, times as ISO strings."""
+    values = asdict(element)
+    return {"process": values.pop("process"), **values, "at": _iso(element.at), "enabled": _iso(element.enabled)}
 
 
 def _iso(moment):

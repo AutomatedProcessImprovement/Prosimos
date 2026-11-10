@@ -45,8 +45,8 @@ def test_a_reply_is_published_by_the_orchestrator_and_claimed_by_the_case_that_c
 
     assert [(record.publishers, [(claimer.object_id, claimer.element_id) for claimer in record.claimers])
             for record in _records(report, "QuoteAccepted")] == [
-        ([CaseElement(ORCHESTRATOR, "", "")], [("order-0", "Catch_Reply")]),
-        ([CaseElement(ORCHESTRATOR, "", "")], [("order-1", "Catch_Reply")])]
+        ([CaseElement("", "", process=ORCHESTRATOR)], [("order-0", "Catch_Reply")]),
+        ([CaseElement("", "", process=ORCHESTRATOR)], [("order-1", "Catch_Reply")])]
 
 
 def test_an_item_that_took_a_line_claims_the_quote_and_is_linked_with_the_order(tmp_path):

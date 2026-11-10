@@ -82,12 +82,11 @@ class StalledCase:
 
 
 @dataclass(frozen=True)
-class PublishRecord:
-    """An engine's record that one of its cases published a message at an element. With a qualifier, the element
-    writes an OCEL event of its own for it, activity at time at, enabled when the case reached it; else these are
-    None."""
+class _Side:
+    """The end of a message at a case and element, as a MessageSide and a CaseElement say it. With a qualifier, the
+    element writes an OCEL event of its own for it, activity at time at, enabled when the case reached it (a catch
+    event: when it began waiting there); else these are None."""
 
-    message_id: str
     object_id: str
     element_id: str
     qualifier: str = ""
@@ -100,21 +99,11 @@ class PublishRecord:
 
 
 @dataclass(frozen=True)
-class ClaimRecord:
-    """An engine's record that one of its cases took a message at an element. With a qualifier, the element writes
-    an OCEL event of its own for it, activity at time at, enabled when the case reached it (a catch event: when it
-    began waiting there); else these are None."""
+class MessageSide(_Side):
+    """One side of a message: the case (its object's id) and element that sent or took the message message_id, as
+    an engine records it (EngineReport.published or claimed)."""
 
-    message_id: str
-    object_id: str
-    element_id: str
-    qualifier: str = ""
-    activity: Optional[str] = None
-    at: Optional[datetime] = None
-    enabled: Optional[datetime] = None
-    o2o: Optional[str] = None  # qualifier of the OCEL link from its case's object to the other end's, if any
-    # the later events of its case that also link the other end's object: True for all, or the activities named
-    carry: Union[bool, Tuple[str, ...]] = False
+    message_id: str = field(kw_only=True)
 
 
 @dataclass
@@ -135,9 +124,9 @@ class EngineReport:
 
     stalled: List[StalledCase] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)  # raised inside this engine during the run
-    # which of its cases and elements published and took each message
-    published: List[PublishRecord] = field(default_factory=list)
-    claimed: List[ClaimRecord] = field(default_factory=list)
+    # which of its cases and elements published and took each message: the sending and the taking sides
+    published: List[MessageSide] = field(default_factory=list)
+    claimed: List[MessageSide] = field(default_factory=list)
     objects: List[CaseObject] = field(default_factory=list)  # every case it created
     logged_elements: List[str] = field(default_factory=list)  # the element id of each row of its log, in order
     # the id of each quote or modify message that reserved lines here -> when the portion holding them moved on
@@ -145,19 +134,10 @@ class EngineReport:
 
 
 @dataclass(frozen=True)
-class CaseElement:
-    """One element of one case of one process; for a message, also its OCEL event and links, as in its record."""
+class CaseElement(_Side):
+    """One element of one case of the process; for a message, also its OCEL event and links, as in its MessageSide."""
 
-    process: str
-    object_id: str
-    element_id: str
-    qualifier: str = ""
-    activity: Optional[str] = None
-    at: Optional[datetime] = None
-    enabled: Optional[datetime] = None
-    o2o: Optional[str] = None  # qualifier of the OCEL link from its case's object to the other end's, if any
-    # the later events of its case that also link the other end's object: True for all, or the activities named
-    carry: Union[bool, Tuple[str, ...]] = False
+    process: str = field(kw_only=True)
 
 
 @dataclass

@@ -3,7 +3,7 @@ import copy
 import itertools
 import random
 from collections import Counter, defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
@@ -247,17 +247,13 @@ def orchestrate(
         report.objects.extend((name, case_object) for case_object in engine_report.objects)
         report.logged_elements[name] = engine_report.logged_elements
         moved.update(((name, message_id), at) for message_id, at in engine_report.moved.items())
-        for record in engine_report.published:
-            publishers[record.message_id].append(CaseElement(name, record.object_id, record.element_id,
-                                                             record.qualifier, record.activity, record.at,
-                                                             record.enabled, record.o2o, record.carry))
-        for record in engine_report.claimed:
-            claimers[record.message_id].append(CaseElement(name, record.object_id, record.element_id, record.qualifier,
-                                                           record.activity, record.at, record.enabled, record.o2o,
-                                                           record.carry))
+        for side in engine_report.published:
+            publishers[side.message_id].append(_case_element(name, side))
+        for side in engine_report.claimed:
+            claimers[side.message_id].append(_case_element(name, side))
     for message in report.published:  # the replies to quotes
         if message.source == ORCHESTRATOR:
-            publishers[message.id].append(CaseElement(ORCHESTRATOR, "", ""))
+            publishers[message.id].append(CaseElement("", "", process=ORCHESTRATOR))
     report.message_records = [MessageRecord(message.id, message.type, publishers[message.id], claimers[message.id])
                               for message in report.published]
     late, overdue = broken_promises(quote_book, moved, report.executed[-1][0] if report.executed else None)
@@ -268,6 +264,12 @@ def orchestrate(
                                            "most_overdue": max(overdue.get(quote_type, []), default=None)}
                               for quote_type in report.quotes}
     return report
+
+
+def _case_element(process, side):
+    """The CaseElement of a MessageSide of the process."""
+    return CaseElement(*(getattr(side, each.name) for each in fields(side) if each.name != "message_id"),
+                       process=process)
 
 
 def _average(spans):
