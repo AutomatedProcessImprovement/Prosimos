@@ -192,17 +192,23 @@ def _referred(processes, rows, message_events):
 
 
 def _written(case_object, listed):
-    """The values of a case's object the output writes: the listed attributes, without None or a start no message
-    wrote, and of one attribute's values at one moment only the last (aggregate writes a total per message)."""
+    """The values of a case's object the output writes: the listed attributes, without a start no message wrote,
+    and of one attribute's values at one moment only the last (aggregate writes a total per message). None is
+    written only as a clearing, when the last value written for the attribute wasn't None."""
     only_started = set(case_object.only_started)
     values = []
     for name, value, time in case_object.attributes:
         if name in only_started:  # its first value is the one it was created with
             only_started.discard(name)
-        elif name in listed and value is not None:
+        elif name in listed:
             values.append((name, value, time))
     last = {(name, time): place for place, (name, _, time) in enumerate(values)}
-    return [value for place, value in enumerate(values) if last[(value[0], value[2])] == place]
+    written, shown = [], {}  # attribute -> whether the file shows a value for it
+    for place, (name, value, time) in enumerate(values):
+        if last[(name, time)] == place and (value is not None or shown.get(name)):
+            written.append((name, value, time))
+            shown[name] = value is not None
+    return written
 
 
 def _settings(processes, process):

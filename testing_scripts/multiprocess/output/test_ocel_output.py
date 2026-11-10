@@ -276,6 +276,64 @@ def test_of_several_values_at_one_moment_only_the_last_is_written_and_a_starting
         ("total", 0, "09:00"), ("weight", 2.0, "09:00"), ("weight", 2.7, "09:30")]
 
 
+# a value cleared: back to None after a value was written
+
+def _cleared_truck(tmp_path):
+    """The OCEL file of one order waiting at the dock, its truck_id drawn as "none yet" when it is created, at 09:00;
+    a truck at 09:30 whose object_id is None copies None into it."""
+    with open("testing_scripts/assets/messaging/orders_and_trucks.json") as file:
+        settings = json.load(file)
+    settings["object_attributes"] = [{"name": "truck_id", "type": "discrete", "values": [{"key": "none yet",
+                                                                                           "value": 1.0}]}]
+    (tmp_path / "orders.json").write_text(json.dumps(settings))
+    orders = ProsimosEngine(ProcessSpec("Orders", "testing_scripts/assets/messaging/orders_and_trucks.bpmn",
+                                        str(tmp_path / "orders.json"), 1, "order"), START, None, seed=1)
+    carrier = ScriptedEngine("Carrier")
+    carrier.publish_at(START.replace(minute=30), "Truck", dock="Tartu", object_id=None)
+    report = orchestrate({"Orders": orders, "Carrier": carrier}, None, 1)
+    write_ocel(tmp_path / "log.json", {"Orders": OcelProcess("order", attributes=("truck_id",))}, report.objects,
+               [_row("Orders", 0, START.replace(minute=30))])
+    return tmp_path / "log.json"
+
+
+def test_a_message_that_copies_none_over_a_value_writes_a_clearing_at_that_moment(tmp_path):
+    with open(_cleared_truck(tmp_path)) as file:
+        [order] = json.load(file)["objects"]
+
+    assert order["attributes"] == [{"name": "truck_id", "value": "none yet", "time": "2024-01-01T09:00:00.000000Z"},
+                                   {"name": "truck_id", "value": None, "time": "2024-01-01T09:30:00.000000Z"}]
+
+
+def test_pm4py_reads_a_clearing_as_a_change_to_no_value(tmp_path):
+    pm4py = pytest.importorskip("pm4py")  # not a dependency of Prosimos
+
+    read = pm4py.read_ocel2_json(str(_cleared_truck(tmp_path)))
+
+    assert read.objects[["ocel:oid", "truck_id"]].to_dict("records") == [{"ocel:oid": "order-0",
+                                                                         "truck_id": "none yet"}]
+    [change] = read.object_changes.to_dict("records")
+    assert (change["ocel:field"], change["truck_id"], change["ocel:timestamp"]) == ("truck_id", None, START.replace(
+        minute=30))
+
+
+def test_only_a_value_written_before_is_cleared(tmp_path):
+    # note never has a value; color is set at 09:00, set again and cleared at 09:30 (only the clearing is the last),
+    # cleared again at 09:45 (nothing more to clear); size is set and cleared at 09:00 alone, so the file never
+    # showed it
+    at = [START.replace(minute=minute) for minute in (0, 30, 45)]
+    order = CaseObject("order-0", START, [
+        ("note", None, at[0]), ("note", None, at[1]), ("color", "red", at[0]), ("color", "blue", at[1]),
+        ("color", None, at[1]), ("color", None, at[2]), ("size", "L", at[0]), ("size", None, at[0])])
+
+    write_ocel(tmp_path / "log.json", {"Sales": OcelProcess("order", attributes=("note", "color", "size"))},
+               [("Sales", order)], [_row("Sales", 0, at[2])])
+
+    with open(tmp_path / "log.json") as file:
+        [written] = json.load(file)["objects"]
+    assert [(value["name"], value["value"], value["time"][11:16]) for value in written["attributes"]] == [
+        ("color", "red", "09:00"), ("color", None, "09:30")]
+
+
 def test_every_order_management_package_with_items_has_one_weight_the_sum_of_its_items(order_management):
     _, _, ocel, _ = order_management
     weights = {obj["id"]: [value["value"] for value in obj["attributes"] if value["name"] == "weight"]
