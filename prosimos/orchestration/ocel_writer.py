@@ -121,7 +121,8 @@ def write_ocel(path, processes, objects, rows, logged_elements=None, message_eve
                        "own": (ids[case], own_qualifier(processes[event.process], event.element_id)),
                        "links": [(ids[end], qualifier) for end, qualifier, _ in event.links],
                        "carries": [(ids[end], qualifier, carry) for end, qualifier, carry in event.links if carry],
-                       "activities": {event.activity, event.element_id}, "carried": [], "references": []})
+                       "activities": {event.activity, event.element_id}, "carried": [],
+                       "references": list(reference_links.get(("message", place), []))})
 
     # a link whose message entry carries it passes on to the later events of the case: every one, or those it names;
     # at the same time, the rows come first, in the order of their logs, then the message events

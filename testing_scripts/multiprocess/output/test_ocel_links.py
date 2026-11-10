@@ -178,12 +178,13 @@ def test_a_case_still_waiting_at_the_end_writes_an_event_for_the_message_it_took
         claimer.activity]
 
 
-def _ocel_of_verdicts(tmp_path, sales_json, picking_json, picking_type="item"):
+def _ocel_of_verdicts(tmp_path, sales_json, picking_json, picking_type="item", sales_qualifiers=()):
     """The OCEL file and the CSV log of one order with 3 items: Sales publishes ItemOrdered per item after place
     order, each starts an item case in Picking (pick item), which publishes ItemReady; Sales collects them in a race
     against 2 days and then sends each item Shipped (or Canceled), which the item takes in its own race. Sales's
-    orders are of type order, Picking's items of picking_type."""
-    config = SimulationConfig(one_organization([ProcessSpec("Sales", SALES, sales_json, 1, "order"),
+    orders are of type order, Picking's items of picking_type; sales_qualifiers is Sales's qualifier_by_activity."""
+    config = SimulationConfig(one_organization([ProcessSpec("Sales", SALES, sales_json, 1, "order",
+                                                            qualifier_by_activity=sales_qualifiers),
                                                 ProcessSpec("Picking", PICKING, picking_json, None, picking_type)]),
                               START, 1)
     run_multiprocess_simulation(config, tmp_path / "log.csv", ocel_out_path=tmp_path / "log.json")
@@ -205,6 +206,27 @@ def test_an_entry_writes_its_ends_events_only_with_a_qualifier(tmp_path):
     assert sorted(_linked(ordered, "item")) == ["item-0", "item-1", "item-2"]
     assert all(len(event["relationships"]) == 1 for event in ocel["events"] if event["type"] != "Items ordered")
     assert {event["type"] for event in ocel["events"]} == {"Place order", "Items ordered", "Pick item"}
+
+
+def test_carry_and_qualifier_by_activity_may_name_a_message_event(tmp_path):
+    # Items ordered carries its items to All items ready, by name, whose own link is set by its id; the order collects
+    # one item an hour, so All items ready writes an event per item
+    with open(SALES_JSON) as file:
+        settings = json.load(file)
+    settings["messages"]["publish"][0].update(qualifier="item", carry=["All items ready"])
+    settings["messages"]["consume"][0]["qualifier"] = "ready"
+    (tmp_path / "sales.json").write_text(json.dumps(settings))
+
+    ocel, _ = _ocel_of_verdicts(tmp_path, str(tmp_path / "sales.json"), PICKING_JSON,
+                                sales_qualifiers=(("Catch_Items", "collects"),))
+
+    ready = _events(ocel, "All items ready")
+    assert [(_owner(event), _linked(event, "ready")) for event in ready] == [
+        (("order-0", "collects"), {f"item-{index}"}) for index in range(3)]
+    assert all(_linked(event, "item") == {"item-0", "item-1", "item-2"} for event in ready)
+    [ordered] = _events(ocel, "Items ordered")
+    assert _owner(ordered) == ("order-0", "order")
+    assert all(len(event["relationships"]) == 1 for event in _events(ocel, "Place order"))
 
 
 def test_a_process_without_an_object_type_writes_nothing(tmp_path):
@@ -287,11 +309,15 @@ def test_the_own_qualifier_defaults_to_the_object_type_and_can_be_set_per_activi
         [("p-0", "case")], [("p-0", "case"), ("q-0", "item")], [("p-0", "finishes")], [("p-1", "finishes")]]
 
 
-def test_qualifier_by_activity_must_name_tasks_of_the_model():
+@pytest.mark.parametrize("element_id, error", [
+    ("Start", "Start, which is not a task or message event of its model"),
+    ("Truck at the dock", "Truck at the dock, which is not a task or message event of its model"),  # by id only
+    ("Catch_Truck", "Catch_Truck, which writes no event: its entry has no qualifier")])
+def test_qualifier_by_activity_must_name_tasks_or_message_events_that_write_events(element_id, error):
     spec = ProcessSpec("Orders", f"{ASSETS}/orders_and_trucks.bpmn", f"{ASSETS}/orders_and_trucks.json", 1,
-                       qualifier_by_activity=(("Catch_Truck", "waits"), ("Load", "loads")))
+                       qualifier_by_activity=((element_id, "waits"), ("Load", "loads")))
 
-    with pytest.raises(ValueError, match="Orders: qualifier_by_activity names Catch_Truck, which is not a task"):
+    with pytest.raises(ValueError, match=f"Orders: qualifier_by_activity names {error}"):
         ProsimosEngine(spec, START, None, seed=1)
 
 

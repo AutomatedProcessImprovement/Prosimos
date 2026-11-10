@@ -56,7 +56,7 @@ def parse_messages(messages_json, bpmn_path, declared_attributes, case_attribute
     check_keys("messages", messages_json, {"publish", "consume"})
 
     events, gateway_branches = _bpmn_events(bpmn_path)
-    tasks = _tasks(bpmn_path)
+    activities = _tasks(bpmn_path), writing_message_events(bpmn_path, messages_json)
     # consume first, so a malformed copy is reported as such, not as an undeclared published attribute
     consume, collecting = [], []
     # fan_out and fan_in get their own reasons below
@@ -70,7 +70,7 @@ def parse_messages(messages_json, bpmn_path, declared_attributes, case_attribute
                              _name(entry, "qualifier", where), _name(entry, "o2o", where),
                              read_append(entry, where, case_attributes), read_aggregate(entry, where, case_attributes),
                              high, high_attribute, read_same(entry, where), fewest, fewest_attribute,
-                             read_carry(entry, where, tasks))
+                             read_carry(entry, where, *activities))
         if "fan_out" in entry:
             fail(f"{where}: fan_out is only for publish entries, on throw and end events: only they publish, and a "
                   f"start event starts exactly one case per message")
@@ -88,7 +88,7 @@ def parse_messages(messages_json, bpmn_path, declared_attributes, case_attribute
     check_races(consume, events, gateway_branches)
     publish = []
     for where, entry in _entries(messages_json, "publish", PUBLISH_KEYS, events, PUBLISHING_EVENTS):
-        links = _name(entry, "qualifier", where), _name(entry, "o2o", where), read_carry(entry, where, tasks)
+        links = _name(entry, "qualifier", where), _name(entry, "o2o", where), read_carry(entry, where, *activities)
         quote = read_quote(entry, where, declared_attributes)
         if "fan_in" in entry:
             publish.append((where, read_fan_in(entry, where, declared_attributes, links)))
@@ -142,6 +142,18 @@ def _name(entry, key, where):
     if not isinstance(entry[key], str) or not entry[key].strip():
         fail(f"{where}: '{key}' must be a non-empty string")
     return entry[key]
+
+
+def writing_message_events(bpmn_path, messages_json):
+    """The model's events with a 'publish' or 'consume' entry, by id and by name -> whether they write OCEL events
+    of their own: whether one of their entries has a qualifier."""
+    names = _event_names(bpmn_path)
+    sections = messages_json if isinstance(messages_json, dict) else {}
+    writes = {}
+    for entry in [*sections.get("publish", []), *sections.get("consume", [])]:
+        if isinstance(entry, dict) and entry.get("event_id") in names:
+            writes[entry["event_id"]] = writes.get(entry["event_id"], False) or bool(entry.get("qualifier"))
+    return {key: written for event_id, written in writes.items() for key in (event_id, names[event_id])}
 
 
 def _tasks(bpmn_path):

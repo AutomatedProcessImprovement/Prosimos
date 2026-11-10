@@ -51,15 +51,16 @@ def run_multiprocess_simulation(config: SimulationConfig, log_out_path: Optional
     if ocel_out_path is not None:
         processes = {spec.name: OcelProcess(spec.object_type, spec.qualifier, dict(spec.qualifier_by_activity),
                                             spec.ocel_attributes) for spec in config.processes}
+        events = message_events(report.message_records, processes)
         static_objects, reference_object_links, reference_event_links = reference_links(
             config, catalogue, processes, report.objects, merged_log.rows, report.logged_elements,
             report.warnings.append, {name: timetables[organization.name] for organization in config.organizations
-                                     for name in organization.catalogues})
+                                     for name in organization.catalogues}, events)
         object_links = message_object_links(report.message_records, processes)
         for source, links in reference_object_links.items():
             object_links.setdefault(source, []).extend(links)
         write_ocel(ocel_out_path, processes, report.objects, merged_log.rows, report.logged_elements,
-                   message_events(report.message_records, processes), object_links, static_objects,
+                   events, object_links, static_objects,
                    reference_event_links, tag_along(config, catalogue, report.objects))
 
     return report

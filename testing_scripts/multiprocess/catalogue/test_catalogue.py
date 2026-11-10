@@ -4,6 +4,7 @@ a reference says a case attribute's value is the id of a catalogue object, or a 
 single value is, and the OCEL output links the case's object and the events named in link_events to it, and, with
 tag_along, every event of another case that links the case's object.
 """
+import dataclasses
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -87,6 +88,27 @@ def test_place_and_confirm_order_link_their_customer_and_pay_order_does_not(orde
     assert linked == {"place order": 100, "confirm order": 100}
 
 
+def test_a_message_event_named_in_link_events_links_its_customer_in_the_ocel_file(tmp_path):
+    # items ordered, Sales's throw event, joins place order and confirm order
+    config = order_management_config(5)
+    [shop] = config.organizations
+    sales = next(spec for spec in shop.processes if spec.name == "Sales")
+    references = tuple(dataclasses.replace(reference, link_events=(*reference.link_events, "items ordered"))
+                       if reference.object_attribute == "customer" else reference for reference in sales.references)
+    config = dataclasses.replace(config, organizations=[dataclasses.replace(shop, processes=[
+        dataclasses.replace(spec, references=references) if spec is sales else spec for spec in shop.processes])])
+
+    report = run_multiprocess_simulation(config, None, ocel_out_path=tmp_path / "log.json")
+
+    with open(tmp_path / "log.json") as file:
+        ordered = [event for event in json.load(file)["events"] if event["type"] == "items ordered"]
+    customer_of = _customers_of_orders(report)
+    assert len(ordered) == 5
+    for event in ordered:
+        order = event["relationships"][0]["objectId"]
+        assert {"objectId": customer_of[order], "qualifier": "customer"} in event["relationships"]
+
+
 def test_pm4py_reads_the_customers(order_management):
     pm4py = pytest.importorskip("pm4py")
     _, _, path = order_management
@@ -111,14 +133,14 @@ def _empty_settings(tmp_path, monkeypatch):
     monkeypatch.setattr(f"{__name__}.SETTINGS", str(path))
 
 
-def _links(references, objects, rows, processes=None, catalogues=None):
+def _links(references, objects, rows, processes=None, catalogues=None, message_events=()):
     config = SimulationConfig(one_organization(
         [ProcessSpec("P", SALES, SETTINGS, 1, references=tuple(references))],
         catalogues or {"customer": [CatalogueObject("c1"), CatalogueObject("c2")]}), START)
     warnings = []
     static_objects, object_links, event_links = reference_links(
         config, config.catalogue, processes or {"P": OcelProcess("p")}, objects, rows, {"P": ["Place_Order", "Confirm_Order"]},
-        warnings.append)
+        warnings.append, message_events=message_events)
     return static_objects, object_links, event_links, warnings
 
 
@@ -141,6 +163,58 @@ def test_link_events_may_name_a_task_by_its_id():
                                   TWO_ROWS)
 
     assert event_links == {("P", 1): [("c1", "customer")]}
+
+
+def _items_ordered(qualifier):
+    """P's settings get an entry for its throw event items ordered, with the qualifier or none; and that event of
+    case 0 at 09:15, after the customer changed from c1 to c2 at 09:12."""
+    entry = {"event_id": "Throw_ItemOrdered", "type": "ItemOrdered", **({"qualifier": qualifier} if qualifier else {})}
+    Path(SETTINGS).write_text(json.dumps({"messages": {"publish": [entry]}}))
+    at = START + timedelta(minutes=15)
+    return [MessageEvent("P", "p-0", "Throw_ItemOrdered", "items ordered", at, at)]
+
+
+@pytest.mark.parametrize("link_events", [None, ("items ordered",), ("Throw_ItemOrdered",)])
+def test_link_events_may_name_a_message_event_and_it_links_the_value_at_its_time(link_events):
+    objects = [("P", CaseObject("p-0", START, [("customer", "c1", START),
+                                               ("customer", "c2", START + timedelta(minutes=12))]))]
+
+    _, _, event_links, _ = _links([Reference("customer", "customer", link_events=link_events)], objects, TWO_ROWS,
+                                  message_events=_items_ordered("item"))
+
+    assert event_links[("message", 0)] == [("c2", "customer")]
+    assert (("P", 1) in event_links) == (link_events is None)
+
+
+def test_link_events_naming_a_task_leaves_the_message_events_out():
+    _, _, event_links, _ = _links([Reference("customer", "customer", link_events=("place order",))], ONE_CASE,
+                                  TWO_ROWS, message_events=_items_ordered("item"))
+
+    assert event_links == {("P", 0): [("c1", "customer")]}
+
+
+def test_a_reference_links_only_its_own_processs_message_events():
+    # P and Q share a model, and each case has a customer: Q's items ordered comes first, but only P has a reference
+    [ordered] = _items_ordered("item")
+    config = SimulationConfig(one_organization(
+        [ProcessSpec("P", SALES, SETTINGS, 1, references=(Reference("customer", "customer"),)),
+         ProcessSpec("Q", SALES, SETTINGS, 1)], {"customer": [CatalogueObject("c1"), CatalogueObject("c2")]}), START)
+    objects = [("P", CaseObject("p-0", START, [("customer", "c1", START)])),
+               ("Q", CaseObject("q-0", START, [("customer", "c2", START)]))]
+    events = [dataclasses.replace(ordered, process="Q", object_id="q-0"), ordered]
+
+    _, _, event_links = reference_links(config, config.catalogue, {"P": OcelProcess("p"), "Q": OcelProcess("q")},
+                                        objects, [], {}, [].append, message_events=events)
+
+    assert event_links == {("message", 1): [("c1", "customer")]}
+
+
+def test_link_events_naming_a_message_event_without_a_qualifier_is_rejected():
+    # it writes no event, so the link would never appear
+    with pytest.raises(ValueError, match=r"processes\[0\].references\[0\] link_events names items ordered, which "
+                                         r"writes no event: its entry has no qualifier"):
+        _links([Reference("customer", "customer", link_events=("items ordered",))], ONE_CASE, TWO_ROWS,
+               message_events=_items_ordered(None))
 
 
 def test_without_reverse_the_link_goes_from_the_case_object_to_the_catalogue_object():
@@ -441,13 +515,13 @@ def test_a_reference_missing_a_key_is_rejected(tmp_path):
         SimulationConfig.from_json(path)
 
 
-def test_a_link_events_name_that_is_no_task_of_the_process_is_rejected(tmp_path):
-    # a typo would otherwise silently link nothing
+def test_a_link_events_name_that_is_no_task_or_message_event_of_the_process_is_rejected(tmp_path):
+    # a typo would otherwise silently link nothing; Throw_ItemOrdered's entry has a qualifier
     path = config_with(tmp_path, references={"Sales": [{"object_attribute": "customer", "catalogue": "customer",
                                                         "link_events": ["place order", "confrim order", "Throw_ItemOrdered"]}]})
 
-    with pytest.raises(ValueError, match=r"processes\[0\].references\[0\] link_events names \['confrim order', 'Throw_ItemOrdered'\], "
-                                         r"which are no tasks of process Sales"):
+    with pytest.raises(ValueError, match=r"processes\[0\].references\[0\] link_events names \['confrim order'\], "
+                                         r"which are no tasks or message events of process Sales"):
         SimulationConfig.from_json(path)
 
 

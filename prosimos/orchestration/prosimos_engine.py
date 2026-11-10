@@ -9,6 +9,7 @@ from typing import List, Optional, Tuple
 from prosimos.control_flow_manager import BPMN
 from prosimos.messaging.model import ConsumePoint, PublishPoint
 from prosimos.messaging.parser.common import unknown_keys
+from prosimos.messaging.parser.reading import writing_message_events
 from prosimos.orchestration.catalogue.model import QuantityFrom
 from prosimos.orchestration.catalogue.picks import Brought, Pick, Received
 from prosimos.orchestration.config import ProcessSpec
@@ -85,10 +86,20 @@ class ProsimosEngine(SimulationEngine):
                                                 if isinstance(pick, (Received, Brought))])
         tasks = {element_id for element_id, element in sim_setup.bpmn_graph.element_info.items()
                  if element.type is BPMN.TASK}
-        unknown = sorted(task_id for task_id, _ in spec.qualifier_by_activity if task_id not in tasks)
+        with open(spec.json_path) as file:
+            events = writing_message_events(spec.bpmn_path, json.load(file).get("messages"))
+        named = [element_id for element_id, _ in spec.qualifier_by_activity if element_id not in tasks]
+        # a message event by its id only, as a task: events also holds their names
+        unknown = sorted(element_id for element_id in named
+                         if element_id not in events or element_id not in sim_setup.bpmn_graph.element_info)
         if unknown:
-            raise ValueError(f"{spec.name}: qualifier_by_activity names {', '.join(unknown)}, which "
-                             f"{'is not a task' if len(unknown) == 1 else 'are not tasks'} of its model")
+            what = "is not a task or message event" if len(unknown) == 1 else "are not tasks or message events"
+            raise ValueError(f"{spec.name}: qualifier_by_activity names {', '.join(unknown)}, which {what} of its "
+                             f"model")
+        silent = sorted(element_id for element_id in named if not events[element_id])
+        if silent:
+            raise ValueError(f"{spec.name}: qualifier_by_activity names {silent[0]}, which writes no event: its entry "
+                             f"has no qualifier")
 
     @contextmanager
     def _own_globals(self):

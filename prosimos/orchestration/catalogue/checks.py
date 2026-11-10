@@ -9,6 +9,7 @@ from prosimos.case_attributes import CaseAttribute
 from prosimos.control_flow_manager import BPMN
 from prosimos.messaging.model import AGGREGATE_FUNCTIONS
 from prosimos.messaging.parser.common import is_number, is_whole_number
+from prosimos.messaging.parser.reading import writing_message_events
 from prosimos.orchestration.catalogue.model import (CataloguePool, Computed, GrowingCatalogue, NewShare, QuantityFrom,
                                                     catalogue_ids)
 from prosimos.simulation_properties_parser import parse_simulation_model
@@ -92,12 +93,23 @@ def checked_catalogue(organizations):
             continue
         if reference.link_events:
             if reference.process not in tasks_of:
-                graph = parse_simulation_model(specs[reference.process].bpmn_path)
-                tasks_of[reference.process] = {key for info in graph.element_info.values() if info.type == BPMN.TASK
-                                               for key in (info.id, info.name)}
-            unknown = [task for task in reference.link_events if task not in tasks_of[reference.process]]
+                spec = specs[reference.process]
+                graph = parse_simulation_model(spec.bpmn_path)
+                with open(spec.json_path) as file:
+                    messages = json.load(file).get("messages")
+                tasks_of[reference.process] = ({key for info in graph.element_info.values() if info.type == BPMN.TASK
+                                                for key in (info.id, info.name)},
+                                               writing_message_events(spec.bpmn_path, messages))
+            tasks, events = tasks_of[reference.process]
+            named = [name for name in reference.link_events if name not in tasks]
+            unknown = [name for name in named if name not in events]
+            silent = [name for name in named if name in events and not events[name]]
             if unknown:
-                problems.append(f"{where} link_events names {unknown}, which are no tasks of process {reference.process}")
+                problems.append(f"{where} link_events names {unknown}, which are no tasks or message events of process "
+                                f"{reference.process}")
+            elif silent:
+                problems.append(f"{where} link_events names {silent[0]}, which writes no event: its entry has no "
+                                f"qualifier")
         if reference.pick is not None:
             problems.extend(f"{where} {problem}"
                             for problem in _pick_problems(reference, catalogue[reference.catalogue], specs))

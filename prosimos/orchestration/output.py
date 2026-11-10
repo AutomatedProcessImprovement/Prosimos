@@ -129,14 +129,18 @@ def message_object_links(records: List[MessageRecord], processes: Dict[str, Ocel
 
 def reference_links(config: SimulationConfig, catalogue: Dict[str, List[CatalogueObject]],
                     processes: Dict[str, OcelProcess], objects, rows, logged_elements, warn,
-                    timetables: Optional[Dict[str, Timetable]] = None):
+                    timetables: Optional[Dict[str, Timetable]] = None, message_events: List[MessageEvent] = ()):
     """The catalogue objects to write, as (catalogue name, id, [(attribute, value, time)]), and the links the
-    references give: object -> [(object, qualifier)] and (process, row) -> [(object id, qualifier)] (docs/catalogue.md,
-    "The links"). timetables: catalogue name -> its organization's timetable; None: values that never change."""
+    references give: object -> [(object, qualifier)], and (process, row) and ("message", place in message_events) ->
+    [(object id, qualifier)] (docs/catalogue.md, "The links"). timetables: catalogue name -> its organization's
+    timetable; None: values that never change."""
     ids_of = {name: {obj.id for obj in catalogue_objects} for name, catalogue_objects in catalogue.items()}
     history = {(process, case_object.object_id): case_object.attributes for process, case_object in objects}
     object_links, event_links, warned, referred = defaultdict(list), defaultdict(list), set(), set()
     first_taken = {}  # (catalogue name, id) -> when the first case took it
+    events_of = defaultdict(list)  # process -> its message events, each with its place in message_events
+    for place, event in enumerate(message_events):
+        events_of[event.process].append((place, event))
 
     def in_catalogue(reference, value):
         if str(value) in ids_of[reference.catalogue]:
@@ -190,6 +194,13 @@ def reference_links(config: SimulationConfig, catalogue: Dict[str, List[Catalogu
             for value in values(case, reference.object_attribute, _as_datetime(row["end_time"])):
                 if in_catalogue(reference, value):
                     event_links[(process, number)].append((str(value), reference.object_attribute))
+        for place, event in events_of[reference.process]:
+            if reference.link_events is not None and not {event.activity, event.element_id} & set(
+                    reference.link_events):
+                continue
+            for value in values((event.process, event.object_id), reference.object_attribute, event.at):
+                if in_catalogue(reference, value):
+                    event_links[("message", place)].append((str(value), reference.object_attribute))
 
     def time_of(name, object_id):
         growing = isinstance(config.catalogue[name], GrowingCatalogue)

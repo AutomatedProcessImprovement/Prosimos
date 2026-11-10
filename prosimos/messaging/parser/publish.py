@@ -10,17 +10,23 @@ ONE_SIZE = "a whole number of at least 1 or {\"object_attribute\": <object attri
 MIN_MAX = "{\"min\": <whole number>, \"max\": <whole number or object_attribute>}"
 
 
-def read_carry(entry, where, tasks):
-    """The entry's optional 'carry': true, or a list of activities; it needs a qualifier on the entry."""
+def read_carry(entry, where, tasks, writing_events):
+    """The entry's optional 'carry': true, or a list of activities, tasks or message events that write OCEL events
+    (writing_events: by id and name -> whether they do); it needs a qualifier on the entry."""
     if "carry" not in entry:
         return False
     carry = entry["carry"]
     if not (isinstance(carry, bool)
             or isinstance(carry, list) and all(isinstance(name, str) and name.strip() for name in carry)):
-        fail(f"{where}: 'carry' must be true or a list of activities (task names or ids), got {carry!r}")
-    unknown = [name for name in carry if name not in tasks] if isinstance(carry, list) else []
+        fail(f"{where}: 'carry' must be true or a list of activities (names or ids of tasks or message events), got "
+             f"{carry!r}")
+    named = [name for name in carry if name not in tasks] if isinstance(carry, list) else []
+    unknown = [name for name in named if name not in writing_events]
     if unknown:
-        fail(f"{where}: carry names {unknown}, which are no tasks of the process")
+        fail(f"{where}: carry names {unknown}, which are no tasks or message events of the process")
+    silent = [name for name in named if not writing_events[name]]
+    if silent:
+        fail(f"{where}: carry names {silent[0]}, which writes no event: its entry has no qualifier")
     if carry and "qualifier" not in entry:
         fail(f"{where}: carry needs a qualifier on the same entry; a carried link needs its role word")
     return tuple(carry) if isinstance(carry, list) else carry

@@ -339,15 +339,16 @@ took. A link is written once, however many messages give it. It must be a non-em
 
 **carry** (optional, on an entry with a `qualifier`) passes this end's links on to the later events of the same
 case ([orchestrator.md](orchestrator.md), "One event linked to many objects"): with `true`, every later event of
-the case also links the objects this entry's messages linked; with a list of activities (task names or ids, as
-in a reference's `link_events`), only those. Later means after the message's own event. Without it, a link stays
-on its message event. In Order
+the case also links the objects this entry's messages linked; with a list of activities (names or ids of tasks or
+message events, as in a reference's `link_events`), only those. Later means after the message's own event.
+Without it, a link stays on its message event. In Order
 Management, Sales's `ItemOrdered` entry and Packaging's `ItemPicked` entry have `"carry": true`: confirm order,
 payment reminder and pay order link the order's items, and create package, send package and its delivery events
 the package's items. A case with several entries carries only the links of those that say
 so, e.g. an order's items to every later event but a shipment it received only to `["confirm delivery"]`. A
 carried link needs its role word, so `carry` without a `qualifier` on the same entry is a load error, as is an
-activity that isn't a task of the model.
+activity that isn't a task or message event of the model, or a message event whose entry has no `qualifier`: it
+writes no event, so the link would never appear.
 
 One event may appear in several entries: under `publish`, passing it publishes one message per
 entry (or `fan_out` messages); under `consume`, a case waiting there accepts any of the entries' types. To wait
@@ -444,7 +445,8 @@ The section is checked when the model is loaded. An invalid section stops loadin
 - `same` is a non-empty list of message attribute names, each listed once, on an entry with `collect`:
   without one, a case takes a single message, so there is nothing to compare it with.
 - `qualifier` and `o2o`, where given, are non-empty strings; `carry` is `true`, `false` or a list of the model's
-  tasks (names or ids), and only on an entry with a `qualifier`.
+  tasks and message events (names or ids), a message event only if its entry has a `qualifier`, and `carry` only
+  on an entry with a `qualifier`.
 - A start event's condition (a `consume` entry on a start event) uses only fixed values and `source`,
   not `object_attribute`: there is no case yet to compare with.
 - `condition` is a non-empty list of non-empty lists of terms.

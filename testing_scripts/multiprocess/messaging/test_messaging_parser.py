@@ -260,12 +260,25 @@ def test_a_message_end_event_with_two_arrows_publishes_once_per_token(tmp_path):
 
 # carry: which later events of the case also link what an entry's messages link
 
-def test_carry_is_true_or_a_list_of_tasks_by_name_or_id(bpmn):
+def test_carry_is_true_or_a_list_of_activities_by_name_or_id(bpmn):
     model = parse_messages({**publish(qualifier="order", carry=True),
                             **consume(qualifier="shipment", carry=["Place_Order"])}, bpmn, DECLARED)
 
     assert model.publish[0].carry is True and model.consume[0].carry == ("Place_Order",)
     assert parse_messages(publish(), bpmn, DECLARED).publish[0].carry is False
+
+
+def test_carry_may_name_a_message_event_whose_entry_has_a_qualifier(bpmn):
+    model = parse_messages({**publish(qualifier="order"), **consume(qualifier="shipment", carry=["Throw_OrderPlaced"])},
+                           bpmn, DECLARED)
+
+    assert model.consume[0].carry == ("Throw_OrderPlaced",)
+
+
+def test_carry_naming_a_message_event_without_a_qualifier_is_rejected(bpmn):
+    # it writes no event, so the carried link would never appear
+    message = "messages.consume[0]: carry names Throw_OrderPlaced, which writes no event: its entry has no qualifier"
+    assert message in rejected({**publish(), **consume(qualifier="shipment", carry=["Throw_OrderPlaced"])}, bpmn)
 
 
 def test_carry_without_a_qualifier_is_rejected(bpmn):
@@ -274,11 +287,12 @@ def test_carry_without_a_qualifier_is_rejected(bpmn):
 
 
 def test_carry_naming_an_unknown_activity_is_rejected(bpmn):
-    assert "messages.consume[0]: carry names ['close order'], which are no tasks of the process" in \
-        rejected(consume(qualifier="shipment", carry=["close order"]), bpmn)
+    message = "messages.consume[0]: carry names ['close order'], which are no tasks or message events of the process"
+    assert message in rejected(consume(qualifier="shipment", carry=["close order"]), bpmn)
 
 
 @pytest.mark.parametrize("carry", ["yes", 1, ["Place_Order", ""], [3], {"Place_Order": True}])
 def test_carry_that_isnt_true_or_a_list_of_names_is_rejected(bpmn, carry):
-    assert "messages.publish[0]: 'carry' must be true or a list of activities (task names or ids)" in \
-        rejected(publish(qualifier="order", carry=carry), bpmn)
+    message = ("messages.publish[0]: 'carry' must be true or a list of activities (names or ids of tasks or message "
+               "events)")
+    assert message in rejected(publish(qualifier="order", carry=carry), bpmn)
